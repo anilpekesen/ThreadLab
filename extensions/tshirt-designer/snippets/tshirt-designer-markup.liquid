@@ -1,0 +1,323 @@
+<!-- ── Designer Header ─────────────────────────────────────────────────── -->
+<div class="dsgn-header">
+  <div>
+    <p class="dsgn-kicker">Kişiye özel tişört</p>
+    <h2 class="dsgn-title">Tasarımını oluştur</h2>
+  </div>
+  <div class="dsgn-price-box" aria-live="polite">
+    <span data-designer-mode-label>Tasarım ekleyin</span>
+    <strong data-designer-price-label></strong>
+  </div>
+</div>
+
+<!-- ── Designer Workspace ─────────────────────────────────────────────── -->
+<div class="dsgn-workspace">
+
+  <!-- Left nav -->
+  <nav class="dsgn-nav" aria-label="Araçlar">
+    <button class="dsgn-nav-btn" type="button" data-tool="image" title="Resim Ekle">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <span>Resim</span>
+    </button>
+    <button class="dsgn-nav-btn" type="button" data-tool="text" title="Yazı Ekle">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+      <span>Yazı</span>
+    </button>
+    <button class="dsgn-nav-btn" type="button" data-tool="designs" title="Tasarımlar">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      <span>Şablonlar</span>
+    </button>
+    <button class="dsgn-nav-btn" type="button" data-tool="saved" title="Kaydedilenler">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      <span>Kayıtlar</span>
+    </button>
+  </nav>
+
+  <!-- Tool panel -->
+  <div class="dsgn-tool-panel" data-tool-panel>
+
+    <!-- Image panel -->
+    <div class="dsgn-tp" data-tp="image">
+      <div class="dsgn-tp-head">Resim Ekle</div>
+      <div class="dsgn-dropzone" data-dropzone>
+        <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-file-input hidden>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+        <span>Sürükle &amp; bırak</span>
+        <small>PNG · JPG · WEBP · SVG · Max 8 MB</small>
+      </div>
+      <div class="dsgn-img-thumbs" data-img-thumbs></div>
+    </div>
+
+    <!-- Text panel -->
+    <div class="dsgn-tp" data-tp="text">
+      <div class="dsgn-tp-head">Yazı Ekle</div>
+      <div class="dsgn-tp-body">
+        <textarea data-text-input rows="3" maxlength="120" placeholder="Yazını yaz…"></textarea>
+        <div class="dsgn-tp-row">
+          <label>Font</label>
+          <select data-font-family class="dsgn-select">
+            <option value="Arial">Arial</option>
+            <option value="Georgia">Georgia</option>
+            <option value="Impact">Impact</option>
+            <option value="Courier New">Courier</option>
+            <option value="Times New Roman">Times</option>
+            <option value="Verdana">Verdana</option>
+            <option value="Trebuchet MS">Trebuchet</option>
+          </select>
+        </div>
+        <div class="dsgn-tp-row">
+          <label>Boyut <span data-text-size-val>30</span>px</label>
+          <input type="range" data-text-size min="10" max="96" value="30">
+        </div>
+        <div class="dsgn-tp-row">
+          <label>Renk</label>
+          <input type="color" data-text-color value="#111111" class="dsgn-color-input">
+        </div>
+        <div class="dsgn-style-btns">
+          <button type="button" class="dsgn-style-btn" data-style="bold" title="Kalın"><b>B</b></button>
+          <button type="button" class="dsgn-style-btn" data-style="italic" title="Eğik"><i>I</i></button>
+          <button type="button" class="dsgn-style-btn" data-style="underline" title="Altı çizili"><u>U</u></button>
+        </div>
+        <button type="button" class="dsgn-add-btn" data-add-text>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Yazı Ekle
+        </button>
+      </div>
+    </div>
+
+    <!-- Designs panel -->
+    <div class="dsgn-tp" data-tp="designs">
+      <div class="dsgn-tp-head">Şablon Tasarımlar</div>
+      <div class="dsgn-design-grid" data-design-grid></div>
+    </div>
+
+    <!-- Saved panel -->
+    <div class="dsgn-tp" data-tp="saved">
+      <div class="dsgn-tp-head">Kaydedilenler</div>
+      <div class="dsgn-tp-body">
+        <p class="dsgn-tp-hint">Tasarımını kaydedip daha sonra tekrar yükleyebilirsin.</p>
+        <button type="button" class="dsgn-add-btn" data-save-design>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Tasarımı Kaydet
+        </button>
+        <div class="dsgn-saved-grid" data-saved-grid></div>
+      </div>
+    </div>
+
+  </div><!-- /tool-panel -->
+
+  <!-- Stage area -->
+  <div class="dsgn-stage-area" data-stage-area>
+
+    <!-- Canvas toolbar -->
+    <div class="dsgn-canvas-tb">
+      <button type="button" class="dsgn-tb-btn" data-undo title="Geri al">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+      </button>
+      <button type="button" class="dsgn-tb-btn" data-redo title="İleri al">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
+      </button>
+      <button type="button" class="dsgn-tb-btn dsgn-tb-btn--danger" data-delete-obj title="Sil">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button>
+      <span class="dsgn-tb-sep"></span>
+      <button type="button" class="dsgn-tb-btn" data-prev-view title="Önceki yüz">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span class="dsgn-tb-label" data-view-label>Ön</span>
+      <button type="button" class="dsgn-tb-btn" data-next-view title="Sonraki yüz">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <span class="dsgn-tb-sep"></span>
+      <button type="button" class="dsgn-tb-btn" data-zoom-out title="Uzaklaştır">−</button>
+      <span class="dsgn-tb-label" data-zoom-label>100%</span>
+      <button type="button" class="dsgn-tb-btn" data-zoom-in title="Yaklaştır">+</button>
+      <span class="dsgn-tb-sep"></span>
+      <button type="button" class="dsgn-tb-btn dsgn-tb-btn--accent" data-qr-btn title="QR Kod">QR</button>
+      <button type="button" class="dsgn-tb-btn" data-reset-btn title="Sıfırla">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.17"/></svg>
+      </button>
+    </div>
+
+    <!-- Color swatches row -->
+    <div class="dsgn-color-row" data-color-row></div>
+
+    <!-- Product wrap -->
+    <div class="dsgn-product-wrap" data-product-wrap>
+      <img data-product-img alt="" class="dsgn-product-img" width="480" height="540">
+
+      <div class="dsgn-shirt-svg-wrap" data-shirt-svg-wrap hidden>
+        <svg data-shirt-svg viewBox="0 0 480 540" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="dsgnSideShade" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:rgba(0,0,0,0.18);stop-opacity:1"/>
+              <stop offset="20%" style="stop-color:rgba(0,0,0,0);stop-opacity:0"/>
+              <stop offset="80%" style="stop-color:rgba(0,0,0,0);stop-opacity:0"/>
+              <stop offset="100%" style="stop-color:rgba(0,0,0,0.18);stop-opacity:1"/>
+            </linearGradient>
+            <linearGradient id="dsgnBottomShade" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="70%" style="stop-color:rgba(0,0,0,0);stop-opacity:0"/>
+              <stop offset="100%" style="stop-color:rgba(0,0,0,0.14);stop-opacity:1"/>
+            </linearGradient>
+            <linearGradient id="dsgnTopLight" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:rgba(255,255,255,0.22);stop-opacity:1"/>
+              <stop offset="30%" style="stop-color:rgba(255,255,255,0);stop-opacity:0"/>
+            </linearGradient>
+            <filter id="dsgnDrop" x="-5%" y="-5%" width="115%" height="120%">
+              <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="rgba(0,0,0,0.28)"/>
+            </filter>
+          </defs>
+          <!-- Main body -->
+          <path id="dsgnShirtBody" d="M148,60 L206,128 Q240,168 274,128 L332,60 L446,168 L410,282 L368,256 L368,496 L112,496 L112,256 L70,282 L34,168 Z" fill="#ffffff" filter="url(#dsgnDrop)"/>
+          <!-- Shading overlays -->
+          <path d="M148,60 L206,128 Q240,168 274,128 L332,60 L446,168 L410,282 L368,256 L368,496 L112,496 L112,256 L70,282 L34,168 Z" fill="url(#dsgnSideShade)"/>
+          <path d="M148,60 L206,128 Q240,168 274,128 L332,60 L446,168 L410,282 L368,256 L368,496 L112,496 L112,256 L70,282 L34,168 Z" fill="url(#dsgnBottomShade)"/>
+          <path d="M148,60 L206,128 Q240,168 274,128 L332,60 L446,168 L410,282 L368,256 L368,496 L112,496 L112,256 L70,282 L34,168 Z" fill="url(#dsgnTopLight)"/>
+          <!-- Sleeve seams -->
+          <line x1="368" y1="256" x2="410" y2="282" stroke="rgba(0,0,0,0.12)" stroke-width="1.5"/>
+          <line x1="112" y1="256" x2="70" y2="282" stroke="rgba(0,0,0,0.12)" stroke-width="1.5"/>
+          <!-- Collar -->
+          <path d="M206,128 Q240,175 274,128" fill="none" stroke="rgba(0,0,0,0.18)" stroke-width="2"/>
+          <path d="M206,128 Q240,172 274,128" fill="rgba(0,0,0,0.06)" stroke="none"/>
+          <!-- Print area indicator -->
+          <rect id="dsgnPrintAreaRect" x="135" y="176" width="210" height="292" fill="none" stroke="rgba(15,118,110,0.55)" stroke-width="1.8" stroke-dasharray="7,5" rx="3"/>
+        </svg>
+      </div>
+
+      <div class="dsgn-canvas-overlay" data-canvas-overlay>
+        <canvas data-fabric-canvas></canvas>
+      </div>
+
+      <!-- Floating toolbar -->
+      <div class="dsgn-float-tb" data-float-tb style="display:none">
+        <button type="button" class="dsgn-ft-btn" data-ft="transform" title="Dönüştür">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+        </button>
+        <button type="button" class="dsgn-ft-btn" data-ft="position" title="Konum">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+        </button>
+        <button type="button" class="dsgn-ft-btn" data-ft="advanced" title="Gelişmiş">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        </button>
+        <button type="button" class="dsgn-ft-btn" data-ft="removebg" title="Arka Planı Kaldır">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18"/><path d="M10.5 6H19v8.5"/><path d="M5 10v9h9"/></svg>
+        </button>
+        <button type="button" class="dsgn-ft-btn dsgn-ft-btn--danger" data-ft-delete title="Sil">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+        <button type="button" class="dsgn-ft-close" data-ft-close title="Kapat">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Transform popup -->
+      <div class="dsgn-popup" data-popup="transform" style="display:none">
+        <div class="dsgn-popup-title">Dönüştür</div>
+        <div class="dsgn-popup-grid">
+          <button type="button" class="dsgn-popup-btn" data-flip-x title="Yatay çevir">⇄ Yatay</button>
+          <button type="button" class="dsgn-popup-btn" data-flip-y title="Dikey çevir">⇅ Dikey</button>
+          <button type="button" class="dsgn-popup-btn" data-rotate-cw title="Saat yönünde">↻ 90°</button>
+          <button type="button" class="dsgn-popup-btn" data-rotate-ccw title="Saat tersine">↺ 90°</button>
+        </div>
+        <div class="dsgn-popup-slider">
+          <label>Açı <span data-angle-val>0</span>°</label>
+          <input type="range" data-angle min="0" max="359" value="0">
+        </div>
+        <div class="dsgn-popup-slider">
+          <label>Opaklık <span data-opacity-val>100</span>%</label>
+          <input type="range" data-opacity min="0" max="100" value="100">
+        </div>
+      </div>
+
+      <!-- Position popup -->
+      <div class="dsgn-popup" data-popup="position" style="display:none">
+        <div class="dsgn-popup-title">Konum</div>
+        <div class="dsgn-popup-grid">
+          <button type="button" class="dsgn-popup-btn" data-align="left">⬛ Sol</button>
+          <button type="button" class="dsgn-popup-btn" data-align="centerH">⬛ H.Orta</button>
+          <button type="button" class="dsgn-popup-btn" data-align="right">⬛ Sağ</button>
+          <button type="button" class="dsgn-popup-btn" data-align="top">⬛ Üst</button>
+          <button type="button" class="dsgn-popup-btn" data-align="centerV">⬛ V.Orta</button>
+          <button type="button" class="dsgn-popup-btn" data-align="bottom">⬛ Alt</button>
+          <button type="button" class="dsgn-popup-btn" data-align="center">⊕ Tam Orta</button>
+          <button type="button" class="dsgn-popup-btn" data-bring-fwd>↑ Öne</button>
+          <button type="button" class="dsgn-popup-btn" data-send-bk>↓ Arkaya</button>
+        </div>
+      </div>
+
+      <!-- Advanced popup -->
+      <div class="dsgn-popup dsgn-popup--wide" data-popup="advanced" style="display:none">
+        <div class="dsgn-popup-title">Filtreler &amp; Ayarlar</div>
+        <div class="dsgn-filter-strip" data-filter-strip></div>
+        <div class="dsgn-popup-slider">
+          <label>Parlaklık <span data-brightness-val>0</span></label>
+          <input type="range" data-brightness min="-100" max="100" value="0">
+        </div>
+        <div class="dsgn-popup-slider">
+          <label>Kontrast <span data-contrast-val>0</span></label>
+          <input type="range" data-contrast min="-100" max="100" value="0">
+        </div>
+        <div class="dsgn-popup-slider">
+          <label>Doygunluk <span data-saturation-val>0</span></label>
+          <input type="range" data-saturation min="-100" max="100" value="0">
+        </div>
+      </div>
+
+    </div><!-- /product-wrap -->
+
+    <!-- Status row -->
+    <div class="dsgn-status-row">
+      <span class="dsgn-status-badge" data-front-status>Ön boş</span>
+      <span class="dsgn-status-badge" data-back-status>Arka boş</span>
+    </div>
+
+    <!-- QR Modal -->
+    <div class="dsgn-qr-modal" data-qr-modal style="display:none">
+      <div class="dsgn-qr-card">
+        <div class="dsgn-qr-title">QR Kod Ekle</div>
+        <input type="url" data-qr-url placeholder="https://..." class="dsgn-qr-input">
+        <div class="dsgn-qr-preview" data-qr-preview></div>
+        <div class="dsgn-qr-actions">
+          <button type="button" class="dsgn-add-btn" data-qr-add>Tuvale Ekle</button>
+          <button type="button" class="dsgn-tb-btn" data-qr-close>İptal</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /stage-area -->
+
+</div><!-- /workspace -->
+
+<!-- ── Footer ─────────────────────────────────────────────────────────── -->
+<div class="dsgn-footer">
+  <div class="dsgn-size-group">
+    <label class="dsgn-label">Beden</label>
+    <div class="dsgn-size-btns" data-size-group role="group">
+      <button type="button" class="dsgn-size-btn active" data-size="M">M</button>
+      <button type="button" class="dsgn-size-btn" data-size="L">L</button>
+      <button type="button" class="dsgn-size-btn" data-size="XL">XL</button>
+      <button type="button" class="dsgn-size-btn" data-size="XXL">XXL</button>
+    </div>
+  </div>
+
+  <div class="dsgn-qty-group">
+    <label class="dsgn-label">Adet</label>
+    <div class="dsgn-qty">
+      <button type="button" data-qty="-1" aria-label="Azalt">−</button>
+      <input type="number" data-qty-input min="1" value="1" aria-label="Adet">
+      <button type="button" data-qty="1" aria-label="Artır">+</button>
+    </div>
+  </div>
+
+  <div class="dsgn-cart-wrap">
+    <button type="button" class="dsgn-cart-btn" data-add-to-cart>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      Sepete Ekle
+    </button>
+    <p class="dsgn-msg" data-designer-message role="status" aria-live="polite"></p>
+  </div>
+</div>
+
+<script src="{{ 'fabric.min.js' | asset_url }}" defer></script>
+<script src="{{ 'qrcode.min.js' | asset_url }}" defer></script>
+<script src="{{ 'tshirt-app.js' | asset_url }}" defer></script>

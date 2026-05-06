@@ -1,0 +1,219 @@
+{% assign selected_options = product.selected_or_first_available_variant.options | join: ' ' | downcase %}
+{% assign shirt_color = block.settings.shirt_color | default: '#1C1C1E' %}
+{% for selected_option in product.selected_or_first_available_variant.options %}
+  {% if selected_option contains '#' %}
+    {% assign shirt_color = selected_option %}
+  {% endif %}
+{% endfor %}
+{% if selected_options contains 'siyah' or selected_options contains 'black' %}
+  {% assign shirt_color = '#1C1C1E' %}
+{% elsif selected_options contains 'beyaz' or selected_options contains 'white' %}
+  {% assign shirt_color = '#F5F5F5' %}
+{% elsif selected_options contains 'lacivert' or selected_options contains 'navy' %}
+  {% assign shirt_color = '#1B2A4A' %}
+{% elsif selected_options contains 'kırmızı' or selected_options contains 'red' %}
+  {% assign shirt_color = '#C0392B' %}
+{% elsif selected_options contains 'yeşil' or selected_options contains 'yesil' or selected_options contains 'green' %}
+  {% assign shirt_color = '#27AE60' %}
+{% elsif selected_options contains 'gri' or selected_options contains 'gray' or selected_options contains 'grey' %}
+  {% assign shirt_color = '#7F8C8D' %}
+{% elsif selected_options contains 'bordo' or selected_options contains 'burgundy' %}
+  {% assign shirt_color = '#922B21' %}
+{% elsif selected_options contains 'mor' or selected_options contains 'purple' %}
+  {% assign shirt_color = '#6C3483' %}
+{% elsif selected_options contains 'bej' or selected_options contains 'beige' %}
+  {% assign shirt_color = '#D4A57F' %}
+{% elsif selected_options contains 'sarı' or selected_options contains 'sari' or selected_options contains 'yellow' %}
+  {% assign shirt_color = '#F1C40F' %}
+{% elsif selected_options contains 'turuncu' or selected_options contains 'orange' %}
+  {% assign shirt_color = '#E67E22' %}
+{% elsif selected_options contains 'pembe' or selected_options contains 'pink' %}
+  {% assign shirt_color = '#E91E8C' %}
+{% endif %}
+{% assign model_json_url = 'tshirt.glb.json' | asset_url %}
+{% if block.settings.model_json_url != blank %}
+  {% assign model_json_url = block.settings.model_json_url %}
+{% endif %}
+
+{% comment %} Ürün görselleri: seçili renk/beden için ön ve arka baskı varyant fotoğrafları {% endcomment %}
+{% assign selected_variant = product.selected_or_first_available_variant %}
+{% assign selected_front_variant = nil %}
+{% assign selected_back_variant = nil %}
+{% assign selected_double_variant = nil %}
+{% for variant in product.variants %}
+  {% assign variant_print = variant.option3 | downcase %}
+  {% assign has_front_print = false %}
+  {% assign has_back_print = false %}
+  {% if variant_print contains 'ön' or variant_print contains 'on' %}
+    {% assign has_front_print = true %}
+  {% endif %}
+  {% if variant_print contains 'arka' or variant_print contains 'back' %}
+    {% assign has_back_print = true %}
+  {% endif %}
+  {% if variant.option1 == selected_variant.option1 and variant.option2 == selected_variant.option2 %}
+    {% if selected_front_variant == nil and has_front_print and has_back_print == false %}
+      {% assign selected_front_variant = variant %}
+    {% elsif selected_back_variant == nil and has_back_print and has_front_print == false %}
+      {% assign selected_back_variant = variant %}
+    {% elsif selected_double_variant == nil and has_front_print and has_back_print %}
+      {% assign selected_double_variant = variant %}
+    {% endif %}
+  {% endif %}
+{% endfor %}
+{% if selected_front_variant == nil %}
+  {% for variant in product.variants %}
+    {% assign variant_print = variant.option3 | downcase %}
+    {% assign has_front_print = false %}
+    {% assign has_back_print = false %}
+    {% if variant_print contains 'ön' or variant_print contains 'on' %}
+      {% assign has_front_print = true %}
+    {% endif %}
+    {% if variant_print contains 'arka' or variant_print contains 'back' %}
+      {% assign has_back_print = true %}
+    {% endif %}
+    {% if selected_front_variant == nil and has_front_print and has_back_print == false %}
+      {% assign selected_front_variant = variant %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+{% assign initial_price = selected_front_variant.price | default: selected_variant.price %}
+{% assign var_front_img = '' %}
+{% if selected_front_variant and selected_front_variant.featured_image %}
+  {% assign var_front_img = selected_front_variant.featured_image | image_url: width: 900 %}
+{% elsif selected_front_variant and selected_front_variant.image_id %}
+  {% for image in product.images %}
+    {% if image.id == selected_front_variant.image_id %}
+      {% assign var_front_img = image | image_url: width: 900 %}
+      {% break %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+{% assign front_img = '' %}
+{% if var_front_img != blank %}
+  {% assign front_img = var_front_img %}
+{% elsif product.images[0] != blank %}
+  {% assign front_img = product.images[0] | image_url: width: 900 %}
+{% elsif block.settings.front_image != blank %}
+  {% assign front_img = block.settings.front_image | image_url: width: 900 %}
+{% endif %}
+
+{% assign back_img = '' %}
+{% assign var_back_img = '' %}
+{% assign var_double_img = '' %}
+{% if selected_back_variant and selected_back_variant.featured_image %}
+  {% assign var_back_img = selected_back_variant.featured_image | image_url: width: 900 %}
+{% elsif selected_back_variant and selected_back_variant.image_id %}
+  {% for image in product.images %}
+    {% if image.id == selected_back_variant.image_id %}
+      {% assign var_back_img = image | image_url: width: 900 %}
+      {% break %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+{% if selected_double_variant and selected_double_variant.featured_image %}
+  {% assign var_double_img = selected_double_variant.featured_image | image_url: width: 900 %}
+{% elsif selected_double_variant and selected_double_variant.image_id %}
+  {% for image in product.images %}
+    {% if image.id == selected_double_variant.image_id %}
+      {% assign var_double_img = image | image_url: width: 900 %}
+      {% break %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+{% if var_back_img != blank %}
+  {% assign back_img = var_back_img %}
+{% elsif var_double_img != blank %}
+  {% assign back_img = var_double_img %}
+{% elsif product.images[1] != blank %}
+  {% assign back_img = product.images[1] | image_url: width: 900 %}
+{% elsif block.settings.back_image != blank %}
+  {% assign back_img = block.settings.back_image | image_url: width: 900 %}
+{% elsif front_img != blank %}
+  {% assign back_img = front_img %}
+{% endif %}
+
+<div
+  class="designer"
+  data-product-handle="{{ product.handle }}"
+  data-shirt-color="{{ shirt_color }}"
+  data-single-variant-id="{{ block.settings.single_variant_id }}"
+  data-double-variant-id="{{ block.settings.double_variant_id }}"
+  data-product-price="{{ initial_price }}"
+  data-single-price="{{ block.settings.single_price }}"
+  data-double-price="{{ block.settings.double_price }}"
+  data-upload-endpoint="{{ block.settings.upload_endpoint }}"
+  data-product-variants="{{ product.variants | json | escape }}"
+  data-product-options="{{ product.options_with_values | json | escape }}"
+  data-product-images="{{ product.images | json | escape }}"
+  data-selected-variant="{{ selected_variant | json | escape }}"
+  data-front-image="{{ front_img }}"
+  data-back-image="{{ back_img }}"
+  data-currency="{{ shop.currency }}"
+  data-locale="{{ request.locale.iso_code | default: 'tr-TR' }}"
+  {{ block.shopify_attributes }}
+>
+  {% render 'tshirt-designer-markup', model_json_url: model_json_url, initial_price: initial_price, currency: shop.currency %}
+</div>
+
+{% schema %}
+{
+  "name": "Tisort tasarim araci",
+  "target": "section",
+  "stylesheet": "designer.css",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": [
+    {
+      "type": "text",
+      "id": "single_variant_id",
+      "label": "Tek taraf variant ID"
+    },
+    {
+      "type": "text",
+      "id": "double_variant_id",
+      "label": "On + arka variant ID"
+    },
+    {
+      "type": "number",
+      "id": "single_price",
+      "label": "Tek taraf fiyat",
+      "default": 399
+    },
+    {
+      "type": "number",
+      "id": "double_price",
+      "label": "On + arka fiyat",
+      "default": 499
+    },
+    {
+      "type": "text",
+      "id": "upload_endpoint",
+      "label": "Upload endpoint",
+      "default": "/apps/tshirt-designer/upload"
+    },
+    {
+      "type": "color",
+      "id": "shirt_color",
+      "label": "Varsayilan tisort rengi",
+      "default": "#1C1C1E"
+    },
+    {
+      "type": "text",
+      "id": "model_json_url",
+      "label": "3D model JSON URL",
+      "info": "Urun ozel GLB modeli icin base64 JSON dosya URL'si. Bos kalirsa varsayilan tisort modeli kullanilir."
+    },
+    {
+      "type": "image_picker",
+      "id": "front_image",
+      "label": "On tisort gorseli"
+    },
+    {
+      "type": "image_picker",
+      "id": "back_image",
+      "label": "Arka tisort gorseli"
+    }
+  ]
+}
+{% endschema %}

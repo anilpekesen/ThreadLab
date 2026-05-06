@@ -1,0 +1,101 @@
+{% comment %}
+  Tisort tasarim araci
+  Kullanim:
+  1. Shopify admin > Products icinde On Baski, Arka Baski ve On + Arka Baski varyantlari olusturun.
+  2. Fiyat ve variant ID bilgileri product.variants JSON'undan otomatik okunur.
+  3. Bu snippet'i product template icinde render edin.
+{% endcomment %}
+
+<div
+  class="designer"
+  data-product-handle="{{ product.handle }}"
+  data-single-variant-id="TEK_TARAF_VARIANT_ID"
+  data-double-variant-id="CIFT_TARAF_VARIANT_ID"
+  data-upload-endpoint="/apps/tshirt-designer/upload"
+  data-product-variants="{{ product.variants | json | escape }}"
+  data-product-options="{{ product.options_with_values | json | escape }}"
+  data-selected-variant="{{ product.selected_or_first_available_variant | json | escape }}"
+>
+  <section class="workspace" aria-label="Tisort tasarim alani">
+    <div class="topbar">
+      <div>
+        <p class="kicker">Tisort baski</p>
+        <h1>Tasarimini hazirla</h1>
+      </div>
+      <div class="price-box" aria-live="polite">
+        <span id="printModeLabel">On baski</span>
+        <strong id="priceLabel">{{ product.selected_or_first_available_variant.price | money }}</strong>
+      </div>
+    </div>
+
+    <div class="preview-shell">
+      <div class="side-tabs" role="tablist" aria-label="Baski yuzu">
+        <button class="side-tab active" type="button" data-side="front" aria-selected="true">On</button>
+        <button class="side-tab" type="button" data-side="back" aria-selected="false">Arka</button>
+      </div>
+
+      <div class="shirt-stage" id="stage">
+        <div class="shirt">
+          <div class="collar"></div>
+          <div class="print-area" id="printArea">
+            <img id="designImage" alt="">
+            <div id="designText"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="side-status">
+        <span id="frontStatus">On bos</span>
+        <span id="backStatus">Arka bos</span>
+      </div>
+    </div>
+  </section>
+
+  <aside class="controls" aria-label="Tasarim ayarlari">
+    <div class="control-group">
+      <label for="imageInput">Resim yukle</label>
+      <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp">
+    </div>
+
+    <div class="control-group">
+      <label for="textInput">Yazi</label>
+      <textarea id="textInput" rows="3" maxlength="80" placeholder="Yazini yaz"></textarea>
+    </div>
+
+    <div class="two-col">
+      <div class="control-group">
+        <label for="textColor">Yazi rengi</label>
+        <input id="textColor" type="color" value="#111111">
+      </div>
+      <div class="control-group">
+        <label for="fontSize">Yazi boyutu</label>
+        <input id="fontSize" type="range" min="16" max="54" value="30">
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="control-group">
+        <label for="imageScale">Resim boyutu</label>
+        <input id="imageScale" type="range" min="35" max="100" value="72">
+      </div>
+      <div class="control-group">
+        <label for="quantity">Adet</label>
+        <input id="quantity" type="number" min="1" value="1">
+      </div>
+    </div>
+
+    <div class="summary">
+      <div>
+        <span>Baski tipi</span>
+        <strong id="summaryMode">Tek taraf</strong>
+      </div>
+      <div>
+        <span>Variant ID</span>
+        <strong id="summaryVariant">Ayar bekliyor</strong>
+      </div>
+    </div>
+
+    <button class="primary-btn" id="addToCartBtn" type="button">Sepete ekle</button>
+    <p class="note" id="message" role="status"></p>
+  </aside>
+</div>

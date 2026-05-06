@@ -1,0 +1,34 @@
+[
+  {
+    "id": "area_ba8f1d50fcf738d8",
+    "productId": "prod_001",
+    "name": "Front Print",
+    "side": "front",
+    "x": 145,
+    "y": 180,
+    "width": 210,
+    "height": 255,
+    "realWidthMm": 220,
+    "realHeightMm": 270,
+    "safeMargin": 10,
+    "bleedMargin": 5,
+    "dpi": 300,
+    "createdAt": "2026-05-03T16:45:37.077Z"
+  },
+  {
+    "id": "area_901e387ea722550e",
+    "productId": "prod_004",
+    "name": "Print Area",
+    "side": "front",
+    "x": 157,
+    "y": 149,
+    "width": 147,
+    "height": 192,
+    "realWidthMm": 200,
+    "realHeightMm": 250,
+    "safeMargin": 10,
+    "bleedMargin": 5,
+    "dpi": 300,
+    "createdAt": "2026-05-04T18:51:51.156Z"
+  }
+]

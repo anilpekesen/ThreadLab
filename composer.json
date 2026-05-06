@@ -1,0 +1,459 @@
+1. Genel Ürün Tanımı Promptu
+
+Bunu yazılımı geliştirecek yapay zekaya / ekibe ilk prompt olarak ver:
+
+Shopify için profesyonel bir ürün kişiselleştirme uygulaması geliştiriyoruz.
+
+Amaç:
+Satıcı Shopify panelinden ürünlerine baskı yapılabilir alanlar tanımlayacak. Müşteri ürün sayfasında kendi görselini veya metnini yükleyip ürünü canlı önizleme üzerinde görecek. Sistem, sipariş sonrası üretime uygun yüksek çözünürlüklü baskı dosyası oluşturacak.
+
+Uygulama iki ana kullanıcıya hizmet edecek:
+
+1. Shopify satıcısı:
+- Hangi ürünlerde kişiselleştirme aktif olacak?
+- Ürün üzerinde baskı alanı nerede olacak?
+- Müşteri hangi tür dosya yükleyebilir?
+- Minimum görsel kalitesi ne olmalı?
+- Baskı dosyası hangi formatta üretilecek?
+- Sipariş sonrası üretim dosyası nereden indirilecek?
+
+2. Ürünü satın alan müşteri:
+- Ürün sayfasında görsel/metin ekleyebilmeli.
+- Tasarımı ürün üzerinde gerçekçi şekilde görebilmeli.
+- Görseli büyütüp küçültebilmeli, döndürebilmeli, konumlandırabilmeli.
+- Kalitesiz görsel yüklediğinde uyarı almalı.
+- Sepete eklenen ürünle birlikte tasarım bilgisi saklanmalı.
+
+Uygulama profesyonel, hızlı, mobil uyumlu ve Shopify Online Store 2.0 ile uyumlu olmalıdır.
+2. Satıcı Paneli İçin Prompt
+
+Satıcının kullanacağı yönetim ekranı çok kritik. Burası kötü olursa app amatör görünür.
+
+Shopify app içinde satıcıya özel bir yönetim paneli tasarla.
+
+Panelde şu bölümler olmalı:
+
+1. Dashboard
+- Toplam kişiselleştirilmiş sipariş sayısı
+- Bugünkü kişiselleştirilmiş siparişler
+- Üretim dosyası bekleyen siparişler
+- En çok kişiselleştirilen ürünler
+
+2. Product Personalization Settings
+Satıcı ürün seçebilmeli ve o ürün için kişiselleştirme ayarlarını yapabilmeli.
+
+Ayarlar:
+- Kişiselleştirme aktif/pasif
+- Görsel yükleme aktif/pasif
+- Metin ekleme aktif/pasif
+- Baskı alanı seçimi
+- Maksimum dosya boyutu
+- İzin verilen dosya tipleri: PNG, JPG, SVG, PDF
+- Minimum çözünürlük
+- Arka plan silme seçeneği
+- Baskı dosyası formatı: PNG, PDF, SVG
+- Baskı dosyası DPI değeri
+- Müşteri önizleme onayı zorunlu olsun mu?
+
+3. Print Area Editor
+Satıcı ürün görseli üzerinde baskı yapılacak alanı belirleyebilmeli.
+- Sürükle bırak ile alan seçimi
+- Alan genişliği/yüksekliği
+- Alanın X/Y koordinatı
+- Güvenli baskı alanı
+- Taşma payı
+- Ön/arka yüz desteği
+- Birden fazla baskı alanı desteği
+
+4. Order Production Panel
+Kişiselleştirilmiş siparişleri listele.
+Her sipariş için:
+- Sipariş numarası
+- Ürün
+- Müşteri adı
+- Tasarım önizlemesi
+- Üretim dosyasını indir
+- Sipariş durumunu güncelle: Bekliyor, Hazırlanıyor, Basıldı, Kargoya Hazır
+3. Müşteri Tarafı Ürün Sayfası Promptu
+
+Burada hedef: müşteri ürünü tasarlarken zorlanmayacak. Yoksa satın alma düşer.
+
+Shopify ürün sayfasında çalışacak müşteri kişiselleştirme arayüzü oluştur.
+
+Özellikler:
+- Müşteri ürün sayfasında "Tasarımını Oluştur" butonuna tıklayınca tasarım editörü açılsın.
+- Editör mobil ve masaüstü uyumlu olsun.
+- Ürün görseli üzerinde baskı alanı net şekilde gösterilsin.
+- Müşteri görsel yükleyebilsin.
+- Görseli sürükleyebilsin, büyütüp küçültebilsin, döndürebilsin.
+- Metin ekleyebilsin.
+- Metin için font, renk, boyut ve hizalama seçebilsin.
+- Tasarım baskı alanı dışına taşarsa uyarı versin.
+- Görsel çözünürlüğü düşükse "Bu görsel baskı için düşük kaliteli olabilir" uyarısı versin.
+- Tasarım tamamlanınca müşteri önizlemeyi onaylasın.
+- Onaylanan tasarım sepete ürün properties/metafield/cart attribute olarak eklensin.
+- Sepette küçük tasarım önizlemesi gösterilsin.
+4. Profesyonel Tasarım Editörü Promptu
+
+Bu kısmı özel yazdırmak lazım. Basit canvas değil, düzgün editör.
+
+Fabric.js veya benzeri güçlü bir canvas kütüphanesi kullanarak ürün kişiselleştirme editörü geliştir.
+
+Editör özellikleri:
+- Ürün mockup görseli arka planda yer alsın.
+- Baskı alanı ayrı bir layer olarak tanımlansın.
+- Kullanıcı görsel yüklediğinde sadece baskı alanı içinde düzenleme yapabilsin.
+- Görsel kırpma, döndürme, yeniden boyutlandırma, hizalama özellikleri olsun.
+- Metin ekleme ve düzenleme desteği olsun.
+- Layer sistemi olsun:
+- Arka plan ürün görseli
+- Baskı alanı
+- Kullanıcı görseli
+- Kullanıcı metni
+- Undo / redo desteği olsun.
+- Tasarım JSON olarak kaydedilsin.
+- Önizleme düşük çözünürlüklü, üretim çıktısı yüksek çözünürlüklü oluşturulsun.
+- Canvas export sırasında ürün mockup görseli ayrı, baskı dosyası ayrı üretilebilsin.
+5. Baskı Dosyası Oluşturma Promptu
+
+Profesyonellik burada belli olur. Sadece ekran görüntüsü almak çöp çözüm olur. Sert söylüyorum: müşterinin gördüğü mockup ile üretim dosyası aynı şey değildir.
+
+Sipariş tamamlandıktan sonra üretime uygun baskı dosyası oluşturacak backend sistemi tasarla.
+
+Gereksinimler:
+- Müşterinin tasarımı JSON olarak saklansın.
+- Orijinal yüklenen görseller ayrı saklansın.
+- Sipariş sonrası backend tarafında yüksek çözünürlüklü baskı dosyası oluşturulsun.
+- Baskı alanı gerçek ölçüye göre hesaplanmalı.
+- DPI desteği olmalı. Varsayılan 300 DPI.
+- Çıktı formatları:
+- PNG transparent background
+- PDF
+- SVG destekleniyorsa SVG
+- Mockup önizleme dosyası ayrı oluşturulmalı.
+- Üretim dosyasında ürün görseli olmamalı, sadece baskıya gidecek tasarım olmalı.
+- Satıcı isterse ürün mockup + tasarım birleşik önizleme dosyasını indirebilmeli.
+- Dosyalar siparişe bağlı saklanmalı.
+6. Shopify Sipariş Entegrasyonu Promptu
+
+Shopify tarafında en kritik yerlerden biri bu.
+
+Shopify order entegrasyonu için sistem tasarla.
+
+Akış:
+1. Müşteri ürün sayfasında tasarım oluşturur.
+2. Tasarım verisi geçici olarak backend tarafında kaydedilir.
+3. Sepete eklenirken Shopify line item properties içine tasarım ID, önizleme görseli URL ve kişiselleştirme bilgileri eklenir.
+4. Sipariş oluşunca webhook ile order/create yakalanır.
+5. Siparişteki line item properties içinden tasarım ID alınır.
+6. Tasarım verisi siparişe bağlanır.
+7. Backend üretim dosyasını oluşturur.
+8. Satıcı Shopify app panelinden siparişi ve üretim dosyalarını görebilir.
+
+Dikkat edilecekler:
+- Tasarım ID benzersiz olmalı.
+- Sepet ve ödeme sürecinde veri kaybolmamalı.
+- Müşteri tasarımını sonradan değiştirememeli, sipariş anındaki hali saklanmalı.
+- Webhook tekrar çalışırsa aynı üretim dosyası tekrar tekrar oluşturulmamalı.
+- Idempotent yapı kurulmalı.
+7. Veritabanı Yapısı Promptu
+Laravel backend için veritabanı şeması öner.
+
+Tablolar:
+
+shops:
+- id
+- shopify_domain
+- access_token
+- plan
+- status
+- created_at
+- updated_at
+
+personalization_products:
+- id
+- shop_id
+- shopify_product_id
+- shopify_variant_id nullable
+- is_active
+- settings_json
+- created_at
+- updated_at
+
+print_areas:
+- id
+- personalization_product_id
+- name
+- side: front/back/other
+- x
+- y
+- width
+- height
+- real_width_mm
+- real_height_mm
+- dpi
+- safe_margin
+- bleed_margin
+- created_at
+- updated_at
+
+customer_designs:
+- id
+- shop_id
+- shopify_product_id
+- design_token
+- design_json
+- preview_image_url
+- original_files_json
+- status
+- created_at
+- updated_at
+
+personalized_orders:
+- id
+- shop_id
+- shopify_order_id
+- shopify_order_number
+- customer_email
+- status
+- created_at
+- updated_at
+
+personalized_order_items:
+- id
+- personalized_order_id
+- shopify_line_item_id
+- shopify_product_id
+- shopify_variant_id
+- customer_design_id
+- preview_image_url
+- production_file_url
+- production_status
+- created_at
+- updated_at
+8. API Endpoint Promptu
+Laravel API için endpoint yapısı oluştur.
+
+Admin endpoints:
+GET /api/admin/products
+POST /api/admin/products/{productId}/personalization
+GET /api/admin/products/{productId}/personalization
+PUT /api/admin/products/{productId}/personalization
+POST /api/admin/print-areas
+PUT /api/admin/print-areas/{id}
+DELETE /api/admin/print-areas/{id}
+GET /api/admin/orders
+GET /api/admin/orders/{id}
+POST /api/admin/orders/{id}/generate-production-file
+
+Storefront endpoints:
+POST /api/storefront/designs
+GET /api/storefront/designs/{designToken}
+PUT /api/storefront/designs/{designToken}
+POST /api/storefront/designs/{designToken}/upload
+POST /api/storefront/designs/{designToken}/preview
+POST /api/storefront/designs/{designToken}/finalize
+
+Webhook endpoints:
+POST /api/webhooks/shopify/orders-create
+POST /api/webhooks/shopify/orders-paid
+POST /api/webhooks/shopify/app-uninstalled
+9. Dosya Kalitesi Kontrol Promptu
+Müşteri tarafından yüklenen görseller için kalite kontrol sistemi geliştir.
+
+Kontroller:
+- Dosya tipi kontrolü
+- Maksimum dosya boyutu kontrolü
+- Görsel genişlik/yükseklik kontrolü
+- DPI tahmini
+- Baskı alanına göre yeterli çözünürlük kontrolü
+- Şeffaf PNG desteği
+- Bozuk dosya kontrolü
+- CMYK/RGB uyarısı
+- Çok küçük görsel uyarısı
+
+Uyarılar:
+- Görsel baskı için yeterli kalitede
+- Görsel kabul edilebilir ama baskı kalitesi orta olabilir
+- Görsel düşük kaliteli, daha yüksek çözünürlük yükleyin
+- Görsel baskı alanına tam oturmuyor
+10. Shopify App Profesyonel UX Promptu
+Shopify satıcıları için profesyonel, sade ve güven veren bir app arayüzü tasarla.
+
+Tasarım prensipleri:
+- Shopify Polaris tasarım sistemine uygun olsun.
+- Gereksiz karmaşa olmasın.
+- İlk kurulum sihirbazı olsun.
+- Satıcı uygulamayı kurduktan sonra şu adımlarla ilerlesin:
+
+1. Ürün seç
+2. Baskı alanı belirle
+3. Müşteri seçeneklerini ayarla
+4. Test önizleme yap
+5. Yayına al
+
+Dashboard'da:
+- Setup progress
+- Recent personalized orders
+- Products with personalization
+- Production pending alerts
+- Quick actions
+
+Uygulama dili başlangıçta İngilizce olsun ama çoklu dil desteğine hazır yapılsın.
+11. Abonelik / Paket Sistemi Promptu
+
+Burası para kazanma tarafı. Sadece app yapmak yetmez.
+
+Shopify Billing API ile çalışan abonelik sistemi tasarla.
+
+Planlar:
+
+Starter:
+- 10 kişiselleştirilmiş sipariş / ay
+- Basit görsel yükleme
+- Tek baskı alanı
+- Watermark yok
+- Basic support
+
+Growth:
+- 250 kişiselleştirilmiş sipariş / ay
+- Görsel + metin editörü
+- Çoklu baskı alanı
+- Üretim dosyası oluşturma
+- Sipariş paneli
+- Priority support
+
+Pro:
+- Sınırsız veya yüksek limitli sipariş
+- 300 DPI üretim dosyası
+- PDF/PNG export
+- Arka plan silme
+- AI mockup preview
+- Çoklu mağaza desteği
+- Webhook/API access
+
+Enterprise:
+- Özel fiyatlandırma
+- Custom workflow
+- API entegrasyonları
+- Dedicated support
+- Özel baskı şablonları
+12. AI Özellikleri İçin Prompt
+
+Bu kısım seni rakiplerden ayırabilir ama ilk MVP’ye hepsini sokarsan batarsın. Önce temel sistemi kur, sonra AI ekle.
+
+Ürün kişiselleştirme Shopify app'ine eklenebilecek yapay zeka özelliklerini tasarla.
+
+AI özellikleri:
+- Yüklenen görselin arka planını kaldırma
+- Görsel kalite artırma / upscaling
+- Görselin baskıya uygun olup olmadığını analiz etme
+- Müşteriye tasarım önerileri sunma
+- Ürün rengine göre metin rengi önerme
+- Otomatik hizalama
+- Görseli baskı alanına otomatik oturtma
+- Hatalı tasarım uyarısı
+- Mockup üzerinde daha gerçekçi baskı efekti oluşturma
+
+Önceliklendirme:
+MVP için sadece:
+1. Görsel kalite kontrol
+2. Otomatik hizalama
+3. Arka plan kaldırma opsiyonel
+
+İleri seviye için:
+1. AI mockup rendering
+2. Upscaling
+3. Tasarım önerileri
+13. MVP İçin Net Prompt
+
+Bence ilk sürümde bunu yap. Daha fazlasına atlarsan süre uzar, ürün çıkmaz.
+
+Shopify için MVP seviyesinde ürün kişiselleştirme uygulaması geliştir.
+
+MVP kapsamı:
+
+Satıcı tarafı:
+- Shopify app kurulumu
+- Ürün seçme
+- Ürüne kişiselleştirme aktif etme
+- Tek baskı alanı belirleme
+- Dosya tipi ve minimum çözünürlük ayarı
+- Siparişleri görüntüleme
+- Müşteri tasarım önizlemesini ve baskı dosyasını indirme
+
+Müşteri tarafı:
+- Ürün sayfasında görsel yükleme
+- Görseli ürün üzerinde konumlandırma
+- Büyütme/küçültme/döndürme
+- Canlı önizleme
+- Tasarımı onaylama
+- Sepete tasarım ID ile ekleme
+
+Backend:
+- Tasarım JSON kaydı
+- Görsel dosya kaydı
+- Shopify order/create webhook
+- Siparişe tasarım bağlama
+- PNG üretim dosyası oluşturma
+
+MVP dışında bırakılacaklar:
+- Çoklu baskı alanı
+- Çoklu yüz
+- AI tasarım önerisi
+- Gelişmiş PDF export
+- Enterprise API
+- Çoklu dil
+14. Geliştiriciye Verilecek Sert Teknik Prompt
+Bu uygulama amatör bir ürün tasarlama aracı olmayacak. Profesyonel Shopify app olarak geliştirilecek.
+
+Teknik kurallar:
+- Frontend hızlı çalışmalı.
+- Canvas işlemleri mobilde kasmamalı.
+- Müşteri tasarımı asla sadece localStorage'da tutulmamalı.
+- Tasarım verisi backend'e kaydedilmeli.
+- Shopify checkout sürecinde veri kaybolmamalı.
+- Sipariş sonrası tasarım değiştirilememeli.
+- Üretim dosyası müşteri önizleme dosyasından ayrı oluşturulmalı.
+- Dosya upload güvenliği sağlanmalı.
+- Webhooklar doğrulanmalı.
+- Shopify HMAC doğrulaması yapılmalı.
+- Uygulama kaldırıldığında mağaza verileri güvenli şekilde işlenmeli.
+- Her shop kendi verisini görmeli, multi-tenant yapı kurulmalı.
+15. En Önemli Kör Nokta
+
+Hocam burada kendini kandırma ihtimalin şu:
+“Bir görsel yükleyip ürün üstüne koyarsak app olur.”
+
+Olmaz.
+
+Bu sadece demo olur. Para edecek ürün için şu 5 şey şart:
+
+Satıcı baskı alanını kolay tanımlayacak.
+Müşteri tasarımı kolay yapacak.
+Sepet ve sipariş sürecinde tasarım kaybolmayacak.
+Üreticiye baskıya hazır dosya çıkacak.
+Shopify panelinde sipariş yönetimi profesyonel olacak.
+
+Bunlardan biri eksikse satıcı “güzel ama üretimde işime yaramaz” der ve ödeme yapmaz.
+
+Öncelik Sırası
+
+Bence geliştirme sırası şu olmalı:
+
+1. Shopify app kurulumu ve mağaza bağlantısı
+2. Ürün seçme ve kişiselleştirme aktif etme
+3. Baskı alanı tanımlama editörü
+4. Müşteri ürün sayfası tasarım editörü
+5. Tasarım kaydetme sistemi
+6. Sepete tasarım ID ile ekleme
+7. Order webhook ile sipariş yakalama
+8. Sipariş panelinde tasarım gösterme
+9. Üretim dosyası oluşturma
+10. Plan/abonelik sistemi
+11. AI özellikleri
+
+En doğru MVP şu olur:
+“Shopify satıcısı üründe baskı alanı tanımlar, müşteri görselini yerleştirir, sipariş sonrası satıcı baskı dosyasını indirir.”
+
+Bunu kusursuz yaparsan app gerçek ürüne dönüşür. Gerisi süs. 🚀

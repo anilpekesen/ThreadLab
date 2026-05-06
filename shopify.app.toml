@@ -1,0 +1,21 @@
+name = "Bikafa Tisort Tasarim"
+client_id = "ffb70fd5e03a3532fb1e47b3a8e9a052"
+application_url = "https://shopify.dev/apps/default-app-home"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-07"
+
+[access_scopes]
+scopes = "write_app_proxy"
+
+[auth]
+redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
+
+[app_proxy]
+url = "/apps/tshirt-designer"
+prefix = "apps"
+subpath = "tshirt-designer"

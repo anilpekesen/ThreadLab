@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tişört Tasarım</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="fpd"
+  data-product-handle="tisort-baski"
+  data-upload-endpoint="upload.php"
+  data-variant-map='{"M":{"front":"47766369075426","back":"47766393258210","double":"47766393290978"},"L":{"front":"47766369108194","back":"47766393323746","double":"47766393356514"},"XL":{"front":"47766369140962","back":"47766393389282","double":"47766393422050"},"XXL":{"front":"47766369173730","back":"47766393454818","double":"47766393487586"}}'
+>
+
+  <!-- ── Top bar ── -->
+  <header class="fpd-bar">
+    <button class="bar-btn bar-info" id="infoBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      Bilgi
+    </button>
+
+    <div class="bar-center">
+      <button class="bar-btn" id="undoBtn" disabled title="Geri Al (Ctrl+Z)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7v6h6"/><path d="M3 13C5.33 7.67 11 4 17 4c4 0 7 2 8 6"/></svg>
+      </button>
+      <button class="bar-btn" id="redoBtn" disabled title="İleri Al (Ctrl+Shift+Z)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 7v6h-6"/><path d="M21 13C18.67 7.67 13 4 7 4c-4 0-7 2-8 6"/></svg>
+      </button>
+      <button class="bar-btn" id="deleteBtn" title="Sil (Delete)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button>
+    </div>
+
+    <div class="bar-right">
+      <button class="bar-btn" id="zoomOutBtn">−</button>
+      <span class="zoom-lbl" id="zoomLabel">100%</span>
+      <button class="bar-btn" id="zoomInBtn">+</button>
+      <div class="bar-sep"></div>
+      <button class="bar-btn" id="resetBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.13"/></svg>
+        Sıfırla
+      </button>
+      <button class="bar-btn bar-qr" id="qrBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/><rect x="19" y="19" width="2" height="2"/></svg>
+        QR Kod Ekle
+      </button>
+      <div class="bar-sep"></div>
+      <div class="bar-cart">
+        <div class="bar-price-wrap">
+          <span class="bar-mode" id="printModeLabel">Tek Taraf</span>
+          <strong class="bar-price" id="priceLabel"></strong>
+        </div>
+        <div class="bar-size-qty">
+          <select id="sizeSelect" aria-label="Beden">
+            <option value="M">M</option>
+            <option value="L">L</option>
+            <option value="XL">XL</option>
+            <option value="XXL">XXL</option>
+          </select>
+          <input id="quantityInput" type="number" min="1" value="1" aria-label="Adet">
+        </div>
+        <button class="cart-btn" id="addToCartBtn">Sepete Ekle</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Workspace ── -->
+  <div class="fpd-workspace">
+
+    <!-- Left icon nav -->
+    <nav class="fpd-nav" aria-label="Araç Seçimi">
+      <button class="fpd-nav-btn" data-tool="image">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        <span>Resim Ekle</span>
+      </button>
+      <button class="fpd-nav-btn" data-tool="text">
+        <span class="nav-t">T</span>
+        <span>Yazı Ekle</span>
+      </button>
+      <button class="fpd-nav-btn" data-tool="designs">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>Tasarımlar</span>
+      </button>
+      <button class="fpd-nav-btn" data-tool="saved">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <span>Kaydedilenler</span>
+      </button>
+    </nav>
+
+    <!-- Tool panel (slides in) -->
+    <div class="fpd-panel" id="fpdPanel">
+
+      <!-- Image panel -->
+      <div class="fp" id="fp-image">
+        <div class="fp-head">Resim Ekle</div>
+        <label class="fp-dropzone" id="dropZone">
+          <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp,image/svg+xml" multiple>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>Sürükle veya tıkla</span>
+          <em>PNG, JPG, WEBP, SVG</em>
+          <button class="fp-browse" type="button">Dosya Seç</button>
+        </label>
+        <div class="fp-thumbs" id="imageThumbs"></div>
+      </div>
+
+      <!-- Text panel -->
+      <div class="fp" id="fp-text">
+        <div class="fp-head">Yazı Ekle</div>
+        <textarea id="addTextInput" rows="3" maxlength="150" placeholder="Yazınızı yazın…"></textarea>
+        <label class="fp-label">Yazı Tipi</label>
+        <select id="fontFamily">
+          <option>Arial</option>
+          <option>Georgia</option>
+          <option>Impact</option>
+          <option>Verdana</option>
+          <option>Courier New</option>
+          <option>Times New Roman</option>
+          <option>Trebuchet MS</option>
+          <option>Comic Sans MS</option>
+        </select>
+        <div class="fp-row">
+          <div>
+            <label class="fp-label">Boyut <span id="textSizeVal">40</span>px</label>
+            <input type="range" id="textSize" min="10" max="100" value="40">
+          </div>
+          <div>
+            <label class="fp-label">Renk</label>
+            <input type="color" id="textColor" value="#111111">
+          </div>
+        </div>
+        <div class="fp-styles">
+          <button class="fp-style-btn" id="boldBtn"><b>B</b></button>
+          <button class="fp-style-btn fp-italic" id="italicBtn"><i>I</i></button>
+          <button class="fp-style-btn fp-underline" id="underlineBtn">U</button>
+        </div>
+        <button class="fp-add-btn" id="addTextBtn">Tişörte Ekle</button>
+      </div>
+
+      <!-- Designs panel -->
+      <div class="fp" id="fp-designs">
+        <div class="fp-head">Hazır Tasarımlar</div>
+        <div class="fp-design-grid" id="designGrid"></div>
+      </div>
+
+      <!-- Saved designs panel -->
+      <div class="fp" id="fp-saved">
+        <div class="fp-head">Kaydedilen Tasarımlar</div>
+        <p class="fp-hint">Tasarımı kaydetmek için aşağıdaki butona tıklayın.</p>
+        <button class="fp-add-btn" id="saveDesignBtn">Tasarımı Kaydet</button>
+        <div class="fp-saved-grid" id="savedGrid"></div>
+      </div>
+
+    </div>
+
+    <!-- Stage -->
+    <main class="fpd-stage">
+
+      <!-- Color swatches row -->
+      <div class="stage-colors" id="colorSwatches" aria-label="Tişört rengi"></div>
+
+      <!-- Product -->
+      <div class="stage-scroll">
+        <div class="product-wrap" id="productWrap">
+
+          <svg class="shirt-svg" id="shirtSvg" viewBox="0 0 480 540" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="sideShade" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stop-color="rgba(0,0,0,0.10)"/>
+                <stop offset="18%"  stop-color="rgba(0,0,0,0)"/>
+                <stop offset="82%"  stop-color="rgba(0,0,0,0)"/>
+                <stop offset="100%" stop-color="rgba(0,0,0,0.10)"/>
+              </linearGradient>
+              <linearGradient id="bottomShade" x1="0%" y1="40%" x2="0%" y2="100%">
+                <stop offset="0%"   stop-color="rgba(0,0,0,0)"/>
+                <stop offset="100%" stop-color="rgba(0,0,0,0.08)"/>
+              </linearGradient>
+              <linearGradient id="topLight" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%"   stop-color="rgba(255,255,255,0.18)"/>
+                <stop offset="40%"  stop-color="rgba(255,255,255,0)"/>
+              </linearGradient>
+              <filter id="shirtDrop" x="-8%" y="-4%" width="116%" height="116%">
+                <feDropShadow dx="0" dy="6" stdDeviation="14" flood-color="rgba(0,0,0,0.20)"/>
+              </filter>
+            </defs>
+
+            <!-- Base body -->
+            <path id="shirtBody"
+              d="M148,60 L206,128 Q240,168 274,128 L332,60 L446,168 L410,282 L368,256 L368,496 L112,496 L112,256 L70,282 L34,168 Z"
+              fill="#ffffff" filter="url(#shirtDrop)"/>
+
+            <!-- Shading overlays (always on top of fill) -->
+            <path d="M148,60 L206,128 Q240,168 274,128 L332,60 L446,168 L410,282 L368,256 L368,496 L112,496 L112,256 L70,282 L34,168 Z"
+              fill="url(#sideShade)" pointer-events="none"/>
+            <path d="M148,60 L206,128 Q240,168 274,128 L332,60 L446,168 L410,282 L368,256 L368,496 L112,496 L112,256 L70,282 L34,168 Z"
+              fill="url(#bottomShade)" pointer-events="none"/>
+            <path d="M148,60 L206,128 Q240,168 274,128 L332,60 L446,168 L410,282 L368,256 L368,496 L112,496 L112,256 L70,282 L34,168 Z"
+              fill="url(#topLight)" pointer-events="none"/>
+
+            <!-- Sleeve seam lines -->
+            <line x1="112" y1="256" x2="70"  y2="282" stroke="rgba(0,0,0,0.08)" stroke-width="1.5"/>
+            <line x1="368" y1="256" x2="410" y2="282" stroke="rgba(0,0,0,0.08)" stroke-width="1.5"/>
+            <!-- Hem seam -->
+            <line x1="112" y1="496" x2="368" y2="496" stroke="rgba(0,0,0,0.07)" stroke-width="1.5"/>
+
+            <!-- Collar stitching outer -->
+            <path d="M206,128 Q240,170 274,128"
+              fill="none" stroke="rgba(0,0,0,0.12)" stroke-width="14" stroke-linecap="round"/>
+            <!-- Collar stitching inner -->
+            <path d="M206,128 Q240,162 274,128"
+              fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="5" stroke-linecap="round"/>
+
+            <!-- Print-area dashed border -->
+            <rect id="printAreaRect" x="135" y="176" width="210" height="292"
+              fill="none" stroke="rgba(15,118,110,0.55)" stroke-width="1.8"
+              stroke-dasharray="7,5" rx="3"/>
+          </svg>
+
+          <!-- Canvas overlay — must match printAreaRect scaled to container -->
+          <!-- SVG viewBox 0 0 480 540, container same size → scale 1 -->
+          <!-- rect x=135,y=176,w=210,h=292 -->
+          <div class="canvas-overlay" id="canvasOverlay">
+            <canvas id="designCanvas"></canvas>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- View navigation -->
+      <div class="stage-viewnav">
+        <button class="viewnav-btn" id="prevViewBtn">←</button>
+        <span class="viewnav-label" id="viewLabel">1 / 2</span>
+        <button class="viewnav-btn" id="nextViewBtn">→</button>
+      </div>
+
+      <!-- Status -->
+      <p class="stage-status" id="statusMsg" role="status" aria-live="polite"></p>
+
+    </main>
+
+  </div><!-- /.fpd-workspace -->
+
+</div><!-- /.fpd -->
+
+<!-- ── Floating toolbar (absolutely positioned via JS) ── -->
+<div class="float-tb" id="floatTb" style="display:none" role="toolbar" aria-label="Nesne araçları">
+  <button class="ftb-btn" data-action="transform">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 9l-3 3 3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
+    Dönüştür
+  </button>
+  <div class="ftb-sep"></div>
+  <button class="ftb-btn" data-action="position">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+    Hizala
+  </button>
+  <div class="ftb-sep"></div>
+  <button class="ftb-btn" data-action="advanced">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+    Gelişmiş Düzenleme
+  </button>
+  <div class="ftb-sep"></div>
+  <button class="ftb-btn ftb-removebg" data-action="removebg" id="removeBgBtn">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+    Arkaplan Kaldır
+  </button>
+  <div class="ftb-sep"></div>
+  <button class="ftb-close" id="ftbClose">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
+</div>
+
+<!-- ── Popups ── -->
+
+<!-- Transform popup -->
+<div class="fpd-popup" id="popTransform" style="display:none">
+  <div class="popup-title">Dönüştür</div>
+  <div class="popup-grid">
+    <button class="popup-btn" id="flipXBtn">↔ Yatay Çevir</button>
+    <button class="popup-btn" id="flipYBtn">↕ Dikey Çevir</button>
+    <button class="popup-btn" id="rotateCCWBtn">↺ 90° Sol</button>
+    <button class="popup-btn" id="rotateCWBtn">↻ 90° Sağ</button>
+  </div>
+  <div class="popup-row">
+    <label class="popup-label">Döndür: <span id="angleVal">0</span>°</label>
+    <input type="range" id="angleSlider" min="-180" max="180" value="0">
+  </div>
+  <div class="popup-row">
+    <label class="popup-label">Opaklık: <span id="opacityVal">100</span>%</label>
+    <input type="range" id="opacitySlider" min="0" max="100" value="100">
+  </div>
+</div>
+
+<!-- Position popup -->
+<div class="fpd-popup" id="popPosition" style="display:none">
+  <div class="popup-title">Hizala</div>
+  <div class="popup-grid">
+    <button class="popup-btn" data-align="left">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="18" x2="15" y2="18"/></svg>
+      Sola
+    </button>
+    <button class="popup-btn" data-align="centerH">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="9" y1="6" x2="15" y2="6"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+      Yatay Orta
+    </button>
+    <button class="popup-btn" data-align="right">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="18" x2="21" y2="18"/></svg>
+      Sağa
+    </button>
+    <button class="popup-btn" data-align="top">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="3" x2="12" y2="21"/><line x1="6" y1="3" x2="6" y2="15"/><line x1="18" y1="3" x2="18" y2="15"/></svg>
+      Üste
+    </button>
+    <button class="popup-btn" data-align="centerV">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="3" x2="12" y2="21"/><line x1="6" y1="9" x2="6" y2="15"/><line x1="18" y1="9" x2="18" y2="15"/></svg>
+      Dikey Orta
+    </button>
+    <button class="popup-btn" data-align="bottom">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="3" x2="12" y2="21"/><line x1="6" y1="9" x2="6" y2="21"/><line x1="18" y1="9" x2="18" y2="21"/></svg>
+      Alta
+    </button>
+    <button class="popup-btn" data-align="center">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="1" x2="12" y2="23"/><line x1="1" y1="12" x2="23" y2="12"/></svg>
+      Tam Ortala
+    </button>
+    <button class="popup-btn" id="bringFwdBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      Öne Getir
+    </button>
+    <button class="popup-btn" id="sendBkBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M11 11h9a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9"/></svg>
+      Arkaya Gönder
+    </button>
+  </div>
+</div>
+
+<!-- Advanced Editing popup -->
+<div class="fpd-popup pop-advanced" id="popAdvanced" style="display:none">
+  <div class="popup-title">Gelişmiş Düzenleme</div>
+  <div class="adv-filters" id="filterStrip">
+    <!-- Generated by JS -->
+  </div>
+  <div class="adv-sliders">
+    <div class="popup-row">
+      <label class="popup-label">Parlaklık: <span id="brightnessVal">0</span></label>
+      <input type="range" id="brightnessSlider" min="-100" max="100" value="0">
+    </div>
+    <div class="popup-row">
+      <label class="popup-label">Kontrast: <span id="contrastVal">0</span></label>
+      <input type="range" id="contrastSlider" min="-100" max="100" value="0">
+    </div>
+    <div class="popup-row">
+      <label class="popup-label">Doygunluk: <span id="saturationVal">0</span></label>
+      <input type="range" id="saturationSlider" min="-100" max="100" value="0">
+    </div>
+  </div>
+</div>
+
+<!-- QR Code modal -->
+<div class="fpd-modal-bg" id="qrModal" style="display:none">
+  <div class="fpd-modal">
+    <div class="modal-head">
+      <strong>QR Kod Ekle</strong>
+      <button class="modal-close" id="qrModalClose">×</button>
+    </div>
+    <label class="fp-label">URL veya Metin</label>
+    <input type="text" id="qrInput" placeholder="https://örnek.com" value="https://">
+    <div id="qrPreview" class="qr-preview"></div>
+    <div class="modal-actions">
+      <button class="fp-add-btn" id="qrAddBtn">Tişörte Ekle</button>
+    </div>
+  </div>
+</div>
+
+<!-- Info modal -->
+<div class="fpd-modal-bg" id="infoModal" style="display:none">
+  <div class="fpd-modal">
+    <div class="modal-head">
+      <strong>Nasıl Kullanılır?</strong>
+      <button class="modal-close" id="infoModalClose">×</button>
+    </div>
+    <ul class="info-list">
+      <li><b>Resim Ekle</b> — PNG/JPG/SVG yükleyin, tişörde sürükleyin.</li>
+      <li><b>Yazı Ekle</b> — Yazı tipini ve rengini seçerek metin ekleyin.</li>
+      <li><b>Tasarımlar</b> — Hazır şablonlardan birini kullanın.</li>
+      <li><b>Arkaplan Kaldır</b> — Resim seçili iken arka planı kaldırın.</li>
+      <li><b>Gelişmiş Düzenleme</b> — Filtre ve parlaklık/kontrast ayarları.</li>
+      <li><b>QR Kod Ekle</b> — URL'den otomatik QR kod oluşturun.</li>
+      <li><b>Ctrl+Z / Ctrl+Y</b> — Geri al / İleri al.</li>
+    </ul>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
