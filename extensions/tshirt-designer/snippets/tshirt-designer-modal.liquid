@@ -8,12 +8,20 @@
   {% assign designer_app_url = shop.url | append: '/apps/tshirt-designer/designer' %}
 {% endif %}
 
+{% assign front_variant = product.variants | where: 'option3', 'Ön Baskı' | first %}
+{% assign back_variant = product.variants | where: 'option3', 'Arka Baskı' | first %}
+{% assign double_variant = product.variants | where: 'option3', 'Ön + Arka Baskı' | first %}
+
 {% assign front_img = '' %}
-{% if product.images[0] %}
+{% if front_variant.featured_image %}
+  {% assign front_img = front_variant.featured_image | image_url: width: 900 %}
+{% elsif product.images[0] %}
   {% assign front_img = product.images[0] | image_url: width: 900 %}
 {% endif %}
 {% assign back_img = '' %}
-{% if product.images[1] %}
+{% if back_variant.featured_image %}
+  {% assign back_img = back_variant.featured_image | image_url: width: 900 %}
+{% elsif product.images[1] %}
   {% assign back_img = product.images[1] | image_url: width: 900 %}
 {% endif %}
 
@@ -29,10 +37,10 @@
   data-shirt-color="{{ shirt_color | default: '#1C1C1E' }}"
   data-currency="{{ shop.currency }}"
   data-locale="{{ request.locale.iso_code | default: 'tr-TR' }}"
-  data-single-variant-id="{{ block.settings.single_variant_id }}"
-  data-double-variant-id="{{ block.settings.double_variant_id }}"
-  data-single-price="{{ block.settings.single_price | default: 39900 }}"
-  data-double-price="{{ block.settings.double_price | default: 49900 }}"
+  data-single-variant-id="{{ front_variant.id | default: block.settings.single_variant_id }}"
+  data-double-variant-id="{{ double_variant.id | default: block.settings.double_variant_id }}"
+  data-single-price="{{ front_variant.price }}"
+  data-double-price="{{ double_variant.price }}"
   data-product-variants="{{ product.variants | json | escape }}"
 >
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -92,8 +100,9 @@
       locale: btn.dataset.locale || 'tr-TR',
       singleVariantId: btn.dataset.singleVariantId || '',
       doubleVariantId: btn.dataset.doubleVariantId || '',
-      singlePrice: btn.dataset.singlePrice || '39900',
-      doublePrice: btn.dataset.doublePrice || '49900',
+      singlePrice: btn.dataset.singlePrice || '',
+      doublePrice: btn.dataset.doublePrice || '',
+      variants: btn.dataset.productVariants || '[]',
     });
     iframe.src = baseUrl + '?' + params.toString();
     overlay.style.display = 'block';

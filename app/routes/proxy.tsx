@@ -10,8 +10,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { liquid } = await authenticate.public.appProxy(request);
   const url = new URL(request.url);
   const params = url.searchParams.toString();
+  const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
+  const designerUrl = new URL("/designer-app/", appUrl);
+  designerUrl.search = params;
 
-  // Redirect to the designer SPA with the same query params
+  const iframeSrc = designerUrl.toString().replace(/&/g, "&amp;");
+
   return liquid(
     `<!doctype html>
 <html lang="tr">
@@ -19,20 +23,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>{{ shop.name }} — Tasarım Aracı</title>
-<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#18181b}</style>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#18181b}
+  iframe{display:block;width:100%;height:100vh;border:0;background:#18181b}
+</style>
 </head>
 <body>
-<script>
-  // Pass Shopify liquid data to the React app via window object
-  window.__SHOPIFY_DATA__ = {
-    shopName: {{ shop.name | json }},
-    currency: {{ shop.currency | json }},
-    locale: {{ request.locale.iso_code | json }},
-  };
-</script>
-<div id="root" style="height:100vh"></div>
-<link rel="stylesheet" href="/apps/tshirt-designer/assets/app.css"/>
-<script type="module" src="/apps/tshirt-designer/assets/app.js"></script>
+<iframe src="${iframeSrc}" allow="camera; microphone"></iframe>
 </body>
 </html>`,
     { layout: false },

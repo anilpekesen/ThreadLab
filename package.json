@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "shopify app dev",
-    "build": "remix vite:build",
+    "build": "npm run build --workspace designer-ui && remix vite:build",
     "start": "remix-serve ./build/server/index.js",
     "deploy": "shopify app deploy",
     "typecheck": "tsc"
@@ -39,6 +39,7 @@
     "@shopify/plugin-cloudflare"
   ],
   "workspaces": [
-    "extensions/*"
+    "extensions/*",
+    "designer-ui"
   ]
 }

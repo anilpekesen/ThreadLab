@@ -22,6 +22,7 @@ public/designer-app/
 # Runtime uploads / local data
 public/uploads/
 uploads/
+data/designs.json
 
 # Logs
 *.log

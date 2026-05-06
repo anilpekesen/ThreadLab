@@ -15,21 +15,40 @@ function readConfig(): DesignerConfig {
   const w = window as typeof window & { __DESIGNER_CONFIG__?: DesignerConfig };
   if (w.__DESIGNER_CONFIG__) return w.__DESIGNER_CONFIG__;
   const p = new URLSearchParams(window.location.search);
+  const variantsParam = p.get('variants');
+  let variants: DesignerConfig['variants'] = [];
+  try {
+    variants = variantsParam ? JSON.parse(variantsParam) as DesignerConfig['variants'] : [];
+  } catch {
+    variants = [];
+  }
   return {
     productHandle: p.get('handle') ?? '',
     productTitle: p.get('title') ?? 'Tişört',
     frontImage: p.get('front') ?? '',
     backImage: p.get('back') ?? '',
     shirtColor: p.get('color') ?? '#1C1C1E',
-    variants: [],
+    variants,
     currency: p.get('currency') ?? 'TRY',
     locale: p.get('locale') ?? 'tr-TR',
     uploadEndpoint: p.get('upload') ?? '/apps/tshirt-designer/upload',
     singleVariantId: p.get('singleVariantId') ?? '',
     doubleVariantId: p.get('doubleVariantId') ?? '',
-    singlePrice: Number(p.get('singlePrice') ?? 399),
-    doublePrice: Number(p.get('doublePrice') ?? 499),
+    singlePrice: Number(p.get('singlePrice') ?? 0),
+    doublePrice: Number(p.get('doublePrice') ?? 0),
   };
+}
+
+function priceToCents(price: string | number | undefined): number {
+  if (typeof price === 'number') return price;
+  if (!price) return 0;
+  if (/^\d+$/.test(price)) return Number(price);
+  return Math.round(Number(price) * 100);
+}
+
+function printOptionForSide(side: 'front' | 'back' | 'double') {
+  if (side === 'double') return 'Ön + Arka Baskı';
+  return side === 'back' ? 'Arka Baskı' : 'Ön Baskı';
 }
 
 const TABS: { id: LeftTab; label: string; icon: string }[] = [
@@ -124,15 +143,25 @@ export default function App() {
   const handleAddToCart = async () => {
     const frontPng = frontCanvasRef.current?.exportPng() ?? '';
     const backPng = backCanvasRef.current?.exportPng() ?? '';
+    const frontHasDesign = Boolean(frontCanvasRef.current?.canvas?.getObjects().length);
+    const backHasDesign = Boolean(backCanvasRef.current?.canvas?.getObjects().length);
+    const resolvedSide = frontHasDesign && backHasDesign
+      ? 'double'
+      : backHasDesign
+        ? 'back'
+        : 'front';
+    const printOption = printOptionForSide(resolvedSide);
 
-    const selectedVariant = config?.variants?.find((v) => v.option2 === selectedSize);
-    const variantId = printSide === 'double'
-      ? (config?.doubleVariantId ?? selectedVariant?.id ?? '')
-      : (config?.singleVariantId ?? selectedVariant?.id ?? '');
+    const selectedVariant = config?.variants?.find((v) => (
+      (!selectedSize || v.option2 === selectedSize) && v.option3 === printOption
+    ));
+    const variantId = selectedVariant?.id
+      ?? (resolvedSide === 'double' ? config?.doubleVariantId : config?.singleVariantId)
+      ?? '';
 
     if (!variantId) { alert('Lütfen bir beden seçin'); return; }
 
-    const price = printSide === 'double' ? config?.doublePrice : config?.singlePrice;
+    const price = selectedVariant ? priceToCents(selectedVariant.price) : (resolvedSide === 'double' ? config?.doublePrice : config?.singlePrice);
 
     // Post design to backend to get token
     const designRes = await fetch('/api/storefront/designs', {
@@ -156,7 +185,7 @@ export default function App() {
       'design_token': token,
       'Ön önizleme': frontPng.slice(0, 200),
     };
-    if (printSide === 'double') properties['Arka Tasarım'] = backPng ? 'Var' : 'Yok';
+    if (resolvedSide === 'back' || resolvedSide === 'double') properties['Arka Tasarım'] = backPng ? 'Var' : 'Yok';
 
     // postMessage to parent storefront
     window.parent.postMessage({
@@ -169,7 +198,13 @@ export default function App() {
     }, '*');
   };
 
-  const price = printSide === 'double' ? config?.doublePrice : config?.singlePrice;
+  const frontHasDesign = Boolean(frontCanvasRef.current?.canvas?.getObjects().length);
+  const backHasDesign = Boolean(backCanvasRef.current?.canvas?.getObjects().length);
+  const resolvedSide = frontHasDesign && backHasDesign ? 'double' : backHasDesign ? 'back' : printSide === 'double' ? 'front' : activeSide;
+  const selectedVariant = config?.variants?.find((v) => (
+    (!selectedSize || v.option2 === selectedSize) && v.option3 === printOptionForSide(resolvedSide)
+  ));
+  const price = selectedVariant ? priceToCents(selectedVariant.price) : (resolvedSide === 'double' ? config?.doublePrice : config?.singlePrice);
   const formattedPrice = price
     ? new Intl.NumberFormat(config?.locale ?? 'tr-TR', { style: 'currency', currency: config?.currency ?? 'TRY', maximumFractionDigits: 0 }).format(price / 100)
     : '';
