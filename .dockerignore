@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+.shopify
+.claude
+.idea
+node_modules
+designer-ui/node_modules
+build
+dist
+public/designer-app
+public/uploads
+uploads
+data/designs.json
+*.log
