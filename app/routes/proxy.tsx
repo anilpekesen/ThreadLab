@@ -1,5 +1,6 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { authenticate } from "~/shopify.server";
+import { handleDesignerUpload } from "~/models/uploads.server";
 
 /**
  * App Proxy: /apps/tshirt-designer → bu route
@@ -34,4 +35,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 </html>`,
     { layout: false },
   );
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  await authenticate.public.appProxy(request);
+  return handleDesignerUpload(request);
 };
