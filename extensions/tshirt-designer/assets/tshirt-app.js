@@ -3470,6 +3470,24 @@
 
       if (undoBtn)   undoBtn.addEventListener('click', undo);
       if (redoBtn)   redoBtn.addEventListener('click', redo);
+
+      // Zoom buttons (right toolbar)
+      qa('[data-zoom]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          applyZoom(parseInt(btn.dataset.zoom, 10));
+        });
+      });
+
+      // View thumb images: populate from front/back image data attributes
+      (function () {
+        var tFront = q('[data-view-thumb="front"]');
+        var tBack  = q('[data-view-thumb="back"]');
+        var frontSrc = root.dataset.frontImage;
+        var backSrc  = root.dataset.backImage;
+        if (tFront && frontSrc) tFront.src = frontSrc;
+        if (tBack  && backSrc)  tBack.src  = backSrc;
+      }());
+
       delBtns.forEach(function (delBtn) {
         delBtn.addEventListener('mousedown', function (e) { e.preventDefault(); deleteSelected(); });
       });
