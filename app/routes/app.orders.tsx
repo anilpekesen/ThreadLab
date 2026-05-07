@@ -1,11 +1,13 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
 import {
-  Page, Card, DataTable, Badge, Button, Select, InlineStack, Box, Text, BlockStack,
+  Page, Card, Badge, Button, InlineStack, Box, Text, BlockStack,
+  Thumbnail, IndexTable, useIndexResourceState, EmptyState,
+  Grid,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getOrders, updateOrderStatus } from "~/models/orders.server";
+import { getOrders, updateOrderStatus, getDashboardStats } from "~/models/orders.server";
 
 const STATUSES = [
   { label: "Tümü", value: "" },
@@ -16,12 +18,38 @@ const STATUSES = [
   { label: "Gönderildi", value: "shipped" },
 ];
 
+const NEXT_STATUS: Record<string, string> = {
+  pending: "preparing",
+  preparing: "printed",
+  printed: "ready",
+  ready: "shipped",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Bekliyor",
+  preparing: "Hazırlanıyor",
+  printed: "Basıldı",
+  ready: "Hazır",
+  shipped: "Gönderildi",
+};
+
+const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | "new"> = {
+  pending: "attention",
+  preparing: "info",
+  printed: "info",
+  ready: "success",
+  shipped: "success",
+};
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const status = url.searchParams.get("status") ?? "";
-  const orders = await getOrders(status || undefined);
-  return json({ orders, status });
+  const [orders, stats] = await Promise.all([
+    getOrders(status || undefined),
+    getDashboardStats(),
+  ]);
+  return json({ orders, status, stats, shop: session.shop });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -33,66 +61,199 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return json({ ok: true });
 };
 
-const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | "new"> = {
-  pending: "attention", preparing: "info", printed: "info", ready: "success", shipped: "success",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Bekliyor", preparing: "Hazırlanıyor", printed: "Basıldı", ready: "Hazır", shipped: "Gönderildi",
-};
+function StatCard({ label, value, tone }: { label: string; value: number; tone?: string }) {
+  return (
+    <Card>
+      <Box padding="400">
+        <BlockStack gap="100">
+          <Text as="p" variant="bodySm" tone="subdued">{label}</Text>
+          <Text as="p" variant="headingXl" fontWeight="bold"
+            tone={tone as "critical" | "caution" | "success" | undefined}>
+            {value}
+          </Text>
+        </BlockStack>
+      </Box>
+    </Card>
+  );
+}
 
 export default function Orders() {
-  const { orders, status } = useLoaderData<typeof loader>();
+  const { orders, status, stats, shop } = useLoaderData<typeof loader>();
+  const [searchParams] = useSearchParams();
   const fetcher = useFetcher();
 
-  const rows = orders.map((o) => {
-    const nextStatus = {
-      pending: "preparing", preparing: "printed", printed: "ready", ready: "shipped",
-    }[o.productionStatus];
-    return [
-      o.orderNumber,
-      o.customerName,
-      <a href={`mailto:${o.customerEmail}`}>{o.customerEmail}</a>,
-      o.productName,
-      <Badge tone={BADGE_TONE[o.productionStatus] ?? "new"}>
-        {STATUS_LABELS[o.productionStatus] ?? o.productionStatus}
-      </Badge>,
-      new Date(o.createdAt).toLocaleDateString("tr-TR"),
-      nextStatus ? (
-        <fetcher.Form method="post">
-          <input type="hidden" name="id" value={o.id} />
-          <input type="hidden" name="status" value={nextStatus} />
-          <Button submit size="slim">
-            → {STATUS_LABELS[nextStatus]}
-          </Button>
-        </fetcher.Form>
-      ) : "✓ Tamamlandı",
-    ];
+  const resourceName = { singular: "sipariş", plural: "sipariş" };
+  const { selectedResources, allResourcesSelected, handleSelectionChange } =
+    useIndexResourceState(orders);
+
+  const shopDomain = shop.replace(".myshopify.com", "");
+
+  const rowMarkup = orders.map((o, index) => {
+    const next = NEXT_STATUS[o.productionStatus];
+    const designUrl = o.designToken
+      ? `/apps/tshirt-designer/designs/${encodeURIComponent(o.designToken)}`
+      : null;
+    const shopifyOrderUrl = o.shopifyOrderId
+      ? `https://admin.shopify.com/store/${shopDomain}/orders/${o.shopifyOrderId}`
+      : null;
+
+    return (
+      <IndexTable.Row
+        id={o.id}
+        key={o.id}
+        selected={selectedResources.includes(o.id)}
+        position={index}
+      >
+        {/* Önizleme */}
+        <IndexTable.Cell>
+          {o.previewUrl ? (
+            <Thumbnail source={o.previewUrl} alt="Tasarım önizlemesi" size="small" />
+          ) : (
+            <div style={{
+              width: 40, height: 40, borderRadius: 6,
+              background: "#f3f4f6", display: "flex", alignItems: "center",
+              justifyContent: "center", fontSize: 18,
+            }}>🎨</div>
+          )}
+        </IndexTable.Cell>
+
+        {/* Sipariş no */}
+        <IndexTable.Cell>
+          {shopifyOrderUrl ? (
+            <a href={shopifyOrderUrl} target="_blank" rel="noreferrer"
+              style={{ fontWeight: 600, color: "#2c6ecb", textDecoration: "none" }}>
+              {o.orderNumber}
+            </a>
+          ) : (
+            <Text as="span" fontWeight="semibold">{o.orderNumber}</Text>
+          )}
+        </IndexTable.Cell>
+
+        {/* Müşteri */}
+        <IndexTable.Cell>
+          <BlockStack gap="050">
+            <Text as="span" variant="bodySm" fontWeight="semibold">{o.customerName}</Text>
+            {o.customerEmail && (
+              <Text as="span" variant="bodySm" tone="subdued">{o.customerEmail}</Text>
+            )}
+          </BlockStack>
+        </IndexTable.Cell>
+
+        {/* Ürün */}
+        <IndexTable.Cell>
+          <Text as="span" variant="bodySm">{o.productName}</Text>
+        </IndexTable.Cell>
+
+        {/* Durum */}
+        <IndexTable.Cell>
+          <Badge tone={BADGE_TONE[o.productionStatus] ?? "new"}>
+            {STATUS_LABELS[o.productionStatus] ?? o.productionStatus}
+          </Badge>
+        </IndexTable.Cell>
+
+        {/* Tarih */}
+        <IndexTable.Cell>
+          <Text as="span" variant="bodySm" tone="subdued">
+            {new Date(o.createdAt).toLocaleDateString("tr-TR", {
+              day: "2-digit", month: "short", year: "numeric",
+            })}
+          </Text>
+        </IndexTable.Cell>
+
+        {/* İşlemler */}
+        <IndexTable.Cell>
+          <InlineStack gap="200" blockAlign="center">
+            {designUrl && (
+              <a href={designUrl} target="_blank" rel="noreferrer">
+                <Button size="slim" variant="plain">Tasarımı Gör</Button>
+              </a>
+            )}
+            {next ? (
+              <fetcher.Form method="post">
+                <input type="hidden" name="id" value={o.id} />
+                <input type="hidden" name="status" value={next} />
+                <Button submit size="slim" variant="secondary">
+                  → {STATUS_LABELS[next]}
+                </Button>
+              </fetcher.Form>
+            ) : (
+              <Text as="span" variant="bodySm" tone="success">✓ Tamamlandı</Text>
+            )}
+          </InlineStack>
+        </IndexTable.Cell>
+      </IndexTable.Row>
+    );
   });
 
   return (
-    <Page title={`Siparişler (${orders.length})`}>
+    <Page title="Siparişler">
       <BlockStack gap="400">
-        <Card>
-          <Box padding="400">
-            <InlineStack gap="200">
+        {/* İstatistik kartları */}
+        <Grid>
+          <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+            <StatCard label="Toplam Sipariş" value={stats.total} />
+          </Grid.Cell>
+          <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+            <StatCard label="Bugün" value={stats.today} />
+          </Grid.Cell>
+          <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+            <StatCard label="Üretim Bekliyor" value={stats.pendingProduction} tone="caution" />
+          </Grid.Cell>
+          <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+            <StatCard label="Hazır / Kargoda" value={stats.ready} tone="success" />
+          </Grid.Cell>
+        </Grid>
+
+        {/* Filtre + Tablo */}
+        <Card padding="0">
+          <Box padding="400" borderBlockEndWidth="025" borderColor="border">
+            <InlineStack gap="200" wrap>
               {STATUSES.map((s) => (
-                <a key={s.value} href={`/app/orders${s.value ? `?status=${s.value}` : ""}`}>
-                  <Button pressed={status === s.value} size="slim">{s.label}</Button>
+                <a
+                  key={s.value}
+                  href={`/app/orders${s.value ? `?status=${s.value}` : ""}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <Button
+                    pressed={status === s.value || (!status && s.value === "")}
+                    size="slim"
+                  >
+                    {s.label}
+                  </Button>
                 </a>
               ))}
             </InlineStack>
           </Box>
-          {rows.length === 0 ? (
-            <Box padding="800">
-              <Text as="p" tone="subdued" alignment="center">Bu durumda sipariş yok.</Text>
-            </Box>
+
+          {orders.length === 0 ? (
+            <EmptyState
+              heading="Bu durumda sipariş yok"
+              image=""
+            >
+              <Text as="p" tone="subdued">
+                {status
+                  ? `"${STATUS_LABELS[status]}" durumunda henüz sipariş bulunmuyor.`
+                  : "Henüz hiç sipariş alınmamış."}
+              </Text>
+            </EmptyState>
           ) : (
-            <DataTable
-              columnContentTypes={["text", "text", "text", "text", "text", "text", "text"]}
-              headings={["Sipariş", "Müşteri", "E-posta", "Ürün", "Durum", "Tarih", "İşlem"]}
-              rows={rows}
-            />
+            <IndexTable
+              resourceName={resourceName}
+              itemCount={orders.length}
+              selectedItemsCount={allResourcesSelected ? "All" : selectedResources.length}
+              onSelectionChange={handleSelectionChange}
+              headings={[
+                { title: "" },
+                { title: "Sipariş" },
+                { title: "Müşteri" },
+                { title: "Ürün" },
+                { title: "Durum" },
+                { title: "Tarih" },
+                { title: "İşlem" },
+              ]}
+            >
+              {rowMarkup}
+            </IndexTable>
           )}
         </Card>
       </BlockStack>
