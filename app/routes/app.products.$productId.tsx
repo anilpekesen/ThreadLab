@@ -504,7 +504,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const form = await request.formData();
 
   const fallback: ProductConfig = {
-    isActive: false,
+    isActive: true,
     productTitle: String(form.get("productTitle") || ""),
     productHandle: String(form.get("productHandle") || ""),
     productType: "apparel",

@@ -219,7 +219,7 @@ export function buildDefaultConfig(product: Pick<ShopifyProductSummary, "title" 
   const productType = normalizeProductType(product.productType);
   const printDefaults = defaultPrintAreaForType(productType);
   return {
-    isActive: false,
+    isActive: true,
     productTitle: product.title,
     productHandle: product.handle,
     productType,

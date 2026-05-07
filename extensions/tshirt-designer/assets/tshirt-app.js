@@ -3165,6 +3165,19 @@
       }, 40);
     }
 
+    // Polls until all fabric.Image pixel data is loaded (needed before toDataURL)
+    function waitForCanvasImagesLoaded(canvas, done, tries) {
+      tries = tries || 0;
+      if (tries > 25) { done(); return; }
+      var objs = canvas ? canvas.getObjects('image') : [];
+      var allReady = objs.every(function (obj) {
+        var el = obj._originalElement || (obj.getElement && obj.getElement());
+        return !el || (el.complete && el.naturalWidth > 0);
+      });
+      if (!objs.length || allReady) { done(); return; }
+      setTimeout(function () { waitForCanvasImagesLoaded(canvas, done, tries + 1); }, 40);
+    }
+
     function switchViewForPreview(side, done) {
       var idx = S.views.indexOf(side);
       if (idx === -1) {
@@ -3191,7 +3204,7 @@
           normalizeCanvasImages();
           S.canvas.renderAll();
           updateSelectionMetrics();
-          finishSwitch();
+          waitForCanvasImagesLoaded(S.canvas, finishSwitch);
         });
       } else if (S.canvas) {
         S.canvas.clear();
