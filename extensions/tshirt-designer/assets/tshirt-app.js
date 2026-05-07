@@ -3148,6 +3148,80 @@
       ctx.restore();
     }
 
+    function waitForPreviewSceneReady(done, tries) {
+      tries = tries || 0;
+      var overlay = q('[data-canvas-overlay]');
+      var productImg = q('[data-product-img]');
+      var svgWrap = q('[data-shirt-svg-wrap]');
+      var hasOverlay = overlay && overlay.offsetWidth > 0 && overlay.offsetHeight > 0;
+      var hasProductImg = productImg && productImg.classList.contains('loaded') && productImg.naturalWidth > 0;
+      var hasSvg = svgWrap && svgWrap.style.display !== 'none';
+      if (hasOverlay && (hasProductImg || hasSvg || tries > 12)) {
+        setTimeout(done, 40);
+        return;
+      }
+      setTimeout(function () {
+        waitForPreviewSceneReady(done, tries + 1);
+      }, 40);
+    }
+
+    function switchViewForPreview(side, done) {
+      var idx = S.views.indexOf(side);
+      if (idx === -1) {
+        done();
+        return;
+      }
+      if (S.canvas) {
+        S.saved[viewName()] = JSON.stringify(S.canvas.toJSON(DESIGN_JSON_PROPS));
+        saveCanvasToStorage();
+      }
+      S.viewIdx = idx;
+      updateViewSwitcher();
+      setupProductDisplay();
+
+      var savedJson = S.saved[viewName()];
+      function finishSwitch() {
+        updateStatusBadges();
+        updatePriceLabel();
+        waitForPreviewSceneReady(done);
+      }
+
+      if (S.canvas && savedJson) {
+        S.canvas.loadFromJSON(savedJson, function () {
+          normalizeCanvasImages();
+          S.canvas.renderAll();
+          updateSelectionMetrics();
+          finishSwitch();
+        });
+      } else if (S.canvas) {
+        S.canvas.clear();
+        S.canvas.renderAll();
+        updateSelectionMetrics();
+        finishSwitch();
+      } else {
+        finishSwitch();
+      }
+    }
+
+    function exportPreviewPair(callback) {
+      var originalSide = viewName();
+      if (S.canvas) S.saved[originalSide] = canvasJSON();
+      switchViewForPreview('front', function () {
+        exportMockupDataUrl(function (frontUrl) {
+          switchViewForPreview('back', function () {
+            exportMockupDataUrl(function (backUrl) {
+              switchViewForPreview(originalSide, function () {
+                callback({
+                  front: frontUrl,
+                  back: backUrl,
+                });
+              });
+            });
+          });
+        });
+      });
+    }
+
     function setLoading(on) {
       var cartBtn = q('[data-add-to-cart]');
       if (!cartBtn) return;
@@ -3653,25 +3727,30 @@
       var previewBtn = q('[data-preview-btn]');
       var previewModal = document.querySelector('[data-preview-modal]');
       var previewClose = document.querySelector('[data-preview-close]');
-      var previewImg = document.querySelector('[data-preview-img]');
+      var previewFrontImg = document.querySelector('[data-preview-img="front"]');
+      var previewBackImg = document.querySelector('[data-preview-img="back"]');
+      function closePreviewModal() {
+        if (!previewModal) return;
+        previewModal.style.display = 'none';
+        document.body.style.overflow = '';
+      }
       if (previewBtn && previewModal) {
         previewBtn.addEventListener('click', function () {
           if (!S.canvas) return;
+          document.body.style.overflow = 'hidden';
           previewModal.style.display = 'flex';
-          if (previewImg) {
-            previewImg.src = '';
-            exportMockupDataUrl(function (dataUrl) {
-              previewImg.src = dataUrl;
-            });
-          }
+          if (previewFrontImg) previewFrontImg.src = '';
+          if (previewBackImg) previewBackImg.src = '';
+          exportPreviewPair(function (previews) {
+            if (previewFrontImg && previews.front) previewFrontImg.src = previews.front;
+            if (previewBackImg && previews.back) previewBackImg.src = previews.back;
+          });
         });
         if (previewClose) {
-          previewClose.addEventListener('click', function () {
-            previewModal.style.display = 'none';
-          });
+          previewClose.addEventListener('click', closePreviewModal);
         }
         previewModal.addEventListener('click', function (e) {
-          if (e.target === previewModal) previewModal.style.display = 'none';
+          if (e.target === previewModal) closePreviewModal();
         });
       }
 
