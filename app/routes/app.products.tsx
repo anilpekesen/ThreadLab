@@ -26,6 +26,10 @@ const PRODUCT_TYPE_LABELS: Record<string, string> = {
   other: "Diger",
 };
 
+function encodeProductToken(productId: string) {
+  return Buffer.from(productId, "utf8").toString("base64url");
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
@@ -47,7 +51,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       status: config.isActive,
       productType: config.productType,
       surfaceMode: config.surfaceMode,
-      editUrl: `/app/products/${encodeURIComponent(product.id)}`,
+      editUrl: `/app/products/${encodeProductToken(product.id)}`,
       themeUrl,
     };
   });

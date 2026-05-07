@@ -32,6 +32,14 @@ const PREVIEW_WIDTH = 480;
 const PREVIEW_HEIGHT = 580;
 const MIN_AREA_SIZE = 24;
 
+function decodeProductToken(productToken: string) {
+  try {
+    return Buffer.from(productToken, "base64url").toString("utf8");
+  } catch {
+    return productToken;
+  }
+}
+
 type BandState = {
   key: string;
   label: string;
@@ -479,7 +487,8 @@ function PrintAreaEditor({
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const productId = params.productId ?? "";
+  const productToken = params.productId ?? "";
+  const productId = decodeProductToken(productToken);
   const product = await fetchShopifyProductById(admin, productId);
   if (!product) {
     throw new Response("Product not found", { status: 404 });
@@ -498,7 +507,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   await authenticate.admin(request);
-  const productId = params.productId ?? "";
+  const productToken = params.productId ?? "";
+  const productId = decodeProductToken(productToken);
   const form = await request.formData();
 
   const fallback: ProductConfig = {
@@ -557,7 +567,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   saveProductConfig(productId, normalized);
   saveProductPrintAreas(productId, printAreas);
-  return redirect(`/app/products/${encodeURIComponent(productId)}?saved=1`);
+  return redirect(`/app/products/${encodeURIComponent(productToken)}?saved=1`);
 };
 
 export default function ProductSettingsRoute() {
