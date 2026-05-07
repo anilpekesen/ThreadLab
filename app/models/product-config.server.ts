@@ -451,7 +451,13 @@ export function findConfigByHandle(handle: string) {
   const entry = Object.entries(settings).find(([, value]) => String(value?.productHandle || "").trim() === key);
   if (!entry) return null;
 
-  const [productId, config] = entry;
+  const [productId, storedConfig] = entry;
+  const fallback = buildDefaultConfig({
+    title: String(storedConfig?.productTitle || ""),
+    handle: String(storedConfig?.productHandle || key),
+    productType: String(storedConfig?.productType || "apparel"),
+  });
+  const config = normalizeProductConfig(storedConfig, fallback);
   const printAreas = readPrintAreas().filter((area) => area.productId === productId);
 
   return {

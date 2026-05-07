@@ -163,6 +163,27 @@
 
       <div class="dsgn-selection-metrics" data-selection-metrics style="display:none"></div>
 
+      <div class="dsgn-float-tb" data-float-tb style="display:none">
+        <button type="button" class="dsgn-ft-btn" data-ft="transform" title="Dönüştür">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+        </button>
+        <button type="button" class="dsgn-ft-btn" data-ft="position" title="Konum">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+        </button>
+        <button type="button" class="dsgn-ft-btn" data-ft="advanced" title="Gelişmiş">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        </button>
+        <button type="button" class="dsgn-ft-btn" data-ft="removebg" title="Arka Planı Kaldır">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18"/><path d="M10.5 6H19v8.5"/><path d="M5 10v9h9"/></svg>
+        </button>
+        <button type="button" class="dsgn-ft-btn dsgn-ft-btn--danger" data-ft-delete title="Sil">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+        <button type="button" class="dsgn-ft-close" data-ft-close title="Kapat">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
       <div class="dsgn-text-quickbar" data-text-quickbar style="display:none">
         <button type="button" class="dsgn-tq-close" data-tq-close aria-label="Kapat">×</button>
         <div class="dsgn-tq-main">
@@ -191,7 +212,7 @@
             <span>Hizala</span>
           </button>
           <button type="button" class="dsgn-tq-trigger" data-tq-toggle="position">
-            <strong>9 Nokta</strong>
+            <strong>Pozisyon</strong>
             <span>Pozisyon</span>
           </button>
           <button type="button" class="danger" data-tq-delete>
@@ -230,6 +251,23 @@
           <button type="button" class="dsgn-tq-pos" data-tq-position="bottom-right">Sağ Alt</button>
         </div>
       </div>
+      <div class="dsgn-popup" data-popup="transform" style="display:none">
+        <div class="dsgn-popup-title">Dönüştür</div>
+        <div class="dsgn-popup-grid">
+          <button type="button" class="dsgn-popup-btn" data-flip-x title="Yatay çevir">⇄ Yatay</button>
+          <button type="button" class="dsgn-popup-btn" data-flip-y title="Dikey çevir">⇅ Dikey</button>
+          <button type="button" class="dsgn-popup-btn" data-rotate-cw title="Saat yönünde">↻ 90°</button>
+          <button type="button" class="dsgn-popup-btn" data-rotate-ccw title="Saat tersine">↺ 90°</button>
+        </div>
+        <div class="dsgn-popup-slider">
+          <label>Açı <span data-angle-val>0</span>°</label>
+          <input type="range" data-angle min="0" max="359" value="0">
+        </div>
+        <div class="dsgn-popup-slider">
+          <label>Opaklık <span data-opacity-val>100</span>%</label>
+          <input type="range" data-opacity min="0" max="100" value="100">
+        </div>
+      </div>
       <div class="dsgn-popup" data-popup="position" style="display:none">
         <div class="dsgn-popup-title">Konum</div>
         <div class="dsgn-popup-grid">
@@ -266,33 +304,14 @@
     </div><!-- /product-wrap -->
 
     <div class="dsgn-stage-bottom">
-      <div class="dsgn-stage-history">
-        <button type="button" class="dsgn-stage-btn" data-undo title="Geri al">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-          <span>Geri al</span>
-        </button>
-        <button type="button" class="dsgn-stage-btn" data-redo title="İleri al">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
-          <span>İleri al</span>
-        </button>
-        <button type="button" class="dsgn-stage-btn dsgn-stage-btn--danger" data-delete-obj title="Seçileni sil">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-          <span>Seçileni sil</span>
-        </button>
-      </div>
-
       <div class="dsgn-view-switcher" data-view-switcher aria-label="Urun yuzu secimi">
         <button type="button" class="dsgn-view-card active" data-view-card="front" aria-pressed="true">
-          <span class="dsgn-view-thumb">
-            <img data-view-thumb-img="front" alt="" loading="lazy" width="44" height="54">
-          </span>
-          <span class="dsgn-view-card-label">On</span>
+          <span class="dsgn-view-card-badge">Ön</span>
+          <span class="dsgn-view-card-label">Ön Yüz</span>
         </button>
         <button type="button" class="dsgn-view-card" data-view-card="back" aria-pressed="false">
-          <span class="dsgn-view-thumb">
-            <img data-view-thumb-img="back" alt="" loading="lazy" width="44" height="54">
-          </span>
-          <span class="dsgn-view-card-label">Arka</span>
+          <span class="dsgn-view-card-badge">Arka</span>
+          <span class="dsgn-view-card-label">Arka Yüz</span>
         </button>
       </div>
     </div>

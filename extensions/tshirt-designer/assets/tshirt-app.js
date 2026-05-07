@@ -661,11 +661,39 @@
       if (nextView) nextView.style.display = multiple ? '' : 'none';
     }
 
+    function normalizeRemoteBandList(sideBands, fallbackBands) {
+      var source = Array.isArray(sideBands) ? sideBands : [];
+      var normalized = source.map(function (band, index) {
+        var width = band && band.maxWidthCm != null && band.maxWidthCm !== '' ? Number(band.maxWidthCm) : null;
+        var height = band && band.maxHeightCm != null && band.maxHeightCm !== '' ? Number(band.maxHeightCm) : null;
+        var area = band && band.maxAreaCm2 != null && band.maxAreaCm2 !== '' ? Number(band.maxAreaCm2) : null;
+        var fallbackKey = (width != null && height != null) ? (String(width) + 'x' + String(height)) : String(index);
+        return {
+          key: String((band && band.key) || fallbackKey),
+          maxWidthCm: width,
+          maxHeightCm: height,
+          maxAreaCm2: area != null ? area : (width != null && height != null ? width * height : null),
+          label: String((band && band.label) || fallbackKey),
+          surcharge: Number(band && band.surcharge || 0),
+        };
+      }).filter(function (band) {
+        return (band.maxWidthCm != null && band.maxHeightCm != null) || band.maxAreaCm2 != null;
+      });
+
+      normalized.sort(function (a, b) {
+        var aArea = Number(a.maxAreaCm2 != null ? a.maxAreaCm2 : ((a.maxWidthCm || 0) * (a.maxHeightCm || 0)));
+        var bArea = Number(b.maxAreaCm2 != null ? b.maxAreaCm2 : ((b.maxWidthCm || 0) * (b.maxHeightCm || 0)));
+        return aArea - bArea;
+      });
+
+      return normalized.length ? normalized : fallbackBands;
+    }
+
     function normalizeRemoteBands(bands) {
       if (!bands || typeof bands !== 'object') return cfg.pricingBands;
       return {
-        front: Array.isArray(bands.front) ? bands.front : [],
-        back: Array.isArray(bands.back) ? bands.back : [],
+        front: normalizeRemoteBandList(bands.front, cfg.pricingBands.front),
+        back: normalizeRemoteBandList(bands.back, cfg.pricingBands.back),
       };
     }
 
@@ -1331,15 +1359,18 @@
       S.canvas.on('object:moving', function (e) {
         containImageInCanvas(e && e.target);
         updateSelectionMetrics(e && e.target);
+        updatePriceLabel();
       });
       S.canvas.on('object:scaling', function (e) {
         keepImageUniform(e && e.target);
         containImageInCanvas(e && e.target);
         updateSelectionMetrics(e && e.target);
+        updatePriceLabel();
       });
       S.canvas.on('object:rotating', function (e) {
         containImageInCanvas(e && e.target);
         updateSelectionMetrics(e && e.target);
+        updatePriceLabel();
       });
       S.canvas.on('object:modified', function (e) {
         containImageInCanvas(e && e.target);
@@ -1559,26 +1590,6 @@
         var active = side === viewName();
         btn.classList.toggle('active', active);
         btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-      });
-
-      [
-        { side: 'front', src: cfg.frontImage, label: 'Ön taraf görseli' },
-        { side: 'back', src: cfg.backImage, label: 'Arka taraf görseli' },
-      ].forEach(function (item) {
-        var img = q('[data-view-thumb-img="' + item.side + '"]');
-        if (!img) return;
-        if (item.src && img.getAttribute('src') !== item.src) {
-          img.classList.remove('loaded');
-          img.onload = function () { img.classList.add('loaded'); };
-          img.onerror = function () { img.classList.remove('loaded'); };
-          img.alt = item.label;
-          img.src = item.src;
-          if (img.complete && img.naturalWidth > 0) img.classList.add('loaded');
-        } else if (!item.src) {
-          img.removeAttribute('src');
-          img.classList.remove('loaded');
-          img.alt = '';
-        }
       });
 
       var frontStatus = q('[data-view-card-status="front"]');
@@ -2080,6 +2091,8 @@
       obj.set(props);
       obj.setCoords();
       S.canvas.renderAll();
+      updateSelectionMetrics(obj);
+      positionTextQuickbar(obj);
       pushHistory();
       return true;
     }
@@ -2371,7 +2384,33 @@
       var ftb  = q('[data-float-tb]');
       var wrap = q('[data-product-wrap]');
       if (!ftb || !wrap || !S.canvas) return;
-      ftb.style.display = 'none';
+      var isText = obj && (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox');
+      if (!obj || isText) {
+        ftb.style.display = 'none';
+        return;
+      }
+
+      var bounds = obj.getBoundingRect(true);
+      var overlay = q('[data-canvas-overlay]');
+      if (!overlay) return;
+      var overlayRect = overlay.getBoundingClientRect();
+      var wrapRect = wrap.getBoundingClientRect();
+      var ox = overlayRect.left - wrapRect.left;
+      var oy = overlayRect.top - wrapRect.top;
+      var scaleX = overlay.offsetWidth / S.canvas.width;
+      var scaleY = overlay.offsetHeight / S.canvas.height;
+
+      if (window.innerWidth <= 768) {
+        ftb.style.left = (wrapRect.width / 2) + 'px';
+        ftb.style.top = Math.max(12, wrapRect.height - 66) + 'px';
+      } else {
+        var bx = ox + bounds.left * scaleX + (bounds.width * scaleX) / 2;
+        var by = oy + bounds.top * scaleY - 46;
+        ftb.style.left = bx + 'px';
+        ftb.style.top = Math.max(8, by) + 'px';
+      }
+
+      ftb.style.display = 'flex';
     }
 
     function positionTextQuickbar(obj) {
