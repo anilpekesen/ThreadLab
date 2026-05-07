@@ -1,12 +1,37 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
+import { randomBytes } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import nodePath from "node:path";
 import { handleDesignerUpload } from "~/models/uploads.server";
 import { authenticate } from "~/shopify.server";
 import { findConfigForStorefront } from "~/models/product-config.server";
 
+const DATA_DIR = nodePath.join(process.cwd(), "data");
+const DESIGNS_FILE = nodePath.join(DATA_DIR, "designs.json");
+
+type DesignRecord = {
+  token: string;
+  [key: string]: unknown;
+};
+
+async function readDesigns(): Promise<DesignRecord[]> {
+  try {
+    return JSON.parse(await readFile(DESIGNS_FILE, "utf8")) as DesignRecord[];
+  } catch {
+    return [];
+  }
+}
+
+async function writeDesigns(records: DesignRecord[]) {
+  await mkdir(DATA_DIR, { recursive: true });
+  await writeFile(DESIGNS_FILE, JSON.stringify(records, null, 2));
+}
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   await authenticate.public.appProxy(request);
   const path = params["*"] ?? "";
+
   if (path === "personalization") {
     const handle = new URL(request.url).searchParams.get("handle") ?? "";
     const productId = new URL(request.url).searchParams.get("productId") ?? "";
@@ -14,7 +39,6 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (!config) {
       return json({ error: "Not found" }, { status: 404 });
     }
-
     return json({
       product: {
         id: config.productId,
@@ -28,14 +52,40 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     });
   }
 
+  // GET /apps/tshirt-designer/designs/<token>
+  const designsMatch = path.match(/^designs\/([^/]+)$/);
+  if (designsMatch) {
+    const token = decodeURIComponent(designsMatch[1]);
+    const records = await readDesigns();
+    const record = records.find((r) => r.token === token);
+    if (!record) return json({ error: "Not found" }, { status: 404 });
+    return json(record);
+  }
+
   return json({ ok: true, path });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   await authenticate.public.appProxy(request);
   const path = params["*"] ?? "";
+
   if (path === "upload") {
     return handleDesignerUpload(request);
   }
+
+  // POST /apps/tshirt-designer/designs
+  if (path === "designs") {
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+    const token = `d_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
+    const record: DesignRecord = { token, ...(body as object), createdAt: new Date().toISOString() };
+    const records = await readDesigns();
+    records.unshift(record);
+    await writeDesigns(records.slice(0, 500));
+    return json({ token });
+  }
+
   return json({ error: "Not found" }, { status: 404 });
 };
