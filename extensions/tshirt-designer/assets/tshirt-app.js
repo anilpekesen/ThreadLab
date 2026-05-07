@@ -71,35 +71,23 @@
     'originalWidth', 'originalHeight', 'originalMime', 'originalSize',
   ];
 
-  function buildDefaultPricingBands(currency) {
-    var tryLike = String(currency || '').toUpperCase() === 'TRY';
-    var values = tryLike ? [60, 120, 180] : [3, 6, 9];
+  function buildDefaultPricingBands() {
     var sizes = [
       { widthCm: 10, heightCm: 15, label: '10 x 15 cm' },
       { widthCm: 21, heightCm: 29, label: '21 x 29 cm' },
       { widthCm: 29, heightCm: 42, label: '29 x 42 cm' },
     ];
-    var front = [];
-    var back = [];
-    for (var i = 0; i < sizes.length; i++) {
-      front.push({
-        key: sizes[i].widthCm + 'x' + sizes[i].heightCm,
-        maxWidthCm: sizes[i].widthCm,
-        maxHeightCm: sizes[i].heightCm,
-        maxAreaCm2: sizes[i].widthCm * sizes[i].heightCm,
-        label: sizes[i].label,
-        surcharge: values[i]
-      });
-      back.push({
-        key: sizes[i].widthCm + 'x' + sizes[i].heightCm,
-        maxWidthCm: sizes[i].widthCm,
-        maxHeightCm: sizes[i].heightCm,
-        maxAreaCm2: sizes[i].widthCm * sizes[i].heightCm,
-        label: sizes[i].label,
-        surcharge: values[i]
-      });
-    }
-    return { front: front, back: back };
+    var bands = sizes.map(function (s) {
+      return {
+        key: s.widthCm + 'x' + s.heightCm,
+        maxWidthCm: s.widthCm,
+        maxHeightCm: s.heightCm,
+        maxAreaCm2: s.widthCm * s.heightCm,
+        label: s.label,
+        surcharge: 0,
+      };
+    });
+    return { front: bands, back: bands.slice() };
   }
 
   function defaultOverlayForType(productType) {
@@ -568,7 +556,7 @@
       singleVariantId: root.dataset.singleVariantId || '',
       doubleVariantId: root.dataset.doubleVariantId || '',
     };
-    cfg.pricingBands = buildDefaultPricingBands(cfg.currency);
+    cfg.pricingBands = buildDefaultPricingBands();
 
     var STORAGE_KEY = 'dsgn_imgs_' + (cfg.productHandle || 'global');
 
@@ -1596,10 +1584,16 @@
         btn.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
 
+      // Thumbnail images: sync with current front/back product images
+      var tFront = q('[data-view-thumb="front"]');
+      var tBack  = q('[data-view-thumb="back"]');
+      if (tFront && cfg.frontImage && tFront.src !== cfg.frontImage) tFront.src = cfg.frontImage;
+      if (tBack  && cfg.backImage  && tBack.src  !== cfg.backImage)  tBack.src  = cfg.backImage;
+
       var frontStatus = q('[data-view-card-status="front"]');
       var backStatus  = q('[data-view-card-status="back"]');
-      if (frontStatus) frontStatus.textContent = sideHasContent('front') ? 'Tasarım var' : 'Tasarım alanı';
-      if (backStatus)  backStatus.textContent  = sideHasContent('back') ? 'Tasarım var' : 'Tasarım alanı';
+      if (frontStatus) frontStatus.textContent = sideHasContent('front') ? '●' : '';
+      if (backStatus)  backStatus.textContent  = sideHasContent('back')  ? '●' : '';
     }
 
     // ── Shirt color ───────────────────────────────────────────────────────────
@@ -2939,13 +2933,6 @@
         setMsg(invalidLine.size + ' bedeni için ana ürün variantı bulunamadı.', 'error'); return;
       }
       var pricing = calculatePricing();
-      var missingSurchargeSides = [];
-      if (pricing.front.hasContent && pricing.front.surcharge > 0 && !pricing.front.variantId) missingSurchargeSides.push('ön');
-      if (pricing.back.hasContent && pricing.back.surcharge > 0 && !pricing.back.variantId) missingSurchargeSides.push('arka');
-      if (missingSurchargeSides.length) {
-        setMsg('Baskı fiyat varyant haritası eksik: ' + missingSurchargeSides.join(', ') + '.', 'error');
-        return;
-      }
       var primaryVariantId = baseVariantIdForSize(lines[0].size);
       var mode = printMode();
 

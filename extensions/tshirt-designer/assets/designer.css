@@ -175,14 +175,17 @@
 
 .designer .dsgn-view-dot {
   display: inline-block;
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: transparent;
-  border: 1.5px solid var(--muted);
+  background: var(--blue);
   flex-shrink: 0;
   font-size: 0;
+  opacity: 0;
+  transition: opacity .2s;
 }
+
+.designer .dsgn-view-dot:not(:empty) { opacity: 1; }
 
 /* ── Right toolbar ───────────────────────────────────────────────────────── */
 .designer .dsgn-right-bar {
@@ -471,22 +474,29 @@
 .designer .dsgn-tq-action--danger { color: var(--danger); }
 .designer .dsgn-tq-action--danger:hover { border-color: rgba(220,38,38,.4); background: var(--danger-lt); color: var(--danger); }
 
-/* ── Quickbar expandable panels ──────────────────────────────────────────── */
+/* ── Quickbar expandable panels — open ABOVE the quickbar ────────────────── */
 .designer .dsgn-tq-panel {
   display: none;
-  gap: 6px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
 }
 
-.designer .dsgn-tq-panel.active { display: grid; }
+.designer .dsgn-tq-panel.active {
+  display: grid;
+  position: absolute;
+  bottom: 100%;
+  left: 0; right: 0;
+  z-index: 65;
+  gap: 6px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 -6px 20px rgba(17,24,39,.1);
+}
 
-.designer .dsgn-tq-panel[data-tq-panel="style"] { grid-template-columns: repeat(4, 1fr); }
-.designer .dsgn-tq-panel[data-tq-panel="align"] { grid-template-columns: repeat(3, 1fr); }
+.designer .dsgn-tq-panel[data-tq-panel="style"]    { grid-template-columns: repeat(4, 1fr); }
+.designer .dsgn-tq-panel[data-tq-panel="align"]    { grid-template-columns: repeat(3, 1fr); }
 .designer .dsgn-tq-panel[data-tq-panel="position"] { grid-template-columns: repeat(3, 1fr); }
-.designer .dsgn-tq-panel[data-tq-panel="size"] { grid-template-columns: 1fr auto; align-items: center; }
+.designer .dsgn-tq-panel[data-tq-panel="size"]     { grid-template-columns: 1fr auto; align-items: center; }
 
 .designer .dsgn-tq-panel input[type="range"] { width: 100%; accent-color: var(--blue); }
 .designer .dsgn-tq-size-value { font-size: 12px; font-weight: 700; color: var(--ink); white-space: nowrap; }
