@@ -6,7 +6,8 @@ import {
   Box,
   Button,
   Card,
-  DataTable,
+  Divider,
+  InlineGrid,
   InlineStack,
   Page,
   Text,
@@ -63,26 +64,6 @@ export default function ProductsRoute() {
   const { rows, q } = useLoaderData<typeof loader>();
   const [query, setQuery] = useState(q);
 
-  const tableRows = rows.map((row) => [
-    row.title,
-    row.handle,
-    <Badge tone={row.status ? "success" : "attention"}>
-      {row.status ? "Aktif" : "Pasif"}
-    </Badge>,
-    PRODUCT_TYPE_LABELS[row.productType] ?? row.productType,
-    row.surfaceMode === "front_only" ? "Sadece on" : "On + arka",
-    <InlineStack gap="200">
-      <Button url={row.editUrl} size="slim">
-        Ayarlar
-      </Button>
-      {row.themeUrl ? (
-        <Button url={row.themeUrl} target="_blank" size="slim">
-          Tema
-        </Button>
-      ) : null}
-    </InlineStack>,
-  ]);
-
   return (
     <Page title="Urunler">
       <BlockStack gap="500">
@@ -114,16 +95,65 @@ export default function ProductsRoute() {
         </Card>
 
         <Card>
-          {tableRows.length === 0 ? (
+          {rows.length === 0 ? (
             <Box padding="400">
               <Text as="p" tone="subdued">Eslesen urun bulunamadi.</Text>
             </Box>
           ) : (
-            <DataTable
-              columnContentTypes={["text", "text", "text", "text", "text", "text"]}
-              headings={["Urun", "Handle", "Durum", "Tip", "Yuz", "Islem"]}
-              rows={tableRows}
-            />
+            <BlockStack gap="0">
+              {rows.map((row, index) => (
+                <div key={row.id}>
+                  <Box padding="400">
+                    <BlockStack gap="300">
+                      <InlineStack align="space-between" blockAlign="start" gap="300">
+                        <BlockStack gap="100">
+                          <Text as="h3" variant="headingMd">
+                            {row.title}
+                          </Text>
+                          <Text as="p" tone="subdued">
+                            {row.handle}
+                          </Text>
+                        </BlockStack>
+                        <Badge tone={row.status ? "success" : "attention"}>
+                          {row.status ? "Aktif" : "Pasif"}
+                        </Badge>
+                      </InlineStack>
+
+                      <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+                        <BlockStack gap="100">
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            Urun tipi
+                          </Text>
+                          <Text as="p">
+                            {PRODUCT_TYPE_LABELS[row.productType] ?? row.productType}
+                          </Text>
+                        </BlockStack>
+                        <BlockStack gap="100">
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            Baski yuzleri
+                          </Text>
+                          <Text as="p">
+                            {row.surfaceMode === "front_only" ? "Sadece on" : "On + arka"}
+                          </Text>
+                        </BlockStack>
+                      </InlineGrid>
+
+                      <InlineStack gap="200">
+                        <Button url={row.editUrl} variant="primary">
+                          Ayarlari ac
+                        </Button>
+                        {row.themeUrl ? (
+                          <Button url={row.themeUrl} target="_blank">
+                            Tema editoru
+                          </Button>
+                        ) : null}
+                      </InlineStack>
+                    </BlockStack>
+                  </Box>
+                  {index < rows.length - 1 ? <Divider /> : null}
+                </div>
+              ))}
+            </BlockStack>
           )}
         </Card>
       </BlockStack>
