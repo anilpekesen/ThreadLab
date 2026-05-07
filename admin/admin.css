@@ -296,6 +296,84 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Sego
 }
 .file-link:hover { background: var(--gray-50); border-color: var(--blue); }
 
+.order-detail-row.hidden { display: none; }
+.order-detail-row td { background: #fbfbfb; padding: 0 14px 16px; }
+.design-detail {
+  border: 1px solid var(--gray-100);
+  border-radius: 8px;
+  background: #fff;
+  padding: 14px;
+}
+.design-detail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.design-detail code {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-100);
+  border-radius: 5px;
+  padding: 2px 5px;
+  font-size: 12px;
+}
+.design-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.side-detail,
+.asset-list {
+  border: 1px solid var(--gray-100);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--gray-50);
+}
+.detail-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--gray-700);
+  margin-bottom: 8px;
+}
+.side-preview {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  border: 1px solid var(--gray-100);
+  border-radius: 6px;
+  background: #fff;
+  margin-bottom: 8px;
+}
+.object-list,
+.asset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.object-item,
+.asset-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--gray-100);
+  border-radius: 7px;
+  background: #fff;
+}
+.object-item span,
+.asset-item small {
+  display: block;
+  color: var(--gray-700);
+}
+.object-item small,
+.asset-item small {
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
 .status-select {
   padding: 5px 8px; border-radius: 6px;
   border: 1px solid var(--gray-200); font-size: 12px;

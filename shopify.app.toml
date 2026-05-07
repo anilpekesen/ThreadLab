@@ -10,10 +10,13 @@ automatically_update_urls_on_dev = true
 api_version = "2026-07"
 
 [access_scopes]
-scopes = "write_app_proxy"
+scopes = "write_products,read_orders,write_app_proxy"
 
 [auth]
-redirect_urls = [ "https://threadlab-production.up.railway.app/auth/callback" ]
+redirect_urls = [
+  "https://threadlab-production.up.railway.app/auth/callback",
+  "https://threadlab-production.up.railway.app/auth/callback/offline"
+]
 
 [app_proxy]
 url = "https://threadlab-production.up.railway.app/proxy"

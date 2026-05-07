@@ -1,15 +1,3 @@
-<!-- ── Designer Header ─────────────────────────────────────────────────── -->
-<div class="dsgn-header">
-  <div>
-    <p class="dsgn-kicker">Kişiye özel tişört</p>
-    <h2 class="dsgn-title">Tasarımını oluştur</h2>
-  </div>
-  <div class="dsgn-price-box" aria-live="polite">
-    <span data-designer-mode-label>Tasarım ekleyin</span>
-    <strong data-designer-price-label></strong>
-  </div>
-</div>
-
 <!-- ── Designer Workspace ─────────────────────────────────────────────── -->
 <div class="dsgn-workspace">
 
@@ -38,14 +26,40 @@
 
     <!-- Image panel -->
     <div class="dsgn-tp" data-tp="image">
-      <div class="dsgn-tp-head">Resim Ekle</div>
-      <div class="dsgn-dropzone" data-dropzone>
-        <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-file-input hidden>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
-        <span>Sürükle &amp; bırak</span>
-        <small>PNG · JPG · WEBP · SVG · Max 8 MB</small>
+      <div class="dsgn-sheet-head">
+        <strong>Medya Ekle</strong>
+        <button type="button" class="dsgn-sheet-close" data-close-tool aria-label="Kapat">×</button>
       </div>
-      <div class="dsgn-img-thumbs" data-img-thumbs></div>
+      <div class="dsgn-media-tabs" role="tablist">
+        <button type="button" class="active" data-media-tab="upload">Yükle</button>
+        <button type="button" data-media-tab="qr">QR Kod</button>
+        <button type="button" data-media-tab="ai">AI Oluştur</button>
+      </div>
+      <div class="dsgn-media-pane active" data-media-pane="upload">
+        <div class="dsgn-dropzone" data-dropzone>
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-file-input hidden>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          <span>Görsel sürükleyin veya yüklemek için tıklayın</span>
+          <small>PNG, JPG, SVG, WebP</small>
+        </div>
+        <div class="dsgn-img-thumbs" data-img-thumbs></div>
+      </div>
+      <div class="dsgn-media-pane" data-media-pane="qr">
+        <input type="url" data-qr-url placeholder="https://..." class="dsgn-qr-input">
+        <div class="dsgn-qr-preview" data-qr-preview></div>
+        <button type="button" class="dsgn-add-btn" data-qr-add>QR Kodu Ekle</button>
+      </div>
+      <div class="dsgn-media-pane" data-media-pane="ai">
+        <textarea class="dsgn-ai-prompt" data-ai-prompt rows="3" placeholder="Oluşturmak istediğiniz görseli açıklayın"></textarea>
+        <div class="dsgn-aspect-row">
+          <button type="button" class="active" data-aspect="1:1">1:1</button>
+          <button type="button" data-aspect="16:9">16:9</button>
+          <button type="button" data-aspect="9:16">9:16</button>
+          <button type="button" data-aspect="4:3">4:3</button>
+          <button type="button" data-aspect="3:4">3:4</button>
+        </div>
+        <button type="button" class="dsgn-add-btn" data-ai-generate>AI Görsel Oluştur</button>
+      </div>
     </div>
 
     <!-- Text panel -->
@@ -139,8 +153,19 @@
       </button>
     </div>
 
-    <!-- Color swatches row -->
-    <div class="dsgn-color-row" data-color-row></div>
+    <!-- Large front/back selector -->
+    <div class="dsgn-view-switcher" data-view-switcher aria-label="Tişört yüzü seçimi">
+      <button type="button" class="dsgn-view-card active" data-view-card="front" aria-pressed="true">
+        <span class="dsgn-view-thumb">
+          <img data-view-thumb-img="front" alt="" loading="lazy" width="44" height="54">
+        </span>
+      </button>
+      <button type="button" class="dsgn-view-card" data-view-card="back" aria-pressed="false">
+        <span class="dsgn-view-thumb">
+          <img data-view-thumb-img="back" alt="" loading="lazy" width="44" height="54">
+        </span>
+      </button>
+    </div>
 
     <!-- Product wrap -->
     <div class="dsgn-product-wrap" data-product-wrap>
@@ -188,6 +213,8 @@
         <canvas data-fabric-canvas></canvas>
       </div>
 
+      <div class="dsgn-selection-metrics" data-selection-metrics style="display:none"></div>
+
       <!-- Floating toolbar -->
       <div class="dsgn-float-tb" data-float-tb style="display:none">
         <button type="button" class="dsgn-ft-btn" data-ft="transform" title="Dönüştür">
@@ -208,6 +235,25 @@
         <button type="button" class="dsgn-ft-close" data-ft-close title="Kapat">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
+      </div>
+
+      <div class="dsgn-text-quickbar" data-text-quickbar style="display:none">
+        <button type="button" class="dsgn-tq-close" data-tq-close aria-label="Kapat">×</button>
+        <label class="dsgn-tq-color"><input type="color" data-tq-color value="#111111"><span>Renk</span></label>
+        <label class="dsgn-tq-size"><input type="number" data-tq-size min="8" max="160" value="30"><span>Punto</span></label>
+        <select data-tq-font>
+          <option value="Arial">Arial</option>
+          <option value="Georgia">Georgia</option>
+          <option value="Impact">Impact</option>
+          <option value="Courier New">Courier</option>
+          <option value="Verdana">Verdana</option>
+          <option value="Roboto">Roboto</option>
+        </select>
+        <button type="button" data-tq-style="bold"><b>B</b><span>Biçim</span></button>
+        <button type="button" data-tq-size-step="1">＋<span>Boyut</span></button>
+        <button type="button" data-tq-align="center">☰<span>Hizala</span></button>
+        <button type="button" data-tq-position>⌄<span>Pozisyon</span></button>
+        <button type="button" class="danger" data-tq-delete>🗑<span>Kaldır</span></button>
       </div>
 
       <!-- Transform popup -->
@@ -265,12 +311,6 @@
 
     </div><!-- /product-wrap -->
 
-    <!-- Status row -->
-    <div class="dsgn-status-row">
-      <span class="dsgn-status-badge" data-front-status>Ön boş</span>
-      <span class="dsgn-status-badge" data-back-status>Arka boş</span>
-    </div>
-
     <!-- QR Modal -->
     <div class="dsgn-qr-modal" data-qr-modal style="display:none">
       <div class="dsgn-qr-card">
@@ -290,26 +330,40 @@
 
 <!-- ── Footer ─────────────────────────────────────────────────────────── -->
 <div class="dsgn-footer">
+  <div class="dsgn-color-group">
+    <label class="dsgn-label">Renk</label>
+    <div class="dsgn-color-row" data-color-row></div>
+  </div>
+
   <div class="dsgn-size-group">
     <label class="dsgn-label">Beden</label>
     <div class="dsgn-size-btns" data-size-group role="group">
-      <button type="button" class="dsgn-size-btn active" data-size="M">M</button>
-      <button type="button" class="dsgn-size-btn" data-size="L">L</button>
-      <button type="button" class="dsgn-size-btn" data-size="XL">XL</button>
-      <button type="button" class="dsgn-size-btn" data-size="XXL">XXL</button>
+      <div class="dsgn-size-row" data-size-row="M">
+        <span class="dsgn-size-name">M</span>
+        <div class="dsgn-size-qty">
+          <button type="button" data-size-qty="-1" data-size="M" aria-label="M azalt">−</button>
+          <input type="number" data-size-input="M" min="0" value="0" aria-label="M adet">
+          <button type="button" data-size-qty="1" data-size="M" aria-label="M artır">+</button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="dsgn-qty-group">
-    <label class="dsgn-label">Adet</label>
-    <div class="dsgn-qty">
-      <button type="button" data-qty="-1" aria-label="Azalt">−</button>
-      <input type="number" data-qty-input min="1" value="1" aria-label="Adet">
-      <button type="button" data-qty="1" aria-label="Artır">+</button>
-    </div>
+  <div class="dsgn-total-group">
+    <label class="dsgn-label">Toplam</label>
+    <div class="dsgn-total-pill" data-total-qty>0 adet</div>
+  </div>
+
+  <div class="dsgn-price-box" aria-live="polite">
+    <span data-designer-mode-label>Tasarım ekleyin</span>
+    <strong data-designer-price-label></strong>
+    <div class="dsgn-price-breakdown" data-price-breakdown></div>
   </div>
 
   <div class="dsgn-cart-wrap">
+    <button type="button" class="dsgn-download-btn" data-download-design>
+      Tasarımı İndir
+    </button>
     <button type="button" class="dsgn-cart-btn" data-add-to-cart>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
       Sepete Ekle

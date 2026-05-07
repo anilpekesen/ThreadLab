@@ -135,6 +135,7 @@
 <div
   class="designer"
   data-product-handle="{{ product.handle }}"
+  data-product-title="{{ product.title | escape }}"
   data-shirt-color="{{ shirt_color }}"
   data-single-variant-id="{{ block.settings.single_variant_id }}"
   data-double-variant-id="{{ block.settings.double_variant_id }}"
@@ -148,6 +149,9 @@
   data-selected-variant="{{ selected_variant | json | escape }}"
   data-front-image="{{ front_img }}"
   data-back-image="{{ back_img }}"
+  data-print-width-cm="28"
+  data-print-height-cm="45"
+  data-surcharge-variant-map="{{ block.settings.surcharge_variant_map | escape }}"
   data-currency="{{ shop.currency }}"
   data-locale="{{ request.locale.iso_code | default: 'tr-TR' }}"
   {{ block.shopify_attributes }}
@@ -203,6 +207,12 @@
       "id": "model_json_url",
       "label": "3D model JSON URL",
       "info": "Urun ozel GLB modeli icin base64 JSON dosya URL'si. Bos kalirsa varsayilan tisort modeli kullanilir."
+    },
+    {
+      "type": "textarea",
+      "id": "surcharge_variant_map",
+      "label": "Baski ek ucret varyant haritasi (JSON)",
+      "info": "{\"front\":{\"150\":\"123\",\"300\":\"124\",\"500\":\"125\",\"750\":\"126\",\"1000\":\"127\",\"max\":\"128\"},\"back\":{\"150\":\"129\",\"300\":\"130\",\"500\":\"131\",\"750\":\"132\",\"1000\":\"133\",\"max\":\"134\"}}"
     },
     {
       "type": "image_picker",

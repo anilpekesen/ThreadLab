@@ -88,7 +88,7 @@ async function loadProducts() {
     <div class="product-item ${p.id === state.selectedProductId ? "selected" : ""}" data-id="${esc(p.id)}" data-title="${esc(p.title)}">
       <div class="product-item-info">
         <h3>${esc(p.title)}</h3>
-        <span>${p.variants} variant${p.variants !== 1 ? "s" : ""}</span>
+        <span>${esc(p.handle || "")} · ${esc(p.productType || "apparel")} · ${p.variants} variant${p.variants !== 1 ? "s" : ""}</span>
       </div>
       <span class="status-badge ${p.isActive ? "active" : "inactive"}">${p.isActive ? "Active" : "Off"}</span>
     </div>`).join("");
@@ -116,6 +116,33 @@ async function loadProductSettings(productId, title) {
   card.innerHTML = `
     <h2 class="card-title">${esc(title)}</h2>
     <div class="settings-form">
+      <div class="form-section">
+        <div class="form-section-title">Catalog</div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label>Product Handle</label>
+            <input type="text" id="s-product-handle" value="${escAttr(settings.productHandle || "")}" placeholder="tisort">
+          </div>
+          <div class="form-group">
+            <label>Product Type</label>
+            <select id="s-product-type">
+              ${[
+                ["apparel", "Apparel"],
+                ["bag", "Bag"],
+                ["mug", "Mug"],
+              ].map(([value, label]) => `<option value="${value}" ${settings.productType === value ? "selected" : ""}>${label}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Surface Mode</label>
+          <select id="s-surface-mode">
+            <option value="front_back" ${settings.surfaceMode === "front_back" ? "selected" : ""}>Front + Back</option>
+            <option value="front_only" ${settings.surfaceMode === "front_only" ? "selected" : ""}>Front Only</option>
+          </select>
+        </div>
+      </div>
+
       <div class="form-section">
         <div class="form-section-title">General</div>
         <div class="toggle-row">
@@ -177,6 +204,38 @@ async function loadProductSettings(productId, title) {
             <input type="number" id="s-dpi" value="${settings.printDpi}" min="72" max="600">
           </div>
         </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label>Front Width (cm)</label>
+            <input type="number" id="s-front-width" value="${settings.frontPrintWidthCm || 0}" min="1" step="0.1">
+          </div>
+          <div class="form-group">
+            <label>Front Height (cm)</label>
+            <input type="number" id="s-front-height" value="${settings.frontPrintHeightCm || 0}" min="1" step="0.1">
+          </div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label>Back Width (cm)</label>
+            <input type="number" id="s-back-width" value="${settings.backPrintWidthCm || 0}" min="1" step="0.1">
+          </div>
+          <div class="form-group">
+            <label>Back Height (cm)</label>
+            <input type="number" id="s-back-height" value="${settings.backPrintHeightCm || 0}" min="1" step="0.1">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Pricing</div>
+        <div class="form-group">
+          <label>Pricing Bands JSON</label>
+          <textarea id="s-pricing-bands" rows="12">${esc(JSON.stringify(settings.pricingBands || { front: [], back: [] }, null, 2))}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Surcharge Variant Map JSON</label>
+          <textarea id="s-surcharge-map" rows="8">${esc(JSON.stringify(settings.surchargeVariantMap || { front: {}, back: {} }, null, 2))}</textarea>
+        </div>
       </div>
 
       <div class="form-actions">
@@ -194,7 +253,14 @@ async function loadProductSettings(productId, title) {
 
 async function saveProductSettings(productId) {
   const allowedTypes = [...document.querySelectorAll(".allowed-type:checked")].map((c) => c.value);
+  const pricingBands = parseJsonField("s-pricing-bands", "Pricing Bands JSON");
+  if (!pricingBands) return;
+  const surchargeVariantMap = parseJsonField("s-surcharge-map", "Surcharge Variant Map JSON");
+  if (!surchargeVariantMap) return;
   const payload = {
+    productHandle: document.getElementById("s-product-handle").value.trim(),
+    productType: document.getElementById("s-product-type").value,
+    surfaceMode: document.getElementById("s-surface-mode").value,
     isActive: document.getElementById("s-active").checked,
     imageUpload: document.getElementById("s-image-upload").checked,
     textUpload: document.getElementById("s-text-upload").checked,
@@ -205,12 +271,30 @@ async function saveProductSettings(productId) {
     allowedTypes,
     printFormat: document.getElementById("s-print-format").value,
     printDpi: Number(document.getElementById("s-dpi").value),
+    frontPrintWidthCm: Number(document.getElementById("s-front-width").value),
+    frontPrintHeightCm: Number(document.getElementById("s-front-height").value),
+    backPrintWidthCm: Number(document.getElementById("s-back-width").value),
+    backPrintHeightCm: Number(document.getElementById("s-back-height").value),
+    pricingBands,
+    surchargeVariantMap,
   };
 
   const result = await api(`/api/admin/products/${productId}/personalization`, "POST", payload);
   if (result) {
     toast("Settings saved", "success");
     loadProducts();
+  }
+}
+
+function parseJsonField(id, label) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  try {
+    return JSON.parse(el.value || "{}");
+  } catch (err) {
+    toast(`${label} geçerli JSON değil`, "error");
+    el.focus();
+    return null;
   }
 }
 
@@ -624,7 +708,7 @@ async function loadOrders() {
 
   const tbody = document.getElementById("orders-tbody");
   if (orders.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No orders found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-row">No orders found</td></tr>`;
     return;
   }
 
@@ -643,9 +727,13 @@ async function loadOrders() {
         ${o.previewUrl
           ? `<img src="${esc(o.previewUrl)}" class="preview-thumb" alt="preview">`
           : `<div class="preview-placeholder">No img</div>`}
+        ${o.backPreviewUrl ? `<img src="${esc(o.backPreviewUrl)}" class="preview-thumb" alt="back preview">` : ""}
       </td>
       <td>
         ${renderProductionLinks(o)}
+      </td>
+      <td>
+        ${renderDesignActions(o)}
       </td>
       <td>
         <select class="status-select ${o.productionStatus}" data-id="${esc(o.id)}" onchange="updateOrderStatus(this)">
@@ -655,6 +743,9 @@ async function loadOrders() {
           <option value="ready" ${o.productionStatus === "ready" ? "selected" : ""}>Ready to Ship</option>
         </select>
       </td>
+    </tr>
+    <tr class="order-detail-row hidden" id="detail-${esc(o.id)}">
+      <td colspan="8">${renderOrderDesignDetail(o)}</td>
     </tr>`).join("");
 }
 
@@ -666,6 +757,81 @@ function renderProductionLinks(order) {
 
   if (!links.length) return `<span class="muted-text">Pending</span>`;
   return `<div class="file-links">${links.join("")}</div>`;
+}
+
+function renderDesignActions(order) {
+  const links = [];
+  const downloadUrl = order.design?.downloadUrl || order.designDownloadUrl;
+  if (downloadUrl) links.push(`<a href="${esc(downloadUrl)}" class="file-link" target="_blank" rel="noopener" download>Tasarım JSON</a>`);
+  if (order.designToken) links.push(`<button type="button" class="btn-link" onclick="toggleOrderDetail('${esc(order.id)}')">Detay</button>`);
+  return links.length ? `<div class="file-links">${links.join("")}</div>` : `<span class="muted-text">No design</span>`;
+}
+
+function renderOrderDesignDetail(order) {
+  const design = order.design;
+  if (!design) return `<div class="design-detail"><p class="muted-text">Design data not found for token ${esc(order.designToken || "")}</p></div>`;
+  const assets = design.assets || [];
+  const sides = design.sides || {};
+  return `
+    <div class="design-detail">
+      <div class="design-detail-head">
+        <div>
+          <strong>Design token:</strong> <code>${esc(design.token)}</code>
+        </div>
+        <div class="muted-text">${assets.length} original image${assets.length === 1 ? "" : "s"}</div>
+      </div>
+      <div class="design-detail-grid">
+        ${renderSideDetail("Ön", sides.front, design.previewUrls?.front)}
+        ${renderSideDetail("Arka", sides.back, design.previewUrls?.back)}
+      </div>
+      <div class="asset-list">
+        <div class="detail-title">Original Images</div>
+        ${assets.length ? assets.map(renderAssetItem).join("") : `<span class="muted-text">No original uploaded image</span>`}
+      </div>
+    </div>`;
+}
+
+function renderSideDetail(label, side, previewUrl) {
+  const objects = side?.objects || [];
+  return `
+    <div class="side-detail">
+      <div class="detail-title">${label} Taraf</div>
+      ${previewUrl ? `<img src="${esc(previewUrl)}" class="side-preview" alt="${esc(label)} preview">` : ""}
+      <div class="muted-text">${side?.imageCount || 0} image · ${side?.textCount || 0} text · ${side?.objectCount || 0} total</div>
+      <div class="object-list">
+        ${objects.length ? objects.map(renderObjectItem).join("") : `<span class="muted-text">Empty</span>`}
+      </div>
+    </div>`;
+}
+
+function renderObjectItem(obj) {
+  if (obj.type === "image") {
+    return `<div class="object-item">
+      <strong>Image</strong>
+      <span>${esc(obj.filename || obj.assetId || "uploaded image")}</span>
+      <small>x:${esc(obj.left)} y:${esc(obj.top)} scale:${esc(obj.scaleX)} angle:${esc(obj.angle || 0)}</small>
+    </div>`;
+  }
+  return `<div class="object-item">
+    <strong>Text</strong>
+    <span>${esc(obj.text || "")}</span>
+    <small>${esc(obj.fontFamily || "")} ${esc(obj.fontSize || "")}px · ${esc(obj.fill || "")}</small>
+  </div>`;
+}
+
+function renderAssetItem(asset) {
+  const sizeMb = asset.size ? `${(asset.size / 1024 / 1024).toFixed(2)} MB` : "";
+  return `<div class="asset-item">
+    <div>
+      <strong>${esc(asset.filename || "image")}</strong>
+      <small>${esc(asset.width || 0)}×${esc(asset.height || 0)} · ${esc(asset.mime || "")} ${sizeMb ? `· ${esc(sizeMb)}` : ""}</small>
+    </div>
+    ${asset.originalUrl ? `<a href="${esc(asset.originalUrl)}" class="file-link" target="_blank" rel="noopener" download>Orijinal indir</a>` : ""}
+  </div>`;
+}
+
+function toggleOrderDetail(id) {
+  document.getElementById(`detail-${id}`)?.classList.toggle("hidden");
 }
 
 async function updateOrderStatus(selectEl) {
@@ -693,6 +859,10 @@ async function api(url, method = "GET", body = null) {
 // ── Utilities ──────────────────────────────────────────────────────────────────────
 function esc(str) {
   return String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function escAttr(str) {
+  return esc(str);
 }
 
 function formatDate(iso) {

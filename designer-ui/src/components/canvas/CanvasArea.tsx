@@ -26,6 +26,41 @@ interface Props {
 
 const HISTORY_LIMIT = 50;
 
+function isImageObject(obj: fabric.Object | null | undefined): obj is fabric.Image {
+  return obj?.type === 'image';
+}
+
+function lockImageProportions(obj: fabric.Object | null | undefined) {
+  if (!isImageObject(obj)) return;
+  obj.set({
+    lockUniScaling: true,
+    lockScalingFlip: true,
+  } as Partial<fabric.Image>);
+  const withControls = obj as fabric.Object & {
+    setControlsVisibility?: (controls: Record<string, boolean>) => void;
+  };
+  withControls.setControlsVisibility?.({
+    mt: false,
+    mb: false,
+    ml: false,
+    mr: false,
+  });
+}
+
+function keepImageUniform(obj: fabric.Object | null | undefined) {
+  if (!isImageObject(obj)) return;
+  const scale = Math.max(Math.abs(obj.scaleX ?? 1), Math.abs(obj.scaleY ?? 1));
+  obj.set({
+    scaleX: (obj.scaleX ?? 1) < 0 ? -scale : scale,
+    scaleY: (obj.scaleY ?? 1) < 0 ? -scale : scale,
+  });
+  obj.setCoords();
+}
+
+function normalizeCanvasImages(cv: fabric.Canvas) {
+  cv.getObjects().forEach(lockImageProportions);
+}
+
 const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, onObjectSelected }, ref) => {
   const canvasEl = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
@@ -65,8 +100,9 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, onObjectSelected
     });
     canvasRef.current = cv;
 
-    cv.on('object:added', () => pushHistory(cv));
+    cv.on('object:added', (e) => { lockImageProportions(e.target); pushHistory(cv); });
     cv.on('object:modified', () => pushHistory(cv));
+    cv.on('object:scaling', (e) => keepImageUniform(e.target));
     cv.on('object:removed', () => pushHistory(cv));
     cv.on('selection:created', (e) => onObjectSelected(e.selected?.[0] ?? null));
     cv.on('selection:updated', (e) => onObjectSelected(e.selected?.[0] ?? null));
@@ -101,6 +137,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, onObjectSelected
       const scale = Math.min(maxW / (img.width ?? 1), maxH / (img.height ?? 1), 1);
       img.scale(scale);
       img.set({ left: PRINT_W / 2, top: PRINT_H / 2, originX: 'center', originY: 'center' });
+      lockImageProportions(img);
       cv.add(img);
       cv.setActiveObject(img);
       cv.renderAll();
@@ -135,6 +172,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, onObjectSelected
     historyIdxRef.current--;
     isRestoringRef.current = true;
     cv.loadFromJSON(historyRef.current[historyIdxRef.current], () => {
+      normalizeCanvasImages(cv);
       cv.renderAll(); isRestoringRef.current = false; updateHistoryState();
     });
   }, []);
@@ -145,6 +183,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, onObjectSelected
     historyIdxRef.current++;
     isRestoringRef.current = true;
     cv.loadFromJSON(historyRef.current[historyIdxRef.current], () => {
+      normalizeCanvasImages(cv);
       cv.renderAll(); isRestoringRef.current = false; updateHistoryState();
     });
   }, []);
@@ -161,7 +200,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, onObjectSelected
     const cv = canvasRef.current;
     if (!cv || !json) return;
     isRestoringRef.current = true;
-    cv.loadFromJSON(json, () => { cv.renderAll(); isRestoringRef.current = false; pushHistory(cv); });
+    cv.loadFromJSON(json, () => { normalizeCanvasImages(cv); cv.renderAll(); isRestoringRef.current = false; pushHistory(cv); });
   }, [pushHistory]);
 
   useImperativeHandle(ref, () => ({

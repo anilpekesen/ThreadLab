@@ -66,67 +66,425 @@
     { id: 'brownie',     label: 'Brownie',    filters: [{ type: 'Sepia', sepia: 0.8 }, { type: 'Brightness', brightness: -0.1 }] },
   ];
 
+  var DESIGN_JSON_PROPS = [
+    'id', 'name', 'assetId', 'originalUrl', 'originalFilename',
+    'originalWidth', 'originalHeight', 'originalMime', 'originalSize',
+  ];
+
+  function buildDefaultPricingBands(currency) {
+    var tryLike = String(currency || '').toUpperCase() === 'TRY';
+    var values = tryLike ? [60, 90, 120, 150, 200, 250] : [3, 5, 7, 9, 12, 15];
+    var labels = ['Kucuk', 'Orta', 'Buyuk', 'XL', 'XXL', 'Tam Alan'];
+    var limits = [150, 300, 500, 750, 1000, null];
+    var front = [];
+    var back = [];
+    for (var i = 0; i < limits.length; i++) {
+      front.push({ key: limits[i] == null ? 'max' : String(limits[i]), maxAreaCm2: limits[i], label: labels[i], surcharge: values[i] });
+      back.push({ key: limits[i] == null ? 'max' : String(limits[i]), maxAreaCm2: limits[i], label: labels[i], surcharge: values[i] });
+    }
+    return { front: front, back: back };
+  }
+
+  function defaultOverlayForType(productType) {
+    if (productType === 'bag') {
+      return { leftPct: 0.22, topPct: 0.24, widthPct: 0.56, heightPct: 0.58 };
+    }
+    if (productType === 'mug') {
+      return { leftPct: 0.18, topPct: 0.35, widthPct: 0.64, heightPct: 0.24 };
+    }
+    return { leftPct: 0.29, topPct: 0.27, widthPct: 0.42, heightPct: 0.56 };
+  }
+
+  function parseSurchargeVariantMap(raw) {
+    if (!raw) return { front: {}, back: {} };
+    try {
+      var parsed = JSON.parse(raw);
+      var out = { front: {}, back: {} };
+      ['front', 'back'].forEach(function (side) {
+        var sideMap = parsed && parsed[side];
+        if (!sideMap || typeof sideMap !== 'object') return;
+        Object.keys(sideMap).forEach(function (key) {
+          if (sideMap[key]) out[side][String(key)] = String(sideMap[key]);
+        });
+      });
+      return out;
+    } catch (e) {
+      return { front: {}, back: {} };
+    }
+  }
+
   // ── Template designs ──────────────────────────────────────────────────────
+  function createText(text, opts) {
+    return new fabric.IText(text, Object.assign({
+      originX: 'center',
+      originY: 'center',
+      textAlign: 'center',
+      lineHeight: 1.05,
+      fill: '#111827',
+      fontFamily: 'Impact',
+      selectable: true,
+    }, opts || {}));
+  }
+
+  function addFrame(canvas, opts) {
+    return new fabric.Rect(Object.assign({
+      left: canvas.width / 2,
+      top: canvas.height / 2,
+      originX: 'center',
+      originY: 'center',
+      width: canvas.width - 28,
+      height: canvas.height - 28,
+      fill: 'transparent',
+      stroke: '#111827',
+      strokeWidth: 2,
+      rx: 10,
+      selectable: false,
+      evented: false,
+    }, opts || {}));
+  }
+
+  function addBadgeRing(canvas, opts) {
+    var cx = canvas.width / 2;
+    var cy = canvas.height / 2;
+    return [
+      new fabric.Circle({
+        left: cx, top: cy, originX: 'center', originY: 'center',
+        radius: opts.outer || 76, fill: 'transparent', stroke: opts.stroke || '#111827',
+        strokeWidth: opts.strokeWidth || 4, selectable: false, evented: false,
+      }),
+      new fabric.Circle({
+        left: cx, top: cy, originX: 'center', originY: 'center',
+        radius: opts.inner || 60, fill: 'transparent', stroke: opts.stroke || '#111827',
+        strokeWidth: 1.5, strokeDashArray: opts.dash || null, selectable: false, evented: false,
+      }),
+    ];
+  }
+
+  function starPoints(cx, cy, outerR, innerR, count) {
+    var pts = [];
+    for (var i = 0; i < count * 2; i++) {
+      var angle = -Math.PI / 2 + i * Math.PI / count;
+      var r = i % 2 === 0 ? outerR : innerR;
+      pts.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
+    }
+    return pts;
+  }
+
+  function addStar(cx, cy, outerR, innerR, fill) {
+    return new fabric.Polygon(starPoints(cx, cy, outerR, innerR, 5), {
+      fill: fill || '#111827',
+      selectable: false,
+      evented: false,
+      objectCaching: false,
+    });
+  }
+
+  function stackTemplate(id, label, lines, opts) {
+    return {
+      id: id,
+      label: label,
+      build: function (canvas) {
+        var items = [];
+        if (opts && opts.frame) items.push(addFrame(canvas, opts.frame === true ? {} : opts.frame));
+        if (opts && opts.badge) items = items.concat(addBadgeRing(canvas, opts.badge));
+        if (opts && opts.ribbon) {
+          items.push(new fabric.Rect({
+            left: canvas.width / 2,
+            top: opts.ribbon.top || canvas.height / 2,
+            originX: 'center',
+            originY: 'center',
+            width: opts.ribbon.width || canvas.width - 36,
+            height: opts.ribbon.height || 36,
+            fill: opts.ribbon.fill || '#111827',
+            rx: 4,
+            selectable: false,
+            evented: false,
+          }));
+        }
+        if (opts && opts.stars) {
+          for (var i = 0; i < opts.stars.length; i++) {
+            var s = opts.stars[i];
+            items.push(addStar(s.x, s.y, s.outer || 10, s.inner || 5, s.fill || '#111827'));
+          }
+        }
+
+        var active = null;
+        for (var j = 0; j < lines.length; j++) {
+          var line = lines[j];
+          active = createText(line.text, {
+            left: canvas.width / 2 + (line.dx || 0),
+            top: line.top,
+            fontFamily: line.font || 'Impact',
+            fontSize: line.size || 28,
+            fill: line.fill || '#111827',
+            fontWeight: line.weight || 'normal',
+            fontStyle: line.style || 'normal',
+            underline: !!line.underline,
+            charSpacing: line.spacing || 0,
+            angle: line.angle || 0,
+          });
+          items.push(active);
+        }
+        canvas.add.apply(canvas, items);
+        if (active && canvas.setActiveObject) canvas.setActiveObject(active);
+      },
+    };
+  }
+
+  function shirtSilhouetteTemplate(id, label, title, subtitle, accent) {
+    return {
+      id: id,
+      label: label,
+      build: function (canvas) {
+        var cx = canvas.width / 2;
+        var cy = canvas.height / 2;
+        var body = new fabric.Path('M -40 -44 L -64 -22 L -50 0 L -34 -8 L -34 54 L 34 54 L 34 -8 L 50 0 L 64 -22 L 40 -44 L 18 -32 Q 0 -16 -18 -32 Z', {
+          left: cx,
+          top: cy + 16,
+          originX: 'center',
+          originY: 'center',
+          fill: accent || '#dc2626',
+          selectable: false,
+          evented: false,
+          scaleX: 1.35,
+          scaleY: 1.35,
+        });
+        var titleTxt = createText(title, { left: cx, top: cy - 52, fontSize: 26, fill: '#111827', fontFamily: 'Impact' });
+        var subTxt = createText(subtitle, { left: cx, top: cy + 96, fontSize: 14, fill: '#6b7280', fontFamily: 'Arial', charSpacing: 80 });
+        canvas.add(titleTxt, body, subTxt);
+        if (canvas.setActiveObject) canvas.setActiveObject(titleTxt);
+      },
+    };
+  }
+
   var TEMPLATE_DESIGNS = [
-    {
-      id: 'original', label: '100% Orijinal',
-      build: function (canvas) {
-        var rect = new fabric.Rect({ left: 10, top: 10, width: canvas.width - 20, height: canvas.height - 20,
-          fill: 'transparent', stroke: '#111827', strokeWidth: 2, rx: 6, selectable: false, evented: false });
-        var txt = new fabric.IText('100%\nORİJİNAL', {
-          left: canvas.width / 2, top: canvas.height / 2,
-          originX: 'center', originY: 'center',
-          fontFamily: 'Impact', fontSize: 38, fill: '#111827',
-          textAlign: 'center', lineHeight: 1.1,
-        });
-        canvas.add(rect, txt);
-        if (canvas.setActiveObject) canvas.setActiveObject(txt);
-      },
-    },
-    {
-      id: 'nofear', label: 'No Fear',
-      build: function (canvas) {
-        var txt = new fabric.IText('NO\nFEAR', {
-          left: canvas.width / 2, top: canvas.height / 2,
-          originX: 'center', originY: 'center',
-          fontFamily: 'Impact', fontSize: 52, fill: '#dc2626',
-          textAlign: 'center', lineHeight: 1,
-        });
-        canvas.add(txt);
-        if (canvas.setActiveObject) canvas.setActiveObject(txt);
-      },
-    },
-    {
-      id: 'limited', label: 'Limited Edition',
-      build: function (canvas) {
-        var rect = new fabric.Rect({ left: canvas.width / 2, top: canvas.height / 2,
-          originX: 'center', originY: 'center',
-          width: canvas.width - 30, height: 50,
-          fill: '#111827', rx: 4, selectable: false, evented: false });
-        var txt = new fabric.IText('LIMITED EDITION', {
-          left: canvas.width / 2, top: canvas.height / 2,
-          originX: 'center', originY: 'center',
-          fontFamily: 'Impact', fontSize: 24, fill: '#ffffff',
-          textAlign: 'center', charSpacing: 80,
-        });
-        canvas.add(rect, txt);
-        if (canvas.setActiveObject) canvas.setActiveObject(txt);
-      },
-    },
-    {
-      id: 'circle', label: 'Daire + Yazı',
-      build: function (canvas) {
-        var cx = canvas.width / 2, cy = canvas.height / 2;
-        var circle = new fabric.Circle({ left: cx, top: cy, originX: 'center', originY: 'center',
-          radius: 60, fill: 'transparent', stroke: '#0f766e', strokeWidth: 3 });
-        var txt = new fabric.IText('Yazı', {
-          left: cx, top: cy, originX: 'center', originY: 'center',
-          fontFamily: 'Arial', fontSize: 28, fill: '#0f766e', textAlign: 'center',
-        });
-        canvas.add(circle, txt);
-        if (canvas.setActiveObject) canvas.setActiveObject(txt);
-      },
-    },
+    stackTemplate('birthday-1', 'Dogum Gunu 01', [
+      { text: 'BIRTHDAY', top: 84, size: 26, spacing: 130 },
+      { text: 'QUEEN', top: 124, size: 52, fill: '#db2777' },
+      { text: 'EST. TODAY', top: 168, size: 16, font: 'Arial', spacing: 120 },
+    ], { frame: true }),
+    stackTemplate('birthday-2', 'Dogum Gunu 02', [
+      { text: 'IT TOOK', top: 78, size: 20, font: 'Arial', spacing: 100 },
+      { text: '30 YEARS', top: 122, size: 44, fill: '#ea580c' },
+      { text: 'TO LOOK THIS GOOD', top: 164, size: 16, font: 'Arial', spacing: 80 },
+    ], { badge: { stroke: '#ea580c', outer: 80, inner: 66 } }),
+    stackTemplate('birthday-3', 'Dogum Gunu 03', [
+      { text: 'LIMITED', top: 90, size: 20, font: 'Arial', spacing: 120 },
+      { text: 'BIRTHDAY', top: 126, size: 38, fill: '#7c3aed' },
+      { text: 'EDITION', top: 162, size: 28, fill: '#111827' },
+    ], { ribbon: { top: 126, width: 180, height: 32, fill: '#ede9fe' } }),
+    stackTemplate('birthday-4', 'Dogum Gunu 04', [
+      { text: 'MADE IN', top: 84, size: 18, font: 'Arial', spacing: 150 },
+      { text: 'MAY', top: 122, size: 56, fill: '#dc2626' },
+      { text: 'PREMIUM QUALITY', top: 166, size: 15, font: 'Arial', spacing: 120 },
+    ], { frame: { stroke: '#dc2626', strokeWidth: 3 } }),
+
+    stackTemplate('couple-1', 'Cift 01', [
+      { text: 'BETTER', top: 90, size: 28 },
+      { text: 'TOGETHER', top: 128, size: 34, fill: '#0f766e' },
+      { text: 'SINCE FOREVER', top: 168, size: 14, font: 'Arial', spacing: 100 },
+    ], { badge: { stroke: '#0f766e', outer: 78, inner: 64 } }),
+    stackTemplate('couple-2', 'Cift 02', [
+      { text: 'KING', top: 92, size: 46, fill: '#111827' },
+      { text: '&', top: 130, size: 22, fill: '#dc2626', font: 'Georgia' },
+      { text: 'QUEEN', top: 164, size: 42, fill: '#111827' },
+    ], { stars: [{ x: 98, y: 98 }, { x: 202, y: 98 }] }),
+    stackTemplate('couple-3', 'Cift 03', [
+      { text: 'YOU ARE MY', top: 88, size: 17, font: 'Arial', spacing: 100 },
+      { text: 'FAVORITE', top: 126, size: 36, fill: '#2563eb' },
+      { text: 'PERSON', top: 164, size: 32, fill: '#111827' },
+    ], { frame: true }),
+    stackTemplate('couple-4', 'Cift 04', [
+      { text: 'MATCH', top: 98, size: 30 },
+      { text: 'MADE IN', top: 132, size: 22, font: 'Arial', spacing: 80 },
+      { text: 'CHAOS', top: 166, size: 34, fill: '#f43f5e' },
+    ], { badge: { stroke: '#f43f5e', outer: 76, inner: 58, dash: [6, 4] } }),
+
+    stackTemplate('teacher-1', 'Ogretmen 01', [
+      { text: 'TEACH', top: 86, size: 28 },
+      { text: 'LOVE', top: 122, size: 36, fill: '#2563eb' },
+      { text: 'INSPIRE', top: 160, size: 30, fill: '#111827' },
+    ], { frame: { stroke: '#2563eb' } }),
+    stackTemplate('teacher-2', 'Ogretmen 02', [
+      { text: 'BEST', top: 90, size: 18, font: 'Arial', spacing: 140 },
+      { text: 'TEACHER', top: 128, size: 40, fill: '#16a34a' },
+      { text: 'EVER', top: 166, size: 28 },
+    ], { stars: [{ x: 88, y: 126, fill: '#16a34a' }, { x: 212, y: 126, fill: '#16a34a' }] }),
+    stackTemplate('teacher-3', 'Ogretmen 03', [
+      { text: 'ABC', top: 88, size: 18, font: 'Courier New', spacing: 150 },
+      { text: 'MY CLASS', top: 126, size: 34, fill: '#9333ea' },
+      { text: 'MY RULES', top: 164, size: 28 },
+    ], { badge: { stroke: '#9333ea', outer: 76, inner: 64 } }),
+    stackTemplate('teacher-4', 'Ogretmen 04', [
+      { text: 'PATIENCE', top: 86, size: 20, font: 'Arial', spacing: 90 },
+      { text: '+ COFFEE', top: 124, size: 36, fill: '#92400e' },
+      { text: '= TEACHER', top: 162, size: 26 },
+    ], { ribbon: { top: 124, width: 190, height: 34, fill: '#fef3c7' } }),
+
+    stackTemplate('mom-1', 'Anne 01', [
+      { text: 'MAMA', top: 92, size: 48, fill: '#db2777' },
+      { text: 'CLUB', top: 140, size: 32 },
+      { text: 'EST. FOREVER', top: 176, size: 14, font: 'Arial', spacing: 100 },
+    ], { badge: { stroke: '#db2777' } }),
+    stackTemplate('mom-2', 'Anne 02', [
+      { text: 'COOL', top: 86, size: 22, font: 'Arial', spacing: 120 },
+      { text: 'MOM', top: 126, size: 56, fill: '#ec4899' },
+      { text: 'ENERGY', top: 168, size: 22 },
+    ], { frame: true }),
+    stackTemplate('dad-1', 'Baba 01', [
+      { text: 'DAD', top: 92, size: 54, fill: '#1d4ed8' },
+      { text: 'MODE', top: 136, size: 30 },
+      { text: 'ON', top: 170, size: 24, fill: '#111827' },
+    ], { badge: { stroke: '#1d4ed8', outer: 78, inner: 64 } }),
+    stackTemplate('dad-2', 'Baba 02', [
+      { text: 'THE MAN', top: 88, size: 20, font: 'Arial', spacing: 130 },
+      { text: 'THE MYTH', top: 124, size: 28 },
+      { text: 'THE DAD', top: 162, size: 34, fill: '#ea580c' },
+    ], { frame: { stroke: '#ea580c', strokeWidth: 3 } }),
+
+    stackTemplate('gym-1', 'Gym 01', [
+      { text: 'NO PAIN', top: 92, size: 34 },
+      { text: 'MORE GAIN', top: 132, size: 30, fill: '#dc2626' },
+      { text: 'REPEAT', top: 170, size: 20, font: 'Arial', spacing: 180 },
+    ], { frame: true }),
+    stackTemplate('gym-2', 'Gym 02', [
+      { text: 'TRAIN', top: 86, size: 20, font: 'Arial', spacing: 140 },
+      { text: 'HEAVY', top: 126, size: 50, fill: '#111827' },
+      { text: 'STAY HUMBLE', top: 168, size: 18, fill: '#16a34a', font: 'Arial', spacing: 100 },
+    ], { badge: { stroke: '#16a34a' } }),
+    stackTemplate('gym-3', 'Gym 03', [
+      { text: 'EAT', top: 84, size: 18, font: 'Arial', spacing: 110 },
+      { text: 'SLEEP', top: 116, size: 28, fill: '#2563eb' },
+      { text: 'LIFT', top: 148, size: 38, fill: '#111827' },
+      { text: 'REPEAT', top: 184, size: 22, font: 'Arial', spacing: 80 },
+    ], { ribbon: { top: 148, width: 150, height: 28, fill: '#dbeafe' } }),
+    stackTemplate('gym-4', 'Gym 04', [
+      { text: 'STRONGER', top: 92, size: 28, fill: '#7c2d12' },
+      { text: 'EVERYDAY', top: 128, size: 34 },
+      { text: 'MINDSET', top: 166, size: 22, fill: '#ea580c' },
+    ], { stars: [{ x: 93, y: 166, fill: '#ea580c' }, { x: 207, y: 166, fill: '#ea580c' }] }),
+
+    stackTemplate('car-1', 'Car 01', [
+      { text: 'LOW', top: 88, size: 24, font: 'Arial', spacing: 150 },
+      { text: 'SLOW', top: 122, size: 44, fill: '#111827' },
+      { text: '& LOUD', top: 158, size: 30, fill: '#dc2626' },
+    ], { frame: { stroke: '#111827' } }),
+    stackTemplate('car-2', 'Car 02', [
+      { text: 'BOOST', top: 92, size: 38, fill: '#2563eb' },
+      { text: 'MODE', top: 130, size: 34 },
+      { text: 'ACTIVE', top: 168, size: 18, font: 'Arial', spacing: 100 },
+    ], { badge: { stroke: '#2563eb', outer: 80, inner: 64 } }),
+    stackTemplate('moto-1', 'Moto 01', [
+      { text: 'RIDE', top: 88, size: 44, fill: '#111827' },
+      { text: 'FAST', top: 128, size: 34, fill: '#ea580c' },
+      { text: 'LIVE FREE', top: 168, size: 18, font: 'Arial', spacing: 90 },
+    ], { stars: [{ x: 94, y: 92, fill: '#ea580c' }, { x: 206, y: 92, fill: '#ea580c' }] }),
+    stackTemplate('moto-2', 'Moto 02', [
+      { text: 'TWO', top: 90, size: 20, font: 'Arial', spacing: 120 },
+      { text: 'WHEELS', top: 126, size: 40, fill: '#0f766e' },
+      { text: 'FOREVER', top: 164, size: 24 },
+    ], { frame: true }),
+
+    stackTemplate('funny-1', 'Komik 01', [
+      { text: 'I NEED', top: 92, size: 24, font: 'Arial', spacing: 130 },
+      { text: 'A NAP', top: 126, size: 42, fill: '#db2777' },
+      { text: 'AND A PAY RAISE', top: 164, size: 15, font: 'Arial', spacing: 60 },
+    ], { frame: { stroke: '#db2777' } }),
+    stackTemplate('funny-2', 'Komik 02', [
+      { text: 'SOCIAL', top: 88, size: 20, font: 'Arial', spacing: 120 },
+      { text: 'BATTERY', top: 124, size: 36, fill: '#111827' },
+      { text: '0%', top: 166, size: 44, fill: '#ef4444' },
+    ], { badge: { stroke: '#ef4444' } }),
+    stackTemplate('funny-3', 'Komik 03', [
+      { text: 'CURRENTLY', top: 88, size: 18, font: 'Arial', spacing: 120 },
+      { text: 'UNMOTIVATED', top: 126, size: 32, fill: '#7c3aed' },
+      { text: 'PLEASE RETURN LATER', top: 166, size: 14, font: 'Arial', spacing: 50 },
+    ], { ribbon: { top: 126, width: 190, height: 32, fill: '#ede9fe' } }),
+    stackTemplate('funny-4', 'Komik 04', [
+      { text: 'PROBABLY', top: 88, size: 18, font: 'Arial', spacing: 120 },
+      { text: 'LATE', top: 128, size: 56, fill: '#f97316' },
+      { text: 'BUT WORTH IT', top: 170, size: 18, font: 'Arial', spacing: 60 },
+    ], { frame: true }),
+
+    stackTemplate('minimal-1', 'Minimal 01', [
+      { text: 'STUDIO', top: 108, size: 24, font: 'Trebuchet MS', spacing: 180 },
+      { text: 'NORTH', top: 146, size: 34, font: 'Trebuchet MS', spacing: 90 },
+    ], { frame: { stroke: '#111827', strokeWidth: 1.5 } }),
+    stackTemplate('minimal-2', 'Minimal 02', [
+      { text: 'ATELIER', top: 108, size: 22, font: 'Verdana', spacing: 160 },
+      { text: '01', top: 150, size: 46, font: 'Georgia', fill: '#2563eb' },
+    ], { badge: { stroke: '#2563eb', outer: 72, inner: 58 } }),
+    stackTemplate('minimal-3', 'Minimal 03', [
+      { text: 'LINE', top: 110, size: 24, font: 'Arial', spacing: 160 },
+      { text: 'FORM', top: 146, size: 30, font: 'Arial', spacing: 110, fill: '#0f766e' },
+    ], { ribbon: { top: 146, width: 140, height: 24, fill: '#ecfeff' } }),
+    stackTemplate('minimal-4', 'Minimal 04', [
+      { text: 'VOID', top: 112, size: 36, font: 'Georgia' },
+      { text: 'STUDIO', top: 148, size: 18, font: 'Arial', spacing: 150 },
+    ], { frame: { stroke: '#6b7280', strokeWidth: 1.5 } }),
+
+    stackTemplate('retro-1', 'Retro 01', [
+      { text: 'VINTAGE', top: 86, size: 18, font: 'Arial', spacing: 140 },
+      { text: 'GARAGE', top: 122, size: 34, fill: '#92400e' },
+      { text: 'SINCE 1987', top: 160, size: 18, font: 'Arial', spacing: 90 },
+    ], { badge: { stroke: '#92400e', outer: 80, inner: 64 }, stars: [{ x: 98, y: 160, fill: '#92400e' }, { x: 202, y: 160, fill: '#92400e' }] }),
+    stackTemplate('retro-2', 'Retro 02', [
+      { text: 'CLASSIC', top: 90, size: 20, font: 'Arial', spacing: 130 },
+      { text: 'MOTEL', top: 126, size: 40, fill: '#dc2626' },
+      { text: 'ROADSIDE CLUB', top: 164, size: 14, font: 'Arial', spacing: 60 },
+    ], { frame: { stroke: '#dc2626', strokeWidth: 3 } }),
+    stackTemplate('retro-3', 'Retro 03', [
+      { text: 'SUNSET', top: 94, size: 22, font: 'Arial', spacing: 120 },
+      { text: 'SURF', top: 130, size: 46, fill: '#0ea5e9' },
+      { text: 'PARADISE', top: 166, size: 22, fill: '#f97316' },
+    ], { badge: { stroke: '#0ea5e9', outer: 76, inner: 62, dash: [4, 4] } }),
+    stackTemplate('retro-4', 'Retro 04', [
+      { text: 'MIDNIGHT', top: 88, size: 20, font: 'Arial', spacing: 110 },
+      { text: 'DRIVE', top: 126, size: 42, fill: '#7c3aed' },
+      { text: 'CITY CLUB', top: 164, size: 16, font: 'Arial', spacing: 90 },
+    ], { ribbon: { top: 126, width: 150, height: 28, fill: '#ede9fe' } }),
+    stackTemplate('retro-5', 'Retro 05', [
+      { text: 'OLD', top: 94, size: 18, font: 'Arial', spacing: 140 },
+      { text: 'SCHOOL', top: 128, size: 38, fill: '#111827' },
+      { text: 'ATHLETIC', top: 164, size: 24, fill: '#16a34a' },
+    ], { stars: [{ x: 90, y: 126, fill: '#16a34a' }, { x: 210, y: 126, fill: '#16a34a' }] }),
+
+    stackTemplate('typo-1', 'Tipografi 01', [
+      { text: 'CREATE', top: 88, size: 52, fill: '#111827' },
+      { text: 'WITHOUT FEAR', top: 136, size: 16, font: 'Arial', spacing: 110 },
+    ], { frame: true }),
+    stackTemplate('typo-2', 'Tipografi 02', [
+      { text: 'MOVE', top: 90, size: 22, font: 'Arial', spacing: 120 },
+      { text: 'QUIETLY', top: 128, size: 40, fill: '#1d4ed8' },
+      { text: 'MAKE NOISE', top: 164, size: 18, font: 'Arial', spacing: 70 },
+    ], { badge: { stroke: '#1d4ed8' } }),
+    stackTemplate('typo-3', 'Tipografi 03', [
+      { text: 'LESS', top: 90, size: 28, fill: '#111827' },
+      { text: 'TALK', top: 126, size: 48, fill: '#ef4444' },
+      { text: 'MORE DO', top: 168, size: 28, fill: '#111827' },
+    ], { ribbon: { top: 126, width: 132, height: 30, fill: '#fee2e2' } }),
+    stackTemplate('typo-4', 'Tipografi 04', [
+      { text: 'KEEP', top: 92, size: 24, font: 'Arial', spacing: 150 },
+      { text: 'GOING', top: 128, size: 44, fill: '#16a34a' },
+      { text: 'ANYWAY', top: 168, size: 24 },
+    ], { frame: { stroke: '#16a34a' } }),
+    stackTemplate('typo-5', 'Tipografi 05', [
+      { text: 'CALM', top: 94, size: 20, font: 'Arial', spacing: 120 },
+      { text: 'IS A', top: 126, size: 24, font: 'Georgia' },
+      { text: 'SUPERPOWER', top: 162, size: 30, fill: '#0f766e' },
+    ], { badge: { stroke: '#0f766e', outer: 78, inner: 60 } }),
+
+    shirtSilhouetteTemplate('team-1', 'Takim Formasi', 'TEAM 07', 'CUSTOM BACK PRINT', '#dc2626'),
+    shirtSilhouetteTemplate('photo-1', 'Foto + Yazi', 'PHOTO', 'ADD YOUR IMAGE HERE', '#2563eb'),
+    stackTemplate('qr-1', 'Instagram QR', [
+      { text: '@YOURBRAND', top: 94, size: 22, font: 'Arial', spacing: 70 },
+      { text: 'SCAN ME', top: 132, size: 34, fill: '#111827' },
+      { text: 'USE QR TOOL', top: 170, size: 16, font: 'Arial', spacing: 90 },
+    ], { frame: { stroke: '#111827', strokeWidth: 2 } }),
+    stackTemplate('logo-1', 'Sirket Logosu', [
+      { text: 'ACME', top: 110, size: 40, font: 'Trebuchet MS', spacing: 120 },
+      { text: 'STUDIO GOODS', top: 152, size: 16, font: 'Arial', spacing: 120 },
+    ], { badge: { stroke: '#111827', outer: 68, inner: 54 } }),
   ];
 
   // ── Per-designer initialization ───────────────────────────────────────────
@@ -135,15 +493,32 @@
     // ── Config ──────────────────────────────────────────────────────────────
     // Shopify fiyatları kuruş/sent cinsinden gelir → /100 ile TL'ye çevir
     var _productPrice = +(root.dataset.productPrice || 0) / 100;
+    var defaultPrintWidthCm = +(root.dataset.printWidthCm || 28) || 28;
+    var defaultPrintHeightCm = +(root.dataset.printHeightCm || 45) || 45;
+    var defaultOverlayArea = defaultOverlayForType('apparel');
     var cfg = {
       currency: root.dataset.currency || 'TRY',
       locale:   root.dataset.locale   || 'tr-TR',
+      productId: '',
+      productType: 'apparel',
+      surfaceMode: 'front_back',
+      printAreaBySide: {
+        front: { widthCm: defaultPrintWidthCm, heightCm: defaultPrintHeightCm },
+        back: { widthCm: defaultPrintWidthCm, heightCm: defaultPrintHeightCm },
+      },
+      overlayAreaBySide: {
+        front: defaultOverlayArea,
+        back: defaultOverlayArea,
+      },
+      pricingBands: null,
+      surchargeVariantMap: parseSurchargeVariantMap(root.dataset.surchargeVariantMap || ''),
       prices: {
         front:  0,
         back:   0,
         double: 0,
       },
       variantMap:     {},   // colorKey -> size -> mode -> variantId
+      baseVariantMap: {},
       variantPrices:  {},  // variantId → fiyat (TL)
       uploadEndpoint: root.dataset.uploadEndpoint || '/apps/tshirt-designer/upload',
       productHandle:  root.dataset.productHandle || '',
@@ -152,6 +527,7 @@
       singleVariantId: root.dataset.singleVariantId || '',
       doubleVariantId: root.dataset.doubleVariantId || '',
     };
+    cfg.pricingBands = buildDefaultPricingBands(cfg.currency);
 
     var STORAGE_KEY = 'dsgn_imgs_' + (cfg.productHandle || 'global');
 
@@ -169,6 +545,10 @@
           var colorKey = colorKeyFromVariant(v, cOpt) || '__default';
           var size = detectSize(opts);
           var mode = detectPrintMode(opts);
+          if (size && v.id) {
+            cfg.baseVariantMap[colorKey] = cfg.baseVariantMap[colorKey] || {};
+            if (!cfg.baseVariantMap[colorKey][size]) cfg.baseVariantMap[colorKey][size] = String(v.id);
+          }
           if (!size || !mode || !v.id) return;
           cfg.variantMap[colorKey] = cfg.variantMap[colorKey] || {};
           cfg.variantMap[colorKey][size] = cfg.variantMap[colorKey][size] || {};
@@ -195,6 +575,7 @@
       uploadedImages: [],    // [{dataUrl, name}]
       activeFilter: 'none',
       size: 'M',
+      sizeQty: {},
       quantity: 1,
       zoom: 1,
       floatTarget: null,     // currently selected object for float toolbar
@@ -204,6 +585,451 @@
 
     // ── Helpers ──────────────────────────────────────────────────────────────
     function viewName() { return S.views[S.viewIdx]; }
+
+    function printAreaForSide(side) {
+      var area = cfg.printAreaBySide[side] || cfg.printAreaBySide.front || { widthCm: defaultPrintWidthCm, heightCm: defaultPrintHeightCm };
+      return {
+        widthCm: +(area.widthCm || defaultPrintWidthCm) || defaultPrintWidthCm,
+        heightCm: +(area.heightCm || defaultPrintHeightCm) || defaultPrintHeightCm,
+      };
+    }
+
+    function overlayAreaForSide(side) {
+      var area = cfg.overlayAreaBySide[side] || cfg.overlayAreaBySide.front || defaultOverlayArea;
+      return {
+        leftPct: +(area.leftPct || defaultOverlayArea.leftPct),
+        topPct: +(area.topPct || defaultOverlayArea.topPct),
+        widthPct: +(area.widthPct || defaultOverlayArea.widthPct),
+        heightPct: +(area.heightPct || defaultOverlayArea.heightPct),
+      };
+    }
+
+    function applySurfaceMode() {
+      S.views = cfg.surfaceMode === 'front_only' ? ['front'] : ['front', 'back'];
+      if (S.viewIdx >= S.views.length) S.viewIdx = 0;
+      qa('[data-view-card]').forEach(function (btn) {
+        var isFront = btn.dataset.viewCard === 'front';
+        btn.style.display = (isFront || cfg.surfaceMode !== 'front_only') ? '' : 'none';
+      });
+      var prevView = q('[data-prev-view]');
+      var nextView = q('[data-next-view]');
+      var multiple = S.views.length > 1;
+      if (prevView) prevView.style.display = multiple ? '' : 'none';
+      if (nextView) nextView.style.display = multiple ? '' : 'none';
+    }
+
+    function normalizeRemoteBands(bands) {
+      if (!bands || typeof bands !== 'object') return cfg.pricingBands;
+      return {
+        front: Array.isArray(bands.front) ? bands.front : [],
+        back: Array.isArray(bands.back) ? bands.back : [],
+      };
+    }
+
+    function normalizeRemoteOverlay(printAreas) {
+      var fallback = defaultOverlayForType(cfg.productType);
+      var next = {
+        front: fallback,
+        back: fallback,
+      };
+      (Array.isArray(printAreas) ? printAreas : []).forEach(function (area) {
+        if (!area || !area.side || !area.width || !area.height) return;
+        next[area.side] = {
+          leftPct: Number(area.x || 0) / 480,
+          topPct: Number(area.y || 0) / 580,
+          widthPct: Number(area.width || 0) / 480,
+          heightPct: Number(area.height || 0) / 580,
+        };
+      });
+      return next;
+    }
+
+    function applyPersonalizationSettings(settings, printAreas, productMeta) {
+      if (!settings) return;
+      var areas = Array.isArray(printAreas) ? printAreas : [];
+      function areaFor(side) {
+        for (var i = 0; i < areas.length; i++) {
+          if (areas[i] && areas[i].side === side) return areas[i];
+        }
+        return null;
+      }
+      var frontArea = areaFor('front');
+      var backArea = areaFor('back');
+      cfg.productId = productMeta && productMeta.id ? String(productMeta.id) : cfg.productId;
+      cfg.productType = settings.productType || (productMeta && productMeta.productType) || cfg.productType;
+      cfg.surfaceMode = settings.surfaceMode || (productMeta && productMeta.surfaceMode) || cfg.surfaceMode;
+      cfg.pricingBands = normalizeRemoteBands(settings.pricingBands) || cfg.pricingBands;
+      if (settings.surchargeVariantMap) cfg.surchargeVariantMap = parseSurchargeVariantMap(JSON.stringify(settings.surchargeVariantMap));
+      cfg.printAreaBySide = {
+        front: {
+          widthCm: Number((frontArea && frontArea.realWidthMm / 10) || settings.frontPrintWidthCm || defaultPrintWidthCm),
+          heightCm: Number((frontArea && frontArea.realHeightMm / 10) || settings.frontPrintHeightCm || defaultPrintHeightCm),
+        },
+        back: {
+          widthCm: Number((backArea && backArea.realWidthMm / 10) || settings.backPrintWidthCm || settings.frontPrintWidthCm || defaultPrintWidthCm),
+          heightCm: Number((backArea && backArea.realHeightMm / 10) || settings.backPrintHeightCm || settings.frontPrintHeightCm || defaultPrintHeightCm),
+        },
+      };
+      cfg.overlayAreaBySide = normalizeRemoteOverlay(areas);
+      applySurfaceMode();
+    }
+
+    function loadRemotePersonalization(done) {
+      if (!cfg.productHandle || !window.fetch) {
+        applySurfaceMode();
+        done();
+        return;
+      }
+      fetch('/apps/tshirt-designer/personalization?handle=' + encodeURIComponent(cfg.productHandle), {
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (payload) {
+          if (payload && payload.settings) applyPersonalizationSettings(payload.settings, payload.printAreas, payload.product);
+          else applySurfaceMode();
+          done();
+        })
+        .catch(function () {
+          applySurfaceMode();
+          done();
+        });
+    }
+
+    function isImageObject(obj) {
+      return obj && obj.type === 'image';
+    }
+
+    function lockImageProportions(obj) {
+      if (!isImageObject(obj)) return;
+      obj.set({
+        lockUniScaling: true,
+        lockScalingFlip: true,
+      });
+      if (obj.setControlsVisibility) {
+        obj.setControlsVisibility({
+          mt: false,
+          mb: false,
+          ml: false,
+          mr: false,
+        });
+      }
+    }
+
+    function keepImageUniform(obj) {
+      if (!isImageObject(obj)) return;
+      var scale = Math.max(Math.abs(obj.scaleX || 1), Math.abs(obj.scaleY || 1));
+      obj.set({
+        scaleX: (obj.scaleX || 1) < 0 ? -scale : scale,
+        scaleY: (obj.scaleY || 1) < 0 ? -scale : scale,
+      });
+      obj.setCoords();
+    }
+
+    function containImageInCanvas(obj) {
+      if (!isImageObject(obj) || !S.canvas) return;
+      obj.setCoords();
+      var cw = S.canvas.getWidth();
+      var ch = S.canvas.getHeight();
+      var rect = imageBounds(obj);
+
+      if (rect.width > cw || rect.height > ch) {
+        var fit = Math.min(cw / rect.width, ch / rect.height) * 0.98;
+        var sx = (obj.scaleX || 1) * fit;
+        var sy = (obj.scaleY || 1) * fit;
+        obj.set({
+          scaleX: sx,
+          scaleY: sy,
+        });
+        keepImageUniform(obj);
+        obj.setCoords();
+        rect = imageBounds(obj);
+      }
+
+      clampObjectByBounds(obj, rect, cw, ch);
+      rect = imageBounds(obj);
+      clampObjectByBounds(obj, rect, cw, ch);
+      if (S.canvas.requestRenderAll) S.canvas.requestRenderAll();
+      else S.canvas.renderAll();
+    }
+
+    function imageBounds(obj) {
+      if (!obj) return { left: 0, top: 0, width: 0, height: 0 };
+      if (typeof obj.setCoords !== 'function') return objectRectFromSaved(obj);
+      obj.setCoords();
+      var c = obj.aCoords;
+      if (c && c.tl && c.tr && c.bl && c.br) {
+        var xs = [c.tl.x, c.tr.x, c.bl.x, c.br.x];
+        var ys = [c.tl.y, c.tr.y, c.bl.y, c.br.y];
+        var minX = Math.min.apply(null, xs);
+        var maxX = Math.max.apply(null, xs);
+        var minY = Math.min.apply(null, ys);
+        var maxY = Math.max.apply(null, ys);
+        return { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
+      }
+      return obj.getBoundingRect(true, true);
+    }
+
+    function isFabricCanvasObject(obj) {
+      return !!(obj && typeof obj.setCoords === 'function' && typeof obj.getBoundingRect === 'function');
+    }
+
+    function clampObjectByBounds(obj, rect, cw, ch) {
+      var dx = 0;
+      var dy = 0;
+      if (rect.left < 0) dx = -rect.left;
+      if (rect.left + rect.width > cw) dx = Math.min(dx, cw - (rect.left + rect.width));
+      if (rect.top < 0) dy = -rect.top;
+      if (rect.top + rect.height > ch) dy = Math.min(dy, ch - (rect.top + rect.height));
+      if (!dx && !dy) return;
+      obj.set({
+        left: (obj.left || 0) + dx,
+        top: (obj.top || 0) + dy,
+      });
+      obj.setCoords();
+    }
+
+    function normalizeCanvasImages() {
+      if (!S.canvas) return;
+      S.canvas.getObjects().forEach(function (obj) {
+        lockImageProportions(obj);
+        containImageInCanvas(obj);
+      });
+    }
+
+    function canvasJSON() {
+      return S.canvas ? JSON.stringify(S.canvas.toJSON(DESIGN_JSON_PROPS)) : '';
+    }
+
+    function assetFromFabricObject(obj) {
+      if (!obj || !obj.assetId) return null;
+      return {
+        assetId: obj.assetId,
+        originalUrl: obj.originalUrl || '',
+        url: obj.originalUrl || obj.src || '',
+        filename: obj.originalFilename || 'image',
+        mime: obj.originalMime || '',
+        width: obj.originalWidth || 0,
+        height: obj.originalHeight || 0,
+        size: obj.originalSize || 0,
+      };
+    }
+
+    function collectDesignAssets() {
+      var assets = [];
+      var seen = {};
+      ['front', 'back'].forEach(function (side) {
+        var jsonStr = S.saved[side] || '';
+        var parsed;
+        try { parsed = jsonStr ? JSON.parse(jsonStr) : null; } catch (e) { parsed = null; }
+        ((parsed && parsed.objects) || []).forEach(function (obj) {
+          var asset = assetFromFabricObject(obj);
+          if (!asset || seen[asset.assetId]) return;
+          seen[asset.assetId] = true;
+          assets.push(asset);
+        });
+      });
+      return assets;
+    }
+
+    function roundMetric(value) {
+      return Math.round((Number(value) || 0) * 10) / 10;
+    }
+
+    function formatMetricSize(metrics) {
+      if (!metrics || !metrics.widthCm || !metrics.heightCm) return '';
+      return roundMetric(metrics.widthCm) + ' x ' + roundMetric(metrics.heightCm) + ' cm';
+    }
+
+    function rectToPhysicalMetrics(rect, side) {
+      if (!S.canvas || !rect) {
+        return { widthCm: 0, heightCm: 0, areaCm2: 0, coverage: 0 };
+      }
+      var canvasW = S.canvas.getWidth() || 1;
+      var canvasH = S.canvas.getHeight() || 1;
+      var printArea = printAreaForSide(side || viewName());
+      var widthCm = (rect.width || 0) * (printArea.widthCm / canvasW);
+      var heightCm = (rect.height || 0) * (printArea.heightCm / canvasH);
+      var areaCm2 = widthCm * heightCm;
+      var coverage = canvasW && canvasH ? ((rect.width || 0) * (rect.height || 0)) / (canvasW * canvasH) : 0;
+      return {
+        widthCm: roundMetric(widthCm),
+        heightCm: roundMetric(heightCm),
+        areaCm2: roundMetric(areaCm2),
+        coverage: Math.round(coverage * 1000) / 1000,
+      };
+    }
+
+    function activeObjectMetrics(obj) {
+      if (!obj) return null;
+      var rect = imageBounds(obj);
+      var metrics = rectToPhysicalMetrics(rect, viewName());
+      metrics.left = roundMetric(rect.left || 0);
+      metrics.top = roundMetric(rect.top || 0);
+      metrics.widthPx = roundMetric(rect.width || 0);
+      metrics.heightPx = roundMetric(rect.height || 0);
+      return metrics;
+    }
+
+    function objectRectFromSaved(obj) {
+      if (!obj) return null;
+      var width = Math.abs((obj.width || 0) * (obj.scaleX || 1));
+      var height = Math.abs((obj.height || 0) * (obj.scaleY || 1));
+      var left = Number(obj.left || 0);
+      var top = Number(obj.top || 0);
+      var originX = obj.originX || 'left';
+      var originY = obj.originY || 'top';
+      if (originX === 'center') left -= width / 2;
+      else if (originX === 'right') left -= width;
+      if (originY === 'center') top -= height / 2;
+      else if (originY === 'bottom') top -= height;
+      return { left: left, top: top, width: width, height: height };
+    }
+
+    function sideMetricsFromObjects(objects, side) {
+      if (!objects || !objects.length) {
+        return { objectCount: 0, widthCm: 0, heightCm: 0, areaCm2: 0, coverage: 0 };
+      }
+      var bounds = [];
+      objects.forEach(function (obj) {
+        var rect = isFabricCanvasObject(obj) ? imageBounds(obj) : objectRectFromSaved(obj);
+        if (rect && rect.width > 0 && rect.height > 0) bounds.push(rect);
+      });
+      if (!bounds.length) return { objectCount: objects.length, widthCm: 0, heightCm: 0, areaCm2: 0, coverage: 0 };
+      var left = Math.min.apply(null, bounds.map(function (rect) { return rect.left; }));
+      var top = Math.min.apply(null, bounds.map(function (rect) { return rect.top; }));
+      var right = Math.max.apply(null, bounds.map(function (rect) { return rect.left + rect.width; }));
+      var bottom = Math.max.apply(null, bounds.map(function (rect) { return rect.top + rect.height; }));
+      var metrics = rectToPhysicalMetrics({
+        left: left,
+        top: top,
+        width: right - left,
+        height: bottom - top,
+      }, side);
+      metrics.objectCount = objects.length;
+      return metrics;
+    }
+
+    function currentDesignMetrics() {
+      var metrics = {};
+      ['front', 'back'].forEach(function (side) {
+        if (side === viewName() && S.canvas) {
+          metrics[side] = sideMetricsFromObjects(S.canvas.getObjects(), side);
+          return;
+        }
+        var parsed = null;
+        try { parsed = S.saved[side] ? JSON.parse(S.saved[side]) : null; } catch (e) { parsed = null; }
+        metrics[side] = sideMetricsFromObjects((parsed && parsed.objects) || [], side);
+      });
+      return metrics;
+    }
+
+    function pricingBandForSide(side, areaCm2) {
+      var bands = (cfg.pricingBands && cfg.pricingBands[side]) || [];
+      for (var i = 0; i < bands.length; i++) {
+        if (bands[i].maxAreaCm2 == null || areaCm2 <= bands[i].maxAreaCm2) return bands[i];
+      }
+      return bands[bands.length - 1] || { key: 'max', maxAreaCm2: null, label: 'Tam Alan', surcharge: 0 };
+    }
+
+    function surchargeVariantIdForSide(side, band) {
+      var map = cfg.surchargeVariantMap && cfg.surchargeVariantMap[side];
+      if (!map || !band) return null;
+      return map[band.key] || map[String(band.maxAreaCm2)] || map[band.label] || null;
+    }
+
+    function calculatePricing() {
+      var lines = selectedSizeLines();
+      var totalQty = totalSelectedQuantity();
+      var metrics = currentDesignMetrics();
+      var baseSubtotal = 0;
+      var frontHas = sideHasContent('front');
+      var backHas = cfg.surfaceMode === 'front_only' ? false : sideHasContent('back');
+
+      lines.forEach(function (line) {
+        baseSubtotal += unitBasePriceForSize(line.size) * line.quantity;
+      });
+
+      if (!frontHas) metrics.front = { objectCount: 0, widthCm: 0, heightCm: 0, areaCm2: 0, coverage: 0 };
+      if (!backHas) metrics.back = { objectCount: 0, widthCm: 0, heightCm: 0, areaCm2: 0, coverage: 0 };
+
+      var frontBand = pricingBandForSide('front', metrics.front && metrics.front.areaCm2 || 0);
+      var backBand = pricingBandForSide('back', metrics.back && metrics.back.areaCm2 || 0);
+      var frontUnit = frontHas ? (frontBand.surcharge || 0) : 0;
+      var backUnit = backHas ? (backBand.surcharge || 0) : 0;
+      var frontSubtotal = frontUnit * totalQty;
+      var backSubtotal = backUnit * totalQty;
+      var total = baseSubtotal + frontSubtotal + backSubtotal;
+
+      return {
+        totalQuantity: totalQty,
+        baseSubtotal: Math.round(baseSubtotal * 100) / 100,
+        frontSubtotal: Math.round(frontSubtotal * 100) / 100,
+        backSubtotal: Math.round(backSubtotal * 100) / 100,
+        total: Math.round(total * 100) / 100,
+        averageBaseUnit: totalQty ? Math.round((baseSubtotal / totalQty) * 100) / 100 : (_productPrice || 0),
+        front: {
+          hasContent: frontHas,
+          metrics: metrics.front || { objectCount: 0, widthCm: 0, heightCm: 0, areaCm2: 0, coverage: 0 },
+          band: frontBand,
+          surcharge: frontUnit,
+          variantId: surchargeVariantIdForSide('front', frontBand),
+        },
+        back: {
+          hasContent: backHas,
+          metrics: metrics.back || { objectCount: 0, widthCm: 0, heightCm: 0, areaCm2: 0, coverage: 0 },
+          band: backBand,
+          surcharge: backUnit,
+          variantId: surchargeVariantIdForSide('back', backBand),
+        },
+      };
+    }
+
+    function sidePricingSummary(sideName, pricingSide) {
+      if (!pricingSide || !pricingSide.hasContent) return sideName + ': yok';
+      return sideName + ': ' + formatMetricSize(pricingSide.metrics) + ' · ' + pricingSide.band.label;
+    }
+
+    function currentDesignPayload(frontUrl, backUrl, variantId) {
+      var metrics = currentDesignMetrics();
+      var pricing = calculatePricing();
+      return {
+        productId: cfg.productId || cfg.productHandle || '',
+        productTitle: root.dataset.productTitle || '',
+        variantId: String(variantId || ''),
+        size: selectedSizeSummary(),
+        sizes: selectedSizeLines(),
+        totalQuantity: totalSelectedQuantity(),
+        color: S.colorName || '',
+        printMode: printMode() || '',
+        designJson: {
+          front: S.saved.front || '',
+          back: S.saved.back || '',
+        },
+        previewUrls: {
+          front: frontUrl || '',
+          back: backUrl || '',
+        },
+        previewUrl: frontUrl || backUrl || '',
+        assets: collectDesignAssets(),
+        printArea: {
+          front: printAreaForSide('front'),
+          back: printAreaForSide('back'),
+        },
+        sideMetrics: metrics,
+        pricing: pricing,
+      };
+    }
+
+    function editDesignUrl(token) {
+      var url = new URL(window.location.href);
+      url.searchParams.set('design_token', token);
+      return url.pathname + url.search + url.hash;
+    }
+
+    function designTokenFromUrl() {
+      try { return new URLSearchParams(window.location.search).get('design_token') || ''; }
+      catch (e) { return ''; }
+    }
 
     function money(n) {
       return new Intl.NumberFormat(cfg.locale, {
@@ -226,10 +1052,11 @@
     }
 
     function detectSize(opts) {
-      var known = ['XXL', 'XL', 'L', 'M', 'S', 'XS'];
+      var known = ['XXXL', '3XL', 'XXL', '2XL', 'XL', 'L', 'M', 'S', 'XS'];
       for (var i = 0; i < opts.length; i++) {
         var u = String(opts[i] || '').trim().toUpperCase();
         if (known.indexOf(u) !== -1) return u;
+        if (/^\d{2,3}$/.test(u)) return u;
       }
       return '';
     }
@@ -328,10 +1155,70 @@
       } catch (e) { return false; }
     }
 
-    function variantId(mode) {
+    function variantIdForSize(mode, size) {
       var byColor = cfg.variantMap[S.colorKey] || cfg.variantMap.__default || {};
-      var map = byColor[S.size] || {};
-      return map[mode] || (mode === 'double' ? cfg.doubleVariantId : cfg.singleVariantId) || null;
+      var map = byColor[size] || {};
+      if (map[mode]) return map[mode];
+      if (Object.keys(byColor).length) return null;
+      return (mode === 'double' ? cfg.doubleVariantId : cfg.singleVariantId) || null;
+    }
+
+    function baseVariantIdForSize(size) {
+      var byColor = cfg.baseVariantMap[S.colorKey] || cfg.baseVariantMap.__default || {};
+      if (size && byColor[size]) return byColor[size];
+      var selected = selectedVariant();
+      if (selected && selected.id) return String(selected.id);
+      if (cfg.singleVariantId) return String(cfg.singleVariantId);
+      if (cfg.doubleVariantId) return String(cfg.doubleVariantId);
+      return null;
+    }
+
+    function variantId(mode) {
+      return variantIdForSize(mode, S.size);
+    }
+
+    function unitPriceFor(mode, variantId) {
+      if (variantId && cfg.variantPrices[variantId]) return cfg.variantPrices[variantId];
+      return mode ? (cfg.prices[mode] || cfg.prices.front || 0) : 0;
+    }
+
+    function unitBasePriceForSize(size) {
+      var variantId = baseVariantIdForSize(size);
+      if (variantId && cfg.variantPrices[variantId]) return cfg.variantPrices[variantId];
+      return _productPrice || cfg.prices.front || 0;
+    }
+
+    function setSizeQty(size, qty) {
+      qty = Math.max(0, Math.floor(Number(qty) || 0));
+      S.sizeQty[size] = qty;
+      if (qty > 0) S.size = size;
+      var input = q('[data-size-input="' + cssEscape(size) + '"]');
+      if (input && Number(input.value) !== qty) input.value = qty;
+      var row = q('[data-size-row="' + cssEscape(size) + '"]');
+      if (row) row.classList.toggle('active', qty > 0);
+      var name = row && row.querySelector('.dsgn-size-name');
+      if (name) name.dataset.qty = String(qty);
+      updatePriceLabel();
+    }
+
+    function selectedSizeLines() {
+      return Object.keys(S.sizeQty)
+        .map(function (size) { return { size: size, quantity: Math.max(0, Math.floor(Number(S.sizeQty[size]) || 0)) }; })
+        .filter(function (line) { return line.quantity > 0; });
+    }
+
+    function totalSelectedQuantity() {
+      return selectedSizeLines().reduce(function (sum, line) { return sum + line.quantity; }, 0);
+    }
+
+    function selectedSizeSummary() {
+      var lines = selectedSizeLines();
+      return lines.map(function (line) { return line.size + ' x ' + line.quantity; }).join(', ');
+    }
+
+    function cssEscape(value) {
+      if (window.CSS && window.CSS.escape) return window.CSS.escape(String(value));
+      return String(value).replace(/"/g, '\\"');
     }
 
     function modeLabelText(mode) {
@@ -367,9 +1254,11 @@
       if (savedJson) {
         _historyLock = true;
         S.canvas.loadFromJSON(savedJson, function () {
+          normalizeCanvasImages();
           S.canvas.renderAll();
           _historyLock = false;
           pushHistory();
+          updateSelectionMetrics();
           updateStatusBadges();
         });
       }
@@ -377,12 +1266,67 @@
 
     function bindCanvasEvents() {
       if (!S.canvas) return;
-      S.canvas.on('object:added',   pushHistory);
-      S.canvas.on('object:removed', pushHistory);
-      S.canvas.on('object:modified',pushHistory);
+      S.canvas.on('object:added', function (e) {
+        lockImageProportions(e && e.target);
+        pushHistory();
+        updateSelectionMetrics();
+      });
+      S.canvas.on('object:removed', function () {
+        pushHistory();
+        updateSelectionMetrics();
+      });
+      S.canvas.on('object:moving', function (e) {
+        containImageInCanvas(e && e.target);
+        updateSelectionMetrics(e && e.target);
+      });
+      S.canvas.on('object:scaling', function (e) {
+        keepImageUniform(e && e.target);
+        containImageInCanvas(e && e.target);
+        updateSelectionMetrics(e && e.target);
+      });
+      S.canvas.on('object:rotating', function (e) {
+        containImageInCanvas(e && e.target);
+        updateSelectionMetrics(e && e.target);
+      });
+      S.canvas.on('object:modified', function (e) {
+        containImageInCanvas(e && e.target);
+        pushHistory();
+        updateSelectionMetrics(e && e.target);
+      });
       S.canvas.on('selection:created', onSelectionChange);
       S.canvas.on('selection:updated', onSelectionChange);
       S.canvas.on('selection:cleared',  onSelectionCleared);
+    }
+
+    function updateSelectionMetrics(target) {
+      var badge = q('[data-selection-metrics]');
+      var overlay = q('[data-canvas-overlay]');
+      var wrap = q('[data-product-wrap]');
+      if (!badge || !overlay || !wrap || !S.canvas) return;
+      var obj = target || S.canvas.getActiveObject();
+      if (!obj) {
+        badge.style.display = 'none';
+        return;
+      }
+
+      var metrics = activeObjectMetrics(obj);
+      if (!metrics || !metrics.widthCm || !metrics.heightCm) {
+        badge.style.display = 'none';
+        return;
+      }
+
+      badge.textContent = formatMetricSize(metrics);
+      badge.style.display = '';
+
+      var wrapRect = wrap.getBoundingClientRect();
+      var overlayRect = overlay.getBoundingClientRect();
+      var rect = imageBounds(obj);
+      var left = overlayRect.left - wrapRect.left + rect.left;
+      var top = overlayRect.top - wrapRect.top + rect.top + rect.height + 8;
+      var maxLeft = Math.max(8, wrap.clientWidth - badge.offsetWidth - 8);
+      var maxTop = Math.max(8, wrap.clientHeight - badge.offsetHeight - 8);
+      badge.style.left = clamp(left, 8, maxLeft) + 'px';
+      badge.style.top = clamp(top, 8, maxTop) + 'px';
     }
 
     function onSelectionChange() {
@@ -394,8 +1338,10 @@
         S._lastTextObj = null;
       }
       positionFloatToolbar(obj);
+      positionTextQuickbar(obj);
       updateTransformPopupValues(obj);
       syncTextControls(obj);
+      updateSelectionMetrics(obj);
       updateStatusBadges();
     }
 
@@ -404,6 +1350,10 @@
       // S._lastTextObj temizleme — panel kontrollerine tıklayınca da cleared tetikleniyor
       var ftb = q('[data-float-tb]');
       if (ftb) ftb.style.display = 'none';
+      var tq = q('[data-text-quickbar]');
+      if (tq) tq.style.display = 'none';
+      var badge = q('[data-selection-metrics]');
+      if (badge) badge.style.display = 'none';
       closePopup();
       updateStatusBadges();
     }
@@ -413,6 +1363,7 @@
       var productImg = q('[data-product-img]');
       var svgWrap    = q('[data-shirt-svg-wrap]');
       var imgSrc     = S.viewIdx === 0 ? cfg.frontImage : cfg.backImage;
+      updateViewSwitcher();
 
       // hidden attribute'u her iki elementten temizle
       if (productImg) productImg.removeAttribute('hidden');
@@ -461,15 +1412,13 @@
       var svgR  = svgWrap.getBoundingClientRect();
       var wrapR = wrap.getBoundingClientRect();
       if (!svgR.width || !svgR.height) return;
-      // SVG viewBox 0 0 480 540, print rect x=135 y=176 w=210 h=292
-      var sx = svgR.width  / 480;
-      var sy = svgR.height / 540;
+      var area = overlayAreaForSide(viewName());
       var ox = svgR.left - wrapR.left;
       var oy = svgR.top  - wrapR.top;
-      overlay.style.left   = (ox + 135 * sx) + 'px';
-      overlay.style.top    = (oy + 176 * sy) + 'px';
-      overlay.style.width  = (210 * sx) + 'px';
-      overlay.style.height = (292 * sy) + 'px';
+      overlay.style.left   = (ox + svgR.width * area.leftPct) + 'px';
+      overlay.style.top    = (oy + svgR.height * area.topPct) + 'px';
+      overlay.style.width  = (svgR.width * area.widthPct) + 'px';
+      overlay.style.height = (svgR.height * area.heightPct) + 'px';
     }
 
     function positionCanvasOverlayOnImage(productImg) {
@@ -480,17 +1429,16 @@
       var imgRect  = productImg.getBoundingClientRect();
       var wrapRect = wrap.getBoundingClientRect();
 
-      // Default print area: left=22%, top=13%, w=56%, h=72%
-      var pctLeft = 0.22, pctTop = 0.13, pctW = 0.56, pctH = 0.72;
+      var area = overlayAreaForSide(viewName());
 
       var iw = imgRect.width, ih = imgRect.height;
       var il = imgRect.left - wrapRect.left;
       var it = imgRect.top  - wrapRect.top;
 
-      overlay.style.left   = (il + iw * pctLeft) + 'px';
-      overlay.style.top    = (it + ih * pctTop)  + 'px';
-      overlay.style.width  = (iw * pctW) + 'px';
-      overlay.style.height = (ih * pctH) + 'px';
+      overlay.style.left   = (il + iw * area.leftPct) + 'px';
+      overlay.style.top    = (it + ih * area.topPct)  + 'px';
+      overlay.style.width  = (iw * area.widthPct) + 'px';
+      overlay.style.height = (ih * area.heightPct) + 'px';
     }
 
     function resizeCanvas() {
@@ -502,19 +1450,21 @@
       S.canvas.setWidth(w);
       S.canvas.setHeight(h);
       S.canvas.renderAll();
+      updateSelectionMetrics();
     }
 
     // ── View switching ────────────────────────────────────────────────────────
     function switchView(idx) {
       // Save current canvas state
       if (S.canvas) {
-        S.saved[viewName()] = JSON.stringify(S.canvas.toJSON(['id', 'name']));
+        S.saved[viewName()] = JSON.stringify(S.canvas.toJSON(DESIGN_JSON_PROPS));
         saveCanvasToStorage();
       }
       S.viewIdx = clamp(idx, 0, S.views.length - 1);
 
       var viewLbl = q('[data-view-label]');
       if (viewLbl) viewLbl.textContent = S.viewIdx === 0 ? 'Ön' : 'Arka';
+      updateViewSwitcher();
 
       // Re-init product image for new view
       setupProductDisplay();
@@ -523,15 +1473,52 @@
       var savedJson = S.saved[viewName()];
       if (S.canvas && savedJson) {
         S.canvas.loadFromJSON(savedJson, function () {
+          normalizeCanvasImages();
           S.canvas.renderAll();
+          updateSelectionMetrics();
         });
       } else if (S.canvas) {
         S.canvas.clear();
         S.canvas.renderAll();
+        updateSelectionMetrics();
       }
 
       updateStatusBadges();
       updatePriceLabel();
+    }
+
+    function updateViewSwitcher() {
+      qa('[data-view-card]').forEach(function (btn) {
+        var side = btn.dataset.viewCard;
+        var active = side === viewName();
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+
+      [
+        { side: 'front', src: cfg.frontImage, label: 'Ön taraf görseli' },
+        { side: 'back', src: cfg.backImage, label: 'Arka taraf görseli' },
+      ].forEach(function (item) {
+        var img = q('[data-view-thumb-img="' + item.side + '"]');
+        if (!img) return;
+        if (item.src && img.getAttribute('src') !== item.src) {
+          img.classList.remove('loaded');
+          img.onload = function () { img.classList.add('loaded'); };
+          img.onerror = function () { img.classList.remove('loaded'); };
+          img.alt = item.label;
+          img.src = item.src;
+          if (img.complete && img.naturalWidth > 0) img.classList.add('loaded');
+        } else if (!item.src) {
+          img.removeAttribute('src');
+          img.classList.remove('loaded');
+          img.alt = '';
+        }
+      });
+
+      var frontStatus = q('[data-view-card-status="front"]');
+      var backStatus  = q('[data-view-card-status="back"]');
+      if (frontStatus) frontStatus.textContent = sideHasContent('front') ? 'Tasarım var' : 'Tasarım alanı';
+      if (backStatus)  backStatus.textContent  = sideHasContent('back') ? 'Tasarım var' : 'Tasarım alanı';
     }
 
     // ── Shirt color ───────────────────────────────────────────────────────────
@@ -693,7 +1680,7 @@
       var panel = q('[data-tool-panel]');
       if (!panel) return;
 
-      if (S.activeTool === toolName) {
+      if (!toolName || S.activeTool === toolName) {
         // Toggle off
         S.activeTool = null;
         panel.classList.remove('open');
@@ -740,7 +1727,7 @@
         var list = S.uploadedImages
           .filter(Boolean)
           .slice(-12)
-          .map(function (img) { return { dataUrl: img.storedUrl || img.dataUrl, name: img.name }; });
+          .map(function (img) { return { dataUrl: img.storedUrl || img.dataUrl, name: img.name, asset: img.asset || null }; });
         localStorage.setItem(STORAGE_KEY, JSON.stringify(
           list
         ));
@@ -778,7 +1765,7 @@
           var dataUrl = img && (img.dataUrl || img.storedUrl || img.src || img.url);
           var name    = (img && img.name) || 'Yüklenen resim';
           dataUrl = String(dataUrl || '').trim();
-          if (!dataUrl || dataUrl.indexOf('data:image') !== 0) {
+          if (!dataUrl || !/^(data:image|https?:\/\/|\/uploads\/)/.test(dataUrl)) {
             console.warn('[designer] resim', i, 'geçersiz dataUrl');
             return;
           }
@@ -786,7 +1773,7 @@
           seen[dataUrl] = true;
           var container = q('[data-img-thumbs]');
           console.log('[designer] resim', i, 'ekleniyor, container:', !!container);
-          S.uploadedImages.push({ dataUrl: dataUrl, storedUrl: dataUrl, name: name });
+          S.uploadedImages.push({ dataUrl: dataUrl, storedUrl: dataUrl, name: name, asset: img.asset || null });
           addThumbItem(dataUrl, name, S.uploadedImages.length - 1);
         } catch (e2) { console.error('[designer] resim hatası:', e2); }
       });
@@ -801,17 +1788,44 @@
           var reader = new FileReader();
           reader.onload = function (e) {
             var originalUrl = String(e.target.result);
-            compressImage(originalUrl, function (storedUrl) {
-              placeImageOnCanvas(storedUrl);
-              S.uploadedImages.push({ dataUrl: storedUrl, storedUrl: storedUrl, name: file.name });
-              addThumbItem(storedUrl, file.name, S.uploadedImages.length - 1);
-              saveImagesToStorage();
-              saveCanvasToStorage();
+            imageDataSize(originalUrl, function (dims) {
+              uploadOriginalAsset(file, dims, function (asset) {
+                var displayUrl = asset && asset.url ? asset.url : originalUrl;
+                compressImage(originalUrl, function (storedUrl) {
+                  var thumbUrl = asset && asset.url ? asset.url : storedUrl;
+                  placeImageOnCanvas(displayUrl, asset);
+                  S.uploadedImages.push({ dataUrl: thumbUrl, storedUrl: thumbUrl, name: file.name, asset: asset || null });
+                  addThumbItem(thumbUrl, file.name, S.uploadedImages.length - 1);
+                  saveImagesToStorage();
+                  saveCanvasToStorage();
+                });
+              });
             });
           };
           reader.readAsDataURL(file);
         }(f));
       }
+    }
+
+    function imageDataSize(src, callback) {
+      var img = new window.Image();
+      img.onload = function () { callback({ width: img.naturalWidth || img.width || 0, height: img.naturalHeight || img.height || 0 }); };
+      img.onerror = function () { callback({ width: 0, height: 0 }); };
+      img.src = src;
+    }
+
+    function uploadOriginalAsset(file, dims, callback) {
+      if (!cfg.uploadEndpoint || file.type === 'image/svg+xml') { callback(null); return; }
+      var fd = new FormData();
+      fd.append('purpose', 'original');
+      fd.append('side', viewName() + '-original');
+      fd.append('width', String(dims.width || 0));
+      fd.append('height', String(dims.height || 0));
+      fd.append('image', file, file.name);
+      fetch(cfg.uploadEndpoint, { method: 'POST', body: fd })
+        .then(function (r) { return r.ok ? r.json() : Promise.resolve({}); })
+        .then(function (j) { callback(j.asset || null); })
+        .catch(function () { callback(null); });
     }
 
     function addThumbItem(dataUrl, name, idx) {
@@ -844,7 +1858,8 @@
       });
 
       item.addEventListener('click', function () {
-        placeImageOnCanvas(dataUrl);
+        var uploaded = S.uploadedImages.find(function (img) { return img && (img.dataUrl === dataUrl || img.storedUrl === dataUrl); });
+        placeImageOnCanvas(dataUrl, uploaded && uploaded.asset);
       });
 
       item.appendChild(img);
@@ -853,16 +1868,28 @@
       container.appendChild(item);
     }
 
-    function placeImageOnCanvas(dataUrl) {
+    function placeImageOnCanvas(dataUrl, asset) {
       if (!S.canvas) return;
       fabric.Image.fromURL(dataUrl, function (img) {
         var cw = S.canvas.width, ch = S.canvas.height;
-        var scale = Math.min(cw / img.width, ch / img.height, 1) * 0.8;
+        var scale = Math.min(cw / img.width, ch / img.height, 1) * 0.72;
         img.set({
           left: cw / 2, top: ch / 2,
           originX: 'center', originY: 'center',
           scaleX: scale, scaleY: scale,
         });
+        if (asset) {
+          img.set({
+            assetId: asset.assetId || '',
+            originalUrl: asset.originalUrl || asset.url || '',
+            originalFilename: asset.filename || '',
+            originalWidth: asset.width || 0,
+            originalHeight: asset.height || 0,
+            originalMime: asset.mime || '',
+            originalSize: asset.size || 0,
+          });
+        }
+        lockImageProportions(img);
         S.canvas.add(img);
         S.canvas.setActiveObject(img);
         S.canvas.renderAll();
@@ -992,7 +2019,7 @@
 
     function saveDesign() {
       if (!S.canvas) return;
-      var json = JSON.stringify(S.canvas.toJSON(['id', 'name']));
+      var json = JSON.stringify(S.canvas.toJSON(DESIGN_JSON_PROPS));
       var dataUrl = S.canvas.toDataURL({ format: 'png', quality: 0.7, multiplier: 0.5 });
       var item = { json: json, preview: dataUrl, ts: Date.now() };
       var list = loadSavedList();
@@ -1044,6 +2071,7 @@
         row.addEventListener('click', function () {
           if (!S.canvas) return;
           S.canvas.loadFromJSON(item.json, function () {
+            normalizeCanvasImages();
             S.canvas.renderAll();
             pushHistory();
           });
@@ -1084,7 +2112,7 @@
         if (!S.canvas) return;
         var cur   = viewName();
         var other = cur === 'front' ? 'back' : 'front';
-        var curJson = JSON.stringify(S.canvas.toJSON(['id', 'name']));
+        var curJson = JSON.stringify(S.canvas.toJSON(DESIGN_JSON_PROPS));
         compressCanvasJSON(curJson, function (compressed) {
           try {
             var state = {};
@@ -1107,12 +2135,54 @@
       } catch (e) { /* yoksay */ }
     }
 
+    function loadDesignFromToken() {
+      var token = designTokenFromUrl();
+      if (!token) return;
+      fetch('/apps/tshirt-designer/designs/' + encodeURIComponent(token), {
+        headers: { 'Accept': 'application/json' },
+      })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (design) {
+          if (!design || !design.designJson) return;
+          if (design.designJson.front) S.saved.front = design.designJson.front;
+          if (design.designJson.back) S.saved.back = design.designJson.back;
+          if (Array.isArray(design.sizes)) {
+            S.sizeQty = {};
+            design.sizes.forEach(function (line) {
+              if (line && line.size) S.sizeQty[line.size] = Math.max(0, Math.floor(Number(line.quantity) || 0));
+            });
+            Object.keys(S.sizeQty).forEach(function (size) {
+              var input = q('[data-size-input="' + cssEscape(size) + '"]');
+              var row = q('[data-size-row="' + cssEscape(size) + '"]');
+              if (input) input.value = S.sizeQty[size];
+              if (row) row.classList.toggle('active', S.sizeQty[size] > 0);
+            });
+          }
+          if (S.canvas) {
+            var savedJson = S.saved[viewName()];
+            if (savedJson) {
+              _historyLock = true;
+              S.canvas.loadFromJSON(savedJson, function () {
+                normalizeCanvasImages();
+                S.canvas.renderAll();
+                _historyLock = false;
+                pushHistory();
+                updateStatusBadges();
+                updatePriceLabel();
+              });
+            }
+          }
+          setMsg('Tasarım düzenleme için yüklendi.', 'success');
+        })
+        .catch(function () { /* ignore */ });
+    }
+
     // ── History / undo / redo ─────────────────────────────────────────────────
     var _historyLock = false;
     function pushHistory() {
       if (_historyLock || !S.canvas) return;
       var view = viewName();
-      var json = JSON.stringify(S.canvas.toJSON(['id', 'name']));
+      var json = JSON.stringify(S.canvas.toJSON(DESIGN_JSON_PROPS));
       S.history[view].push(json);
       if (S.history[view].length > 40) S.history[view].shift();
       S.redo[view] = [];
@@ -1129,6 +2199,7 @@
       var prev = S.history[view][S.history[view].length - 1];
       _historyLock = true;
       S.canvas.loadFromJSON(prev, function () {
+        normalizeCanvasImages();
         S.canvas.renderAll();
         _historyLock = false;
         updateStatusBadges();
@@ -1145,6 +2216,7 @@
       S.history[view].push(next);
       _historyLock = true;
       S.canvas.loadFromJSON(next, function () {
+        normalizeCanvasImages();
         S.canvas.renderAll();
         _historyLock = false;
         updateStatusBadges();
@@ -1201,6 +2273,38 @@
       ftb.style.left    = bx + 'px';
       ftb.style.top     = Math.max(4, by) + 'px';
       ftb.style.display = 'flex';
+    }
+
+    function positionTextQuickbar(obj) {
+      var tq = q('[data-text-quickbar]');
+      var wrap = q('[data-product-wrap]');
+      var overlay = q('[data-canvas-overlay]');
+      if (!tq || !wrap || !overlay || !S.canvas) return;
+      var isText = obj && (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox');
+      if (!isText) { tq.style.display = 'none'; return; }
+
+      var bounds = obj.getBoundingRect(true);
+      var overlayRect = overlay.getBoundingClientRect();
+      var wrapRect = wrap.getBoundingClientRect();
+      var scaleX = overlay.offsetWidth / S.canvas.width;
+      var scaleY = overlay.offsetHeight / S.canvas.height;
+      var left = overlayRect.left - wrapRect.left + bounds.left * scaleX + (bounds.width * scaleX) / 2 - 165;
+      var top = overlayRect.top - wrapRect.top + (bounds.top + bounds.height) * scaleY + 12;
+      left = clamp(left, 8, Math.max(8, wrapRect.width - 342));
+      top = clamp(top, 8, Math.max(8, wrapRect.height - 150));
+      tq.style.left = left + 'px';
+      tq.style.top = top + 'px';
+      tq.style.display = 'grid';
+      syncTextQuickbar(obj);
+    }
+
+    function syncTextQuickbar(obj) {
+      var color = q('[data-tq-color]');
+      var size = q('[data-tq-size]');
+      var font = q('[data-tq-font]');
+      if (color && typeof obj.fill === 'string' && obj.fill.charAt(0) === '#') color.value = obj.fill;
+      if (size && obj.fontSize) size.value = Math.round(obj.fontSize);
+      if (font && obj.fontFamily) font.value = obj.fontFamily;
     }
 
     // ── Popups ────────────────────────────────────────────────────────────────
@@ -1373,6 +2477,8 @@
           scaleX: obj.scaleX, scaleY: obj.scaleY,
           angle: obj.angle, originX: obj.originX, originY: obj.originY,
         });
+        keepImageUniform(newImg);
+        lockImageProportions(newImg);
         S.canvas.remove(obj);
         S.canvas.add(newImg);
         S.canvas.setActiveObject(newImg);
@@ -1450,6 +2556,7 @@
           originX: 'center', originY: 'center',
           scaleX: scale, scaleY: scale,
         });
+        lockImageProportions(fImg);
         S.canvas.add(fImg);
         S.canvas.setActiveObject(fImg);
         S.canvas.renderAll();
@@ -1489,11 +2596,13 @@
       } else if (targetJSON) {
         _historyLock = true;
         S.canvas.loadFromJSON(targetJSON, function () {
+          normalizeCanvasImages();
           S.canvas.renderAll();
           doExport();
           // restore
           if (savedCurrent) {
             S.canvas.loadFromJSON(savedCurrent, function () {
+              normalizeCanvasImages();
               S.canvas.renderAll();
               _historyLock = false;
             });
@@ -1509,19 +2618,38 @@
 
     // ── Price label ───────────────────────────────────────────────────────────
     function updatePriceLabel() {
-      var mode  = printMode();
-      var price = mode ? (cfg.prices[mode] || cfg.prices.front) : 0;
-
-      // Seçili beden + mod için gerçek varyant fiyatına bak
-      var vid = mode ? variantId(mode) : null;
-      if (vid && cfg.variantPrices[vid]) {
-        price = cfg.variantPrices[vid];
-      }
-
+      var pricing = calculatePricing();
+      var totalQty = pricing.totalQuantity;
+      var previewQty = totalQty || 1;
+      var previewBase = totalQty ? pricing.baseSubtotal : unitBasePriceForSize(S.size);
+      var previewFront = totalQty ? pricing.frontSubtotal : (pricing.front.hasContent ? pricing.front.surcharge : 0);
+      var previewBack = totalQty ? pricing.backSubtotal : (pricing.back.hasContent ? pricing.back.surcharge : 0);
+      var previewTotal = totalQty ? pricing.total : (previewBase + previewFront + previewBack);
       var priceLbl = q('[data-designer-price-label]');
       var modeLbl  = q('[data-designer-mode-label]');
-      if (priceLbl) priceLbl.textContent = price ? money(price) : '';
-      if (modeLbl)  modeLbl.textContent  = modeLabelText(mode);
+      var totalQtyLbl = q('[data-total-qty]');
+      var breakdown = q('[data-price-breakdown]');
+      if (priceLbl) priceLbl.textContent = money(previewTotal);
+      if (modeLbl) {
+        if (!sideHasContent('front') && !sideHasContent('back')) modeLbl.textContent = 'Tasarım ekleyin';
+        else if (!totalQty) modeLbl.textContent = '1 adet tahmini fiyat · ' + (S.size || 'varsayılan beden');
+        else modeLbl.textContent = cfg.surfaceMode === 'front_only'
+          ? sidePricingSummary('Ön', pricing.front)
+          : sidePricingSummary('Ön', pricing.front) + ' | ' + sidePricingSummary('Arka', pricing.back);
+      }
+      if (totalQtyLbl) totalQtyLbl.textContent = totalQty + ' adet';
+      if (breakdown) {
+        var rows = [
+          '<div class="dsgn-price-breakdown-row"><span>Tisort x ' + previewQty + '</span><strong>' + money(previewBase) + '</strong></div>'
+        ];
+        if (pricing.front.hasContent) {
+          rows.push('<div class="dsgn-price-breakdown-row"><span>On baski ' + pricing.front.band.label + ' (' + roundMetric(pricing.front.metrics.areaCm2) + ' cm²)</span><strong>' + money(previewFront) + '</strong></div>');
+        }
+        if (pricing.back.hasContent) {
+          rows.push('<div class="dsgn-price-breakdown-row"><span>Arka baski ' + pricing.back.band.label + ' (' + roundMetric(pricing.back.metrics.areaCm2) + ' cm²)</span><strong>' + money(previewBack) + '</strong></div>');
+        }
+        breakdown.innerHTML = rows.join('');
+      }
     }
 
     // ── Status badges ─────────────────────────────────────────────────────────
@@ -1538,39 +2666,97 @@
         back.textContent = bReady ? 'Arka hazır ✓' : 'Arka boş';
         back.classList.toggle('ready', bReady);
       }
+      updateViewSwitcher();
     }
 
     // ── Cart ──────────────────────────────────────────────────────────────────
     function addToCart() {
-      var cartBtn = q('[data-add-to-cart]');
-      var qtyInput = q('[data-qty-input]');
-      var qty   = Math.max(1, +(qtyInput ? qtyInput.value : 1) || 1);
-
-      if (S.canvas) S.saved[viewName()] = JSON.stringify(S.canvas.toJSON(['id', 'name']));
+      if (S.canvas) S.saved[viewName()] = JSON.stringify(S.canvas.toJSON(DESIGN_JSON_PROPS));
       if (!sideHasContent('front') && !sideHasContent('back')) {
         setMsg('En az bir yüze tasarım ekleyin.', 'error'); return;
       }
-      var mode  = printMode();
-      var vId   = mode ? variantId(mode) : null;
-      if (!vId) {
-        setMsg('Bu renk, beden ve baskı tipi için variant bulunamadı.', 'error'); return;
+      var lines = selectedSizeLines();
+      if (!lines.length) {
+        setMsg('En az bir beden için adet seçin.', 'error'); return;
       }
+      var invalidLine = lines.find(function (line) { return !baseVariantIdForSize(line.size); });
+      if (invalidLine) {
+        setMsg(invalidLine.size + ' bedeni için ana ürün variantı bulunamadı.', 'error'); return;
+      }
+      var pricing = calculatePricing();
+      var missingSurchargeSides = [];
+      if (pricing.front.hasContent && pricing.front.surcharge > 0 && !pricing.front.variantId) missingSurchargeSides.push('ön');
+      if (pricing.back.hasContent && pricing.back.surcharge > 0 && !pricing.back.variantId) missingSurchargeSides.push('arka');
+      if (missingSurchargeSides.length) {
+        setMsg('Baskı fiyat varyant haritası eksik: ' + missingSurchargeSides.join(', ') + '.', 'error');
+        return;
+      }
+      var primaryVariantId = baseVariantIdForSize(lines[0].size);
+      var mode = printMode();
 
       setLoading(true);
 
       // Upload previews then add to cart
-      var properties = { 'Baskı tipi': modeLabelText(mode), 'Beden': S.size };
+      var properties = {
+        'Baskı tipi': modeLabelText(mode),
+        'Bedenler': selectedSizeSummary(),
+        'Toplam adet': String(totalSelectedQuantity()),
+        'Tisort ara toplam': money(pricing.baseSubtotal),
+        'Toplam fiyat': money(pricing.total),
+      };
       if (S.colorName) properties['Renk'] = S.colorName;
+      if (pricing.front.hasContent) {
+        properties['Ön ölçü'] = formatMetricSize(pricing.front.metrics);
+        properties['Ön alan'] = roundMetric(pricing.front.metrics.areaCm2) + ' cm²';
+        properties['Ön fiyat bandı'] = pricing.front.band.label;
+      }
+      if (pricing.back.hasContent) {
+        properties['Arka ölçü'] = formatMetricSize(pricing.back.metrics);
+        properties['Arka alan'] = roundMetric(pricing.back.metrics.areaCm2) + ' cm²';
+        properties['Arka fiyat bandı'] = pricing.back.band.label;
+      }
 
-      function doCartAdd(frontUrl, backUrl) {
+      function doCartAdd(frontUrl, backUrl, design) {
+        if (!design || !design.token) {
+          setMsg('Tasarım kaydedilemedi, lütfen tekrar deneyin.', 'error');
+          setLoading(false);
+          return;
+        }
         if (frontUrl) properties['Ön önizleme'] = frontUrl;
         if (backUrl)  properties['Arka önizleme'] = backUrl;
+        if (design && design.token) properties.design_token = design.token;
+        if (design && design.downloadUrl) properties['Tasarımı indir'] = design.downloadUrl;
+        if (design && design.editUrl) properties['Tasarımı düzenle'] = design.editUrl;
+        var items = lines.map(function (line) {
+          return {
+            id: String(baseVariantIdForSize(line.size)),
+            quantity: line.quantity,
+            properties: Object.assign({}, properties, { 'Beden': line.size, '_design_role': 'base' }),
+          };
+        });
+        ['front', 'back'].forEach(function (side) {
+          var sidePricing = pricing[side];
+          if (!sidePricing || !sidePricing.hasContent || !sidePricing.surcharge || !sidePricing.variantId) return;
+          items.push({
+            id: String(sidePricing.variantId),
+            quantity: pricing.totalQuantity,
+            properties: Object.assign({}, properties, {
+              '_design_role': 'surcharge',
+              'Ürün tipi': side === 'front' ? 'Ön baskı ek ücreti' : 'Arka baskı ek ücreti',
+              'Baskı yüzü': side === 'front' ? 'Ön' : 'Arka',
+              'Baskı ölçü': formatMetricSize(sidePricing.metrics),
+              'Baskı alanı': roundMetric(sidePricing.metrics.areaCm2) + ' cm²',
+              'Fiyat bandı': sidePricing.band.label,
+              'Ek ücret / adet': money(sidePricing.surcharge),
+            }),
+          });
+        });
 
         fetch('/cart/add.js', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({
-            items: [{ id: String(vId), quantity: qty, properties: properties }],
+            items: items,
           }),
         })
         .then(function (res) {
@@ -1584,6 +2770,24 @@
           setMsg(err.message || 'Hata oluştu', 'error');
           setLoading(false);
         });
+      }
+
+      function createDesign(frontUrl, backUrl, done) {
+        var payload = currentDesignPayload(frontUrl, backUrl, primaryVariantId);
+        fetch('/apps/tshirt-designer/designs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+          .then(function (r) { return r.ok ? r.json() : Promise.resolve({}); })
+          .then(function (j) {
+            done({
+              token: j.token || '',
+              downloadUrl: j.token ? ('/apps/tshirt-designer/designs/' + encodeURIComponent(j.token) + '/download') : '',
+              editUrl: j.token ? editDesignUrl(j.token) : '',
+            });
+          })
+          .catch(function () { done(null); });
       }
 
       if (cfg.uploadEndpoint) {
@@ -1604,12 +2808,138 @@
         }
 
         var pending = 2;
-        function done() { pending--; if (pending === 0) doCartAdd(frontUrl, backUrl); }
+        function done() {
+          pending--;
+          if (pending === 0) {
+            createDesign(frontUrl, backUrl, function (design) {
+              doCartAdd(frontUrl, backUrl, design);
+            });
+          }
+        }
         uploadSide('front', done);
         uploadSide('back',  done);
       } else {
-        doCartAdd(null, null);
+        createDesign(null, null, function (design) {
+          doCartAdd(null, null, design);
+        });
       }
+    }
+
+    function downloadCurrentDesign() {
+      if (!S.canvas) return;
+      S.saved[viewName()] = canvasJSON();
+      if (!sideHasContent(viewName())) {
+        setMsg('İndirmek için önce tasarım ekleyin.', 'error');
+        return;
+      }
+      exportMockupDataUrl(function (dataUrl) {
+        var link = document.createElement('a');
+        var side = viewName() === 'front' ? 'on' : 'arka';
+        link.href = dataUrl;
+        link.download = 'tisort-mockup-' + side + '.png';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      });
+    }
+
+    function exportMockupDataUrl(callback) {
+      var wrap = q('[data-product-wrap]');
+      var overlay = q('[data-canvas-overlay]');
+      var productImg = q('[data-product-img]');
+      var svgWrap = q('[data-shirt-svg-wrap]');
+      if (!wrap || !overlay || !S.canvas) {
+        callback(S.canvas.toDataURL({ format: 'png', quality: 1, multiplier: 3 }));
+        return;
+      }
+
+      var outW = 1200;
+      var outH = 1500;
+      var out = document.createElement('canvas');
+      out.width = outW;
+      out.height = outH;
+      var ctx = out.getContext('2d');
+      ctx.fillStyle = '#f7f7f7';
+      ctx.fillRect(0, 0, outW, outH);
+
+      var wrapRect = wrap.getBoundingClientRect();
+      var target = null;
+      if (productImg && productImg.classList.contains('loaded') && productImg.naturalWidth) target = productImg;
+      else if (svgWrap && svgWrap.style.display !== 'none') target = svgWrap;
+
+      var targetRect = target ? target.getBoundingClientRect() : wrapRect;
+      var scale = Math.min(outW * 0.9 / targetRect.width, outH * 0.9 / targetRect.height);
+      var drawW = targetRect.width * scale;
+      var drawH = targetRect.height * scale;
+      var drawX = (outW - drawW) / 2;
+      var drawY = (outH - drawH) / 2;
+
+      function finish() {
+        var overlayRect = overlay.getBoundingClientRect();
+        var ox = drawX + (overlayRect.left - targetRect.left) * scale;
+        var oy = drawY + (overlayRect.top - targetRect.top) * scale;
+        var ow = overlayRect.width * scale;
+        var oh = overlayRect.height * scale;
+        var designUrl = S.canvas.toDataURL({ format: 'png', quality: 1, multiplier: 3 });
+        loadImageForExport(designUrl, function (designImg) {
+          ctx.drawImage(designImg, ox, oy, ow, oh);
+          callback(out.toDataURL('image/png'));
+        }, function () {
+          callback(S.canvas.toDataURL({ format: 'png', quality: 1, multiplier: 3 }));
+        });
+      }
+
+      if (target === productImg) {
+        loadImageForExport(productImg.currentSrc || productImg.src, function (img) {
+          ctx.drawImage(img, drawX, drawY, drawW, drawH);
+          finish();
+        }, function () {
+          drawFallbackShirt(ctx, drawX, drawY, drawW, drawH);
+          finish();
+        });
+      } else {
+        drawFallbackShirt(ctx, drawX, drawY, drawW, drawH);
+        finish();
+      }
+    }
+
+    function loadImageForExport(src, onload, onerror) {
+      var img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () { onload(img); };
+      img.onerror = function () { if (onerror) onerror(); };
+      img.src = src;
+    }
+
+    function drawFallbackShirt(ctx, x, y, w, h) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(w / 480, h / 540);
+      ctx.fillStyle = S.shirtColor || '#ffffff';
+      ctx.strokeStyle = 'rgba(0,0,0,.12)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(148, 60);
+      ctx.lineTo(206, 128);
+      ctx.quadraticCurveTo(240, 168, 274, 128);
+      ctx.lineTo(332, 60);
+      ctx.lineTo(446, 168);
+      ctx.lineTo(410, 282);
+      ctx.lineTo(368, 256);
+      ctx.lineTo(368, 496);
+      ctx.lineTo(112, 496);
+      ctx.lineTo(112, 256);
+      ctx.lineTo(70, 282);
+      ctx.lineTo(34, 168);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,.18)';
+      ctx.beginPath();
+      ctx.moveTo(206, 128);
+      ctx.quadraticCurveTo(240, 175, 274, 128);
+      ctx.stroke();
+      ctx.restore();
     }
 
     function setLoading(on) {
@@ -1661,39 +2991,74 @@
       } catch (e) {}
 
       if (sizeOpt && sizeOpt.values && sizeOpt.values.length && sizeGroup) {
-        // Ürün beden seçeneklerinden buton oluştur
+        // Ürün beden seçeneklerinden adet satırları oluştur
         sizeGroup.innerHTML = '';
         sizeOpt.values.forEach(function (val, idx) {
           var isActive = activeSize ? (val === activeSize) : (idx === 0);
           if (isActive) S.size = val;
-          var btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'dsgn-size-btn' + (isActive ? ' active' : '');
-          btn.dataset.size = val;
-          btn.textContent = val;
-          btn.addEventListener('click', function () {
-            S.size = val;
-            sizeGroup.querySelectorAll('[data-size]').forEach(function (b) {
-              b.classList.toggle('active', b.dataset.size === val);
-            });
-            updatePriceLabel();
-          });
-          sizeGroup.appendChild(btn);
+          if (S.sizeQty[val] === undefined) S.sizeQty[val] = 0;
+          sizeGroup.appendChild(createSizeQtyRow(val, S.sizeQty[val]));
         });
       } else {
-        // Ürün bedeni yoksa mevcut hardcoded butonlara event ekle
-        qa('[data-size]').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            S.size = btn.dataset.size;
-            qa('[data-size]').forEach(function (b) { b.classList.toggle('active', b.dataset.size === S.size); });
-            updatePriceLabel();
+        var existing = Array.prototype.slice.call(qa('[data-size-row]')).map(function (row) { return row.dataset.sizeRow; }).filter(Boolean);
+        if (!existing.length) existing = ['M', 'L', 'XL', 'XXL'];
+        if (sizeGroup) {
+          sizeGroup.innerHTML = '';
+          existing.forEach(function (val, idx) {
+            var isActive = activeSize ? (val === activeSize) : (idx === 0);
+            if (isActive) S.size = val;
+            if (S.sizeQty[val] === undefined) S.sizeQty[val] = 0;
+            sizeGroup.appendChild(createSizeQtyRow(val, S.sizeQty[val]));
           });
-        });
-        if (activeSize) {
-          S.size = activeSize;
-          qa('[data-size]').forEach(function (b) { b.classList.toggle('active', b.dataset.size === activeSize); });
         }
       }
+      updatePriceLabel();
+    }
+
+    function createSizeQtyRow(size, qty) {
+      var row = document.createElement('div');
+      row.className = 'dsgn-size-row' + (qty > 0 ? ' active' : '');
+      row.dataset.sizeRow = size;
+      var name = document.createElement('span');
+      name.className = 'dsgn-size-name';
+      name.textContent = size;
+      name.dataset.qty = String(qty);
+      var qtyWrap = document.createElement('div');
+      qtyWrap.className = 'dsgn-size-qty';
+      var dec = document.createElement('button');
+      dec.type = 'button';
+      dec.dataset.sizeQty = '-1';
+      dec.dataset.size = size;
+      dec.setAttribute('aria-label', size + ' azalt');
+      dec.textContent = '−';
+      var input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.value = String(qty);
+      input.dataset.sizeInput = size;
+      input.setAttribute('aria-label', size + ' adet');
+      var inc = document.createElement('button');
+      inc.type = 'button';
+      inc.dataset.sizeQty = '1';
+      inc.dataset.size = size;
+      inc.setAttribute('aria-label', size + ' artır');
+      inc.textContent = '+';
+      qtyWrap.appendChild(dec);
+      qtyWrap.appendChild(input);
+      qtyWrap.appendChild(inc);
+      row.appendChild(name);
+      row.appendChild(qtyWrap);
+      row.querySelectorAll('[data-size-qty]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          setSizeQty(size, (S.sizeQty[size] || 0) + Number(btn.dataset.sizeQty || 0));
+        });
+      });
+      if (input) {
+        input.addEventListener('input', function () {
+          setSizeQty(size, input.value);
+        });
+      }
+      return row;
     }
 
     // ── Bind all events ───────────────────────────────────────────────────────
@@ -1702,9 +3067,37 @@
       // Nav tool buttons
       qa('[data-tool]').forEach(function (btn) {
         btn.addEventListener('click', function () {
+          if (btn.dataset.tool === 'text') {
+            activateTool(null);
+            addText();
+            return;
+          }
           activateTool(btn.dataset.tool);
           if (btn.dataset.tool === 'saved') renderSavedGrid();
         });
+      });
+
+      var closeToolBtn = q('[data-close-tool]');
+      if (closeToolBtn) closeToolBtn.addEventListener('click', function () { activateTool(null); });
+
+      qa('[data-media-tab]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          qa('[data-media-tab]').forEach(function (b) { b.classList.toggle('active', b === btn); });
+          qa('[data-media-pane]').forEach(function (pane) {
+            pane.classList.toggle('active', pane.dataset.mediaPane === btn.dataset.mediaTab);
+          });
+        });
+      });
+
+      qa('[data-aspect]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          qa('[data-aspect]').forEach(function (b) { b.classList.toggle('active', b === btn); });
+        });
+      });
+
+      var aiBtn = q('[data-ai-generate]');
+      if (aiBtn) aiBtn.addEventListener('click', function () {
+        setMsg('AI görsel oluşturma için backend bağlantısı henüz eklenmedi.', 'error');
       });
 
       // Dropzone
@@ -1767,6 +3160,35 @@
       var addTextBtn = q('[data-add-text]');
       if (addTextBtn) addTextBtn.addEventListener('click', addText);
 
+      var tqColor = q('[data-tq-color]');
+      if (tqColor) tqColor.addEventListener('input', function () { applyTextChange({ fill: tqColor.value }); });
+      var tqSize = q('[data-tq-size]');
+      if (tqSize) tqSize.addEventListener('input', function () { applyTextChange({ fontSize: Number(tqSize.value) || 30 }); });
+      var tqFont = q('[data-tq-font]');
+      if (tqFont) tqFont.addEventListener('change', function () { applyTextChange({ fontFamily: tqFont.value }); });
+      var tqClose = q('[data-tq-close]');
+      if (tqClose) tqClose.addEventListener('click', function () {
+        var tq = q('[data-text-quickbar]');
+        if (tq) tq.style.display = 'none';
+      });
+      var tqBold = q('[data-tq-style="bold"]');
+      if (tqBold) tqBold.addEventListener('click', function () {
+        var obj = activeTextObject();
+        var bold = !(obj && (obj.fontWeight === 'bold' || Number(obj.fontWeight) >= 600));
+        applyTextChange({ fontWeight: bold ? 'bold' : 'normal' });
+      });
+      var tqSizeStep = q('[data-tq-size-step]');
+      if (tqSizeStep) tqSizeStep.addEventListener('click', function () {
+        var obj = activeTextObject();
+        applyTextChange({ fontSize: Math.min(160, Math.max(8, Number(obj && obj.fontSize || 30) + 2)) });
+      });
+      var tqAlign = q('[data-tq-align]');
+      if (tqAlign) tqAlign.addEventListener('click', function () { applyTextChange({ textAlign: 'center' }); });
+      var tqPosition = q('[data-tq-position]');
+      if (tqPosition) tqPosition.addEventListener('click', function () { alignObject('center'); });
+      var tqDelete = q('[data-tq-delete]');
+      if (tqDelete) tqDelete.addEventListener('click', deleteSelected);
+
       // Save design button
       var saveBtn = q('[data-save-design]');
       if (saveBtn) saveBtn.addEventListener('click', saveDesign);
@@ -1777,22 +3199,31 @@
       var delBtn  = q('[data-delete-obj]');
       var prevView = q('[data-prev-view]');
       var nextView = q('[data-next-view]');
+      var viewCards = qa('[data-view-card]');
       var zoomOut  = q('[data-zoom-out]');
       var zoomIn   = q('[data-zoom-in]');
       var qrBtn    = q('[data-qr-btn]');
       var resetBtn = q('[data-reset-btn]');
+      var downloadBtn = q('[data-download-design]');
 
       if (undoBtn)   undoBtn.addEventListener('click', undo);
       if (redoBtn)   redoBtn.addEventListener('click', redo);
       if (delBtn)    delBtn.addEventListener('mousedown', function (e) { e.preventDefault(); deleteSelected(); });
       if (prevView)  prevView.addEventListener('click', function () { switchView((S.viewIdx - 1 + S.views.length) % S.views.length); });
       if (nextView)  nextView.addEventListener('click', function () { switchView((S.viewIdx + 1) % S.views.length); });
+      viewCards.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var idx = S.views.indexOf(btn.dataset.viewCard);
+          if (idx !== -1) switchView(idx);
+        });
+      });
       if (zoomOut)   zoomOut.addEventListener('click',  function () { applyZoom(-1); });
       if (zoomIn)    zoomIn.addEventListener('click',   function () { applyZoom(1); });
       if (qrBtn)     qrBtn.addEventListener('click',    openQRModal);
       if (resetBtn)  resetBtn.addEventListener('click', function () {
         if (S.canvas) { S.canvas.clear(); S.canvas.renderAll(); pushHistory(); }
       });
+      if (downloadBtn) downloadBtn.addEventListener('click', downloadCurrentDesign);
 
       // Floating toolbar buttons
       qa('[data-ft]').forEach(function (btn) {
@@ -1981,7 +3412,7 @@
       window.addEventListener('beforeunload', function () {
         if (!S.canvas) return;
         try {
-          S.saved[viewName()] = JSON.stringify(S.canvas.toJSON(['id', 'name']));
+          S.saved[viewName()] = JSON.stringify(S.canvas.toJSON(DESIGN_JSON_PROPS));
           var state = {};
           if (S.saved.front) state.front = S.saved.front;
           if (S.saved.back) state.back = S.saved.back;
@@ -2026,19 +3457,21 @@
 
     // ── Bootstrap ─────────────────────────────────────────────────────────────
     function init() {
-      try { bind(); } catch(e) {}
-      try { initVariantImages(); } catch(e) {}
-      try { buildColorSwatches(); } catch(e) {}
-      try { applyShirtColor(S.shirtColor); } catch(e) {}
-      try { buildSizeButtons(); } catch(e) {}
-      try { buildTemplates(); } catch(e) {}   // StaticCanvas setActiveObject hatası burada yakalanır
-      try { renderSavedGrid(); } catch(e) {}
-      loadCanvasFromStorage();
-      setupProductDisplay();
-      updatePriceLabel();
-      // Resimleri en son yükle — panel ve canvas hazır olsun
-      loadImagesFromStorage();
-      if (S.uploadedImages.length > 0) activateTool('image');
+      loadRemotePersonalization(function () {
+        try { bind(); } catch(e) {}
+        try { initVariantImages(); } catch(e) {}
+        try { buildColorSwatches(); } catch(e) {}
+        try { applyShirtColor(S.shirtColor); } catch(e) {}
+        try { buildSizeButtons(); } catch(e) {}
+        try { buildTemplates(); } catch(e) {}
+        try { renderSavedGrid(); } catch(e) {}
+        loadCanvasFromStorage();
+        setupProductDisplay();
+        updatePriceLabel();
+        loadDesignFromToken();
+        loadImagesFromStorage();
+        if (S.uploadedImages.length > 0) activateTool('image');
+      });
     }
 
     init();
