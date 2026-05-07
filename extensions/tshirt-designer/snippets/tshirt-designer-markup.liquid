@@ -82,6 +82,7 @@
           <button type="button" class="dsgn-style-btn" data-style="bold" title="Kalın"><b>B</b></button>
           <button type="button" class="dsgn-style-btn" data-style="italic" title="Eğik"><i>I</i></button>
           <button type="button" class="dsgn-style-btn" data-style="underline" title="Altı çizili"><u>U</u></button>
+          <button type="button" class="dsgn-style-btn" data-style="linethrough" title="Üstü çizili"><s>S</s></button>
         </div>
         <button type="button" class="dsgn-add-btn" data-add-text>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -164,21 +165,70 @@
 
       <div class="dsgn-text-quickbar" data-text-quickbar style="display:none">
         <button type="button" class="dsgn-tq-close" data-tq-close aria-label="Kapat">×</button>
-        <label class="dsgn-tq-color"><input type="color" data-tq-color value="#111111"><span>Renk</span></label>
-        <label class="dsgn-tq-size"><input type="number" data-tq-size min="8" max="160" value="30"><span>Punto</span></label>
-        <select data-tq-font>
-          <option value="Arial">Arial</option>
-          <option value="Georgia">Georgia</option>
-          <option value="Impact">Impact</option>
-          <option value="Courier New">Courier</option>
-          <option value="Verdana">Verdana</option>
-          <option value="Roboto">Roboto</option>
-        </select>
-        <button type="button" data-tq-style="bold"><b>B</b><span>Biçim</span></button>
-        <button type="button" data-tq-size-step="1">＋<span>Boyut</span></button>
-        <button type="button" data-tq-align="center">☰<span>Hizala</span></button>
-        <button type="button" data-tq-position>⌄<span>Pozisyon</span></button>
-        <button type="button" class="danger" data-tq-delete>🗑<span>Kaldır</span></button>
+        <div class="dsgn-tq-main">
+          <label class="dsgn-tq-color">
+            <input type="color" data-tq-color value="#111111">
+            <span>Renk</span>
+          </label>
+          <select data-tq-font>
+            <option value="Arial">Arial</option>
+            <option value="Georgia">Georgia</option>
+            <option value="Impact">Impact</option>
+            <option value="Courier New">Courier</option>
+            <option value="Verdana">Verdana</option>
+            <option value="Roboto">Roboto</option>
+          </select>
+          <button type="button" class="dsgn-tq-trigger" data-tq-toggle="style">
+            <strong>B I U</strong>
+            <span>Biçim</span>
+          </button>
+          <button type="button" class="dsgn-tq-trigger" data-tq-toggle="size">
+            <strong data-tq-size-readout>30 px</strong>
+            <span>Boyut</span>
+          </button>
+          <button type="button" class="dsgn-tq-trigger" data-tq-toggle="align">
+            <strong data-tq-align-readout>Orta</strong>
+            <span>Hizala</span>
+          </button>
+          <button type="button" class="dsgn-tq-trigger" data-tq-toggle="position">
+            <strong>9 Nokta</strong>
+            <span>Pozisyon</span>
+          </button>
+          <button type="button" class="danger" data-tq-delete>
+            <strong>Sil</strong>
+            <span>Kaldır</span>
+          </button>
+        </div>
+
+        <div class="dsgn-tq-panel" data-tq-panel="style">
+          <button type="button" class="dsgn-tq-chip" data-tq-style="bold"><b>B</b> Kalın</button>
+          <button type="button" class="dsgn-tq-chip" data-tq-style="italic"><i>I</i> İtalik</button>
+          <button type="button" class="dsgn-tq-chip" data-tq-style="underline"><u>U</u> Altı Çizili</button>
+          <button type="button" class="dsgn-tq-chip" data-tq-style="linethrough"><s>S</s> Üstü Çizili</button>
+        </div>
+
+        <div class="dsgn-tq-panel dsgn-tq-panel--size" data-tq-panel="size">
+          <input type="range" data-tq-size min="8" max="160" value="30">
+          <strong class="dsgn-tq-size-value" data-tq-size-value>30 px</strong>
+        </div>
+
+        <div class="dsgn-tq-panel dsgn-tq-panel--align" data-tq-panel="align">
+          <button type="button" class="dsgn-tq-chip" data-tq-align="left">Sol</button>
+          <button type="button" class="dsgn-tq-chip" data-tq-align="center">Orta</button>
+          <button type="button" class="dsgn-tq-chip" data-tq-align="right">Sağ</button>
+        </div>
+
+        <div class="dsgn-tq-panel dsgn-tq-panel--position" data-tq-panel="position">
+          <button type="button" class="dsgn-tq-pos" data-tq-position="top-left">Sol Üst</button>
+          <button type="button" class="dsgn-tq-pos" data-tq-position="top-center">Üst</button>
+          <button type="button" class="dsgn-tq-pos" data-tq-position="top-right">Sağ Üst</button>
+          <button type="button" class="dsgn-tq-pos" data-tq-position="middle-left">Sol Orta</button>
+          <button type="button" class="dsgn-tq-pos" data-tq-position="middle-center">Tam Orta</button>
+          <button type="button" class="dsgn-tq-pos" data-tq-position="middle-right">Sağ Orta</button>
+          <button type="button" class="dsgn-tq-pos" data-tq-position="bottom-left">Sol Alt</button>
+          <button type="button" class="dsgn-tq-pos" data-tq-position="bottom-center">Alt</button>
+          <button type="button" class="dsgn-tq-pos" data-tq-position="bottom-right">Sağ Alt</button>
+        </div>
       </div>
       <div class="dsgn-popup" data-popup="position" style="display:none">
         <div class="dsgn-popup-title">Konum</div>

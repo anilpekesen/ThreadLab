@@ -610,6 +610,7 @@
       shirtColor: root.dataset.shirtColor || '#ffffff',
       activeTool: null,
       activePopup: null,
+      activeTextPanel: null,
       saved: { front: null, back: null },
       history: { front: [], back: [] },
       redo:    { front: [], back: [] },
@@ -622,6 +623,7 @@
       floatTarget: null,     // currently selected object for float toolbar
       colorKey: '',
       colorName: '',
+      quickbarLock: false,
     };
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -1398,6 +1400,16 @@
     }
 
     function onSelectionCleared() {
+      if (S.quickbarLock && S._lastTextObj && S._lastTextObj.canvas === S.canvas) {
+        setTimeout(function () {
+          if (!S.canvas || !S._lastTextObj || S._lastTextObj.canvas !== S.canvas) return;
+          S.canvas.setActiveObject(S._lastTextObj);
+          S.canvas.renderAll();
+          positionTextQuickbar(S._lastTextObj);
+          updateSelectionActions();
+        }, 0);
+        return;
+      }
       S.floatTarget = null;
       // S._lastTextObj temizleme — panel kontrollerine tıklayınca da cleared tetikleniyor
       var ftb = q('[data-float-tb]');
@@ -1406,6 +1418,7 @@
       if (tq) tq.style.display = 'none';
       var badge = q('[data-selection-metrics]');
       if (badge) badge.style.display = 'none';
+      closeTextQuickbarPanels();
       closePopup();
       updateSelectionActions();
       updateStatusBadges();
@@ -1746,6 +1759,20 @@
       });
     }
 
+    function activeCanvasObject() {
+      if (!S.canvas) return null;
+      return S.canvas.getActiveObject() || null;
+    }
+
+    function restoreLastTextSelection() {
+      if (!S.canvas || !S._lastTextObj || S._lastTextObj.canvas !== S.canvas) return null;
+      try {
+        S.canvas.setActiveObject(S._lastTextObj);
+        S.canvas.renderAll();
+      } catch (e) { return null; }
+      return S._lastTextObj;
+    }
+
     // ── Tool nav ──────────────────────────────────────────────────────────────
     function activateTool(toolName) {
       var panel = q('[data-tool-panel]');
@@ -1985,6 +2012,7 @@
       var boldBtn  = q('[data-style="bold"]');
       var italicBtn= q('[data-style="italic"]');
       var ulBtn    = q('[data-style="underline"]');
+      var lineBtn  = q('[data-style="linethrough"]');
 
       var text = (input ? input.value.trim() : '') || 'Yazı';
       var chosenColor = fontColor && fontColor.value ? fontColor.value : preferredTextColor();
@@ -1999,6 +2027,7 @@
         fontWeight: (boldBtn   && boldBtn.classList.contains('active'))   ? 'bold'   : 'normal',
         fontStyle:  (italicBtn && italicBtn.classList.contains('active'))  ? 'italic' : 'normal',
         underline:  !!(ulBtn   && ulBtn.classList.contains('active')),
+        linethrough: !!(lineBtn && lineBtn.classList.contains('active')),
         textAlign: 'center',
       });
       S.canvas.add(txt);
@@ -2034,6 +2063,7 @@
       var boldBtn = q('[data-style="bold"]');
       var italicBtn = q('[data-style="italic"]');
       var ulBtn = q('[data-style="underline"]');
+      var lineBtn = q('[data-style="linethrough"]');
       if (fontFam && obj.fontFamily) fontFam.value = obj.fontFamily;
       if (fontSize && obj.fontSize) fontSize.value = Math.round(obj.fontSize);
       if (fontSizeVal && obj.fontSize) fontSizeVal.textContent = Math.round(obj.fontSize);
@@ -2041,6 +2071,7 @@
       if (boldBtn) boldBtn.classList.toggle('active', obj.fontWeight === 'bold' || +obj.fontWeight >= 600);
       if (italicBtn) italicBtn.classList.toggle('active', obj.fontStyle === 'italic');
       if (ulBtn) ulBtn.classList.toggle('active', !!obj.underline);
+      if (lineBtn) lineBtn.classList.toggle('active', !!obj.linethrough);
     }
 
     function applyTextChange(props) {
@@ -2366,9 +2397,81 @@
       var color = q('[data-tq-color]');
       var size = q('[data-tq-size]');
       var font = q('[data-tq-font]');
+      var sizeValue = q('[data-tq-size-value]');
+      var sizeReadout = q('[data-tq-size-readout]');
+      var alignReadout = q('[data-tq-align-readout]');
       if (color && typeof obj.fill === 'string' && obj.fill.charAt(0) === '#') color.value = obj.fill;
       if (size && obj.fontSize) size.value = Math.round(obj.fontSize);
       if (font && obj.fontFamily) font.value = obj.fontFamily;
+      if (sizeValue && obj.fontSize) sizeValue.textContent = Math.round(obj.fontSize) + ' px';
+      if (sizeReadout && obj.fontSize) sizeReadout.textContent = Math.round(obj.fontSize) + ' px';
+      if (alignReadout) alignReadout.textContent = quickbarAlignLabel(obj.textAlign || 'left');
+      qa('[data-tq-style]').forEach(function (btn) {
+        var style = btn.dataset.tqStyle;
+        var active = false;
+        if (style === 'bold') active = obj.fontWeight === 'bold' || Number(obj.fontWeight) >= 600;
+        if (style === 'italic') active = obj.fontStyle === 'italic';
+        if (style === 'underline') active = !!obj.underline;
+        if (style === 'linethrough') active = !!obj.linethrough;
+        btn.classList.toggle('active', active);
+      });
+      qa('[data-tq-align]').forEach(function (btn) {
+        btn.classList.toggle('active', (obj.textAlign || 'left') === btn.dataset.tqAlign);
+      });
+    }
+
+    function quickbarAlignLabel(value) {
+      if (value === 'left') return 'Sol';
+      if (value === 'right') return 'Sağ';
+      return 'Orta';
+    }
+
+    function closeTextQuickbarPanels() {
+      S.activeTextPanel = null;
+      qa('[data-tq-panel]').forEach(function (panel) {
+        panel.classList.remove('active');
+      });
+      qa('[data-tq-toggle]').forEach(function (btn) {
+        btn.classList.remove('is-open');
+      });
+    }
+
+    function toggleTextQuickbarPanel(name) {
+      var panel = q('[data-tq-panel="' + name + '"]');
+      var button = q('[data-tq-toggle="' + name + '"]');
+      if (!panel || !button) return;
+      if (S.activeTextPanel === name) {
+        closeTextQuickbarPanels();
+        return;
+      }
+      closeTextQuickbarPanels();
+      S.activeTextPanel = name;
+      panel.classList.add('active');
+      button.classList.add('is-open');
+      var obj = activeTextObject();
+      if (obj) syncTextQuickbar(obj);
+    }
+
+    function toggleTextStyle(style) {
+      var obj = activeTextObject() || restoreLastTextSelection();
+      if (!obj) return;
+      if (style === 'bold') {
+        applyTextChange({ fontWeight: (obj.fontWeight === 'bold' || Number(obj.fontWeight) >= 600) ? 'normal' : 'bold' });
+      } else if (style === 'italic') {
+        applyTextChange({ fontStyle: obj.fontStyle === 'italic' ? 'normal' : 'italic' });
+      } else if (style === 'underline') {
+        applyTextChange({ underline: !obj.underline });
+      } else if (style === 'linethrough') {
+        applyTextChange({ linethrough: !obj.linethrough });
+      }
+      syncTextQuickbar(activeTextObject() || obj);
+    }
+
+    function setTextAlignment(value) {
+      if (!activeTextObject() && !restoreLastTextSelection()) return;
+      applyTextChange({ textAlign: value });
+      var obj = activeTextObject();
+      if (obj) syncTextQuickbar(obj);
     }
 
     // ── Popups ────────────────────────────────────────────────────────────────
@@ -2422,11 +2525,9 @@
     // ── Position / align ──────────────────────────────────────────────────────
     function alignObject(type) {
       if (!S.canvas) return;
-      var obj = S.canvas.getActiveObject();
+      var obj = activeCanvasObject() || restoreLastTextSelection();
       if (!obj) return;
       var cw = S.canvas.width, ch = S.canvas.height;
-      var bw = obj.getBoundingRect(true).width;
-      var bh = obj.getBoundingRect(true).height;
       switch (type) {
         case 'left':    obj.set({ left: 0, originX: 'left' });   break;
         case 'right':   obj.set({ left: cw, originX: 'right' }); break;
@@ -2441,6 +2542,53 @@
       obj.setCoords();
       S.canvas.renderAll();
       pushHistory();
+    }
+
+    function positionObject(slot) {
+      if (!S.canvas) return;
+      var obj = activeCanvasObject() || restoreLastTextSelection();
+      if (!obj) return;
+      var inset = 6;
+      var cw = S.canvas.width;
+      var ch = S.canvas.height;
+      var horizontal = 'center';
+      var vertical = 'middle';
+      var parts = String(slot || '').split('-');
+      if (parts.length === 2) {
+        vertical = parts[0];
+        horizontal = parts[1];
+      }
+
+      var props = {};
+      if (horizontal === 'left') {
+        props.left = inset;
+        props.originX = 'left';
+      } else if (horizontal === 'right') {
+        props.left = cw - inset;
+        props.originX = 'right';
+      } else {
+        props.left = cw / 2;
+        props.originX = 'center';
+      }
+
+      if (vertical === 'top') {
+        props.top = inset;
+        props.originY = 'top';
+      } else if (vertical === 'bottom') {
+        props.top = ch - inset;
+        props.originY = 'bottom';
+      } else {
+        props.top = ch / 2;
+        props.originY = 'center';
+      }
+
+      obj.set(props);
+      obj.setCoords();
+      S.canvas.renderAll();
+      pushHistory();
+      qa('[data-tq-position]').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.tqPosition === slot);
+      });
     }
 
     // ── Filter strip ──────────────────────────────────────────────────────────
@@ -3212,6 +3360,7 @@
           if (style === 'bold') applyTextChange({ fontWeight: btn.classList.contains('active') ? 'bold' : 'normal' });
           if (style === 'italic') applyTextChange({ fontStyle: btn.classList.contains('active') ? 'italic' : 'normal' });
           if (style === 'underline') applyTextChange({ underline: btn.classList.contains('active') });
+          if (style === 'linethrough') applyTextChange({ linethrough: btn.classList.contains('active') });
         });
       });
 
@@ -3222,31 +3371,48 @@
       var tqColor = q('[data-tq-color]');
       if (tqColor) tqColor.addEventListener('input', function () { applyTextChange({ fill: tqColor.value }); });
       var tqSize = q('[data-tq-size]');
-      if (tqSize) tqSize.addEventListener('input', function () { applyTextChange({ fontSize: Number(tqSize.value) || 30 }); });
+      if (tqSize) tqSize.addEventListener('input', function () {
+        var value = Number(tqSize.value) || 30;
+        var sizeValue = q('[data-tq-size-value]');
+        var sizeReadout = q('[data-tq-size-readout]');
+        if (sizeValue) sizeValue.textContent = value + ' px';
+        if (sizeReadout) sizeReadout.textContent = value + ' px';
+        applyTextChange({ fontSize: value });
+      });
       var tqFont = q('[data-tq-font]');
       if (tqFont) tqFont.addEventListener('change', function () { applyTextChange({ fontFamily: tqFont.value }); });
+      qa('[data-tq-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          toggleTextQuickbarPanel(btn.dataset.tqToggle);
+        });
+      });
       var tqClose = q('[data-tq-close]');
       if (tqClose) tqClose.addEventListener('click', function () {
         var tq = q('[data-text-quickbar]');
         if (tq) tq.style.display = 'none';
+        closeTextQuickbarPanels();
       });
-      var tqBold = q('[data-tq-style="bold"]');
-      if (tqBold) tqBold.addEventListener('click', function () {
-        var obj = activeTextObject();
-        var bold = !(obj && (obj.fontWeight === 'bold' || Number(obj.fontWeight) >= 600));
-        applyTextChange({ fontWeight: bold ? 'bold' : 'normal' });
+      qa('[data-tq-style]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          toggleTextStyle(btn.dataset.tqStyle);
+        });
       });
-      var tqSizeStep = q('[data-tq-size-step]');
-      if (tqSizeStep) tqSizeStep.addEventListener('click', function () {
-        var obj = activeTextObject();
-        applyTextChange({ fontSize: Math.min(160, Math.max(8, Number(obj && obj.fontSize || 30) + 2)) });
+      qa('[data-tq-align]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          setTextAlignment(btn.dataset.tqAlign);
+        });
       });
-      var tqAlign = q('[data-tq-align]');
-      if (tqAlign) tqAlign.addEventListener('click', function () { applyTextChange({ textAlign: 'center' }); });
-      var tqPosition = q('[data-tq-position]');
-      if (tqPosition) tqPosition.addEventListener('click', function () { alignObject('center'); });
+      qa('[data-tq-position]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          positionObject(btn.dataset.tqPosition);
+        });
+      });
       var tqDelete = q('[data-tq-delete]');
-      if (tqDelete) tqDelete.addEventListener('click', deleteSelected);
+      if (tqDelete) tqDelete.addEventListener('click', function () {
+        var obj = activeCanvasObject() || restoreLastTextSelection();
+        if (!obj) return;
+        deleteSelected();
+      });
 
       // Save design button
       var saveBtn = q('[data-save-design]');
@@ -3446,6 +3612,20 @@
           closePopup();
         }
       });
+
+      document.addEventListener('click', function (e) {
+        var tq = q('[data-text-quickbar]');
+        if (!tq || tq.style.display === 'none') return;
+        if (!tq.contains(e.target)) closeTextQuickbarPanels();
+      });
+
+      var tqWrap = q('[data-text-quickbar]');
+      if (tqWrap) {
+        tqWrap.addEventListener('mousedown', function () {
+          S.quickbarLock = true;
+          setTimeout(function () { S.quickbarLock = false; }, 80);
+        }, true);
+      }
 
       // Window resize: reposition canvas overlay
       window.addEventListener('resize', function () {
