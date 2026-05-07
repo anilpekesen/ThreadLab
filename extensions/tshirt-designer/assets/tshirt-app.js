@@ -136,6 +136,24 @@
     }
   }
 
+  function parseHexColor(hex) {
+    var value = String(hex || '').replace('#', '').trim();
+    if (value.length === 3) value = value.split('').map(function (c) { return c + c; }).join('');
+    if (!/^[0-9a-f]{6}$/i.test(value)) return null;
+    return {
+      r: parseInt(value.slice(0, 2), 16),
+      g: parseInt(value.slice(2, 4), 16),
+      b: parseInt(value.slice(4, 6), 16),
+    };
+  }
+
+  function preferredTextColor() {
+    var rgb = parseHexColor(S.shirtColor || '#ffffff');
+    if (!rgb) return '#111111';
+    var luminance = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
+    return luminance < 0.45 ? '#ffffff' : '#111111';
+  }
+
   // ── Template designs ──────────────────────────────────────────────────────
   function createText(text, opts) {
     return new fabric.IText(text, Object.assign({
@@ -1375,6 +1393,7 @@
       updateTransformPopupValues(obj);
       syncTextControls(obj);
       updateSelectionMetrics(obj);
+      updateSelectionActions();
       updateStatusBadges();
     }
 
@@ -1388,6 +1407,7 @@
       var badge = q('[data-selection-metrics]');
       if (badge) badge.style.display = 'none';
       closePopup();
+      updateSelectionActions();
       updateStatusBadges();
     }
 
@@ -1679,6 +1699,7 @@
           S.colorKey = c.key;
           S.colorName = c.name;
           applyShirtColor(c.hex);
+          syncSuggestedTextColor();
           row.querySelectorAll('.dsgn-swatch').forEach(function (b) { b.classList.remove('active'); });
           btn.classList.add('active');
 
@@ -1708,6 +1729,23 @@
       if (shirtPath) shirtPath.setAttribute('fill', hex);
     }
 
+    function syncSuggestedTextColor() {
+      var active = activeTextObject();
+      if (active) return;
+      var next = preferredTextColor();
+      var textColorInput = q('[data-text-color]');
+      var quickColorInput = q('[data-tq-color]');
+      if (textColorInput) textColorInput.value = next;
+      if (quickColorInput) quickColorInput.value = next;
+    }
+
+    function updateSelectionActions() {
+      var hasSelection = !!(S.canvas && S.canvas.getActiveObject());
+      qa('[data-delete-obj]').forEach(function (btn) {
+        btn.disabled = !hasSelection;
+      });
+    }
+
     // ── Tool nav ──────────────────────────────────────────────────────────────
     function activateTool(toolName) {
       var panel = q('[data-tool-panel]');
@@ -1732,6 +1770,12 @@
       qa('[data-tp]').forEach(function (p) {
         p.classList.toggle('active', p.dataset.tp === toolName);
       });
+
+      if (toolName === 'text') {
+        syncSuggestedTextColor();
+        var input = q('[data-text-input]');
+        if (input) input.focus();
+      }
     }
 
     // ── Image upload ──────────────────────────────────────────────────────────
@@ -1831,6 +1875,7 @@
                   addThumbItem(thumbUrl, file.name, S.uploadedImages.length - 1);
                   saveImagesToStorage();
                   saveCanvasToStorage();
+                  setMsg('Gorsel urune eklendi. Surukleyip buyutebilir veya kucultebilirsin.', 'success');
                 });
               });
             });
@@ -1942,6 +1987,7 @@
       var ulBtn    = q('[data-style="underline"]');
 
       var text = (input ? input.value.trim() : '') || 'Yazı';
+      var chosenColor = fontColor && fontColor.value ? fontColor.value : preferredTextColor();
       var txt = new fabric.IText(text, {
         left: S.canvas.width / 2,
         top:  S.canvas.height / 2,
@@ -1949,7 +1995,7 @@
         originY: 'center',
         fontFamily: fontFam  ? fontFam.value  : 'Arial',
         fontSize:   fontSize ? +fontSize.value: 30,
-        fill:       fontColor? fontColor.value: '#111111',
+        fill: chosenColor,
         fontWeight: (boldBtn   && boldBtn.classList.contains('active'))   ? 'bold'   : 'normal',
         fontStyle:  (italicBtn && italicBtn.classList.contains('active'))  ? 'italic' : 'normal',
         underline:  !!(ulBtn   && ulBtn.classList.contains('active')),
@@ -1958,6 +2004,12 @@
       S.canvas.add(txt);
       S.canvas.setActiveObject(txt);
       S.canvas.renderAll();
+      if (typeof txt.enterEditing === 'function') txt.enterEditing();
+      if (typeof txt.selectAll === 'function') txt.selectAll();
+      positionTextQuickbar(txt);
+      syncTextControls(txt);
+      syncTextQuickbar(txt);
+      updateSelectionActions();
       pushHistory();
     }
 
@@ -2288,24 +2340,7 @@
       var ftb  = q('[data-float-tb]');
       var wrap = q('[data-product-wrap]');
       if (!ftb || !wrap || !S.canvas) return;
-
-      var bounds = obj.getBoundingRect(true);
-      var overlay = q('[data-canvas-overlay]');
-      var overlayRect = overlay.getBoundingClientRect();
-      var wrapRect    = wrap.getBoundingClientRect();
-
-      var ox = overlayRect.left - wrapRect.left;
-      var oy = overlayRect.top  - wrapRect.top;
-
-      var scaleX = overlay.offsetWidth  / S.canvas.width;
-      var scaleY = overlay.offsetHeight / S.canvas.height;
-
-      var bx = ox + bounds.left  * scaleX + (bounds.width * scaleX) / 2;
-      var by = oy + bounds.top   * scaleY - 44;
-
-      ftb.style.left    = bx + 'px';
-      ftb.style.top     = Math.max(4, by) + 'px';
-      ftb.style.display = 'flex';
+      ftb.style.display = 'none';
     }
 
     function positionTextQuickbar(obj) {
@@ -2316,18 +2351,14 @@
       var isText = obj && (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox');
       if (!isText) { tq.style.display = 'none'; return; }
 
-      var bounds = obj.getBoundingRect(true);
-      var overlayRect = overlay.getBoundingClientRect();
+      tq.style.display = 'grid';
       var wrapRect = wrap.getBoundingClientRect();
-      var scaleX = overlay.offsetWidth / S.canvas.width;
-      var scaleY = overlay.offsetHeight / S.canvas.height;
-      var left = overlayRect.left - wrapRect.left + bounds.left * scaleX + (bounds.width * scaleX) / 2 - 165;
-      var top = overlayRect.top - wrapRect.top + (bounds.top + bounds.height) * scaleY + 12;
-      left = clamp(left, 8, Math.max(8, wrapRect.width - 342));
-      top = clamp(top, 8, Math.max(8, wrapRect.height - 150));
+      var quickbarWidth = tq.offsetWidth || 420;
+      var quickbarHeight = tq.offsetHeight || 88;
+      var left = Math.max(14, (wrapRect.width - quickbarWidth) / 2);
+      var top = Math.max(14, wrapRect.height - quickbarHeight - 14);
       tq.style.left = left + 'px';
       tq.style.top = top + 'px';
-      tq.style.display = 'grid';
       syncTextQuickbar(obj);
     }
 
@@ -3100,11 +3131,6 @@
       // Nav tool buttons
       qa('[data-tool]').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          if (btn.dataset.tool === 'text') {
-            activateTool(null);
-            addText();
-            return;
-          }
           activateTool(btn.dataset.tool);
           if (btn.dataset.tool === 'saved') renderSavedGrid();
         });
@@ -3229,32 +3255,20 @@
       // Canvas toolbar buttons
       var undoBtn = q('[data-undo]');
       var redoBtn = q('[data-redo]');
-      var delBtn  = q('[data-delete-obj]');
-      var prevView = q('[data-prev-view]');
-      var nextView = q('[data-next-view]');
+      var delBtns = qa('[data-delete-obj]');
       var viewCards = qa('[data-view-card]');
-      var zoomOut  = q('[data-zoom-out]');
-      var zoomIn   = q('[data-zoom-in]');
-      var qrBtn    = q('[data-qr-btn]');
-      var resetBtn = q('[data-reset-btn]');
       var downloadBtn = q('[data-download-design]');
 
       if (undoBtn)   undoBtn.addEventListener('click', undo);
       if (redoBtn)   redoBtn.addEventListener('click', redo);
-      if (delBtn)    delBtn.addEventListener('mousedown', function (e) { e.preventDefault(); deleteSelected(); });
-      if (prevView)  prevView.addEventListener('click', function () { switchView((S.viewIdx - 1 + S.views.length) % S.views.length); });
-      if (nextView)  nextView.addEventListener('click', function () { switchView((S.viewIdx + 1) % S.views.length); });
+      delBtns.forEach(function (delBtn) {
+        delBtn.addEventListener('mousedown', function (e) { e.preventDefault(); deleteSelected(); });
+      });
       viewCards.forEach(function (btn) {
         btn.addEventListener('click', function () {
           var idx = S.views.indexOf(btn.dataset.viewCard);
           if (idx !== -1) switchView(idx);
         });
-      });
-      if (zoomOut)   zoomOut.addEventListener('click',  function () { applyZoom(-1); });
-      if (zoomIn)    zoomIn.addEventListener('click',   function () { applyZoom(1); });
-      if (qrBtn)     qrBtn.addEventListener('click',    openQRModal);
-      if (resetBtn)  resetBtn.addEventListener('click', function () {
-        if (S.canvas) { S.canvas.clear(); S.canvas.renderAll(); pushHistory(); }
       });
       if (downloadBtn) downloadBtn.addEventListener('click', downloadCurrentDesign);
 
@@ -3495,12 +3509,14 @@
         try { initVariantImages(); } catch(e) {}
         try { buildColorSwatches(); } catch(e) {}
         try { applyShirtColor(S.shirtColor); } catch(e) {}
+        try { syncSuggestedTextColor(); } catch(e) {}
         try { buildSizeButtons(); } catch(e) {}
         try { buildTemplates(); } catch(e) {}
         try { renderSavedGrid(); } catch(e) {}
         loadCanvasFromStorage();
         setupProductDisplay();
         updatePriceLabel();
+        updateSelectionActions();
         loadDesignFromToken();
         loadImagesFromStorage();
         if (S.uploadedImages.length > 0) activateTool('image');
