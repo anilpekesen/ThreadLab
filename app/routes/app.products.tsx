@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, useLoaderData } from "@remix-run/react";
+import { Form, useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Badge,
   Box,
@@ -63,6 +63,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function ProductsRoute() {
   const { rows, q } = useLoaderData<typeof loader>();
   const [query, setQuery] = useState(q);
+  const navigate = useNavigate();
 
   return (
     <Page title="Urunler">
@@ -139,11 +140,11 @@ export default function ProductsRoute() {
                       </InlineGrid>
 
                       <InlineStack gap="200">
-                        <Button url={row.editUrl} variant="primary">
+                        <Button onClick={() => navigate(row.editUrl)} variant="primary">
                           Ayarlari ac
                         </Button>
                         {row.themeUrl ? (
-                          <Button url={row.themeUrl} target="_blank">
+                          <Button onClick={() => window.open(row.themeUrl ?? "", "_blank", "noopener,noreferrer")}>
                             Tema editoru
                           </Button>
                         ) : null}
