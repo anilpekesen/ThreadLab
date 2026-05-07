@@ -42,10 +42,7 @@ export interface ProductConfig {
     front: PricingBand[];
     back: PricingBand[];
   };
-  surchargeVariantMap: {
-    front: Record<string, string>;
-    back: Record<string, string>;
-  };
+  surchargeVariantId: string;
   updatedAt?: string;
 }
 
@@ -141,17 +138,6 @@ function normalizeBands(sideBands: unknown): PricingBand[] {
   });
 }
 
-function normalizeSurchargeMap(input: unknown) {
-  const source = (input as Record<string, Record<string, string>>) || {};
-  const out = { front: {}, back: {} } as ProductConfig["surchargeVariantMap"];
-  (["front", "back"] as const).forEach((side) => {
-    if (!source[side] || typeof source[side] !== "object") return;
-    Object.keys(source[side]).forEach((key) => {
-      if (source[side][key]) out[side][String(key)] = String(source[side][key]);
-    });
-  });
-  return out;
-}
 
 export function defaultPricingBands() {
   const values = [60, 120, 180];
@@ -252,7 +238,7 @@ export function buildDefaultConfig(product: Pick<ShopifyProductSummary, "title" 
     backPrintWidthCm: printDefaults.back.widthCm,
     backPrintHeightCm: printDefaults.back.heightCm,
     pricingBands: defaultPricingBands(),
-    surchargeVariantMap: { front: {}, back: {} },
+    surchargeVariantId: '',
   };
 }
 
@@ -291,7 +277,7 @@ export function normalizeProductConfig(
         ? normalizeBands(input?.pricingBands?.back)
         : fallback.pricingBands.back,
     },
-    surchargeVariantMap: normalizeSurchargeMap(input?.surchargeVariantMap),
+    surchargeVariantId: String((input as { surchargeVariantId?: unknown })?.surchargeVariantId || fallback.surchargeVariantId || ''),
     updatedAt: input?.updatedAt || fallback.updatedAt,
   };
 }

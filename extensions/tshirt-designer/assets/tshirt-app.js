@@ -106,23 +106,6 @@
     return { leftPct: 0.29, topPct: 0.27, widthPct: 0.42, heightPct: 0.56 };
   }
 
-  function parseSurchargeVariantMap(raw) {
-    if (!raw) return { front: {}, back: {} };
-    try {
-      var parsed = JSON.parse(raw);
-      var out = { front: {}, back: {} };
-      ['front', 'back'].forEach(function (side) {
-        var sideMap = parsed && parsed[side];
-        if (!sideMap || typeof sideMap !== 'object') return;
-        Object.keys(sideMap).forEach(function (key) {
-          if (sideMap[key]) out[side][String(key)] = String(sideMap[key]);
-        });
-      });
-      return out;
-    } catch (e) {
-      return { front: {}, back: {} };
-    }
-  }
 
   function parseHexColor(hex) {
     var value = String(hex || '').replace('#', '').trim();
@@ -540,7 +523,7 @@
         back: defaultOverlayArea,
       },
       pricingBands: null,
-      surchargeVariantMap: parseSurchargeVariantMap(root.dataset.surchargeVariantMap || ''),
+      surchargeVariantId: '',
       prices: {
         front:  0,
         back:   0,
@@ -718,7 +701,7 @@
       cfg.productType = settings.productType || (productMeta && productMeta.productType) || cfg.productType;
       cfg.surfaceMode = settings.surfaceMode || (productMeta && productMeta.surfaceMode) || cfg.surfaceMode;
       cfg.pricingBands = normalizeRemoteBands(settings.pricingBands) || cfg.pricingBands;
-      if (settings.surchargeVariantMap) cfg.surchargeVariantMap = parseSurchargeVariantMap(JSON.stringify(settings.surchargeVariantMap));
+      if (settings.surchargeVariantId) cfg.surchargeVariantId = String(settings.surchargeVariantId);
       cfg.printAreaBySide = {
         front: {
           widthCm: Number((frontArea && frontArea.realWidthMm / 10) || settings.frontPrintWidthCm || defaultPrintWidthCm),
@@ -1000,15 +983,6 @@
       return bands[bands.length - 1] || { key: 'max', maxWidthCm: null, maxHeightCm: null, maxAreaCm2: null, label: 'Tam Alan', surcharge: 0 };
     }
 
-    function surchargeVariantIdForSide(side, band) {
-      var map = cfg.surchargeVariantMap && cfg.surchargeVariantMap[side];
-      if (!map || !band) return null;
-      return map[band.key]
-        || map[(band.maxWidthCm != null && band.maxHeightCm != null) ? (String(band.maxWidthCm) + 'x' + String(band.maxHeightCm)) : '']
-        || map[String(band.maxAreaCm2)]
-        || map[band.label]
-        || null;
-    }
 
     function calculatePricing() {
       var lines = selectedSizeLines();
@@ -1045,14 +1019,12 @@
           metrics: metrics.front || { objectCount: 0, widthCm: 0, heightCm: 0, areaCm2: 0, coverage: 0 },
           band: frontBand,
           surcharge: frontUnit,
-          variantId: surchargeVariantIdForSide('front', frontBand),
         },
         back: {
           hasContent: backHas,
           metrics: metrics.back || { objectCount: 0, widthCm: 0, heightCm: 0, areaCm2: 0, coverage: 0 },
           band: backBand,
           surcharge: backUnit,
-          variantId: surchargeVariantIdForSide('back', backBand),
         },
       };
     }
@@ -2379,54 +2351,26 @@
 
     // ── Floating toolbar ──────────────────────────────────────────────────────
     function positionFloatToolbar(obj) {
-      var ftb  = q('[data-float-tb]');
-      var wrap = q('[data-product-wrap]');
-      if (!ftb || !wrap || !S.canvas) return;
+      var ftb = q('[data-float-tb]');
+      var tq  = q('[data-text-quickbar]');
+      if (!ftb || !S.canvas) return;
       var isText = obj && (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox');
       if (!obj || isText) {
         ftb.style.display = 'none';
         return;
       }
-
-      var bounds = obj.getBoundingRect(true);
-      var overlay = q('[data-canvas-overlay]');
-      if (!overlay) return;
-      var overlayRect = overlay.getBoundingClientRect();
-      var wrapRect = wrap.getBoundingClientRect();
-      var ox = overlayRect.left - wrapRect.left;
-      var oy = overlayRect.top - wrapRect.top;
-      var scaleX = overlay.offsetWidth / S.canvas.width;
-      var scaleY = overlay.offsetHeight / S.canvas.height;
-
-      if (window.innerWidth <= 768) {
-        ftb.style.left = (wrapRect.width / 2) + 'px';
-        ftb.style.top = Math.max(12, wrapRect.height - 66) + 'px';
-      } else {
-        var bx = ox + bounds.left * scaleX + (bounds.width * scaleX) / 2;
-        var by = oy + bounds.top * scaleY - 46;
-        ftb.style.left = bx + 'px';
-        ftb.style.top = Math.max(8, by) + 'px';
-      }
-
+      if (tq) tq.style.display = 'none';
       ftb.style.display = 'flex';
     }
 
     function positionTextQuickbar(obj) {
-      var tq = q('[data-text-quickbar]');
-      var wrap = q('[data-product-wrap]');
-      var overlay = q('[data-canvas-overlay]');
-      if (!tq || !wrap || !overlay || !S.canvas) return;
+      var tq  = q('[data-text-quickbar]');
+      var ftb = q('[data-float-tb]');
+      if (!tq || !S.canvas) return;
       var isText = obj && (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox');
       if (!isText) { tq.style.display = 'none'; return; }
-
-      tq.style.display = 'grid';
-      var wrapRect = wrap.getBoundingClientRect();
-      var quickbarWidth = tq.offsetWidth || 420;
-      var quickbarHeight = tq.offsetHeight || 88;
-      var left = Math.max(14, (wrapRect.width - quickbarWidth) / 2);
-      var top = Math.max(14, wrapRect.height - quickbarHeight - 14);
-      tq.style.left = left + 'px';
-      tq.style.top = top + 'px';
+      if (ftb) ftb.style.display = 'none';
+      tq.style.display = '';
       syncTextQuickbar(obj);
     }
 
@@ -2517,19 +2461,7 @@
       S.activePopup = name;
       var popup = q('[data-popup="' + name + '"]');
       if (!popup) return;
-
-      var ftb = q('[data-float-tb]');
-      if (ftb && ftb.style.display !== 'none') {
-        var ftbRect = ftb.getBoundingClientRect();
-        var wrap    = q('[data-product-wrap]');
-        var wrapRect = wrap.getBoundingClientRect();
-        popup.style.left = (ftbRect.left - wrapRect.left) + 'px';
-        popup.style.top  = (ftbRect.bottom - wrapRect.top + 6) + 'px';
-      }
-
       popup.style.display = 'block';
-
-      // Mark active ft button
       qa('[data-ft]').forEach(function (b) {
         b.classList.toggle('active', b.dataset.ft === name);
       });
@@ -2976,23 +2908,27 @@
             properties: Object.assign({}, properties, { 'Beden': line.size, '_design_role': 'base' }),
           };
         });
-        ['front', 'back'].forEach(function (side) {
-          var sidePricing = pricing[side];
-          if (!sidePricing || !sidePricing.hasContent || !sidePricing.surcharge || !sidePricing.variantId) return;
-          items.push({
-            id: String(sidePricing.variantId),
-            quantity: pricing.totalQuantity,
-            properties: Object.assign({}, properties, {
-              '_design_role': 'surcharge',
-              'Ürün tipi': side === 'front' ? 'Ön baskı ek ücreti' : 'Arka baskı ek ücreti',
-              'Baskı yüzü': side === 'front' ? 'Ön' : 'Arka',
-              'Baskı ölçü': formatMetricSize(sidePricing.metrics),
-              'Baskı alanı': roundMetric(sidePricing.metrics.areaCm2) + ' cm²',
-              'Fiyat bandı': sidePricing.band.label,
-              'Ek ücret / adet': money(sidePricing.surcharge),
-            }),
+        if (cfg.surchargeVariantId) {
+          ['front', 'back'].forEach(function (side) {
+            var sidePricing = pricing[side];
+            if (!sidePricing || !sidePricing.hasContent || !sidePricing.surcharge) return;
+            var qty = Math.round(sidePricing.surcharge * pricing.totalQuantity);
+            if (qty < 1) return;
+            items.push({
+              id: String(cfg.surchargeVariantId),
+              quantity: qty,
+              properties: Object.assign({}, properties, {
+                '_design_role': 'surcharge',
+                'Ürün tipi': side === 'front' ? 'Ön baskı ek ücreti' : 'Arka baskı ek ücreti',
+                'Baskı yüzü': side === 'front' ? 'Ön' : 'Arka',
+                'Baskı ölçü': formatMetricSize(sidePricing.metrics),
+                'Baskı alanı': roundMetric(sidePricing.metrics.areaCm2) + ' cm²',
+                'Fiyat bandı': sidePricing.band.label,
+                'Ek ücret / adet': money(sidePricing.surcharge),
+              }),
+            });
           });
-        });
+        }
 
         fetch('/cart/add.js', {
           method: 'POST',
@@ -3673,6 +3609,32 @@
           S.quickbarLock = true;
           setTimeout(function () { S.quickbarLock = false; }, 80);
         }, true);
+      }
+
+      // Preview button
+      var previewBtn = q('[data-preview-btn]');
+      var previewModal = document.querySelector('[data-preview-modal]');
+      var previewClose = document.querySelector('[data-preview-close]');
+      var previewImg = document.querySelector('[data-preview-img]');
+      if (previewBtn && previewModal) {
+        previewBtn.addEventListener('click', function () {
+          if (!S.canvas) return;
+          previewModal.style.display = 'flex';
+          if (previewImg) {
+            previewImg.src = '';
+            exportMockupDataUrl(function (dataUrl) {
+              previewImg.src = dataUrl;
+            });
+          }
+        });
+        if (previewClose) {
+          previewClose.addEventListener('click', function () {
+            previewModal.style.display = 'none';
+          });
+        }
+        previewModal.addEventListener('click', function (e) {
+          if (e.target === previewModal) previewModal.style.display = 'none';
+        });
       }
 
       // Window resize: reposition canvas overlay

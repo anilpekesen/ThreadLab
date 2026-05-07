@@ -46,7 +46,6 @@ type BandState = {
   maxWidthCm: string;
   maxHeightCm: string;
   surcharge: string;
-  variantId: string;
 };
 
 type AreaState = {
@@ -72,7 +71,6 @@ function parseNumber(value: FormDataEntryValue | null, fallback = 0) {
 function parseBandRows(form: FormData, side: "front" | "back") {
   const count = Number(form.get(`${side}BandCount`) || 0);
   const bands = [];
-  const variantMap: Record<string, string> = {};
 
   for (let index = 0; index < count; index += 1) {
     const key = String(form.get(`${side}BandKey_${index}`) || "").trim();
@@ -80,7 +78,6 @@ function parseBandRows(form: FormData, side: "front" | "back") {
     const maxWidthRaw = String(form.get(`${side}BandMaxWidth_${index}`) || "").trim();
     const maxHeightRaw = String(form.get(`${side}BandMaxHeight_${index}`) || "").trim();
     const surcharge = Number(form.get(`${side}BandSurcharge_${index}`) || 0);
-    const variantId = String(form.get(`${side}BandVariant_${index}`) || "").trim();
 
     if (!key) continue;
     bands.push({
@@ -94,13 +91,9 @@ function parseBandRows(form: FormData, side: "front" | "back") {
           : Number(maxWidthRaw) * Number(maxHeightRaw),
       surcharge,
     });
-
-    if (variantId) {
-      variantMap[key] = variantId;
-    }
   }
 
-  return { bands, variantMap };
+  return { bands };
 }
 
 function parseAreaRows(form: FormData, surfaceMode: ProductConfig["surfaceMode"]): PrintAreaRecord[] {
@@ -129,7 +122,6 @@ function toBandState(config: ProductConfig, side: "front" | "back"): BandState[]
     maxWidthCm: band.maxWidthCm == null ? "" : String(band.maxWidthCm),
     maxHeightCm: band.maxHeightCm == null ? "" : String(band.maxHeightCm),
     surcharge: String(band.surcharge),
-    variantId: config.surchargeVariantMap[side][band.key] || "",
   }));
 }
 
@@ -531,7 +523,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     backPrintWidthCm: 28,
     backPrintHeightCm: 45,
     pricingBands: { front: [], back: [] },
-    surchargeVariantMap: { front: {}, back: {} },
+    surchargeVariantId: '',
   };
 
   const frontBands = parseBandRows(form, "front");
@@ -556,10 +548,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         front: frontBands.bands,
         back: backBands.bands,
       },
-      surchargeVariantMap: {
-        front: frontBands.variantMap,
-        back: backBands.variantMap,
-      },
+      surchargeVariantId: String(form.get("surchargeVariantId") || "").trim(),
       updatedAt: new Date().toISOString(),
     },
     fallback,
@@ -578,6 +567,7 @@ export default function ProductSettingsRoute() {
   const [isActive, setIsActive] = useState(config.isActive);
   const [productType, setProductType] = useState<ProductConfig["productType"]>(config.productType);
   const [surfaceMode, setSurfaceMode] = useState<ProductConfig["surfaceMode"]>(config.surfaceMode);
+  const [surchargeVariantId, setSurchargeVariantId] = useState(config.surchargeVariantId || "");
   const [frontBands, setFrontBands] = useState<BandState[]>(toBandState(config, "front"));
   const [backBands, setBackBands] = useState<BandState[]>(toBandState(config, "back"));
   const [frontArea, setFrontArea] = useState<AreaState>(toAreaState(printAreas, "front"));
@@ -734,6 +724,14 @@ export default function ProductSettingsRoute() {
                     Tasarimin fiziksel olcusune gore ek ucretleri burada yonet. Ornek olarak 10x15, 21x29, 29x42
                     gibi esikler tanimlayabilirsin; bu degerler tamamen degistirilebilir.
                   </Text>
+                  <Select
+                    label="Ek ucret varyanti (1 birim fiyatli)"
+                    helpText="Shopify'da 1 TL/birim fiyatli bir varyant olusturun. Sistem ek ucreti bu varyantin adediyle odemektirir. Bos birakılırsa ek ucret sepete ayri kalem olarak eklenmez."
+                    options={variantOptions}
+                    value={surchargeVariantId}
+                    onChange={setSurchargeVariantId}
+                    name="surchargeVariantId"
+                  />
 
                   <input type="hidden" name="frontBandCount" value={String(frontBands.length)} />
                   <BlockStack gap="400">
@@ -748,7 +746,6 @@ export default function ProductSettingsRoute() {
                               maxWidthCm: "",
                               maxHeightCm: "",
                               surcharge: "0",
-                              variantId: "",
                             }),
                           )
                         }
@@ -794,13 +791,6 @@ export default function ProductSettingsRoute() {
                                 name={`frontBandSurcharge_${index}`}
                               />
                             </InlineGrid>
-                            <Select
-                              label="Bu bant icin ek ucret varyanti"
-                              options={variantOptions}
-                              value={band.variantId}
-                              onChange={(value) => setFrontBands((current) => updateBandArray(current, index, "variantId", value))}
-                              name={`frontBandVariant_${index}`}
-                            />
                             <InlineStack gap="200">
                               <Button
                                 tone="critical"
@@ -832,7 +822,6 @@ export default function ProductSettingsRoute() {
                                   maxWidthCm: "",
                                   maxHeightCm: "",
                                   surcharge: "0",
-                                  variantId: "",
                                 }),
                               )
                             }
@@ -878,13 +867,6 @@ export default function ProductSettingsRoute() {
                                     name={`backBandSurcharge_${index}`}
                                   />
                                 </InlineGrid>
-                                <Select
-                                  label="Bu bant icin ek ucret varyanti"
-                                  options={variantOptions}
-                                  value={band.variantId}
-                                  onChange={(value) => setBackBands((current) => updateBandArray(current, index, "variantId", value))}
-                                  name={`backBandVariant_${index}`}
-                                />
                                 <InlineStack gap="200">
                                   <Button
                                     tone="critical"

@@ -15,7 +15,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
       </button>
     </div>
-    <button type="button" class="dsgn-topbar-icon" aria-label="Önizleme">
+    <button type="button" class="dsgn-topbar-icon" data-preview-btn aria-label="Önizleme">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
   </div>
@@ -92,28 +92,6 @@
       <!-- Selection metrics badge -->
       <div class="dsgn-selection-metrics" data-selection-metrics style="display:none"></div>
 
-      <!-- Floating toolbar (shown for image objects) -->
-      <div class="dsgn-float-tb" data-float-tb style="display:none">
-        <button type="button" class="dsgn-ft-btn" data-ft="transform" title="Dönüştür">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
-        </button>
-        <button type="button" class="dsgn-ft-btn" data-ft="position" title="Konum">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
-        </button>
-        <button type="button" class="dsgn-ft-btn" data-ft="advanced" title="Filtreler">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
-        </button>
-        <button type="button" class="dsgn-ft-btn" data-ft="removebg" title="Arka Planı Kaldır">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18"/><path d="M10.5 6H19v8.5"/><path d="M5 10v9h9"/></svg>
-        </button>
-        <button type="button" class="dsgn-ft-btn dsgn-ft-btn--danger" data-ft-delete title="Sil">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-        </button>
-        <button type="button" class="dsgn-ft-close" data-ft-close title="Kapat">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-
       <!-- Right toolbar: view tools + zoom -->
       <div class="dsgn-right-bar">
         <button type="button" class="dsgn-rb-btn active" title="Seçim">
@@ -138,135 +116,6 @@
         </button>
       </div>
 
-      <!-- Text context bar (positions at bottom of product-wrap via JS) -->
-      <div class="dsgn-text-quickbar" data-text-quickbar style="display:none">
-        <button type="button" class="dsgn-tq-close" data-tq-close aria-label="Kapat">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-
-        <!-- Row 1: color + font -->
-        <div class="dsgn-tq-row1">
-          <label class="dsgn-tq-color-btn" title="Renk">
-            <input type="color" data-tq-color value="#111111">
-            <span>Renk</span>
-          </label>
-          <select data-tq-font class="dsgn-tq-font-sel">
-            <option value="Arial">Arial</option>
-            <option value="Georgia">Georgia</option>
-            <option value="Impact">Impact</option>
-            <option value="Courier New">Courier</option>
-            <option value="Verdana">Verdana</option>
-            <option value="Roboto">Roboto</option>
-          </select>
-        </div>
-
-        <!-- Row 2: action triggers + delete -->
-        <div class="dsgn-tq-row2">
-          <button type="button" class="dsgn-tq-action" data-tq-toggle="style">
-            <strong>B</strong>
-            <span>Biçim</span>
-          </button>
-          <button type="button" class="dsgn-tq-action" data-tq-toggle="size">
-            <strong data-tq-size-readout>30</strong>
-            <span>Boyut</span>
-          </button>
-          <button type="button" class="dsgn-tq-action" data-tq-toggle="align">
-            <strong data-tq-align-readout>Orta</strong>
-            <span>Hizala</span>
-          </button>
-          <button type="button" class="dsgn-tq-action" data-tq-toggle="position">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
-            <span>Pozisyon</span>
-          </button>
-          <button type="button" class="dsgn-tq-action dsgn-tq-action--danger" data-tq-delete>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-            <span>Kaldır</span>
-          </button>
-        </div>
-
-        <!-- Expandable panels -->
-        <div class="dsgn-tq-panel" data-tq-panel="style">
-          <button type="button" class="dsgn-tq-chip" data-tq-style="bold"><b>B</b> Kalın</button>
-          <button type="button" class="dsgn-tq-chip" data-tq-style="italic"><i>I</i> İtalik</button>
-          <button type="button" class="dsgn-tq-chip" data-tq-style="underline"><u>U</u> Altı Çizili</button>
-          <button type="button" class="dsgn-tq-chip" data-tq-style="linethrough"><s>S</s> Üstü Çizili</button>
-        </div>
-
-        <div class="dsgn-tq-panel dsgn-tq-panel--size" data-tq-panel="size">
-          <input type="range" data-tq-size min="8" max="160" value="30">
-          <strong class="dsgn-tq-size-value" data-tq-size-value>30 px</strong>
-        </div>
-
-        <div class="dsgn-tq-panel dsgn-tq-panel--align" data-tq-panel="align">
-          <button type="button" class="dsgn-tq-chip" data-tq-align="left">Sol</button>
-          <button type="button" class="dsgn-tq-chip" data-tq-align="center">Orta</button>
-          <button type="button" class="dsgn-tq-chip" data-tq-align="right">Sağ</button>
-        </div>
-
-        <div class="dsgn-tq-panel dsgn-tq-panel--position" data-tq-panel="position">
-          <button type="button" class="dsgn-tq-pos" data-tq-position="top-left">Sol Üst</button>
-          <button type="button" class="dsgn-tq-pos" data-tq-position="top-center">Üst</button>
-          <button type="button" class="dsgn-tq-pos" data-tq-position="top-right">Sağ Üst</button>
-          <button type="button" class="dsgn-tq-pos" data-tq-position="middle-left">Sol Orta</button>
-          <button type="button" class="dsgn-tq-pos" data-tq-position="middle-center">Tam Orta</button>
-          <button type="button" class="dsgn-tq-pos" data-tq-position="middle-right">Sağ Orta</button>
-          <button type="button" class="dsgn-tq-pos" data-tq-position="bottom-left">Sol Alt</button>
-          <button type="button" class="dsgn-tq-pos" data-tq-position="bottom-center">Alt</button>
-          <button type="button" class="dsgn-tq-pos" data-tq-position="bottom-right">Sağ Alt</button>
-        </div>
-      </div>
-
-      <!-- Popups (transform / position / advanced) -->
-      <div class="dsgn-popup" data-popup="transform" style="display:none">
-        <div class="dsgn-popup-title">Dönüştür</div>
-        <div class="dsgn-popup-grid">
-          <button type="button" class="dsgn-popup-btn" data-flip-x>⇄ Yatay</button>
-          <button type="button" class="dsgn-popup-btn" data-flip-y>⇅ Dikey</button>
-          <button type="button" class="dsgn-popup-btn" data-rotate-cw>↻ 90°</button>
-          <button type="button" class="dsgn-popup-btn" data-rotate-ccw>↺ 90°</button>
-        </div>
-        <div class="dsgn-popup-slider">
-          <label>Açı <span data-angle-val>0</span>°</label>
-          <input type="range" data-angle min="0" max="359" value="0">
-        </div>
-        <div class="dsgn-popup-slider">
-          <label>Opaklık <span data-opacity-val>100</span>%</label>
-          <input type="range" data-opacity min="0" max="100" value="100">
-        </div>
-      </div>
-
-      <div class="dsgn-popup" data-popup="position" style="display:none">
-        <div class="dsgn-popup-title">Konum</div>
-        <div class="dsgn-popup-grid">
-          <button type="button" class="dsgn-popup-btn" data-align="left">⬛ Sol</button>
-          <button type="button" class="dsgn-popup-btn" data-align="centerH">⬛ H.Orta</button>
-          <button type="button" class="dsgn-popup-btn" data-align="right">⬛ Sağ</button>
-          <button type="button" class="dsgn-popup-btn" data-align="top">⬛ Üst</button>
-          <button type="button" class="dsgn-popup-btn" data-align="centerV">⬛ V.Orta</button>
-          <button type="button" class="dsgn-popup-btn" data-align="bottom">⬛ Alt</button>
-          <button type="button" class="dsgn-popup-btn" data-align="center">⊕ Tam Orta</button>
-          <button type="button" class="dsgn-popup-btn" data-bring-fwd>↑ Öne</button>
-          <button type="button" class="dsgn-popup-btn" data-send-bk>↓ Arkaya</button>
-        </div>
-      </div>
-
-      <div class="dsgn-popup dsgn-popup--wide" data-popup="advanced" style="display:none">
-        <div class="dsgn-popup-title">Filtreler &amp; Ayarlar</div>
-        <div class="dsgn-filter-strip" data-filter-strip></div>
-        <div class="dsgn-popup-slider">
-          <label>Parlaklık <span data-brightness-val>0</span></label>
-          <input type="range" data-brightness min="-100" max="100" value="0">
-        </div>
-        <div class="dsgn-popup-slider">
-          <label>Kontrast <span data-contrast-val>0</span></label>
-          <input type="range" data-contrast min="-100" max="100" value="0">
-        </div>
-        <div class="dsgn-popup-slider">
-          <label>Doygunluk <span data-saturation-val>0</span></label>
-          <input type="range" data-saturation min="-100" max="100" value="0">
-        </div>
-      </div>
-
     </div><!-- /product-wrap -->
 
     <!-- QR Modal -->
@@ -283,6 +132,164 @@
     </div>
 
   </div><!-- /stage-area -->
+
+  <!-- ── Context zone: object toolbars (below canvas, above nav) ───────────── -->
+
+  <!-- Image floating toolbar -->
+  <div class="dsgn-float-tb" data-float-tb style="display:none">
+    <button type="button" class="dsgn-ft-btn" data-ft="transform" title="Dönüştür">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+      <span>Dönüştür</span>
+    </button>
+    <button type="button" class="dsgn-ft-btn" data-ft="position" title="Konum">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+      <span>Konum</span>
+    </button>
+    <button type="button" class="dsgn-ft-btn" data-ft="advanced" title="Filtreler">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      <span>Filtreler</span>
+    </button>
+    <button type="button" class="dsgn-ft-btn" data-ft="removebg" title="Arka Planı Kaldır">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18"/><path d="M10.5 6H19v8.5"/><path d="M5 10v9h9"/></svg>
+      <span>Arkaplan Kaldır</span>
+    </button>
+    <button type="button" class="dsgn-ft-btn dsgn-ft-btn--danger" data-ft-delete title="Sil">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      <span>Sil</span>
+    </button>
+    <button type="button" class="dsgn-ft-close" data-ft-close title="Kapat">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <!-- Image popups (expand below float-tb) -->
+  <div class="dsgn-popup" data-popup="transform" style="display:none">
+    <div class="dsgn-popup-title">Dönüştür</div>
+    <div class="dsgn-popup-grid">
+      <button type="button" class="dsgn-popup-btn" data-flip-x>⇄ Yatay</button>
+      <button type="button" class="dsgn-popup-btn" data-flip-y>⇅ Dikey</button>
+      <button type="button" class="dsgn-popup-btn" data-rotate-cw>↻ 90°</button>
+      <button type="button" class="dsgn-popup-btn" data-rotate-ccw>↺ 90°</button>
+    </div>
+    <div class="dsgn-popup-slider">
+      <label>Açı <span data-angle-val>0</span>°</label>
+      <input type="range" data-angle min="0" max="359" value="0">
+    </div>
+    <div class="dsgn-popup-slider">
+      <label>Opaklık <span data-opacity-val>100</span>%</label>
+      <input type="range" data-opacity min="0" max="100" value="100">
+    </div>
+  </div>
+
+  <div class="dsgn-popup" data-popup="position" style="display:none">
+    <div class="dsgn-popup-title">Konum</div>
+    <div class="dsgn-popup-grid">
+      <button type="button" class="dsgn-popup-btn" data-align="left">⬛ Sol</button>
+      <button type="button" class="dsgn-popup-btn" data-align="centerH">⬛ H.Orta</button>
+      <button type="button" class="dsgn-popup-btn" data-align="right">⬛ Sağ</button>
+      <button type="button" class="dsgn-popup-btn" data-align="top">⬛ Üst</button>
+      <button type="button" class="dsgn-popup-btn" data-align="centerV">⬛ V.Orta</button>
+      <button type="button" class="dsgn-popup-btn" data-align="bottom">⬛ Alt</button>
+      <button type="button" class="dsgn-popup-btn" data-align="center">⊕ Tam Orta</button>
+      <button type="button" class="dsgn-popup-btn" data-bring-fwd>↑ Öne</button>
+      <button type="button" class="dsgn-popup-btn" data-send-bk>↓ Arkaya</button>
+    </div>
+  </div>
+
+  <div class="dsgn-popup dsgn-popup--wide" data-popup="advanced" style="display:none">
+    <div class="dsgn-popup-title">Filtreler &amp; Ayarlar</div>
+    <div class="dsgn-filter-strip" data-filter-strip></div>
+    <div class="dsgn-popup-slider">
+      <label>Parlaklık <span data-brightness-val>0</span></label>
+      <input type="range" data-brightness min="-100" max="100" value="0">
+    </div>
+    <div class="dsgn-popup-slider">
+      <label>Kontrast <span data-contrast-val>0</span></label>
+      <input type="range" data-contrast min="-100" max="100" value="0">
+    </div>
+    <div class="dsgn-popup-slider">
+      <label>Doygunluk <span data-saturation-val>0</span></label>
+      <input type="range" data-saturation min="-100" max="100" value="0">
+    </div>
+  </div>
+
+  <!-- Text quickbar -->
+  <div class="dsgn-text-quickbar" data-text-quickbar style="display:none">
+    <button type="button" class="dsgn-tq-close" data-tq-close aria-label="Kapat">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+
+    <!-- Row 1: color + font -->
+    <div class="dsgn-tq-row1">
+      <label class="dsgn-tq-color-btn" title="Renk">
+        <input type="color" data-tq-color value="#111111">
+        <span>Renk</span>
+      </label>
+      <select data-tq-font class="dsgn-tq-font-sel">
+        <option value="Arial">Arial</option>
+        <option value="Georgia">Georgia</option>
+        <option value="Impact">Impact</option>
+        <option value="Courier New">Courier</option>
+        <option value="Verdana">Verdana</option>
+        <option value="Roboto">Roboto</option>
+      </select>
+    </div>
+
+    <!-- Row 2: action triggers + delete -->
+    <div class="dsgn-tq-row2">
+      <button type="button" class="dsgn-tq-action" data-tq-toggle="style">
+        <strong>B</strong>
+        <span>Biçim</span>
+      </button>
+      <button type="button" class="dsgn-tq-action" data-tq-toggle="size">
+        <strong data-tq-size-readout>30</strong>
+        <span>Boyut</span>
+      </button>
+      <button type="button" class="dsgn-tq-action" data-tq-toggle="align">
+        <strong data-tq-align-readout>Orta</strong>
+        <span>Hizala</span>
+      </button>
+      <button type="button" class="dsgn-tq-action" data-tq-toggle="position">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+        <span>Pozisyon</span>
+      </button>
+      <button type="button" class="dsgn-tq-action dsgn-tq-action--danger" data-tq-delete>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        <span>Kaldır</span>
+      </button>
+    </div>
+
+    <!-- Expandable panels (open below row2) -->
+    <div class="dsgn-tq-panel" data-tq-panel="style">
+      <button type="button" class="dsgn-tq-chip" data-tq-style="bold"><b>B</b> Kalın</button>
+      <button type="button" class="dsgn-tq-chip" data-tq-style="italic"><i>I</i> İtalik</button>
+      <button type="button" class="dsgn-tq-chip" data-tq-style="underline"><u>U</u> Altı Çizili</button>
+      <button type="button" class="dsgn-tq-chip" data-tq-style="linethrough"><s>S</s> Üstü Çizili</button>
+    </div>
+
+    <div class="dsgn-tq-panel dsgn-tq-panel--size" data-tq-panel="size">
+      <input type="range" data-tq-size min="8" max="160" value="30">
+      <strong class="dsgn-tq-size-value" data-tq-size-value>30 px</strong>
+    </div>
+
+    <div class="dsgn-tq-panel dsgn-tq-panel--align" data-tq-panel="align">
+      <button type="button" class="dsgn-tq-chip" data-tq-align="left">Sol</button>
+      <button type="button" class="dsgn-tq-chip" data-tq-align="center">Orta</button>
+      <button type="button" class="dsgn-tq-chip" data-tq-align="right">Sağ</button>
+    </div>
+
+    <div class="dsgn-tq-panel dsgn-tq-panel--position" data-tq-panel="position">
+      <button type="button" class="dsgn-tq-pos" data-tq-position="top-left">Sol Üst</button>
+      <button type="button" class="dsgn-tq-pos" data-tq-position="top-center">Üst</button>
+      <button type="button" class="dsgn-tq-pos" data-tq-position="top-right">Sağ Üst</button>
+      <button type="button" class="dsgn-tq-pos" data-tq-position="middle-left">Sol Orta</button>
+      <button type="button" class="dsgn-tq-pos" data-tq-position="middle-center">Tam Orta</button>
+      <button type="button" class="dsgn-tq-pos" data-tq-position="middle-right">Sağ Orta</button>
+      <button type="button" class="dsgn-tq-pos" data-tq-position="bottom-left">Sol Alt</button>
+      <button type="button" class="dsgn-tq-pos" data-tq-position="bottom-center">Alt</button>
+      <button type="button" class="dsgn-tq-pos" data-tq-position="bottom-right">Sağ Alt</button>
+    </div>
+  </div>
 
   <!-- ── Bottom navigation tabs ──────────────────────────────────────────── -->
   <nav class="dsgn-nav" aria-label="Araçlar">
@@ -410,6 +417,21 @@
   </div><!-- /tool-panel -->
 
 </div><!-- /workspace -->
+
+<!-- ── Preview modal (shows composited design over product image) ────────── -->
+<div class="dsgn-preview-modal" data-preview-modal style="display:none">
+  <div class="dsgn-preview-card">
+    <div class="dsgn-preview-head">
+      <strong>Önizleme</strong>
+      <button type="button" class="dsgn-preview-close" data-preview-close aria-label="Kapat">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="dsgn-preview-body">
+      <img class="dsgn-preview-img" data-preview-img src="" alt="Tasarım önizlemesi">
+    </div>
+  </div>
+</div>
 
 <!-- ── Footer ─────────────────────────────────────────────────────────── -->
 <div class="dsgn-footer">
