@@ -3250,8 +3250,9 @@
         });
       });
 
-      var closeToolBtn = q('[data-close-tool]');
-      if (closeToolBtn) closeToolBtn.addEventListener('click', function () { activateTool(null); });
+      qa('[data-close-tool]').forEach(function (closeToolBtn) {
+        closeToolBtn.addEventListener('click', function () { activateTool(null); });
+      });
 
       qa('[data-media-tab]').forEach(function (btn) {
         btn.addEventListener('click', function () {
