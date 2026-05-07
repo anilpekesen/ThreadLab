@@ -73,7 +73,7 @@ export default function ProductsRoute() {
             <BlockStack gap="300">
               <Text as="p" tone="subdued">
                 Sinirsiz urun mantigi burada yonetilir. Shopify'daki herhangi bir urunu tasarim urunu yapip
-                urune ozel ayar tanimlayabilirsin.
+                urune ozel ayar tanimlayabilirsin. Her urun icin ayarlar ayri kaydedilir.
               </Text>
               <Form method="get">
                 <InlineStack gap="200" blockAlign="end">
