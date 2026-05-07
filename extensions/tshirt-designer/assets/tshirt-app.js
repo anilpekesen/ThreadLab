@@ -73,14 +73,31 @@
 
   function buildDefaultPricingBands(currency) {
     var tryLike = String(currency || '').toUpperCase() === 'TRY';
-    var values = tryLike ? [60, 90, 120, 150, 200, 250] : [3, 5, 7, 9, 12, 15];
-    var labels = ['Kucuk', 'Orta', 'Buyuk', 'XL', 'XXL', 'Tam Alan'];
-    var limits = [150, 300, 500, 750, 1000, null];
+    var values = tryLike ? [60, 120, 180] : [3, 6, 9];
+    var sizes = [
+      { widthCm: 10, heightCm: 15, label: '10 x 15 cm' },
+      { widthCm: 21, heightCm: 29, label: '21 x 29 cm' },
+      { widthCm: 29, heightCm: 42, label: '29 x 42 cm' },
+    ];
     var front = [];
     var back = [];
-    for (var i = 0; i < limits.length; i++) {
-      front.push({ key: limits[i] == null ? 'max' : String(limits[i]), maxAreaCm2: limits[i], label: labels[i], surcharge: values[i] });
-      back.push({ key: limits[i] == null ? 'max' : String(limits[i]), maxAreaCm2: limits[i], label: labels[i], surcharge: values[i] });
+    for (var i = 0; i < sizes.length; i++) {
+      front.push({
+        key: sizes[i].widthCm + 'x' + sizes[i].heightCm,
+        maxWidthCm: sizes[i].widthCm,
+        maxHeightCm: sizes[i].heightCm,
+        maxAreaCm2: sizes[i].widthCm * sizes[i].heightCm,
+        label: sizes[i].label,
+        surcharge: values[i]
+      });
+      back.push({
+        key: sizes[i].widthCm + 'x' + sizes[i].heightCm,
+        maxWidthCm: sizes[i].widthCm,
+        maxHeightCm: sizes[i].heightCm,
+        maxAreaCm2: sizes[i].widthCm * sizes[i].heightCm,
+        label: sizes[i].label,
+        surcharge: values[i]
+      });
     }
     return { front: front, back: back };
   }
@@ -91,6 +108,12 @@
     }
     if (productType === 'mug') {
       return { leftPct: 0.18, topPct: 0.35, widthPct: 0.64, heightPct: 0.24 };
+    }
+    if (productType === 'boxer') {
+      return { leftPct: 0.32, topPct: 0.44, widthPct: 0.37, heightPct: 0.23 };
+    }
+    if (productType === 'other') {
+      return { leftPct: 0.23, topPct: 0.28, widthPct: 0.54, heightPct: 0.48 };
     }
     return { leftPct: 0.29, topPct: 0.27, widthPct: 0.42, heightPct: 0.56 };
   }
@@ -923,18 +946,28 @@
       return metrics;
     }
 
-    function pricingBandForSide(side, areaCm2) {
+    function pricingBandForSide(side, metrics) {
       var bands = (cfg.pricingBands && cfg.pricingBands[side]) || [];
+      var widthCm = Number(metrics && metrics.widthCm || 0);
+      var heightCm = Number(metrics && metrics.heightCm || 0);
+      var areaCm2 = Number(metrics && metrics.areaCm2 || 0);
       for (var i = 0; i < bands.length; i++) {
-        if (bands[i].maxAreaCm2 == null || areaCm2 <= bands[i].maxAreaCm2) return bands[i];
+        var band = bands[i] || {};
+        var hasDimensions = band.maxWidthCm != null && band.maxHeightCm != null;
+        if (hasDimensions && widthCm <= Number(band.maxWidthCm) && heightCm <= Number(band.maxHeightCm)) return band;
+        if (!hasDimensions && (band.maxAreaCm2 == null || areaCm2 <= Number(band.maxAreaCm2))) return band;
       }
-      return bands[bands.length - 1] || { key: 'max', maxAreaCm2: null, label: 'Tam Alan', surcharge: 0 };
+      return bands[bands.length - 1] || { key: 'max', maxWidthCm: null, maxHeightCm: null, maxAreaCm2: null, label: 'Tam Alan', surcharge: 0 };
     }
 
     function surchargeVariantIdForSide(side, band) {
       var map = cfg.surchargeVariantMap && cfg.surchargeVariantMap[side];
       if (!map || !band) return null;
-      return map[band.key] || map[String(band.maxAreaCm2)] || map[band.label] || null;
+      return map[band.key]
+        || map[(band.maxWidthCm != null && band.maxHeightCm != null) ? (String(band.maxWidthCm) + 'x' + String(band.maxHeightCm)) : '']
+        || map[String(band.maxAreaCm2)]
+        || map[band.label]
+        || null;
     }
 
     function calculatePricing() {
@@ -952,8 +985,8 @@
       if (!frontHas) metrics.front = { objectCount: 0, widthCm: 0, heightCm: 0, areaCm2: 0, coverage: 0 };
       if (!backHas) metrics.back = { objectCount: 0, widthCm: 0, heightCm: 0, areaCm2: 0, coverage: 0 };
 
-      var frontBand = pricingBandForSide('front', metrics.front && metrics.front.areaCm2 || 0);
-      var backBand = pricingBandForSide('back', metrics.back && metrics.back.areaCm2 || 0);
+      var frontBand = pricingBandForSide('front', metrics.front || null);
+      var backBand = pricingBandForSide('back', metrics.back || null);
       var frontUnit = frontHas ? (frontBand.surcharge || 0) : 0;
       var backUnit = backHas ? (backBand.surcharge || 0) : 0;
       var frontSubtotal = frontUnit * totalQty;
@@ -2640,13 +2673,13 @@
       if (totalQtyLbl) totalQtyLbl.textContent = totalQty + ' adet';
       if (breakdown) {
         var rows = [
-          '<div class="dsgn-price-breakdown-row"><span>Tisort x ' + previewQty + '</span><strong>' + money(previewBase) + '</strong></div>'
+          '<div class="dsgn-price-breakdown-row"><span>Urun x ' + previewQty + '</span><strong>' + money(previewBase) + '</strong></div>'
         ];
         if (pricing.front.hasContent) {
-          rows.push('<div class="dsgn-price-breakdown-row"><span>On baski ' + pricing.front.band.label + ' (' + roundMetric(pricing.front.metrics.areaCm2) + ' cm²)</span><strong>' + money(previewFront) + '</strong></div>');
+          rows.push('<div class="dsgn-price-breakdown-row"><span>On baski ' + pricing.front.band.label + ' (' + formatMetricSize(pricing.front.metrics) + ')</span><strong>' + money(previewFront) + '</strong></div>');
         }
         if (pricing.back.hasContent) {
-          rows.push('<div class="dsgn-price-breakdown-row"><span>Arka baski ' + pricing.back.band.label + ' (' + roundMetric(pricing.back.metrics.areaCm2) + ' cm²)</span><strong>' + money(previewBack) + '</strong></div>');
+          rows.push('<div class="dsgn-price-breakdown-row"><span>Arka baski ' + pricing.back.band.label + ' (' + formatMetricSize(pricing.back.metrics) + ')</span><strong>' + money(previewBack) + '</strong></div>');
         }
         breakdown.innerHTML = rows.join('');
       }
@@ -2701,7 +2734,7 @@
         'Baskı tipi': modeLabelText(mode),
         'Bedenler': selectedSizeSummary(),
         'Toplam adet': String(totalSelectedQuantity()),
-        'Tisort ara toplam': money(pricing.baseSubtotal),
+        'Urun ara toplam': money(pricing.baseSubtotal),
         'Toplam fiyat': money(pricing.total),
       };
       if (S.colorName) properties['Renk'] = S.colorName;

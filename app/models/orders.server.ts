@@ -1,9 +1,9 @@
 import { join } from "path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { randomBytes } from "crypto";
+import { getDataDir } from "~/lib/storage.server";
 
-const DATA_DIR = join(process.cwd(), "data");
-if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+const DATA_DIR = getDataDir();
 
 function readJson<T>(file: string, fallback: T): T {
   try {

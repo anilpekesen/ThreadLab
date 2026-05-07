@@ -1,8 +1,9 @@
 import { json } from "@remix-run/node";
 import { randomBytes } from "node:crypto";
 import { createReadStream, existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import { getUploadsDir } from "~/lib/storage.server";
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const MIME_TYPES: Record<string, string> = {
@@ -19,11 +20,7 @@ const RESPONSE_TYPES: Record<string, string> = {
 };
 
 function getUploadDir() {
-  const buildClient = path.join(process.cwd(), "build", "client");
-  if (existsSync(buildClient)) {
-    return path.join(buildClient, "uploads");
-  }
-  return path.join(process.cwd(), "public", "uploads");
+  return getUploadsDir();
 }
 
 function sanitizeName(value: FormDataEntryValue | null) {
@@ -64,7 +61,6 @@ export async function handleDesignerUpload(request: Request) {
   const side = sanitizeName(form.get("side"));
   const filename = `${side}-${randomBytes(12).toString("hex")}.${ext}`;
   const uploadDir = getUploadDir();
-  await mkdir(uploadDir, { recursive: true });
   await writeFile(path.join(uploadDir, filename), Buffer.from(await image.arrayBuffer()));
 
   const baseUrl = process.env.SHOPIFY_APP_URL || new URL(request.url).origin;
