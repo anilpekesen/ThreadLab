@@ -595,6 +595,7 @@
       colorKey: '',
       colorName: '',
       quickbarLock: false,
+      suppressQuickbarRestore: false,
     };
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -1380,6 +1381,7 @@
     function onSelectionChange() {
       var obj = S.canvas.getActiveObject();
       if (!obj) return;
+      S.suppressQuickbarRestore = false;
       S.floatTarget = obj;
       // Text dışı bir obje seçilince son yazı referansını temizle
       if (obj.type !== 'i-text' && obj.type !== 'text' && obj.type !== 'textbox') {
@@ -1392,16 +1394,20 @@
       updateSelectionMetrics(obj);
       updateSelectionActions();
       updateStatusBadges();
+      refreshWorkspaceState();
     }
 
     function onSelectionCleared() {
-      if (S.quickbarLock && S._lastTextObj && S._lastTextObj.canvas === S.canvas) {
+      if (S.suppressQuickbarRestore) {
+        S.suppressQuickbarRestore = false;
+      } else if (S.quickbarLock && S._lastTextObj && S._lastTextObj.canvas === S.canvas) {
         setTimeout(function () {
           if (!S.canvas || !S._lastTextObj || S._lastTextObj.canvas !== S.canvas) return;
           S.canvas.setActiveObject(S._lastTextObj);
           S.canvas.renderAll();
           positionTextQuickbar(S._lastTextObj);
           updateSelectionActions();
+          refreshWorkspaceState();
         }, 0);
         return;
       }
@@ -1417,6 +1423,7 @@
       closePopup();
       updateSelectionActions();
       updateStatusBadges();
+      refreshWorkspaceState();
     }
 
     // ── Product display ──────────────────────────────────────────────────────
@@ -1740,6 +1747,15 @@
       });
     }
 
+    function refreshWorkspaceState() {
+      var workspace = q('.dsgn-workspace');
+      if (!workspace) return;
+      var hasContent = sideHasContent(viewName());
+      workspace.classList.toggle('dsgn-workspace--has-content', hasContent);
+      workspace.classList.toggle('dsgn-workspace--empty', !hasContent);
+      workspace.classList.toggle('dsgn-workspace--tool-open', !!S.activeTool);
+    }
+
     function activeCanvasObject() {
       if (!S.canvas) return null;
       return S.canvas.getActiveObject() || null;
@@ -1755,16 +1771,22 @@
     }
 
     // ── Tool nav ──────────────────────────────────────────────────────────────
+    function closeToolPanel() {
+      var panel = q('[data-tool-panel]');
+      if (!panel) return;
+      S.activeTool = null;
+      panel.classList.remove('open');
+      qa('[data-tool]').forEach(function (b) { b.classList.remove('active'); });
+      qa('[data-tp]').forEach(function (p) { p.classList.remove('active'); });
+      refreshWorkspaceState();
+    }
+
     function activateTool(toolName) {
       var panel = q('[data-tool-panel]');
       if (!panel) return;
 
       if (!toolName || S.activeTool === toolName) {
-        // Toggle off
-        S.activeTool = null;
-        panel.classList.remove('open');
-        qa('[data-tool]').forEach(function (b) { b.classList.remove('active'); });
-        qa('[data-tp]').forEach(function (p) { p.classList.remove('active'); });
+        closeToolPanel();
         return;
       }
 
@@ -1784,6 +1806,7 @@
         var input = q('[data-text-input]');
         if (input) input.focus();
       }
+      refreshWorkspaceState();
     }
 
     // ── Image upload ──────────────────────────────────────────────────────────
@@ -1979,6 +2002,8 @@
         S.canvas.add(img);
         S.canvas.setActiveObject(img);
         S.canvas.renderAll();
+        closeToolPanel();
+        positionFloatToolbar(img);
         pushHistory();
       }, { crossOrigin: 'anonymous' });
     }
@@ -2016,6 +2041,7 @@
       S.canvas.renderAll();
       if (typeof txt.enterEditing === 'function') txt.enterEditing();
       if (typeof txt.selectAll === 'function') txt.selectAll();
+      closeToolPanel();
       positionTextQuickbar(txt);
       syncTextControls(txt);
       syncTextQuickbar(txt);
@@ -2109,6 +2135,7 @@
       S.canvas.clear();
       tpl.build(S.canvas);
       S.canvas.renderAll();
+      closeToolPanel();
       pushHistory();
     }
 
@@ -2848,6 +2875,7 @@
         back.classList.toggle('ready', bReady);
       }
       updateViewSwitcher();
+      refreshWorkspaceState();
     }
 
     // ── Cart ──────────────────────────────────────────────────────────────────
@@ -3251,7 +3279,13 @@
       });
 
       qa('[data-close-tool]').forEach(function (closeToolBtn) {
-        closeToolBtn.addEventListener('click', function () { activateTool(null); });
+        function handleCloseTool(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeToolPanel();
+        }
+        closeToolBtn.addEventListener('mousedown', handleCloseTool);
+        closeToolBtn.addEventListener('click', handleCloseTool);
       });
 
       qa('[data-media-tab]').forEach(function (btn) {
@@ -3356,8 +3390,10 @@
       var tqClose = q('[data-tq-close]');
       if (tqClose) tqClose.addEventListener('click', function () {
         var tq = q('[data-text-quickbar]');
+        S.suppressQuickbarRestore = true;
         if (tq) tq.style.display = 'none';
         closeTextQuickbarPanels();
+        if (S.canvas) S.canvas.discardActiveObject().renderAll();
       });
       qa('[data-tq-style]').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -3436,6 +3472,7 @@
       var ftClose = q('[data-ft-close]');
       if (ftClose) ftClose.addEventListener('click', function () {
         closePopup();
+        S.suppressQuickbarRestore = true;
         var ftb = q('[data-float-tb]');
         if (ftb) ftb.style.display = 'none';
         if (S.canvas) S.canvas.discardActiveObject().renderAll();
@@ -3708,6 +3745,7 @@
         setupProductDisplay();
         updatePriceLabel();
         updateSelectionActions();
+        refreshWorkspaceState();
         loadDesignFromToken();
         loadImagesFromStorage();
         if (S.uploadedImages.length > 0) activateTool('image');

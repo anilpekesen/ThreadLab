@@ -1344,6 +1344,12 @@
   .designer .dsgn-nav { order: 5; }
   .designer .dsgn-tool-panel { order: 6; }
 
+  .designer .dsgn-workspace--empty .dsgn-nav { order: 2; }
+  .designer .dsgn-workspace--empty .dsgn-tool-panel { order: 3; }
+  .designer .dsgn-workspace--empty .dsgn-stage-area { order: 4; }
+  .designer .dsgn-workspace--empty .dsgn-float-tb { order: 5; }
+  .designer .dsgn-workspace--empty .dsgn-text-quickbar { order: 6; }
+
   .designer .dsgn-product-wrap {
     min-height: 280px;
   }
