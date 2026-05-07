@@ -2,14 +2,15 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { handleDesignerUpload } from "~/models/uploads.server";
 import { authenticate } from "~/shopify.server";
-import { findConfigByHandle } from "~/models/product-config.server";
+import { findConfigForStorefront } from "~/models/product-config.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   await authenticate.public.appProxy(request);
   const path = params["*"] ?? "";
   if (path === "personalization") {
     const handle = new URL(request.url).searchParams.get("handle") ?? "";
-    const config = findConfigByHandle(handle);
+    const productId = new URL(request.url).searchParams.get("productId") ?? "";
+    const config = findConfigForStorefront(productId, handle);
     if (!config) {
       return json({ error: "Not found" }, { status: 404 });
     }

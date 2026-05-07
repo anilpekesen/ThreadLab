@@ -443,25 +443,28 @@ export function saveProductConfig(productId: string, config: ProductConfig) {
   writeSettingsMap(settings);
 }
 
-export function findConfigByHandle(handle: string) {
-  const key = String(handle || "").trim();
-  if (!key) return null;
-
+export function findConfigForStorefront(productId: string, handle: string) {
+  const idKey = String(productId || "").trim();
+  const handleKey = String(handle || "").trim();
+  if (!idKey && !handleKey) return null;
   const settings = readSettingsMap();
-  const entry = Object.entries(settings).find(([, value]) => String(value?.productHandle || "").trim() === key);
+  const entry = Object.entries(settings).find(([storedId, value]) => {
+    if (idKey && String(storedId).trim() === idKey) return true;
+    return handleKey && String(value?.productHandle || "").trim() === handleKey;
+  });
   if (!entry) return null;
 
-  const [productId, storedConfig] = entry;
+  const [storedProductId, storedConfig] = entry;
   const fallback = buildDefaultConfig({
     title: String(storedConfig?.productTitle || ""),
-    handle: String(storedConfig?.productHandle || key),
+    handle: String(storedConfig?.productHandle || handleKey),
     productType: String(storedConfig?.productType || "apparel"),
   });
   const config = normalizeProductConfig(storedConfig, fallback);
-  const printAreas = readPrintAreas().filter((area) => area.productId === productId);
+  const printAreas = readPrintAreas().filter((area) => area.productId === storedProductId);
 
   return {
-    productId,
+    productId: storedProductId,
     settings: config,
     printAreas,
   };

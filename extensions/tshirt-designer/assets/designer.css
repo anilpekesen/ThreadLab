@@ -654,11 +654,15 @@
 
 /* ── View switcher ─────────────────────────────────────────────────────────── */
 .designer .dsgn-view-switcher {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 56;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  width: min(360px, 100%);
-  margin: 0 auto;
+  width: min(320px, calc(100% - 36px));
+  margin: 0;
   padding: 6px;
   background: rgba(255,255,255,.9);
   border: 1px solid var(--border);
@@ -1795,7 +1799,10 @@
   }
 
   .designer .dsgn-view-switcher {
-    width: 100%;
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    width: calc(100% - 24px);
   }
 
   .designer .dsgn-view-card {

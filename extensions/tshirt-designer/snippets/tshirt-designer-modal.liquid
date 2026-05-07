@@ -30,6 +30,7 @@
   class="dsgn-open-modal-btn"
   data-designer-modal-open
   data-designer-url="{{ designer_app_url }}"
+  data-product-id="{{ product.id }}"
   data-product-title="{{ product.title | escape }}"
   data-product-handle="{{ product.handle }}"
   data-front-image="{{ front_img }}"
@@ -91,6 +92,7 @@
   btn.addEventListener('click', function() {
     var baseUrl = btn.dataset.designerUrl;
     var params = new URLSearchParams({
+      productId: btn.dataset.productId || '',
       handle: btn.dataset.productHandle || '',
       title: btn.dataset.productTitle || '',
       front: btn.dataset.frontImage || '',

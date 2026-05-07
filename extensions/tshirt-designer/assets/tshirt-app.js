@@ -540,7 +540,7 @@
     var cfg = {
       currency: root.dataset.currency || 'TRY',
       locale:   root.dataset.locale   || 'tr-TR',
-      productId: '',
+      productId: root.dataset.productId || '',
       productType: 'apparel',
       surfaceMode: 'front_back',
       printAreaBySide: {
@@ -751,7 +751,11 @@
         done();
         return;
       }
-      fetch('/apps/tshirt-designer/personalization?handle=' + encodeURIComponent(cfg.productHandle), {
+      var params = new URLSearchParams({
+        handle: cfg.productHandle || '',
+        productId: cfg.productId || '',
+      });
+      fetch('/apps/tshirt-designer/personalization?' + params.toString(), {
         headers: { Accept: 'application/json' },
       })
         .then(function (res) { return res.ok ? res.json() : null; })
