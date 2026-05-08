@@ -5,7 +5,7 @@ import { authenticate, login } from "~/shopify.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const pathname = new URL(request.url).pathname;
   if (pathname === "/auth/login") {
-    return json(await login(request));
+    return login(request);
   }
 
   await authenticate.admin(request);
@@ -15,7 +15,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const pathname = new URL(request.url).pathname;
   if (pathname === "/auth/login") {
-    return json(await login(request));
+    return login(request);
   }
 
   return json({ error: "Method not allowed" }, { status: 405 });

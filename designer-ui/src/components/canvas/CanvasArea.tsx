@@ -130,9 +130,9 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
     pushHistory(cv);
 
     return () => {
-      cv.dispose();
+      try { cv.dispose(); } catch { /* ignore disposal errors */ }
       canvasRef.current = null;
-      if (hostEl.current) hostEl.current.innerHTML = '';
+      try { if (hostEl.current) hostEl.current.innerHTML = ''; } catch { /* ignore */ }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -160,11 +160,15 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
       if (!canRender()) return;
       img.scaleToWidth(PRINT_W);
       img.scaleToHeight(PRINT_H);
-      cv.setBackgroundImage(img, () => {
-        if (!canRender()) return;
-        cv.renderAll();
+      try {
+        cv.setBackgroundImage(img, () => {
+          if (!canRender()) return;
+          try { cv.renderAll(); } catch { /* canvas disposed */ }
+          setBgLoaded(true);
+        });
+      } catch {
         setBgLoaded(true);
-      });
+      }
     }, { crossOrigin: 'anonymous' });
     return () => {
       cancelled = true;
@@ -334,11 +338,12 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
             </div>
             <div className="pointer-events-none absolute left-1/2 top-[38px] z-10 h-[230px] w-[180px] -translate-x-1/2 rounded-[18px] border border-dashed border-sky-300/80 bg-white/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]" />
             <div className="relative flex items-center justify-center">
-              {!bgLoaded && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-slate-50/92">
-                  <span className="text-sm text-gray-400">Yükleniyor...</span>
-                </div>
-              )}
+              <div
+                className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-slate-50/92 transition-opacity duration-200"
+                style={{ opacity: bgLoaded ? 0 : 1, pointerEvents: bgLoaded ? 'none' : 'auto' }}
+              >
+                <span className="text-sm text-gray-400">Yükleniyor...</span>
+              </div>
               <div ref={hostEl} />
             </div>
           </div>
