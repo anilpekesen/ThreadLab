@@ -68,6 +68,18 @@ function readConfig(): DesignerConfig {
   };
 }
 
+function applyConfig(
+  cfg: DesignerConfig,
+  setConfig: (config: DesignerConfig) => void,
+  setSelectedSize: (size: string) => void,
+) {
+  setConfig(cfg);
+  if (cfg.variants?.length) {
+    const first = cfg.variants.find((v) => v.available);
+    setSelectedSize(first?.option2 ?? cfg.variants[0]?.option2 ?? '');
+  }
+}
+
 function priceToCents(price: string | number | undefined): number {
   if (typeof price === 'number') return price;
   if (!price) return 0;
@@ -118,12 +130,18 @@ export default function App() {
   const [layers, setLayers] = useState<fabric.Object[]>([]);
 
   useEffect(() => {
-    const cfg = readConfig();
-    setConfig(cfg);
-    if (cfg.variants?.length) {
-      const first = cfg.variants.find((v) => v.available);
-      setSelectedSize(first?.option2 ?? cfg.variants[0]?.option2 ?? '');
-    }
+    applyConfig(readConfig(), setConfig, setSelectedSize);
+  }, [setConfig, setSelectedSize]);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload || payload.type !== 'DESIGNER_INIT' || !payload.config) return;
+      applyConfig(payload.config as DesignerConfig, setConfig, setSelectedSize);
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, [setConfig, setSelectedSize]);
 
   const activeCanvas = activeSide === 'front' ? frontCanvasRef : backCanvasRef;

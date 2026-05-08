@@ -65,6 +65,28 @@
     var roots = document.querySelectorAll('[data-designer-inline]');
     if (!roots.length) return;
 
+    function sendDesignerConfig(iframe, root) {
+      if (!iframe || !iframe.contentWindow) return;
+      iframe.contentWindow.postMessage({
+        type: 'DESIGNER_INIT',
+        config: {
+          productHandle: root.dataset.productHandle || '',
+          productTitle: root.dataset.productTitle || '',
+          frontImage: root.dataset.frontImage || '',
+          backImage: root.dataset.backImage || '',
+          shirtColor: root.dataset.shirtColor || '#1C1C1E',
+          variants: JSON.parse(root.dataset.productVariants || '[]'),
+          currency: root.dataset.currency || 'TRY',
+          locale: root.dataset.locale || 'tr-TR',
+          uploadEndpoint: '/apps/tshirt-designer/upload',
+          singleVariantId: root.dataset.singleVariantId || '',
+          doubleVariantId: root.dataset.doubleVariantId || '',
+          singlePrice: Number(root.dataset.singlePrice || 0),
+          doublePrice: Number(root.dataset.doublePrice || 0)
+        }
+      }, '*');
+    }
+
     roots.forEach(function(root) {
       if (root.dataset.bound === '1') return;
       root.dataset.bound = '1';
@@ -73,24 +95,11 @@
       if (!iframe) return;
 
       var baseUrl = root.dataset.designerUrl || 'https://threadlab-production.up.railway.app/designer-app/';
-      var separator = baseUrl.indexOf('?') === -1 ? '?' : '&';
-      var params = new URLSearchParams({
-        productId: root.dataset.productId || '',
-        handle: root.dataset.productHandle || '',
-        title: root.dataset.productTitle || '',
-        front: root.dataset.frontImage || '',
-        back: root.dataset.backImage || '',
-        color: root.dataset.shirtColor || '#1C1C1E',
-        currency: root.dataset.currency || 'TRY',
-        locale: root.dataset.locale || 'tr-TR',
-        singleVariantId: root.dataset.singleVariantId || '',
-        doubleVariantId: root.dataset.doubleVariantId || '',
-        singlePrice: root.dataset.singlePrice || '',
-        doublePrice: root.dataset.doublePrice || '',
-        variants: root.dataset.productVariants || '[]'
+      iframe.src = baseUrl;
+      iframe.addEventListener('load', function() {
+        sendDesignerConfig(iframe, root);
+        window.setTimeout(function() { sendDesignerConfig(iframe, root); }, 400);
       });
-
-      iframe.src = baseUrl + separator + params.toString();
     });
 
     if (window.__dsgnInlineReactBound) return;
