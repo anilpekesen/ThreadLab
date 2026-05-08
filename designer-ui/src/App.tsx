@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fabric } from 'fabric';
-import { AnimatePresence, motion } from 'motion/react';
 import {
   AlignCenter,
   AlignLeft,
@@ -716,15 +715,8 @@ export default function App() {
             </div>
           </div>
 
-          <AnimatePresence>
-            {activeTab && (
-              <motion.div
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="absolute bottom-0 left-0 z-50 w-full overflow-hidden rounded-t-[32px] border-t border-gray-100 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)]"
-              >
+          {activeTab && (
+            <div className="absolute bottom-0 left-0 z-50 w-full overflow-hidden rounded-t-[32px] border-t border-gray-100 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
                 <div className="flex items-center justify-between border-b border-gray-50 px-4 py-3 md:px-6 md:py-4">
                   <h3 className="text-base font-bold text-gray-800 md:text-lg">
                     {activeTab === 'image' ? 'Medya Ekle' : activeTab === 'text' ? 'Yazı Ekle' : activeTab === 'layers' ? 'Katmanlar' : activeTab === 'templates' ? 'Şablonlar' : 'Kayıtlı Tasarımlar'}
@@ -828,20 +820,14 @@ export default function App() {
                     <SavedPanel onLoad={handleLoadSaved} />
                   )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+            </div>
+          )}
 
-          <AnimatePresence>
-            {selectedObj && toolbarPos && !activeTab && !showPreview && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: 5 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 5 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 400, mass: 0.6 }}
-                className="fixed z-[100] flex items-center justify-center"
-                style={{ left: toolbarPos.x, top: toolbarPos.y, transform: 'translateX(-50%)' }}
-              >
+          {selectedObj && toolbarPos && !activeTab && !showPreview && (
+            <div
+              className="fixed z-[100] flex items-center justify-center"
+              style={{ left: toolbarPos.x, top: toolbarPos.y, transform: 'translateX(-50%)' }}
+            >
                 <div className="pointer-events-auto flex max-w-[95vw] items-center gap-0.5 overflow-x-auto rounded-[20px] border border-white/50 bg-white/95 p-1 shadow-[0_10px_50px_rgba(0,0,0,0.15)] backdrop-blur-xl no-scrollbar md:max-w-none md:gap-1 md:rounded-[28px] md:p-2">
                   {objState?.type === 'text' ? (
                     <>
@@ -997,26 +983,18 @@ export default function App() {
                     </>
                   )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+            </div>
+          )}
 
-          <AnimatePresence>
-            {showPreview && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-                onClick={() => setShowPreview(false)}
+          {showPreview && (
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+              onClick={() => setShowPreview(false)}
+            >
+              <div
+                className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
               >
-                <motion.div
-                  initial={{ scale: 0.9, y: 20 }}
-                  animate={{ scale: 1, y: 0 }}
-                  exit={{ scale: 0.9, y: 20 }}
-                  className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
-                  onClick={(e) => e.stopPropagation()}
-                >
                   <div className="flex items-center justify-between border-b border-gray-100 px-8 py-6">
                     <h3 className="text-xl font-black">Tasarım Önizleme</h3>
                     <button onClick={() => setShowPreview(false)} className="rounded-full p-2 transition-colors hover:bg-gray-100">
@@ -1058,10 +1036,9 @@ export default function App() {
                       Kapat
                     </button>
                   </div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+            </div>
+          )}
         </div>
 
         <footer className="border-t border-gray-100 bg-white px-4 py-2.5 md:px-6 md:py-3">
