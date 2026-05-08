@@ -18,13 +18,8 @@ import {
   ProgressBar,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import {
-  PLANS,
-  PLAN_NAMES,
-  getShopBillingState,
-  planKeyFromName,
-  type PlanKey,
-} from "~/lib/billing.server";
+import { PLANS, PLAN_NAMES, type PlanKey } from "~/lib/plans";
+import { getShopBillingState, planKeyFromName } from "~/lib/billing.server";
 
 const IS_TEST =
   process.env.SHOPIFY_BILLING_TEST === "true" ||
