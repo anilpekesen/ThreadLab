@@ -22,6 +22,8 @@
     "@shopify/polaris": "^13.9.5",
     "@shopify/shopify-app-remix": "^4.2.0",
     "@shopify/shopify-app-session-storage-memory": "^5.0.5",
+    "@shopify/shopify-app-session-storage-sqlite": "^6.0.0",
+    "better-sqlite3": "^12.9.0",
     "isbot": "^4.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"

@@ -5,9 +5,15 @@ import {
   BillingInterval,
   shopifyApp,
 } from "@shopify/shopify-app-remix/server";
-import { MemorySessionStorage } from "@shopify/shopify-app-session-storage-memory";
+import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
+import path from "node:path";
 
-const storage = new MemorySessionStorage();
+const dbPath = path.join(
+  process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd(),
+  "data",
+  "sessions.db"
+);
+const storage = new SQLiteSessionStorage(dbPath);
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY ?? "",
