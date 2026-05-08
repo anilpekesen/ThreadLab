@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { fabric } from 'fabric';
-import { AnimatePresence, motion } from 'motion/react';
 import {
   Menu,
   Undo2,
@@ -471,16 +470,8 @@ export default function App() {
             </div>
           </div>
 
-          <AnimatePresence>
-            {activeTab && (
-              <motion.div
-                key={activeTab}
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="absolute bottom-0 left-0 z-50 w-full overflow-hidden rounded-t-[32px] border-t border-gray-100 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)]"
-              >
+          {activeTab && (
+            <div className="absolute bottom-0 left-0 z-50 w-full overflow-hidden rounded-t-[32px] border-t border-gray-100 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
                 <div className="flex items-center justify-between border-b border-gray-50 px-6 py-4">
                   <h3 className="text-lg font-bold text-gray-800">{panelTitle}</h3>
                   <button
@@ -559,18 +550,11 @@ export default function App() {
                     <SavedPanel onLoad={handleLoadSaved} />
                   )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+            </div>
+          )}
 
-          <AnimatePresence>
-            {selectedObj && !activeTab && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="absolute bottom-10 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 px-3"
-              >
+          {selectedObj && !activeTab && (
+            <div className="absolute bottom-10 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 px-3">
                 <div className="flex flex-wrap items-center gap-1 rounded-[28px] border border-white/50 bg-white/95 p-2 shadow-2xl backdrop-blur-xl">
                   {objState?.type === 'text' ? (
                     <>
@@ -677,9 +661,8 @@ export default function App() {
                     </>
                   )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+            </div>
+          )}
         </div>
 
         <footer className="border-t border-gray-100 bg-white px-4 py-2.5">
