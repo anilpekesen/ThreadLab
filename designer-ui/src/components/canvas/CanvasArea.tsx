@@ -9,6 +9,7 @@ const PRINT_H = 380;
 export interface CanvasAreaHandle {
   addImageFromUrl: (url: string) => void;
   addText: (text: string, opts?: Partial<fabric.ITextOptions>) => void;
+  cloneSelected: () => void;
   deleteSelected: () => void;
   undo: () => void;
   redo: () => void;
@@ -101,9 +102,15 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
     canvasRef.current = cv;
 
     cv.on('object:added', (e) => { lockImageProportions(e.target); pushHistory(cv); });
-    cv.on('object:modified', () => pushHistory(cv));
+    cv.on('object:modified', () => {
+      pushHistory(cv);
+      onObjectSelected(cv.getActiveObject() ?? null);
+    });
     cv.on('object:scaling', (e) => keepImageUniform(e.target));
     cv.on('object:removed', () => pushHistory(cv));
+    cv.on('object:moving', () => onObjectSelected(cv.getActiveObject() ?? null));
+    cv.on('object:scaling', () => onObjectSelected(cv.getActiveObject() ?? null));
+    cv.on('object:rotating', () => onObjectSelected(cv.getActiveObject() ?? null));
     cv.on('selection:created', (e) => onObjectSelected(e.selected?.[0] ?? null));
     cv.on('selection:updated', (e) => onObjectSelected(e.selected?.[0] ?? null));
     cv.on('selection:cleared', () => onObjectSelected(null));
@@ -181,6 +188,23 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
     cv.renderAll();
   }, []);
 
+  const cloneSelected = useCallback(() => {
+    const cv = canvasRef.current;
+    const obj = cv?.getActiveObject();
+    if (!cv || !obj) return;
+    obj.clone((cloned: fabric.Object) => {
+      cloned.set({
+        left: (obj.left ?? 0) + 18,
+        top: (obj.top ?? 0) + 18,
+      });
+      lockImageProportions(cloned);
+      cv.add(cloned);
+      cv.setActiveObject(cloned);
+      cv.renderAll();
+      onObjectSelected(cloned);
+    });
+  }, [onObjectSelected]);
+
   const undo = useCallback(() => {
     const cv = canvasRef.current;
     if (!cv || historyIdxRef.current <= 0) return;
@@ -230,6 +254,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
   useImperativeHandle(ref, () => ({
     addImageFromUrl,
     addText,
+    cloneSelected,
     deleteSelected,
     undo,
     redo,
@@ -238,7 +263,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
     loadDesign,
     saveDesign,
     canvas: canvasRef.current,
-  }), [addImageFromUrl, addText, deleteSelected, undo, redo, exportPng, loadDesign, saveDesign]);
+  }), [addImageFromUrl, addText, cloneSelected, deleteSelected, undo, redo, exportPng, loadDesign, saveDesign]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -276,15 +301,15 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
           transition: 'transform 180ms ease',
         }}
       >
-        <div className="rounded-xl bg-white/40 p-1 shadow-lg">
-          <div className="group relative overflow-hidden rounded-xl bg-white">
-            <div className="pointer-events-none absolute left-1/2 top-[22px] z-20 -translate-x-1/2 rounded bg-white/85 px-2 py-0.5 text-[10px] font-bold text-blue-400 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+        <div className="rounded-[30px] border border-white/80 bg-white/80 p-2 shadow-[0_18px_40px_rgba(148,163,184,0.28)] backdrop-blur">
+          <div className="group relative overflow-hidden rounded-[24px] bg-white">
+            <div className="pointer-events-none absolute left-1/2 top-[22px] z-20 -translate-x-1/2 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold tracking-[0.18em] text-sky-400 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
               TASARIM ALANI
             </div>
-            <div className="pointer-events-none absolute left-1/2 top-[38px] z-10 h-[230px] w-[180px] -translate-x-1/2 rounded-lg border-2 border-dashed border-blue-300 opacity-50" />
+            <div className="pointer-events-none absolute left-1/2 top-[38px] z-10 h-[230px] w-[180px] -translate-x-1/2 rounded-[18px] border border-dashed border-sky-300/80 bg-white/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]" />
             <div className="relative flex items-center justify-center">
               {!bgLoaded && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-gray-50/90">
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-slate-50/92">
                   <span className="text-sm text-gray-400">Yükleniyor...</span>
                 </div>
               )}
