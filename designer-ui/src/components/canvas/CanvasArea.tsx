@@ -269,36 +269,33 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
   return (
     <div className={`flex h-full items-center justify-center ${isActive ? '' : 'hidden'}`}>
       <div
-        className="relative mx-auto"
+        className="relative"
         style={{
           transform: `scale(${zoomScale})`,
           transformOrigin: 'center center',
           transition: 'transform 180ms ease',
         }}
       >
-        <div className="rounded-[34px] bg-white/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_24px_60px_rgba(15,23,42,0.14)] backdrop-blur-xl">
-          <div className="group relative overflow-hidden rounded-[28px] bg-white p-5 shadow-[0_14px_36px_rgba(15,23,42,0.12)]">
-            <div className="pointer-events-none absolute inset-5 rounded-[20px] border-2 border-dashed border-blue-300/75" />
-            <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-blue-500 shadow-sm opacity-0 transition-opacity group-hover:opacity-100">
-              Tasarım Alanı
+        <div className="rounded-xl bg-white/40 p-1 shadow-lg">
+          <div className="group relative overflow-hidden rounded-xl bg-white">
+            <div className="pointer-events-none absolute left-1/2 top-[22px] z-20 -translate-x-1/2 rounded bg-white/85 px-2 py-0.5 text-[10px] font-bold text-blue-400 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+              TASARIM ALANI
             </div>
-
-            <div className="relative" style={{ width: PRINT_W, height: PRINT_H }}>
+            <div className="pointer-events-none absolute left-1/2 top-[38px] z-10 h-[230px] w-[180px] -translate-x-1/2 rounded-lg border-2 border-dashed border-blue-300 opacity-50" />
+            <div className="relative flex items-center justify-center">
               {!bgLoaded && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[18px] bg-slate-50/95">
-                  <span className="text-sm font-semibold text-slate-400">Yükleniyor...</span>
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-gray-50/90">
+                  <span className="text-sm text-gray-400">Yükleniyor...</span>
                 </div>
               )}
-              <div className="overflow-hidden rounded-[18px] shadow-sm">
-                <canvas
-                  ref={canvasEl}
-                  style={{
-                    width: `${PRINT_W}px`,
-                    height: `${PRINT_H}px`,
-                    display: 'block',
-                  }}
-                />
-              </div>
+              <canvas
+                ref={canvasEl}
+                style={{
+                  width: `${PRINT_W}px`,
+                  height: `${PRINT_H}px`,
+                  display: 'block',
+                }}
+              />
             </div>
           </div>
         </div>

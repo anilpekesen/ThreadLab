@@ -2,9 +2,36 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { fabric } from 'fabric';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  Undo2, Redo2, Image as ImageIcon, Type, Layers, X, ZoomIn, ZoomOut,
-  MousePointer2, Move, Trash2, AlignLeft, AlignCenter, AlignRight,
-  LayoutGrid, Save, Bookmark, ShoppingBag,
+  Menu,
+  Undo2,
+  Redo2,
+  Eye,
+  Image as ImageIcon,
+  Type,
+  Layers,
+  X,
+  Upload,
+  ZoomIn,
+  ZoomOut,
+  MousePointer2,
+  Move,
+  Trash2,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  ChevronDown,
+  Plus,
+  LayoutGrid,
+  Save,
+  Bookmark,
+  ShoppingBag,
+  Sparkles,
+  Scissors,
+  Droplets,
+  CircleDashed,
+  RefreshCw,
+  Maximize2,
+  Unlock,
 } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
 import CanvasArea, { type CanvasAreaHandle } from '@/components/canvas/CanvasArea';
@@ -57,12 +84,10 @@ function cn(...classes: (string | false | undefined | null)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-const TABS: { id: Exclude<Tab, null>; label: string; Icon: React.FC<{ className?: string }> }[] = [
+const MAIN_TABS: { id: 'image' | 'text' | 'layers'; label: string; Icon: React.FC<{ className?: string }> }[] = [
   { id: 'image', label: 'Görsel', Icon: ImageIcon },
   { id: 'text', label: 'Metin', Icon: Type },
   { id: 'layers', label: 'Katmanlar', Icon: Layers },
-  { id: 'templates', label: 'Şablonlar', Icon: LayoutGrid },
-  { id: 'saved', label: 'Kayıtlar', Icon: Bookmark },
 ];
 
 interface ObjectState {
@@ -86,7 +111,7 @@ export default function App() {
   const frontCanvasRef = useRef<CanvasAreaHandle>(null);
   const backCanvasRef = useRef<CanvasAreaHandle>(null);
 
-  const [activeTab, setActiveTab] = useState<Tab>('image');
+  const [activeTab, setActiveTab] = useState<Tab>(null);
   const [selectedObj, setSelectedObj] = useState<fabric.Object | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
   const [zoom, setZoom] = useState(100);
@@ -114,7 +139,6 @@ export default function App() {
       setObjState(null);
       return;
     }
-
     if (obj.type === 'text' || obj.type === 'i-text') {
       const t = obj as fabric.Text;
       setObjState({
@@ -133,11 +157,13 @@ export default function App() {
   const handleAddImage = (url: string) => {
     activeCanvas.current?.addImageFromUrl(url);
     syncLayers();
+    setActiveTab(null);
   };
 
   const handleAddText = (text: string, opts: Record<string, unknown>) => {
     activeCanvas.current?.addText(text, opts);
     syncLayers();
+    setActiveTab(null);
   };
 
   const handleApplyTemplate = (tpl: Template) => {
@@ -146,6 +172,7 @@ export default function App() {
     tpl.build(cv);
     cv.renderAll();
     syncLayers();
+    setActiveTab(null);
   };
 
   const handleSave = () => {
@@ -266,7 +293,6 @@ export default function App() {
     });
     obj.setCoords();
     cv.renderAll();
-    syncLayers();
   };
 
   const frontHasDesign = Boolean(frontCanvasRef.current?.canvas?.getObjects().length);
@@ -283,445 +309,424 @@ export default function App() {
     : '';
   const sizes = [...new Set(config?.variants?.map((v) => v.option2).filter(Boolean) ?? [])];
 
-  const handleTabToggle = (id: Exclude<Tab, null>) => {
-    setActiveTab((prev) => (prev === id ? null : id));
-    if (id === 'layers') syncLayers();
-  };
-
   const panelTitle =
     activeTab === 'image' ? 'Medya Ekle'
     : activeTab === 'text' ? 'Yazı Ekle'
     : activeTab === 'layers' ? 'Katmanlar'
-    : activeTab === 'templates' ? 'Hazır Şablonlar'
+    : activeTab === 'templates' ? 'Şablonlar'
     : 'Kayıtlı Tasarımlar';
 
   return (
-    <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_top,#ffffff_0%,#f3f4f6_52%,#e5e7eb_100%)] font-sans text-gray-900">
-      <div className="mx-auto flex h-full max-w-[1480px] flex-col px-3 py-3 sm:px-5 sm:py-5">
-        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/70 bg-white/88 shadow-[0_22px_90px_rgba(15,23,42,0.10)] backdrop-blur-xl">
-          <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-                <ShoppingBag className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-blue-600">Canlı Tasarım</p>
-                <h1 className="truncate text-base font-bold text-slate-900 sm:text-lg">
-                  {config?.productTitle ?? 'Tişört Tasarım'}
-                </h1>
-              </div>
+    <div className="flex h-full flex-col bg-[#f3f4f6] font-sans text-gray-900">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none bg-white shadow-none sm:m-4 sm:rounded-[28px] sm:shadow-2xl sm:shadow-slate-200/70">
+        <div className="flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 z-50">
+          <div className="flex items-center gap-2">
+            <button className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-gray-50">
+              <Menu className="h-5 w-5 text-gray-600" />
+              <span>Yardım</span>
+            </button>
+            <div className="hidden text-sm font-semibold text-gray-700 lg:block">
+              {config?.productTitle ?? 'Tişört Tasarım Uygulaması'}
             </div>
+          </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => activeCanvas.current?.undo()}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-700"
-                aria-label="Geri al"
-              >
-                <Undo2 className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => activeCanvas.current?.redo()}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-700"
-                aria-label="İleri al"
-              >
-                <Redo2 className="h-4 w-4" />
-              </button>
-              <button
-                onClick={handleSave}
-                className="hidden items-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 sm:inline-flex"
-              >
-                <Save className="h-4 w-4" />
-                Kaydet
-              </button>
-              <button
-                onClick={() => window.parent.postMessage({ type: 'DESIGNER_CLOSE' }, '*')}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-500"
-                aria-label="Kapat"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </header>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => activeCanvas.current?.undo()}
+              className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-50"
+            >
+              <Undo2 className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => activeCanvas.current?.redo()}
+              className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-50"
+            >
+              <Redo2 className="h-5 w-5" />
+            </button>
+            <button onClick={() => setActiveTab('templates')} className="hidden rounded-lg bg-gray-50 px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-100 lg:inline-flex">Şablonlar</button>
+            <button onClick={() => setActiveTab('saved')} className="hidden rounded-lg bg-gray-50 px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-100 lg:inline-flex">Kayıtlar</button>
+            <button onClick={handleSave} className="hidden items-center gap-2 rounded-lg bg-gray-50 px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-100 lg:inline-flex">
+              <Save className="h-4 w-4" />
+              <span>Kaydet</span>
+            </button>
+            <button className="inline-flex items-center gap-2 rounded-lg bg-gray-50 px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-100">
+              <Eye className="h-4 w-4" />
+              <span>Önizleme</span>
+            </button>
+            <button
+              onClick={() => window.parent.postMessage({ type: 'DESIGNER_CLOSE' }, '*')}
+              className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
 
-          <div className="flex shrink-0 gap-2 border-b border-slate-100 bg-white/80 px-3 py-2.5 sm:px-4">
-            {TABS.map(({ id, label, Icon }) => (
+        <div className="relative flex min-h-0 flex-1 flex-col items-center overflow-hidden bg-[#F9FAFB]">
+          <div className="relative z-40 flex w-full border-b border-gray-100 bg-white">
+            {MAIN_TABS.map(({ id, label, Icon }) => (
               <button
                 key={id}
-                onClick={() => handleTabToggle(id)}
+                onClick={() => setActiveTab(activeTab === id ? null : id)}
                 className={cn(
-                  'flex min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl px-3 py-3 text-[11px] font-bold transition-all sm:text-xs',
+                  'flex flex-1 flex-col items-center gap-1.5 border-b-2 py-3 text-xs font-semibold transition-all',
                   activeTab === id
-                    ? 'bg-blue-600 text-white shadow-[0_14px_30px_rgba(37,99,235,0.24)]'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800',
+                    ? 'border-blue-600 bg-blue-50/30 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700',
                 )}
               >
-                <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="truncate">{label}</span>
+                <Icon className="h-6 w-6" />
+                <span>{label}</span>
               </button>
             ))}
           </div>
 
-          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)]">
-            <div className="relative flex min-h-0 flex-1 items-center justify-center px-3 py-5 sm:px-6 sm:py-6">
-              <div className="absolute inset-x-5 top-4 hidden h-32 rounded-[36px] bg-[radial-gradient(circle_at_top,#dbeafe_0%,rgba(219,234,254,0.3)_38%,rgba(248,250,252,0)_72%)] sm:block" />
+          <div className="relative flex w-full min-h-0 flex-1 items-center justify-center p-4 sm:p-8">
+            <div className="relative group rounded-3xl bg-white/40 p-4 shadow-inner backdrop-blur-sm">
+              <div className={activeSide === 'front' ? 'block' : 'hidden'}>
+                <CanvasArea ref={frontCanvasRef} side="front" zoom={zoom} onObjectSelected={handleObjectSelected} />
+              </div>
+              <div className={activeSide === 'back' ? 'block' : 'hidden'}>
+                <CanvasArea ref={backCanvasRef} side="back" zoom={zoom} onObjectSelected={handleObjectSelected} />
+              </div>
 
-              <div className="relative flex h-full w-full items-center justify-center">
-                <div className="absolute right-0 top-1/2 z-30 hidden -translate-y-1/2 lg:flex lg:flex-col lg:gap-4">
-                  <div className="overflow-hidden rounded-[26px] border border-white/70 bg-white/90 shadow-[0_18px_36px_rgba(15,23,42,0.12)] backdrop-blur-xl">
-                    <button className="flex w-[74px] flex-col items-center gap-1 border-b border-slate-100 bg-blue-50 px-3 py-3 text-blue-600">
-                      <MousePointer2 className="h-5 w-5" />
-                      <span className="text-[10px] font-black uppercase tracking-wide">Seçim</span>
-                    </button>
-                    <button className="flex w-[74px] flex-col items-center gap-1 px-3 py-3 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-700">
-                      <Move className="h-5 w-5" />
-                      <span className="text-[10px] font-black uppercase tracking-wide">Gezinme</span>
-                    </button>
-                  </div>
-
-                  <div className="overflow-hidden rounded-[24px] border border-white/70 bg-white/90 shadow-[0_18px_36px_rgba(15,23,42,0.12)] backdrop-blur-xl">
-                    <button
-                      onClick={() => setZoom((z) => Math.min(200, z + 10))}
-                      className="flex h-12 w-16 items-center justify-center border-b border-slate-100 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-700"
-                    >
-                      <ZoomIn className="h-5 w-5" />
-                    </button>
-                    <div className="bg-slate-50 px-3 py-2 text-center text-[11px] font-black text-slate-700">
-                      {zoom}%
-                    </div>
-                    <button
-                      onClick={() => setZoom((z) => Math.max(50, z - 10))}
-                      className="flex h-12 w-16 items-center justify-center text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-700"
-                    >
-                      <ZoomOut className="h-5 w-5" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex h-full w-full items-center justify-center">
-                  <div className={activeSide === 'front' ? 'block' : 'hidden'}>
-                    <CanvasArea ref={frontCanvasRef} side="front" zoom={zoom} onObjectSelected={handleObjectSelected} />
-                  </div>
-                  <div className={activeSide === 'back' ? 'block' : 'hidden'}>
-                    <CanvasArea ref={backCanvasRef} side="back" zoom={zoom} onObjectSelected={handleObjectSelected} />
-                  </div>
-                </div>
-
-                <div className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 gap-3 rounded-[26px] border border-white/70 bg-white/88 p-2 shadow-[0_18px_36px_rgba(15,23,42,0.12)] backdrop-blur-xl">
-                  {([
-                    { side: 'front' as const, label: 'Ön', image: config?.frontImage, hasDesign: frontHasDesign },
-                    { side: 'back' as const, label: 'Arka', image: config?.backImage, hasDesign: backHasDesign },
-                  ]).map(({ side, label, image, hasDesign }) => (
-                    <button
-                      key={side}
-                      onClick={() => setActiveSide(side)}
-                      className={cn(
-                        'flex w-[78px] flex-col gap-1 rounded-[20px] border-2 p-1.5 text-left transition-all',
-                        activeSide === side
-                          ? 'scale-[1.03] border-blue-500 bg-blue-50 shadow-sm'
-                          : 'border-transparent bg-transparent opacity-70 hover:opacity-100',
-                      )}
-                    >
-                      <div className="h-20 overflow-hidden rounded-2xl bg-slate-100">
-                        {image ? (
-                          <img src={image} alt={label} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full items-center justify-center text-xs font-bold text-slate-400">
-                            {label}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between px-1">
-                        <span className={cn('text-[10px] font-black uppercase tracking-wide', activeSide === side ? 'text-blue-600' : 'text-slate-500')}>
+              <div className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 gap-3 rounded-2xl border border-white/50 bg-white/90 p-2 shadow-xl backdrop-blur">
+                {([
+                  { side: 'front' as const, label: 'Ön', image: config?.frontImage, active: activeSide === 'front', hasDesign: frontHasDesign },
+                  { side: 'back' as const, label: 'Arka', image: config?.backImage, active: activeSide === 'back', hasDesign: backHasDesign },
+                ]).map(({ side, label, image, active, hasDesign }) => (
+                  <button
+                    key={side}
+                    onClick={() => setActiveSide(side)}
+                    className={cn(
+                      'w-16 rounded-lg border-2 p-0.5 transition-all',
+                      active ? 'scale-105 border-blue-500 shadow-md' : 'border-transparent opacity-60 hover:opacity-100',
+                    )}
+                  >
+                    <div className="h-20 overflow-hidden rounded bg-gray-100">
+                      {image ? (
+                        <img src={image} className="h-full w-full object-cover" alt={label} />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[10px] font-bold text-gray-400">
                           {label}
-                        </span>
-                        <span className={cn('h-2 w-2 rounded-full', hasDesign ? 'bg-emerald-500' : 'bg-slate-200')} />
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-1 flex items-center justify-center gap-1">
+                      <span className="text-[10px] font-bold text-gray-600">{label}</span>
+                      {hasDesign && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
 
-            <AnimatePresence>
-              {activeTab && (
-                <motion.div
-                  key={activeTab}
-                  initial={{ y: '100%' }}
-                  animate={{ y: 0 }}
-                  exit={{ y: '100%' }}
-                  transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-                  className="absolute bottom-0 left-0 z-50 w-full overflow-hidden rounded-t-[34px] border-t border-slate-100 bg-white shadow-[0_-18px_50px_rgba(15,23,42,0.12)]"
-                >
-                  <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-                    <div>
-                      <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-600">Araç Paneli</p>
-                      <h3 className="text-lg font-bold text-slate-900">{panelTitle}</h3>
-                    </div>
-                    <button
-                      onClick={() => setActiveTab(null)}
-                      className="flex h-10 w-10 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
+            <div className="absolute right-3 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-3 sm:right-6 sm:flex">
+              <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl">
+                <button className="border-b border-gray-100 bg-blue-50/50 p-3 text-blue-600 transition-colors hover:bg-blue-50">
+                  <MousePointer2 className="mx-auto h-5 w-5" />
+                  <span className="mt-1 block text-[8px] font-bold uppercase">Seçim</span>
+                </button>
+                <button className="p-3 text-gray-500 transition-colors hover:bg-gray-50">
+                  <Move className="mx-auto h-5 w-5" />
+                  <span className="mt-1 block text-[8px] font-bold uppercase">Gezinme</span>
+                </button>
+              </div>
 
-                  <div className="max-h-[52vh] overflow-y-auto px-5 py-5 sm:px-6">
-                    {activeTab === 'image' && (
-                      <ImagePanel onAddImage={handleAddImage} onRemoveBg={handleRemoveBg} />
-                    )}
-                    {activeTab === 'text' && (
-                      <TextPanel onAddText={handleAddText} />
-                    )}
-                    {activeTab === 'layers' && (
-                      <div className="space-y-3">
-                        {layers.length === 0 ? (
-                          <div className="flex min-h-[220px] flex-col items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-slate-50/80 text-center text-slate-400">
-                            <Layers className="mb-3 h-12 w-12 opacity-20" />
-                            <p className="text-sm font-semibold">Henüz katman yok</p>
-                          </div>
-                        ) : (
-                          [...layers].reverse().map((obj, i) => (
-                            <div
-                              key={i}
-                              onClick={() => {
-                                activeCanvas.current?.canvas?.setActiveObject(obj);
-                                activeCanvas.current?.canvas?.renderAll();
-                                handleObjectSelected(obj);
-                              }}
-                              className={cn(
-                                'flex items-center justify-between rounded-[22px] border-2 p-3 transition-all',
-                                activeCanvas.current?.canvas?.getActiveObject() === obj
-                                  ? 'border-blue-300 bg-blue-50/80'
-                                  : 'border-slate-100 bg-white hover:border-slate-200',
-                              )}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100">
-                                  {(obj.type === 'text' || obj.type === 'i-text')
-                                    ? <Type className="h-5 w-5 text-slate-400" />
-                                    : <ImageIcon className="h-5 w-5 text-slate-400" />}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-bold text-slate-800">
-                                    {(obj.type === 'text' || obj.type === 'i-text')
-                                      ? ((obj as fabric.Text).text ?? '').substring(0, 20)
-                                      : `Görsel ${layers.length - i}`}
-                                  </p>
-                                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                                    Katman {layers.length - i}
-                                  </p>
-                                </div>
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  activeCanvas.current?.canvas?.remove(obj);
-                                  activeCanvas.current?.canvas?.renderAll();
-                                  syncLayers();
-                                }}
-                                className="flex h-10 w-10 items-center justify-center rounded-2xl text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
-                    {activeTab === 'templates' && (
-                      <TemplatesPanel onApply={handleApplyTemplate} />
-                    )}
-                    {activeTab === 'saved' && (
-                      <SavedPanel onLoad={handleLoadSaved} />
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {selectedObj && !activeTab && (
-                <motion.div
-                  initial={{ opacity: 0, y: 24, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 24, scale: 0.96 }}
-                  className="absolute bottom-[106px] left-1/2 z-[60] -translate-x-1/2 px-3"
+              <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl">
+                <button
+                  onClick={() => setZoom((z) => Math.min(200, z + 10))}
+                  className="border-b border-gray-100 p-3 text-gray-400 transition-colors hover:bg-gray-50"
                 >
-                  <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-[28px] border border-white/60 bg-white/92 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.15)] backdrop-blur-xl">
-                    {objState?.type === 'text' ? (
-                      <>
-                        <label className="relative flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-colors hover:bg-slate-50">
+                  <ZoomIn className="h-5 w-5" />
+                </button>
+                <div className="select-none bg-gray-50 py-2 text-center text-[10px] font-black text-gray-600">
+                  {zoom}%
+                </div>
+                <button
+                  onClick={() => setZoom((z) => Math.max(50, z - 10))}
+                  className="p-3 text-gray-400 transition-colors hover:bg-gray-50"
+                >
+                  <ZoomOut className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {activeTab && (
+              <motion.div
+                key={activeTab}
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className="absolute bottom-0 left-0 z-50 w-full overflow-hidden rounded-t-[32px] border-t border-gray-100 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)]"
+              >
+                <div className="flex items-center justify-between border-b border-gray-50 px-6 py-4">
+                  <h3 className="text-lg font-bold text-gray-800">{panelTitle}</h3>
+                  <button
+                    onClick={() => setActiveTab(null)}
+                    className="rounded-full p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+
+                <div className="max-h-[52vh] overflow-y-auto p-6">
+                  {activeTab === 'image' && (
+                    <ImagePanel onAddImage={handleAddImage} onRemoveBg={handleRemoveBg} />
+                  )}
+                  {activeTab === 'text' && (
+                    <TextPanel onAddText={handleAddText} />
+                  )}
+                  {activeTab === 'layers' && (
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                      {layers.length === 0 ? (
+                        <div className="py-12 text-center text-gray-400">
+                          <Layers className="mx-auto mb-3 h-12 w-12 opacity-20" />
+                          <p className="font-medium">Henüz katman eklenmemiş</p>
+                        </div>
+                      ) : (
+                        [...layers].reverse().map((obj, i) => (
                           <div
-                            className="h-5 w-5 rounded-full border border-slate-200 shadow-inner"
-                            style={{ backgroundColor: objState.color ?? '#111827' }}
-                          />
-                          <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Renk</span>
-                          <input
-                            type="color"
-                            value={objState.color ?? '#111827'}
-                            onChange={(e) => updateTextProp({ color: e.target.value })}
-                            className="absolute inset-0 opacity-0"
-                          />
-                        </label>
-
-                        <div className="flex items-center gap-1 rounded-2xl bg-slate-50 px-2 py-2">
-                          <button
-                            onClick={() => updateTextProp({ fontSize: Math.max(8, (objState.fontSize ?? 32) - 2) })}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-white hover:text-slate-800"
+                            key={i}
+                            onClick={() => {
+                              activeCanvas.current?.canvas?.setActiveObject(obj);
+                              activeCanvas.current?.canvas?.renderAll();
+                              handleObjectSelected(obj);
+                            }}
+                            className={cn(
+                              'flex cursor-pointer items-center justify-between rounded-2xl border-2 p-3 transition-all',
+                              activeCanvas.current?.canvas?.getActiveObject() === obj
+                                ? 'border-blue-400 bg-blue-50'
+                                : 'border-gray-100 hover:border-gray-200',
+                            )}
                           >
-                            −
-                          </button>
-                          <span className="w-10 text-center text-sm font-black text-slate-800">{objState.fontSize ?? 32}</span>
-                          <button
-                            onClick={() => updateTextProp({ fontSize: (objState.fontSize ?? 32) + 2 })}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-white hover:text-slate-800"
-                          >
-                            +
-                          </button>
-                        </div>
-
-                        <div className="flex items-center gap-1 rounded-2xl bg-slate-50 p-1">
-                          {([
-                            { align: 'left' as const, Icon: AlignLeft },
-                            { align: 'center' as const, Icon: AlignCenter },
-                            { align: 'right' as const, Icon: AlignRight },
-                          ]).map(({ align, Icon }) => (
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
+                                {(obj.type === 'text' || obj.type === 'i-text')
+                                  ? <Type className="h-5 w-5 text-gray-400" />
+                                  : <ImageIcon className="h-5 w-5 text-gray-400" />}
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold capitalize text-gray-700">
+                                  {(obj.type === 'text' || obj.type === 'i-text')
+                                    ? ((obj as fabric.Text).text ?? '').substring(0, 15)
+                                    : 'Görsel Katmanı'}
+                                </p>
+                                <span className="text-[10px] font-black uppercase text-gray-400">Katman {layers.length - i}</span>
+                              </div>
+                            </div>
                             <button
-                              key={align}
-                              onClick={() => updateTextProp({ textAlign: align })}
-                              className={cn(
-                                'flex h-10 w-10 items-center justify-center rounded-xl transition-colors',
-                                objState.textAlign === align ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-700',
-                              )}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                activeCanvas.current?.canvas?.remove(obj);
+                                activeCanvas.current?.canvas?.renderAll();
+                                syncLayers();
+                              }}
+                              className="rounded-lg p-2 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500"
                             >
-                              <Icon className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" />
                             </button>
-                          ))}
-                        </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  {activeTab === 'templates' && (
+                    <TemplatesPanel onApply={handleApplyTemplate} />
+                  )}
+                  {activeTab === 'saved' && (
+                    <SavedPanel onLoad={handleLoadSaved} />
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
+          <AnimatePresence>
+            {selectedObj && !activeTab && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="absolute bottom-10 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 px-3"
+              >
+                <div className="flex flex-wrap items-center gap-1 rounded-[28px] border border-white/50 bg-white/95 p-2 shadow-2xl backdrop-blur-xl">
+                  {objState?.type === 'text' ? (
+                    <>
+                      <label className="relative flex cursor-pointer flex-col items-center gap-1 rounded-xl border-r border-gray-100 px-3 py-2 hover:bg-gray-50/50">
+                        <div className="h-6 w-6 rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: objState.color }} />
+                        <span className="text-[10px] font-bold text-gray-500">Renk</span>
+                        <input
+                          type="color"
+                          value={objState.color ?? '#111827'}
+                          onChange={(e) => updateTextProp({ color: e.target.value })}
+                          className="absolute inset-0 opacity-0"
+                        />
+                      </label>
+
+                      <div className="flex items-center gap-2 border-r border-gray-100 px-3">
+                        <input
+                          type="number"
+                          min={8}
+                          max={120}
+                          value={objState.fontSize ?? 30}
+                          onChange={(e) => updateTextProp({ fontSize: Number(e.target.value) || 30 })}
+                          className="w-14 rounded-lg border bg-gray-50 py-1 text-center text-sm font-bold text-gray-700"
+                        />
+                      </div>
+
+                      <div className="flex items-center px-3 border-r border-gray-100">
+                        <div className="flex items-center gap-1 rounded-xl bg-gray-50 px-3 py-2 text-sm font-bold text-gray-700">
+                          <span>Roboto</span>
+                          <ChevronDown className="h-4 w-4 text-gray-400" />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 border-r border-gray-100 px-2">
+                        {([
+                          { key: 'left' as const, Icon: AlignLeft },
+                          { key: 'center' as const, Icon: AlignCenter },
+                          { key: 'right' as const, Icon: AlignRight },
+                        ]).map(({ key, Icon }) => (
+                          <button
+                            key={key}
+                            onClick={() => updateTextProp({ textAlign: key })}
+                            className={cn(
+                              'rounded-lg p-2 transition-colors',
+                              objState.textAlign === key ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50',
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </button>
+                        ))}
                         <button
                           onClick={() => updateTextProp({ isBold: !objState.isBold })}
                           className={cn(
-                            'flex h-11 w-11 items-center justify-center rounded-2xl text-lg font-black transition-colors',
-                            objState.isBold ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800',
+                            'rounded-lg p-2 transition-colors',
+                            objState.isBold ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50',
                           )}
                         >
-                          B
+                          <span className="text-lg font-black">B</span>
                         </button>
+                        <button className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-50">
+                          <Maximize2 className="h-4 w-4" />
+                        </button>
+                        <button className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-50">
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                      </div>
 
-                        <button
-                          onClick={deleteSelected}
-                          className="flex flex-col items-center gap-1 rounded-2xl px-3 py-2 text-red-400 transition-colors hover:bg-red-50 hover:text-red-500"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="text-[10px] font-black uppercase tracking-wide">Kaldır</span>
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={centerSelectedObject}
-                          className="flex flex-col items-center gap-1 rounded-2xl px-4 py-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-blue-600"
-                        >
-                          <Move className="h-5 w-5" />
-                          <span className="text-[10px] font-black uppercase tracking-wide">Ortala</span>
-                        </button>
+                      <button
+                        onClick={deleteSelected}
+                        className="flex flex-col items-center gap-1 rounded-xl px-3 py-2 text-red-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                        <span className="text-[10px] font-bold">Kaldır</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={centerSelectedObject} className="flex flex-col items-center gap-1 rounded-xl px-4 py-2 text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-500">
+                        <Sparkles className="h-5 w-5" />
+                        <span className="text-[10px] font-bold">Ortala</span>
+                      </button>
+                      <button className="flex flex-col items-center gap-1 rounded-xl border-x border-gray-50 px-4 py-2 text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-500">
+                        <Scissors className="h-5 w-5" />
+                        <span className="text-[10px] font-bold">Düzenle</span>
+                      </button>
+                      <button className="flex flex-col items-center gap-1 rounded-xl px-4 py-2 text-gray-500 transition-colors hover:bg-gray-50 hover:text-blue-500">
+                        <Droplets className="h-5 w-5" />
+                        <span className="text-[10px] font-bold">Arkaplan K.</span>
+                      </button>
+                      <button className="flex flex-col items-center gap-1 rounded-xl border-x border-gray-50 px-4 py-2 text-gray-500 transition-colors hover:bg-gray-50">
+                        <CircleDashed className="h-5 w-5" />
+                        <span className="text-[10px] font-bold">Renk Kapla</span>
+                      </button>
+                      <button className="flex flex-col items-center gap-1 rounded-xl px-4 py-2 text-gray-500 transition-colors hover:bg-gray-50">
+                        <RefreshCw className="h-5 w-5" />
+                        <span className="text-[10px] font-bold">Kontür Ver</span>
+                      </button>
+                      <button className="ml-2 flex flex-col items-center gap-1 rounded-2xl border border-gray-200 bg-gray-100 px-3 py-5 text-gray-600 transition-colors hover:bg-gray-200">
+                        <Unlock className="h-5 w-5" />
+                        <span className="text-[10px] font-bold">Dönüştür</span>
+                      </button>
+                      <button onClick={deleteSelected} className="ml-2 rounded-full p-3 text-red-400 transition-colors hover:bg-red-50 hover:text-red-500">
+                        <X className="h-7 w-7" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-                        <button
-                          onClick={deleteSelected}
-                          className="flex flex-col items-center gap-1 rounded-2xl px-4 py-2 text-red-400 transition-colors hover:bg-red-50 hover:text-red-500"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                          <span className="text-[10px] font-black uppercase tracking-wide">Kaldır</span>
-                        </button>
-                      </>
+        <footer className="border-t border-gray-100 bg-white px-4 py-2.5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex gap-1">
+                {(['single', 'double'] as const).map((value) => (
+                  <button
+                    key={value}
+                    onClick={() => setPrintSide(value)}
+                    className={cn(
+                      'rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors',
+                      printSide === value ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100',
                     )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                  >
+                    {value === 'single' ? 'Tek Yüz' : 'Çift Yüz'}
+                  </button>
+                ))}
+              </div>
 
-          <footer className="shrink-0 border-t border-slate-100 bg-white/92 px-4 py-3 backdrop-blur-xl sm:px-6">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-                <div className="flex flex-wrap gap-2">
-                  {(['single', 'double'] as const).map((value) => (
+              {sizes.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {sizes.map((size) => (
                     <button
-                      key={value}
-                      onClick={() => setPrintSide(value)}
+                      key={size!}
+                      onClick={() => setSelectedSize(size!)}
                       className={cn(
-                        'rounded-2xl px-4 py-2 text-xs font-black uppercase tracking-wide transition-colors',
-                        printSide === value
-                          ? 'bg-blue-600 text-white shadow-[0_14px_30px_rgba(37,99,235,0.22)]'
-                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800',
+                        'h-8 rounded-lg border px-3 text-xs font-bold transition-colors',
+                        selectedSize === size ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100',
                       )}
                     >
-                      {value === 'single' ? 'Tek Yüz' : 'Çift Yüz'}
+                      {size}
                     </button>
                   ))}
                 </div>
+              )}
 
-                {sizes.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {sizes.map((size) => (
-                      <button
-                        key={size!}
-                        onClick={() => setSelectedSize(size!)}
-                        className={cn(
-                          'flex h-10 min-w-10 items-center justify-center rounded-2xl px-3 text-xs font-black transition-colors',
-                          selectedSize === size
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800',
-                        )}
-                      >
-                        {size}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="flex items-center justify-between rounded-[24px] bg-slate-100 px-3 py-2 sm:min-w-[150px]">
-                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Adet</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white text-base font-black text-slate-700 transition-colors hover:bg-slate-200"
-                    >
-                      −
-                    </button>
-                    <span className="w-8 text-center text-sm font-black text-slate-900">{quantity}</span>
-                    <button
-                      onClick={() => setQuantity(quantity + 1)}
-                      className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white text-base font-black text-slate-700 transition-colors hover:bg-slate-200"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 rounded-[26px] bg-slate-900 px-4 py-3 text-white shadow-[0_20px_40px_rgba(15,23,42,0.18)]">
-                  <div className="min-w-[92px]">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Toplam</p>
-                    <p className="text-lg font-black">{formattedPrice || 'Fiyat yok'}</p>
-                  </div>
-                  <button
-                    onClick={handleAddToCart}
-                    className="rounded-[18px] bg-blue-600 px-5 py-3 text-sm font-black transition-colors hover:bg-blue-700"
-                  >
-                    Sepete Ekle
-                  </button>
-                </div>
+              <div className="flex items-center gap-1 ml-auto lg:ml-0">
+                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="h-7 w-7 rounded-lg bg-gray-100 text-sm font-bold text-gray-600 hover:bg-gray-200">−</button>
+                <span className="w-7 text-center text-sm font-semibold">{quantity}</span>
+                <button onClick={() => setQuantity(quantity + 1)} className="h-7 w-7 rounded-lg bg-gray-100 text-sm font-bold text-gray-600 hover:bg-gray-200">+</button>
               </div>
             </div>
-          </footer>
 
-          <div className="hidden">
-            <PropertiesPanel selectedObject={selectedObj} onChanged={() => activeCanvas.current?.canvas?.renderAll()} />
+            <div className="flex items-center gap-2">
+              {formattedPrice && <span className="text-base font-black text-gray-900">{formattedPrice}</span>}
+              <button
+                onClick={() => setActiveTab('saved')}
+                className="inline-flex items-center gap-1 rounded-xl bg-gray-100 px-4 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-200 lg:hidden"
+              >
+                <Bookmark className="h-4 w-4" />
+                Kayıtlar
+              </button>
+              <button
+                onClick={handleAddToCart}
+                className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+              >
+                Sepete Ekle
+              </button>
+            </div>
           </div>
+        </footer>
+
+        <div className="hidden">
+          <PropertiesPanel selectedObject={selectedObj} onChanged={() => activeCanvas.current?.canvas?.renderAll()} />
         </div>
       </div>
     </div>

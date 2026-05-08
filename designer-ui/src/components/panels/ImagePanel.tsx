@@ -1,5 +1,5 @@
-import { useRef, useCallback } from 'react';
-import { Upload, Trash2, Sparkles } from 'lucide-react';
+import { useRef, useCallback, useState } from 'react';
+import { Upload, Trash2, Sparkles, Link, QrCode } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
 import { compressImage, generateId } from '@/utils/compress';
 import type { UploadedImage } from '@/types';
@@ -11,6 +11,8 @@ interface Props {
 
 export default function ImagePanel({ onAddImage, onRemoveBg }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [imageUrl, setImageUrl] = useState('');
+  const [activeSource, setActiveSource] = useState<'upload' | 'qr' | 'ai'>('upload');
   const { uploadedImages, addUploadedImage, removeUploadedImage, isBgRemoving } = useDesignerStore();
 
   const handleFiles = useCallback(async (files: FileList | null) => {
@@ -34,63 +36,97 @@ export default function ImagePanel({ onAddImage, onRemoveBg }: Props) {
   }, [handleFiles]);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
+      <div className="flex gap-4 border-b border-gray-100">
+        {[
+          { id: 'upload' as const, label: 'Yükle', Icon: Upload },
+          { id: 'qr' as const, label: 'QR Kod', Icon: QrCode },
+          { id: 'ai' as const, label: 'AI Oluştur', Icon: Sparkles },
+        ].map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            onClick={() => setActiveSource(id)}
+            className={`relative flex items-center gap-2 pb-3 px-2 text-sm font-bold transition-colors ${activeSource === id ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+            {activeSource === id && <span className="absolute bottom-0 left-0 h-0.5 w-full bg-blue-600" />}
+          </button>
+        ))}
+      </div>
+
       <div
         onDrop={onDrop}
         onDragOver={(e) => e.preventDefault()}
         onClick={() => fileRef.current?.click()}
-        className="group cursor-pointer rounded-[28px] border-2 border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center transition-all hover:border-blue-400 hover:bg-blue-50/60"
+        className="group relative cursor-pointer rounded-[24px] border-2 border-dashed border-gray-200 px-12 py-8 transition-all hover:border-blue-400 hover:bg-blue-50/50"
       >
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[22px] bg-white text-blue-600 shadow-sm transition-transform group-hover:scale-105">
-          <Upload className="h-8 w-8" />
-        </div>
-        <p className="text-base font-bold text-slate-800">Görsel sürükleyin veya yüklemek için tıklayın</p>
-        <p className="mt-1 text-xs font-black uppercase tracking-[0.22em] text-slate-400">
-          PNG, JPG, SVG, WEBP
-        </p>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
-        />
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-4 text-center">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => handleFiles(e.target.files)}
+          />
+          <div className="rounded-2xl bg-blue-50 p-4 text-blue-600 transition-transform group-hover:scale-110">
+            <Upload className="h-8 w-8" />
+          </div>
+          <div>
+            <p className="font-bold text-gray-700">Görsel sürükleyin veya yüklemek için tıklayın</p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-wider text-gray-400">PNG, JPG, SVG, WebP</p>
+          </div>
+        </label>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-600">Galeri</p>
-          <p className="text-sm font-semibold text-slate-500">
-            Son yüklemeler {uploadedImages.length > 0 ? `(${uploadedImages.length})` : ''}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Link className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="Veya görsel URL yapıştırın..."
+            className="w-full rounded-2xl border border-transparent bg-gray-50 py-3.5 pl-11 pr-4 text-sm outline-none transition-all focus:border-blue-400 focus:bg-white"
+          />
+        </div>
+        <button
+          onClick={() => {
+            const value = imageUrl.trim();
+            if (!value) return;
+            onAddImage(value);
+            setImageUrl('');
+          }}
+          className="rounded-2xl bg-gray-100 px-6 py-3.5 font-bold text-gray-500 transition-colors hover:bg-gray-200"
+        >
+          Ekle
+        </button>
+      </div>
+
+      {isBgRemoving && (
+        <div className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-amber-600">
+          Arka plan temizleniyor...
+        </div>
+      )}
+
+      {uploadedImages.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+            Son Yüklemeler ({uploadedImages.length})
           </p>
-        </div>
-        {isBgRemoving && (
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-amber-600">
-            AI işleniyor
-          </span>
-        )}
-      </div>
-
-      {uploadedImages.length === 0 ? (
-        <div className="flex min-h-[220px] flex-col items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-white text-center text-slate-400">
-          <p className="text-sm font-semibold">Henüz görsel yüklenmedi</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-          {uploadedImages.map((img) => (
-            <div
-              key={img.id}
-              className="group relative overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm"
-            >
-              <button className="block aspect-square w-full bg-slate-100" onClick={() => onAddImage(img.dataUrl)}>
-                <img src={img.dataUrl} alt={img.name} className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]" />
-              </button>
-
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent p-2.5 opacity-0 transition-opacity group-hover:opacity-100">
-                <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+            {uploadedImages.map((img) => (
+              <div key={img.id} className="group relative aspect-square overflow-hidden rounded-2xl border border-gray-200 bg-gray-100">
+                <img
+                  src={img.dataUrl}
+                  alt={img.name}
+                  className="h-full w-full cursor-pointer object-cover transition-opacity hover:opacity-90"
+                  onClick={() => onAddImage(img.dataUrl)}
+                />
+                <div className="absolute inset-x-0 bottom-0 flex gap-1 bg-gradient-to-t from-black/70 p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
                   <button
-                    className="flex-1 rounded-xl bg-blue-600 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-white transition-colors hover:bg-blue-700"
+                    className="flex-1 rounded-lg bg-blue-500 px-1 py-1 text-[10px] font-bold text-white transition-colors hover:bg-blue-600"
                     onClick={(e) => {
                       e.stopPropagation();
                       onAddImage(img.dataUrl);
@@ -99,34 +135,30 @@ export default function ImagePanel({ onAddImage, onRemoveBg }: Props) {
                     Ekle
                   </button>
                   <button
-                    className="flex items-center justify-center rounded-xl bg-white/15 px-3 text-white transition-colors hover:bg-white/25 disabled:opacity-40"
+                    className="flex items-center justify-center rounded-lg bg-white/20 px-1.5 py-1 text-white transition-colors hover:bg-white/30 disabled:opacity-40"
                     disabled={isBgRemoving}
                     onClick={async (e) => {
                       e.stopPropagation();
                       const result = await onRemoveBg(img.dataUrl);
                       if (result) onAddImage(result);
                     }}
-                    title="Arka planı kaldır"
+                    title="Arka planı kaldır (AI)"
                   >
-                    <Sparkles className="h-4 w-4" />
+                    <Sparkles className="h-3 w-3" />
                   </button>
                   <button
-                    className="flex items-center justify-center rounded-xl bg-red-500/85 px-3 text-white transition-colors hover:bg-red-500"
+                    className="flex items-center rounded-lg bg-red-500/80 px-1.5 py-1 text-white transition-colors hover:bg-red-500"
                     onClick={(e) => {
                       e.stopPropagation();
                       removeUploadedImage(img.id);
                     }}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3 w-3" />
                   </button>
                 </div>
               </div>
-
-              <div className="border-t border-slate-100 px-3 py-2">
-                <p className="truncate text-xs font-semibold text-slate-600">{img.name}</p>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>
