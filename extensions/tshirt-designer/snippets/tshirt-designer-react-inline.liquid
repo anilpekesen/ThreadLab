@@ -1,6 +1,7 @@
-{% assign designer_app_url = block.settings.designer_app_url | default: '' %}
-{% if designer_app_url == blank %}
-  {% assign designer_app_url = shop.url | append: '/apps/tshirt-designer/designer' %}
+{% assign designer_app_url = 'https://threadlab-production.up.railway.app/designer-app/' %}
+{% assign configured_designer_url = block.settings.designer_app_url | default: '' | strip %}
+{% if configured_designer_url contains '/designer-app' %}
+  {% assign designer_app_url = configured_designer_url %}
 {% endif %}
 
 <div
@@ -71,6 +72,8 @@
       var iframe = root.querySelector('.dsgn-inline-react__frame');
       if (!iframe) return;
 
+      var baseUrl = root.dataset.designerUrl || 'https://threadlab-production.up.railway.app/designer-app/';
+      var separator = baseUrl.indexOf('?') === -1 ? '?' : '&';
       var params = new URLSearchParams({
         productId: root.dataset.productId || '',
         handle: root.dataset.productHandle || '',
@@ -87,7 +90,7 @@
         variants: root.dataset.productVariants || '[]'
       });
 
-      iframe.src = root.dataset.designerUrl + '?' + params.toString();
+      iframe.src = baseUrl + separator + params.toString();
     });
 
     if (window.__dsgnInlineReactBound) return;
