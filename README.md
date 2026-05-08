@@ -78,7 +78,23 @@ Test:
 shopify app dev
 ```
 
-Production deploy icin once `server.js` HTTPS destekli public bir hosta alinmali ve `shopify.app.toml` icindeki `application_url` bu URL ile degistirilmelidir. Sonra:
+Production deploy icin Railway kullanilabilir. Bu repo su anda production URL olarak `https://threadlab-production.up.railway.app` kullanacak sekilde ayarli. `shopify app dev` sirasinda URL'lerin tekrar `trycloudflare.com` alanina donmemesi icin `automatically_update_urls_on_dev = false` yapildi.
+
+Railway ortam degiskenleri:
+
+- `SHOPIFY_API_KEY`
+- `SHOPIFY_API_SECRET`
+- `SHOPIFY_APP_URL=https://threadlab-production.up.railway.app`
+- `SCOPES=write_products,read_orders,write_app_proxy`
+- `APP_STORAGE_DIR=/data`
+
+Railway notlari:
+
+- Bir volume olusturup `/data` yoluna mount edin. Siparis JSON verisi ve yuklenen gorseller bu klasorde tutulur.
+- Deploy bittikten sonra Shopify konfigurasyonunu Railway URL'leriyle tekrar senkronlamak icin yerelden `shopify app deploy` calistirin.
+- Shopify Partner Dashboard veya App config icinde `Application URL`, callback URL'leri ve App Proxy URL'sinin Railway domainini gosterdigini dogrulayin.
+
+Sonra:
 
 ```sh
 shopify app deploy
