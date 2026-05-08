@@ -1,17 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; padding: 0; }
-body { background: #18181b; color: #f4f4f5; font-family: 'Poppins', sans-serif; overflow: hidden; }
+body { background: #F9FAFB; color: #111827; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; overflow: hidden; }
 
 .canvas-container { position: relative !important; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: #27272a; }
-::-webkit-scrollbar-thumb { background: #52525b; border-radius: 2px; }
+::-webkit-scrollbar-track { background: #f3f4f6; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
 
 /* Slider */
 input[type=range] {
@@ -19,7 +21,7 @@ input[type=range] {
   appearance: none;
   height: 4px;
   border-radius: 2px;
-  background: #3f3f46;
+  background: #e5e7eb;
   outline: none;
 }
 input[type=range]::-webkit-slider-thumb {
@@ -28,12 +30,12 @@ input[type=range]::-webkit-slider-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #6366f1;
+  background: #2563eb;
   cursor: pointer;
 }
 
 @layer components {
   .btn-sm {
-    @apply px-2 py-1 text-xs rounded border border-border bg-zinc-800 hover:bg-zinc-700 transition-colors;
+    @apply px-2 py-1 text-xs rounded border border-gray-200 bg-white hover:bg-gray-50 transition-colors text-gray-700;
   }
 }

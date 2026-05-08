@@ -4,11 +4,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        surface: '#18181b',
-        panel: '#27272a',
-        border: '#3f3f46',
-        accent: '#6366f1',
-        'accent-hover': '#4f46e5',
+        surface: '#F9FAFB',
+        panel: '#ffffff',
+        border: '#e5e7eb',
+        accent: '#2563eb',
+        'accent-hover': '#1d4ed8',
       },
     },
   },

@@ -7,9 +7,9 @@ interface Props {
 
 export default function TextPanel({ onAddText }: Props) {
   const [text, setText] = useState('Yazını Yaz');
-  const [font, setFont] = useState('Poppins');
+  const [font, setFont] = useState('Inter');
   const [size, setSize] = useState(36);
-  const [color, setColor] = useState('#ffffff');
+  const [color, setColor] = useState('#111827');
   const [bold, setBold] = useState(false);
   const [italic, setItalic] = useState(false);
   const [underline, setUnderline] = useState(false);
@@ -35,17 +35,17 @@ export default function TextPanel({ onAddText }: Props) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={3}
-        className="w-full bg-zinc-800 border border-border rounded-lg p-2 text-sm resize-none focus:outline-none focus:border-accent"
+        className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:border-blue-400 text-gray-900 placeholder-gray-400"
         placeholder="Yazını gir..."
       />
 
       {/* Font selector */}
       <div>
-        <label className="text-xs text-zinc-400 mb-1 block">Font</label>
+        <label className="text-xs font-semibold text-gray-500 mb-1 block">Font</label>
         <select
           value={font}
           onChange={(e) => setFont(e.target.value)}
-          className="w-full bg-zinc-800 border border-border rounded-lg p-2 text-sm focus:outline-none focus:border-accent"
+          className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:border-blue-400 text-gray-800"
           style={{ fontFamily: font }}
         >
           {GOOGLE_FONTS.map((f) => (
@@ -55,9 +55,9 @@ export default function TextPanel({ onAddText }: Props) {
       </div>
 
       {/* Size + Color */}
-      <div className="flex gap-2">
+      <div className="flex gap-3">
         <div className="flex-1">
-          <label className="text-xs text-zinc-400 mb-1 block">Boyut: {size}px</label>
+          <label className="text-xs font-semibold text-gray-500 mb-1 block">Boyut: {size}px</label>
           <input
             type="range" min={8} max={120} value={size}
             onChange={(e) => setSize(Number(e.target.value))}
@@ -65,11 +65,11 @@ export default function TextPanel({ onAddText }: Props) {
           />
         </div>
         <div>
-          <label className="text-xs text-zinc-400 mb-1 block">Renk</label>
+          <label className="text-xs font-semibold text-gray-500 mb-1 block">Renk</label>
           <input
             type="color" value={color}
             onChange={(e) => setColor(e.target.value)}
-            className="w-10 h-8 rounded cursor-pointer border border-border bg-transparent"
+            className="w-10 h-9 rounded-lg cursor-pointer border border-gray-200 bg-white"
           />
         </div>
       </div>
@@ -85,7 +85,7 @@ export default function TextPanel({ onAddText }: Props) {
             key={label}
             onClick={toggle}
             title={title}
-            className={`w-8 h-8 rounded border text-sm ${style} ${active ? 'bg-accent border-accent' : 'bg-zinc-800 border-border hover:bg-zinc-700'}`}
+            className={`w-9 h-9 rounded-xl border text-sm font-bold ${style} transition-colors ${active ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
           >{label}</button>
         ))}
         <div className="flex gap-1 ml-auto">
@@ -93,7 +93,7 @@ export default function TextPanel({ onAddText }: Props) {
             <button
               key={a}
               onClick={() => setAlign(a)}
-              className={`w-8 h-8 rounded border text-xs ${align === a ? 'bg-accent border-accent' : 'bg-zinc-800 border-border hover:bg-zinc-700'}`}
+              className={`w-9 h-9 rounded-xl border text-xs transition-colors ${align === a ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
             >{a === 'left' ? '⬅' : a === 'center' ? '↔' : '➡'}</button>
           ))}
         </div>
@@ -101,7 +101,7 @@ export default function TextPanel({ onAddText }: Props) {
 
       {/* Preview */}
       <div
-        className="rounded-lg p-3 bg-zinc-800 text-center min-h-[60px] flex items-center justify-center break-all"
+        className="rounded-xl p-3 bg-gray-50 border border-gray-100 text-center min-h-[60px] flex items-center justify-center break-all"
         style={{ fontFamily: font, fontSize: Math.min(size, 32), color, fontWeight: bold ? 'bold' : 'normal', fontStyle: italic ? 'italic' : 'normal', textDecoration: underline ? 'underline' : 'none', textAlign: align }}
       >
         {text || '…'}
@@ -109,7 +109,7 @@ export default function TextPanel({ onAddText }: Props) {
 
       <button
         onClick={handleAdd}
-        className="w-full py-2.5 bg-accent hover:bg-accent-hover rounded-lg text-sm font-medium transition-colors"
+        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors shadow-sm"
       >
         + Canvas'a Ekle
       </button>

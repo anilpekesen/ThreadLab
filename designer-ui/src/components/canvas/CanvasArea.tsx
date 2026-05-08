@@ -150,7 +150,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, onObjectSelected
     const txt = new fabric.IText(text, {
       left: PRINT_W / 2, top: PRINT_H / 2,
       originX: 'center', originY: 'center',
-      fontFamily: 'Poppins', fontSize: 36, fill: '#ffffff',
+      fontFamily: 'Inter', fontSize: 36, fill: '#111827',
       ...opts,
     });
     cv.add(txt);
@@ -227,45 +227,22 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, onObjectSelected
 
   const isActive = side === activeSide;
 
+  void canUndo; void canRedo;
+
   return (
     <div
       ref={wrapRef}
       className={`flex flex-col items-center justify-center h-full ${isActive ? '' : 'hidden'}`}
     >
-      {/* Undo/Redo bar */}
-      <div className="flex gap-2 mb-3">
-        <button
-          onClick={undo}
-          disabled={!canUndo}
-          className="px-3 py-1 rounded bg-panel border border-border text-xs disabled:opacity-30 hover:bg-zinc-700"
-          title="Geri Al (Ctrl+Z)"
-        >↩ Geri Al</button>
-        <button
-          onClick={redo}
-          disabled={!canRedo}
-          className="px-3 py-1 rounded bg-panel border border-border text-xs disabled:opacity-30 hover:bg-zinc-700"
-          title="İleri Al"
-        >↪ İleri Al</button>
-        <button
-          onClick={deleteSelected}
-          className="px-3 py-1 rounded bg-red-900/40 border border-red-800 text-xs hover:bg-red-900/70"
-          title="Seçili Sil (Delete)"
-        >🗑 Sil</button>
-      </div>
-
-      {/* Canvas wrapper with print area indicator */}
+      {/* Canvas wrapper */}
       <div className="relative" style={{ width: PRINT_W, height: PRINT_H }}>
         {!bgLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center bg-zinc-800 rounded-lg">
-            <span className="text-zinc-400 text-sm">Yükleniyor...</span>
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-50 rounded-xl">
+            <span className="text-gray-400 text-sm">Yükleniyor...</span>
           </div>
         )}
-        <div className="rounded-lg overflow-hidden border-2 border-dashed border-zinc-600">
+        <div className="rounded-xl overflow-hidden shadow-sm">
           <canvas ref={canvasEl} />
-        </div>
-        {/* Print boundary hint */}
-        <div className="absolute -bottom-6 left-0 right-0 text-center text-xs text-zinc-500">
-          Baskı alanı: {PRINT_W}×{PRINT_H}px
         </div>
       </div>
     </div>
