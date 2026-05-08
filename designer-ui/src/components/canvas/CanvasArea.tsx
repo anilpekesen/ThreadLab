@@ -63,8 +63,13 @@ function normalizeCanvasImages(cv: fabric.Canvas) {
   cv.getObjects().forEach(lockImageProportions);
 }
 
+function hasLiveContext(cv: fabric.Canvas) {
+  const runtimeCanvas = cv as fabric.Canvas & { contextContainer?: CanvasRenderingContext2D | null };
+  return Boolean(cv.getElement()) && Boolean(runtimeCanvas.contextContainer);
+}
+
 const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSelected }, ref) => {
-  const canvasEl = useRef<HTMLCanvasElement>(null);
+  const hostEl = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
   const historyRef = useRef<string[]>([]);
   const historyIdxRef = useRef(-1);
@@ -92,8 +97,15 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
   }, []);
 
   useEffect(() => {
-    if (!canvasEl.current) return;
-    const cv = new fabric.Canvas(canvasEl.current, {
+    if (!hostEl.current) return;
+    const canvasNode = document.createElement('canvas');
+    canvasNode.style.width = `${PRINT_W}px`;
+    canvasNode.style.height = `${PRINT_H}px`;
+    canvasNode.style.display = 'block';
+    hostEl.current.innerHTML = '';
+    hostEl.current.appendChild(canvasNode);
+
+    const cv = new fabric.Canvas(canvasNode, {
       backgroundColor: 'transparent',
       preserveObjectStacking: true,
       width: PRINT_W,
@@ -120,6 +132,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
     return () => {
       cv.dispose();
       canvasRef.current = null;
+      if (hostEl.current) hostEl.current.innerHTML = '';
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -127,29 +140,42 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv || !config) return;
+    let cancelled = false;
     const imgSrc = side === 'front' ? config.frontImage : config.backImage;
+
+    const canRender = () => !cancelled && canvasRef.current === cv && hasLiveContext(cv);
+
     if (!imgSrc) {
       cv.setBackgroundImage(null as unknown as fabric.Image, () => {
+        if (!canRender()) return;
         cv.renderAll();
       });
       setBgLoaded(true);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
     setBgLoaded(false);
     fabric.Image.fromURL(imgSrc, (img) => {
+      if (!canRender()) return;
       img.scaleToWidth(PRINT_W);
       img.scaleToHeight(PRINT_H);
       cv.setBackgroundImage(img, () => {
+        if (!canRender()) return;
         cv.renderAll();
         setBgLoaded(true);
       });
     }, { crossOrigin: 'anonymous' });
+    return () => {
+      cancelled = true;
+    };
   }, [config, side]);
 
   const addImageFromUrl = useCallback((url: string) => {
     const cv = canvasRef.current;
     if (!cv) return;
     fabric.Image.fromURL(url, (img) => {
+      if (canvasRef.current !== cv || !hasLiveContext(cv)) return;
       const maxW = PRINT_W * 0.7;
       const maxH = PRINT_H * 0.7;
       const scale = Math.min(maxW / (img.width ?? 1), maxH / (img.height ?? 1), 1);
@@ -313,14 +339,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
                   <span className="text-sm text-gray-400">Yükleniyor...</span>
                 </div>
               )}
-              <canvas
-                ref={canvasEl}
-                style={{
-                  width: `${PRINT_W}px`,
-                  height: `${PRINT_H}px`,
-                  display: 'block',
-                }}
-              />
+              <div ref={hostEl} />
             </div>
           </div>
         </div>
