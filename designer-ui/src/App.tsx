@@ -81,16 +81,8 @@ function readConfig(): DesignerConfig {
   };
 }
 
-function applyConfig(
-  cfg: DesignerConfig,
-  setConfig: (config: DesignerConfig) => void,
-  setSelectedSize: (size: string) => void,
-) {
+function applyConfig(cfg: DesignerConfig, setConfig: (config: DesignerConfig) => void) {
   setConfig(cfg);
-  if (cfg.variants?.length) {
-    const first = cfg.variants.find((v) => v.available);
-    setSelectedSize(first?.option2 ?? cfg.variants[0]?.option2 ?? '');
-  }
 }
 
 function priceToCents(price: string | number | undefined): number {
@@ -113,8 +105,7 @@ export default function App() {
   const {
     config, setConfig,
     activeSide, setActiveSide,
-    selectedSize, setSelectedSize,
-    quantity, setQuantity,
+    sizeQuantities, setSizeQuantity,
     addSavedDesign, printSide, setPrintSide,
     setIsBgRemoving,
   } = useDesignerStore();
@@ -172,18 +163,18 @@ export default function App() {
   }, [getActiveCanvasHandle]);
 
   useEffect(() => {
-    applyConfig(readConfig(), setConfig, setSelectedSize);
-  }, [setConfig, setSelectedSize]);
+    applyConfig(readConfig(), setConfig);
+  }, [setConfig]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const payload = event.data;
       if (!payload || payload.type !== 'DESIGNER_INIT' || !payload.config) return;
-      applyConfig(payload.config as DesignerConfig, setConfig, setSelectedSize);
+      applyConfig(payload.config as DesignerConfig, setConfig);
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [setConfig, setSelectedSize]);
+  }, [setConfig]);
 
   useEffect(() => {
     syncLayers();
@@ -326,13 +317,21 @@ export default function App() {
     const backHas = Boolean(backCanvasRef.current?.canvas?.getObjects().length);
     const resolvedSide = frontHas && backHas ? 'double' : backHas ? 'back' : 'front';
     const printOption = printOptionForSide(resolvedSide);
-    const selectedVariant = config?.variants?.find((v) => (!selectedSize || v.option2 === selectedSize) && v.option3 === printOption);
-    const variantId = selectedVariant?.id ?? (resolvedSide === 'double' ? config?.doubleVariantId : config?.singleVariantId) ?? '';
-    if (!variantId) {
-      alert('Lütfen bir beden seçin');
+
+    const cartItems = sizes
+      .filter((size) => (sizeQuantities[size!] ?? 0) > 0)
+      .map((size) => {
+        const variant = config?.variants?.find((v) => v.option2 === size && v.option3 === printOption);
+        const variantId = variant?.id ?? (resolvedSide === 'double' ? config?.doubleVariantId : config?.singleVariantId) ?? '';
+        return { variantId, quantity: sizeQuantities[size!] ?? 0 };
+      })
+      .filter((item) => item.variantId);
+
+    if (cartItems.length === 0) {
+      alert('Lütfen en az bir beden için adet seçin');
       return;
     }
-    const price = selectedVariant ? priceToCents(selectedVariant.price) : (resolvedSide === 'double' ? config?.doublePrice : config?.singlePrice);
+
     const designRes = await fetch('/api/storefront/designs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -345,6 +344,7 @@ export default function App() {
         previewUrl: frontPng,
       }),
     }).then((r) => r.json());
+
     const token = designRes.token ?? '';
     const properties: Record<string, string> = {
       'Ön Tasarım': frontPng ? 'Var' : 'Yok',
@@ -352,7 +352,8 @@ export default function App() {
       'Ön önizleme': frontPng.slice(0, 200),
     };
     if (resolvedSide !== 'front') properties['Arka Tasarım'] = backPng ? 'Var' : 'Yok';
-    window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', variantId, quantity, properties, designToken: token, price }, '*');
+
+    window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token }, '*');
   };
 
   const deleteSelected = () => {
@@ -511,20 +512,37 @@ export default function App() {
   const frontHasDesign = Boolean(frontCanvasRef.current?.canvas?.getObjects().length);
   const backHasDesign = Boolean(backCanvasRef.current?.canvas?.getObjects().length);
   const resolvedSide = frontHasDesign && backHasDesign ? 'double' : backHasDesign ? 'back' : printSide === 'double' ? 'front' : activeSide;
-  const selectedVariant = config?.variants?.find((v) => (!selectedSize || v.option2 === selectedSize) && v.option3 === printOptionForSide(resolvedSide));
-  const price = selectedVariant ? priceToCents(selectedVariant.price) : (resolvedSide === 'double' ? config?.doublePrice : config?.singlePrice);
-  const formattedPrice = price
-    ? new Intl.NumberFormat(config?.locale ?? 'tr-TR', {
-        style: 'currency',
-        currency: config?.currency ?? 'TRY',
-        maximumFractionDigits: 0,
-      }).format(price / 100)
-    : '';
 
   const sizes = useMemo(
     () => [...new Set(config?.variants?.map((v) => v.option2).filter(Boolean) ?? [])],
     [config?.variants],
   );
+
+  const totalQuantity = useMemo(
+    () => Object.values(sizeQuantities).reduce((sum, q) => sum + q, 0),
+    [sizeQuantities],
+  );
+
+  const totalPrice = useMemo(() => {
+    const printOption = printOptionForSide(resolvedSide);
+    return sizes.reduce((sum, size) => {
+      const qty = sizeQuantities[size!] ?? 0;
+      if (qty === 0) return sum;
+      const variant = config?.variants?.find((v) => v.option2 === size && v.option3 === printOption);
+      const unitPrice = variant
+        ? priceToCents(variant.price)
+        : (resolvedSide === 'double' ? config?.doublePrice : config?.singlePrice) ?? 0;
+      return sum + (unitPrice as number) * qty;
+    }, 0);
+  }, [sizes, sizeQuantities, resolvedSide, config]);
+
+  const formattedPrice = totalPrice > 0
+    ? new Intl.NumberFormat(config?.locale ?? 'tr-TR', {
+        style: 'currency',
+        currency: config?.currency ?? 'TRY',
+        maximumFractionDigits: 0,
+      }).format(totalPrice / 100)
+    : '';
 
   const reversedLayers = [...layers].reverse();
 
@@ -1060,27 +1078,38 @@ export default function App() {
               </div>
 
               {sizes.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {sizes.map((size) => (
-                    <button
-                      key={size!}
-                      onClick={() => setSelectedSize(size!)}
-                      className={cn(
-                        'h-8 rounded-lg border px-3 text-xs font-bold transition-colors',
-                        selectedSize === size ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100',
-                      )}
-                    >
-                      {size}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap gap-1.5">
+                  {sizes.map((size) => {
+                    const qty = sizeQuantities[size!] ?? 0;
+                    return (
+                      <div
+                        key={size!}
+                        className={cn(
+                          'flex items-center gap-0.5 rounded-lg border px-1.5 py-0.5 transition-colors',
+                          qty > 0 ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50',
+                        )}
+                      >
+                        <span className={cn('min-w-[18px] text-center text-xs font-bold', qty > 0 ? 'text-blue-700' : 'text-gray-500')}>
+                          {size}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSizeQuantity(size!, qty - 1)}
+                          className="flex h-5 w-5 items-center justify-center rounded text-sm font-bold text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+                        >−</button>
+                        <span className={cn('w-4 text-center text-xs font-semibold tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>
+                          {qty}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSizeQuantity(size!, qty + 1)}
+                          className="flex h-5 w-5 items-center justify-center rounded text-sm font-bold text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+                        >+</button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
-
-              <div className="flex items-center gap-1">
-                <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="h-8 w-8 rounded-lg bg-gray-100 text-sm font-bold text-gray-600 transition-colors hover:bg-gray-200">−</button>
-                <span className="w-8 text-center text-sm font-semibold">{quantity}</span>
-                <button type="button" onClick={() => setQuantity(quantity + 1)} className="h-8 w-8 rounded-lg bg-gray-100 text-sm font-bold text-gray-600 transition-colors hover:bg-gray-200">+</button>
-              </div>
 
               <button
                 onClick={() => setActiveTab('templates')}
@@ -1108,10 +1137,10 @@ export default function App() {
               {formattedPrice && <span className="text-base font-black text-gray-900">{formattedPrice}</span>}
               <button
                 onClick={handleAddToCart}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
               >
                 <ShoppingBag className="h-4 w-4" />
-                Sepete Ekle
+                Sepete Ekle{totalQuantity > 0 ? ` (${totalQuantity})` : ''}
               </button>
             </div>
           </div>

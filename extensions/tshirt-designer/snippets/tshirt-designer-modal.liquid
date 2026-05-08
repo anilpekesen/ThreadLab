@@ -126,30 +126,28 @@
       document.body.style.overflow = '';
       iframe.src = '';
 
-      var variantId = e.data.variantId;
-      var qty = e.data.quantity || 1;
       var props = e.data.properties || {};
+      var items = e.data.items || [];
 
-      // Build Shopify cart form and submit
-      var form = document.createElement('form');
-      form.method = 'POST';
-      form.action = '/cart/add';
-      form.style.display = 'none';
+      if (!items.length) return;
 
-      function addInput(name, value) {
-        var inp = document.createElement('input');
-        inp.type = 'hidden'; inp.name = name; inp.value = value;
-        form.appendChild(inp);
-      }
-
-      addInput('id', variantId);
-      addInput('quantity', qty);
-      Object.entries(props).forEach(function(pair) {
-        addInput('properties[' + pair[0] + ']', pair[1]);
+      fetch('/cart/add.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map(function(item) {
+            return {
+              id: parseInt(item.variantId, 10),
+              quantity: item.quantity,
+              properties: props
+            };
+          })
+        })
+      }).then(function() {
+        window.location.href = '/cart';
+      }).catch(function() {
+        alert('Sepete eklenirken bir hata oluştu. Lütfen tekrar deneyin.');
       });
-
-      document.body.appendChild(form);
-      form.submit();
     }
   });
 })();

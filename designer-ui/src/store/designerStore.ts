@@ -13,8 +13,7 @@ interface DesignerState {
   config: DesignerConfig | null;
   activeSide: Side;
   activeTab: LeftTab;
-  selectedSize: string;
-  quantity: number;
+  sizeQuantities: Record<string, number>;
   uploadedImages: UploadedImage[];
   savedDesigns: SavedDesign[];
   canvasState: CanvasState;
@@ -25,8 +24,7 @@ interface DesignerState {
   setConfig: (c: DesignerConfig) => void;
   setActiveSide: (s: Side) => void;
   setActiveTab: (t: LeftTab) => void;
-  setSelectedSize: (s: string) => void;
-  setQuantity: (q: number) => void;
+  setSizeQuantity: (size: string, qty: number) => void;
   addUploadedImage: (img: UploadedImage) => void;
   removeUploadedImage: (id: string) => void;
   addSavedDesign: (d: SavedDesign) => void;
@@ -49,8 +47,7 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   config: null,
   activeSide: 'front',
   activeTab: 'image',
-  selectedSize: '',
-  quantity: 1,
+  sizeQuantities: {},
   uploadedImages: loadImages(),
   savedDesigns: loadSaved(),
   canvasState: { frontJson: '', backJson: '' },
@@ -61,8 +58,9 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   setConfig: (config) => set({ config }),
   setActiveSide: (activeSide) => set({ activeSide }),
   setActiveTab: (activeTab) => set({ activeTab }),
-  setSelectedSize: (selectedSize) => set({ selectedSize }),
-  setQuantity: (quantity) => set({ quantity }),
+  setSizeQuantity: (size, qty) => set((s) => ({
+    sizeQuantities: { ...s.sizeQuantities, [size]: Math.max(0, qty) },
+  })),
 
   addUploadedImage: (img) => {
     const images = [img, ...get().uploadedImages].slice(0, 30);
