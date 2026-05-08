@@ -116,7 +116,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>(null);
   const [selectedObj, setSelectedObj] = useState<fabric.Object | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoom] = useState(140);
   const [layers, setLayers] = useState<fabric.Object[]>([]);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('selection');
   const [sceneOffset, setSceneOffset] = useState({ x: 0, y: 0 });
@@ -547,8 +547,9 @@ export default function App() {
   const reversedLayers = [...layers].reverse();
 
   return (
-    <div className="flex h-full items-center justify-center bg-[#f3f4f6] p-0 text-gray-900 sm:p-6">
-      <div className="flex h-full min-h-0 w-full max-w-[820px] flex-1 flex-col overflow-hidden bg-white shadow-none sm:max-h-[920px] sm:flex-none sm:rounded-[32px] sm:shadow-[0_24px_70px_rgba(15,23,42,0.14)]">
+    <div className="flex h-full items-stretch justify-center bg-[#f3f4f6] p-0 text-gray-900 sm:p-4">
+      <div className="flex h-full min-h-0 w-full max-w-[1160px] flex-1 flex-col overflow-hidden bg-white shadow-none sm:max-h-[900px] sm:flex-none sm:flex-row sm:rounded-[28px] sm:shadow-[0_24px_70px_rgba(15,23,42,0.14)]">
+        <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center justify-between border-b border-gray-100 bg-white px-3 py-2.5 md:px-4 md:py-3">
           <div className="flex items-center gap-2">
             <button className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-medium transition-colors hover:bg-gray-50 md:px-3 md:text-sm">
@@ -576,7 +577,7 @@ export default function App() {
             </div>
             <button
               onClick={handlePreview}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700 md:bg-gray-50 md:px-4 md:py-2 md:text-sm md:text-gray-700 md:hover:bg-gray-100"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700 sm:hidden"
             >
               <Eye className="h-3.5 w-3.5 md:h-4 md:w-4" />
               <span>Önizleme</span>
@@ -1059,7 +1060,7 @@ export default function App() {
           )}
         </div>
 
-        <footer className="border-t border-gray-100 bg-white px-4 py-2.5 md:px-6 md:py-3">
+        <footer className="border-t border-gray-100 bg-white px-4 py-2.5 sm:hidden">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex gap-1">
@@ -1145,6 +1146,116 @@ export default function App() {
             </div>
           </div>
         </footer>
+        </div>
+
+        {/* RIGHT: Commerce sidebar — desktop only */}
+        <div className="hidden sm:flex sm:w-[280px] sm:flex-none sm:flex-col sm:border-l sm:border-gray-100 sm:bg-white">
+          {config?.productTitle && (
+            <div className="border-b border-gray-100 px-5 py-4">
+              <h2 className="text-sm font-bold leading-snug text-gray-900">{config.productTitle}</h2>
+            </div>
+          )}
+
+          <div className="border-b border-gray-100 px-5 py-4">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-gray-400">Baskı Türü</p>
+            <div className="flex gap-1.5">
+              {(['single', 'double'] as const).map((value) => (
+                <button
+                  key={value}
+                  onClick={() => setPrintSide(value)}
+                  className={cn(
+                    'flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-colors',
+                    printSide === value ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100',
+                  )}
+                >
+                  {value === 'single' ? 'Tek Yüz' : 'Çift Yüz'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {sizes.length > 0 ? (
+            <div className="flex-1 overflow-y-auto border-b border-gray-100 px-5 py-4">
+              <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Bedenler</p>
+              <div className="grid grid-cols-3 gap-2">
+                {sizes.map((size) => {
+                  const qty = sizeQuantities[size!] ?? 0;
+                  return (
+                    <div
+                      key={size!}
+                      className={cn(
+                        'flex flex-col items-center rounded-xl border-2 p-2 transition-colors',
+                        qty > 0 ? 'border-blue-400 bg-blue-50' : 'border-gray-100 bg-gray-50',
+                      )}
+                    >
+                      <span className={cn('text-xs font-bold', qty > 0 ? 'text-blue-700' : 'text-gray-600')}>{size}</span>
+                      <div className="mt-1.5 flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setSizeQuantity(size!, qty - 1)}
+                          className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
+                        >−</button>
+                        <span className={cn('w-5 text-center text-sm font-bold tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>{qty}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSizeQuantity(size!, qty + 1)}
+                          className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
+                        >+</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 border-b border-gray-100" />
+          )}
+
+          <div className="border-b border-gray-100 px-5 py-3">
+            <button
+              onClick={handlePreview}
+              className="mb-1.5 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              Önizleme
+            </button>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setActiveTab('templates')}
+                className="flex-1 rounded-lg bg-gray-100 px-2 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
+              >
+                Şablonlar
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-gray-100 px-2 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
+              >
+                <Save className="h-3 w-3" />
+                Kaydet
+              </button>
+              <button
+                onClick={() => setActiveTab('saved')}
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-gray-100 px-2 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
+              >
+                <Bookmark className="h-3 w-3" />
+                Kayıtlar
+              </button>
+            </div>
+          </div>
+
+          <div className="px-5 py-5">
+            {formattedPrice && (
+              <p className="mb-3 text-2xl font-black text-gray-900">{formattedPrice}</p>
+            )}
+            <button
+              onClick={handleAddToCart}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-blue-700 disabled:opacity-50"
+            >
+              <ShoppingBag className="h-4 w-4" />
+              Sepete Ekle{totalQuantity > 0 ? ` (${totalQuantity})` : ''}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
