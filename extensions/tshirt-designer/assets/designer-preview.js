@@ -1,4 +1,4 @@
-window.BikafaTshirtPreview = {
+window.DesignKitPreview = {
   async create(sideName, side) {
     const W = 1200, H = 1500;
     const canvas = document.createElement("canvas");

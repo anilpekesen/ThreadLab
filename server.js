@@ -218,7 +218,7 @@ const server = http.createServer(async (req, res) => {
 
     // App proxy
     if (method === "GET" && path === "/apps/tshirt-designer") {
-      return json(res, 200, { ok: true, app: "Bikafa Tisort Tasarim" });
+      return json(res, 200, { ok: true, app: "DesignKit" });
     }
 
     // Root → admin panel (Shopify embedded app entry point)
