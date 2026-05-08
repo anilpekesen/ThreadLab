@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AlignLeft, AlignCenter, AlignRight, Type } from 'lucide-react';
 import { GOOGLE_FONTS } from '@/types';
 
 interface Props {
@@ -29,90 +30,118 @@ export default function TextPanel({ onAddText }: Props) {
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Text input */}
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={3}
-        className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:border-blue-400 text-gray-900 placeholder-gray-400"
-        placeholder="Yazını gir..."
-      />
-
-      {/* Font selector */}
-      <div>
-        <label className="text-xs font-semibold text-gray-500 mb-1 block">Font</label>
-        <select
-          value={font}
-          onChange={(e) => setFont(e.target.value)}
-          className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:border-blue-400 text-gray-800"
-          style={{ fontFamily: font }}
-        >
-          {GOOGLE_FONTS.map((f) => (
-            <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
-          ))}
-        </select>
+    <div className="space-y-5">
+      <div className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-5">
+        <div className="mb-3 flex items-center gap-2 text-blue-600">
+          <Type className="h-5 w-5" />
+          <p className="text-[11px] font-black uppercase tracking-[0.22em]">Metin İçeriği</p>
+        </div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={4}
+          className="min-h-[132px] w-full resize-none rounded-[24px] border-2 border-transparent bg-white p-4 text-lg font-medium text-slate-900 outline-none transition-all placeholder:text-slate-300 focus:border-blue-400"
+          placeholder="Yazınızı girin..."
+        />
       </div>
 
-      {/* Size + Color */}
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <label className="text-xs font-semibold text-gray-500 mb-1 block">Boyut: {size}px</label>
-          <input
-            type="range" min={8} max={120} value={size}
-            onChange={(e) => setSize(Number(e.target.value))}
-            className="w-full"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-500 mb-1 block">Renk</label>
-          <input
-            type="color" value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="w-10 h-9 rounded-lg cursor-pointer border border-gray-200 bg-white"
-          />
-        </div>
-      </div>
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="mb-3 text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Stil</p>
 
-      {/* Style buttons */}
-      <div className="flex gap-2">
-        {[
-          { label: 'B', title: 'Kalın', active: bold, toggle: () => setBold(!bold), style: 'font-bold' },
-          { label: 'I', title: 'İtalik', active: italic, toggle: () => setItalic(!italic), style: 'italic' },
-          { label: 'U', title: 'Altı Çizili', active: underline, toggle: () => setUnderline(!underline), style: 'underline' },
-        ].map(({ label, title, active, toggle, style }) => (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-xs font-bold text-slate-500">Font</label>
+              <select
+                value={font}
+                onChange={(e) => setFont(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition-colors focus:border-blue-400"
+                style={{ fontFamily: font }}
+              >
+                {GOOGLE_FONTS.map((f) => (
+                  <option key={f} value={f} style={{ fontFamily: f }}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold text-slate-500">Boyut: {size}px</label>
+              <input type="range" min={8} max={120} value={size} onChange={(e) => setSize(Number(e.target.value))} className="w-full" />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-bold text-slate-500">Renk</label>
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                className="h-11 w-11 cursor-pointer rounded-2xl border border-slate-200 bg-white"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: 'B', title: 'Kalın', active: bold, toggle: () => setBold(!bold), className: 'font-black' },
+                { label: 'I', title: 'İtalik', active: italic, toggle: () => setItalic(!italic), className: 'italic' },
+                { label: 'U', title: 'Altı Çizili', active: underline, toggle: () => setUnderline(!underline), className: 'underline' },
+              ].map(({ label, title, active, toggle, className }) => (
+                <button
+                  key={label}
+                  onClick={toggle}
+                  title={title}
+                  className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-sm transition-colors ${className} ${active ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                >
+                  {label}
+                </button>
+              ))}
+
+              <div className="ml-auto flex gap-1 rounded-2xl bg-slate-100 p-1">
+                {[
+                  { key: 'left' as const, Icon: AlignLeft },
+                  { key: 'center' as const, Icon: AlignCenter },
+                  { key: 'right' as const, Icon: AlignRight },
+                ].map(({ key, Icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => setAlign(key)}
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${align === key ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="mb-3 text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Önizleme</p>
+          <div
+            className="flex min-h-[180px] items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 text-center break-words"
+            style={{
+              fontFamily: font,
+              fontSize: Math.min(size, 34),
+              color,
+              fontWeight: bold ? 'bold' : 'normal',
+              fontStyle: italic ? 'italic' : 'normal',
+              textDecoration: underline ? 'underline' : 'none',
+              textAlign: align,
+            }}
+          >
+            {text || '...'}
+          </div>
+
           <button
-            key={label}
-            onClick={toggle}
-            title={title}
-            className={`w-9 h-9 rounded-xl border text-sm font-bold ${style} transition-colors ${active ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-          >{label}</button>
-        ))}
-        <div className="flex gap-1 ml-auto">
-          {(['left', 'center', 'right'] as const).map((a) => (
-            <button
-              key={a}
-              onClick={() => setAlign(a)}
-              className={`w-9 h-9 rounded-xl border text-xs transition-colors ${align === a ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-            >{a === 'left' ? '⬅' : a === 'center' ? '↔' : '➡'}</button>
-          ))}
+            onClick={handleAdd}
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-[22px] bg-blue-600 px-5 py-4 text-sm font-black text-white transition-colors hover:bg-blue-700"
+          >
+            <Type className="h-4 w-4" />
+            Canvas'a Ekle
+          </button>
         </div>
       </div>
-
-      {/* Preview */}
-      <div
-        className="rounded-xl p-3 bg-gray-50 border border-gray-100 text-center min-h-[60px] flex items-center justify-center break-all"
-        style={{ fontFamily: font, fontSize: Math.min(size, 32), color, fontWeight: bold ? 'bold' : 'normal', fontStyle: italic ? 'italic' : 'normal', textDecoration: underline ? 'underline' : 'none', textAlign: align }}
-      >
-        {text || '…'}
-      </div>
-
-      <button
-        onClick={handleAdd}
-        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors shadow-sm"
-      >
-        + Canvas'a Ekle
-      </button>
     </div>
   );
 }
