@@ -2,46 +2,19 @@ import "@shopify/shopify-app-remix/adapters/node";
 import {
   ApiVersion,
   AppDistribution,
-  BillingInterval,
   shopifyApp,
 } from "@shopify/shopify-app-remix/server";
-import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
-import path from "node:path";
-
-const dbPath = path.join(
-  process.env.RAILWAY_VOLUME_MOUNT_PATH || process.cwd(),
-  "data",
-  "sessions.db"
-);
-const storage = new SQLiteSessionStorage(dbPath);
+import { MemorySessionStorage } from "@shopify/shopify-app-session-storage-memory";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY ?? "",
   apiSecretKey: process.env.SHOPIFY_API_SECRET ?? "",
   apiVersion: ApiVersion.July25,
-  scopes: process.env.SCOPES?.split(",") ?? ["write_products", "read_orders"],
+  scopes: process.env.SCOPES?.split(",") ?? ["write_products", "read_orders", "write_app_proxy"],
   appUrl: process.env.SHOPIFY_APP_URL ?? "",
   authPathPrefix: "/auth",
-  sessionStorage: storage as any,
+  sessionStorage: new MemorySessionStorage(),
   distribution: AppDistribution.AppStore,
-  billing: {
-    Starter: {
-      lineItems: [{ amount: 9.99, currencyCode: "USD", interval: BillingInterval.Every30Days }],
-      trialDays: 7,
-    },
-    Growth: {
-      lineItems: [{ amount: 19.99, currencyCode: "USD", interval: BillingInterval.Every30Days }],
-      trialDays: 7,
-    },
-    Pro: {
-      lineItems: [{ amount: 39.99, currencyCode: "USD", interval: BillingInterval.Every30Days }],
-      trialDays: 7,
-    },
-    Business: {
-      lineItems: [{ amount: 79.99, currencyCode: "USD", interval: BillingInterval.Every30Days }],
-      trialDays: 7,
-    },
-  },
 });
 
 export default shopify;
