@@ -19,7 +19,7 @@ import { authenticate } from "~/shopify.server";
 import { fetchShopifyProducts, getProductConfig } from "~/models/product-config.server";
 
 const PRODUCT_TYPE_LABELS: Record<string, string> = {
-  apparel: "Tisort / giyim",
+  apparel: "T-shirt / giyim",
   sweatshirt: "Sweatshirt / hoodie",
   bag: "Canta",
   mug: "Bardak / kupa",

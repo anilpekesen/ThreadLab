@@ -612,7 +612,7 @@ class TShirt3DViewer {
   _emitTransformChange(patch) {
     const s = this._activeSideState();
     if (s) Object.assign(s, patch);
-    this.panel.closest(".designer")?.dispatchEvent(new CustomEvent("bikafa3dTransformChanged", {
+    this.panel.closest(".designer")?.dispatchEvent(new CustomEvent("designkit3dTransformChanged", {
       bubbles: true,
       detail: { side: this._activeSide, patch },
     }));
@@ -1224,7 +1224,7 @@ function bootstrap(scope = document) {
     // Listen for design changes
     const root = panel.closest(".designer");
     if (root) {
-      root.addEventListener("bikafaDesignChanged", (e) => {
+      root.addEventListener("designkitDesignChanged", (e) => {
         viewer.updateDesign(e.detail.sides, e.detail.activeSide);
       });
     }

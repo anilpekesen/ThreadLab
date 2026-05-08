@@ -636,7 +636,7 @@ export default function ProductSettingsRoute() {
                       label="Urun tipi"
                       name="productType"
                       options={[
-                        { label: "Tisort / genel giyim", value: "apparel" },
+                        { label: "T-shirt / genel giyim", value: "apparel" },
                         { label: "Sweatshirt / hoodie", value: "sweatshirt" },
                         { label: "Bez canta", value: "bag" },
                         { label: "Kupa bardak", value: "mug" },

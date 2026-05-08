@@ -29,8 +29,35 @@ async function writeDesigns(records: DesignRecord[]) {
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  await authenticate.public.appProxy(request);
+  const appProxy = await authenticate.public.appProxy(request);
   const path = params["*"] ?? "";
+
+  if (path === "designer") {
+    const url = new URL(request.url);
+    const paramsText = url.searchParams.toString();
+    const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
+    const designerUrl = new URL("/designer-app/", appUrl);
+    designerUrl.search = paramsText;
+    const iframeSrc = designerUrl.toString().replace(/&/g, "&amp;");
+
+    return appProxy.liquid(
+      `<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#f3f4f6}
+  iframe{display:block;width:100%;height:100vh;border:0;background:#f3f4f6}
+</style>
+</head>
+<body>
+<iframe src="${iframeSrc}" allow="camera; microphone"></iframe>
+</body>
+</html>`,
+      { layout: false },
+    );
+  }
 
   if (path === "personalization") {
     const handle = new URL(request.url).searchParams.get("handle") ?? "";

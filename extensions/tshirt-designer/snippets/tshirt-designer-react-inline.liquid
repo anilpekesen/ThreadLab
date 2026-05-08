@@ -1,6 +1,6 @@
 {% assign designer_app_url = block.settings.designer_app_url | default: '' %}
 {% if designer_app_url == blank %}
-  {% assign designer_app_url = 'https://threadlab-production.up.railway.app/designer-app/' %}
+  {% assign designer_app_url = shop.url | append: '/apps/tshirt-designer/designer' %}
 {% endif %}
 
 <div

@@ -1,6 +1,6 @@
-# Shopify Tisort Tasarim Araci
+# DesignKit
 
-Bu klasor Shopify urun sayfasina gomulebilen basit bir tisort tasarim araci icerir.
+Bu klasor Shopify urun sayfasina gomulebilen DesignKit tasarim aracini icerir.
 
 ## Dosyalar
 
@@ -60,7 +60,7 @@ Bu proje artik Shopify CLI tarafindan app olarak goruluyor.
 
 App bilgisi:
 
-- App name: `Bikafa Tisort Tasarim`
+- App name: `DesignKit`
 - Client ID: `ffb70fd5e03a3532fb1e47b3a8e9a052`
 - Extension: `extensions/tshirt-designer`
 - App proxy path: `/apps/tshirt-designer`
