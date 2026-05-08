@@ -2,6 +2,7 @@ import "@shopify/shopify-app-remix/adapters/node";
 import {
   ApiVersion,
   AppDistribution,
+  BillingInterval,
   shopifyApp,
 } from "@shopify/shopify-app-remix/server";
 import { MemorySessionStorage } from "@shopify/shopify-app-session-storage-memory";
@@ -17,6 +18,24 @@ const shopify = shopifyApp({
   authPathPrefix: "/auth",
   sessionStorage: storage as any,
   distribution: AppDistribution.AppStore,
+  billing: {
+    Starter: {
+      lineItems: [{ amount: 9.99, currencyCode: "USD", interval: BillingInterval.Every30Days }],
+      trialDays: 7,
+    },
+    Growth: {
+      lineItems: [{ amount: 19.99, currencyCode: "USD", interval: BillingInterval.Every30Days }],
+      trialDays: 7,
+    },
+    Pro: {
+      lineItems: [{ amount: 39.99, currencyCode: "USD", interval: BillingInterval.Every30Days }],
+      trialDays: 7,
+    },
+    Business: {
+      lineItems: [{ amount: 79.99, currencyCode: "USD", interval: BillingInterval.Every30Days }],
+      trialDays: 7,
+    },
+  },
 });
 
 export default shopify;
