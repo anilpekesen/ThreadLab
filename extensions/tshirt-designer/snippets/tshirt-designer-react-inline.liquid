@@ -1,0 +1,128 @@
+{% assign designer_app_url = block.settings.designer_app_url | default: '' %}
+{% if designer_app_url == blank %}
+  {% assign designer_app_url = 'https://threadlab-production.up.railway.app/designer-app/' %}
+{% endif %}
+
+<div
+  class="dsgn-inline-react"
+  data-designer-inline
+  data-designer-url="{{ designer_app_url }}"
+  data-product-id="{{ product.id }}"
+  data-product-title="{{ product.title | escape }}"
+  data-product-handle="{{ product.handle }}"
+  data-front-image="{{ front_img }}"
+  data-back-image="{{ back_img }}"
+  data-shirt-color="{{ shirt_color | default: '#1C1C1E' }}"
+  data-currency="{{ shop.currency }}"
+  data-locale="{{ request.locale.iso_code | default: 'tr-TR' }}"
+  data-single-variant-id="{{ block.settings.single_variant_id }}"
+  data-double-variant-id="{{ block.settings.double_variant_id }}"
+  data-single-price="{{ block.settings.single_price }}"
+  data-double-price="{{ block.settings.double_price }}"
+  data-product-variants="{{ product.variants | json | escape }}"
+>
+  <iframe
+    class="dsgn-inline-react__frame"
+    title="Tişört Tasarım Aracı"
+    loading="lazy"
+    allow="camera; microphone"
+  ></iframe>
+</div>
+
+<style>
+  .dsgn-inline-react {
+    width: 100%;
+    min-height: 980px;
+    border: 1px solid #e5e7eb;
+    border-radius: 28px;
+    overflow: hidden;
+    background: #f3f4f6;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+  }
+
+  .dsgn-inline-react__frame {
+    display: block;
+    width: 100%;
+    min-height: 980px;
+    height: 980px;
+    border: 0;
+    background: #f3f4f6;
+  }
+
+  @media (max-width: 990px) {
+    .dsgn-inline-react,
+    .dsgn-inline-react__frame {
+      min-height: 860px;
+      height: 860px;
+      border-radius: 18px;
+    }
+  }
+</style>
+
+<script>
+  (function() {
+    var roots = document.querySelectorAll('[data-designer-inline]');
+    if (!roots.length) return;
+
+    roots.forEach(function(root) {
+      if (root.dataset.bound === '1') return;
+      root.dataset.bound = '1';
+
+      var iframe = root.querySelector('.dsgn-inline-react__frame');
+      if (!iframe) return;
+
+      var params = new URLSearchParams({
+        productId: root.dataset.productId || '',
+        handle: root.dataset.productHandle || '',
+        title: root.dataset.productTitle || '',
+        front: root.dataset.frontImage || '',
+        back: root.dataset.backImage || '',
+        color: root.dataset.shirtColor || '#1C1C1E',
+        currency: root.dataset.currency || 'TRY',
+        locale: root.dataset.locale || 'tr-TR',
+        singleVariantId: root.dataset.singleVariantId || '',
+        doubleVariantId: root.dataset.doubleVariantId || '',
+        singlePrice: root.dataset.singlePrice || '',
+        doublePrice: root.dataset.doublePrice || '',
+        variants: root.dataset.productVariants || '[]'
+      });
+
+      iframe.src = root.dataset.designerUrl + '?' + params.toString();
+    });
+
+    if (window.__dsgnInlineReactBound) return;
+    window.__dsgnInlineReactBound = true;
+
+    window.addEventListener('message', function(e) {
+      if (!e.data || !e.data.type) return;
+
+      if (e.data.type === 'DESIGNER_ADD_TO_CART') {
+        var variantId = e.data.variantId;
+        var qty = e.data.quantity || 1;
+        var props = e.data.properties || {};
+
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/cart/add';
+        form.style.display = 'none';
+
+        function addInput(name, value) {
+          var inp = document.createElement('input');
+          inp.type = 'hidden';
+          inp.name = name;
+          inp.value = value;
+          form.appendChild(inp);
+        }
+
+        addInput('id', variantId);
+        addInput('quantity', qty);
+        Object.entries(props).forEach(function(pair) {
+          addInput('properties[' + pair[0] + ']', pair[1]);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+      }
+    });
+  })();
+</script>

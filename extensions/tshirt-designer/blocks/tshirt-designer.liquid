@@ -157,14 +157,13 @@
   data-locale="{{ request.locale.iso_code | default: 'tr-TR' }}"
   {{ block.shopify_attributes }}
 >
-  {% render 'tshirt-designer-markup', model_json_url: model_json_url, initial_price: initial_price, currency: shop.currency %}
+  {% render 'tshirt-designer-react-inline', product: product, block: block, shirt_color: shirt_color, front_img: front_img, back_img: back_img %}
 </div>
 
 {% schema %}
 {
   "name": "Tisort tasarim araci",
   "target": "section",
-  "stylesheet": "designer.css",
   "enabled_on": {
     "templates": ["product"]
   },
@@ -208,6 +207,12 @@
       "id": "model_json_url",
       "label": "3D model JSON URL",
       "info": "Urun ozel GLB modeli icin base64 JSON dosya URL'si. Bos kalirsa varsayilan tisort modeli kullanilir."
+    },
+    {
+      "type": "text",
+      "id": "designer_app_url",
+      "label": "React designer URL",
+      "info": "Bos kalirsa varsayilan Railway designer uygulamasi kullanilir."
     },
 
     {
