@@ -5,6 +5,16 @@ import {
   shopifyApp,
 } from "@shopify/shopify-app-remix/server";
 import { MemorySessionStorage } from "@shopify/shopify-app-session-storage-memory";
+import { PostgreSQLSessionStorage } from "@shopify/shopify-app-session-storage-postgresql";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildSessionStorage(): any {
+  const url = process.env.DATABASE_URL;
+  if (url) {
+    return new PostgreSQLSessionStorage(new URL(url));
+  }
+  return new MemorySessionStorage();
+}
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY ?? "",
@@ -13,7 +23,7 @@ const shopify = shopifyApp({
   scopes: process.env.SCOPES?.split(",") ?? ["write_products", "read_orders", "write_app_proxy"],
   appUrl: process.env.SHOPIFY_APP_URL ?? "",
   authPathPrefix: "/auth",
-  sessionStorage: new MemorySessionStorage(),
+  sessionStorage: buildSessionStorage(),
   distribution: AppDistribution.AppStore,
 });
 
