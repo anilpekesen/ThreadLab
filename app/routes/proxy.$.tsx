@@ -9,6 +9,7 @@ import { findConfigForStorefront } from "~/models/product-config.server";
 
 const DATA_DIR = nodePath.join(process.cwd(), "data");
 const DESIGNS_FILE = nodePath.join(DATA_DIR, "designs.json");
+const DESIGNER_APP_HTML_FILE = nodePath.join(process.cwd(), "public", "designer-app", "index.html");
 
 type DesignRecord = {
   token: string;
@@ -33,30 +34,27 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const path = params["*"] ?? "";
 
   if (path === "designer") {
-    const url = new URL(request.url);
-    const paramsText = url.searchParams.toString();
-    const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
-    const designerUrl = new URL("/designer-app/", appUrl);
-    designerUrl.search = paramsText;
-    const iframeSrc = designerUrl.toString().replace(/&/g, "&amp;");
-
-    return appProxy.liquid(
-      `<!doctype html>
+    try {
+      const html = await readFile(DESIGNER_APP_HTML_FILE, "utf8");
+      return appProxy.liquid(html, { layout: false });
+    } catch {
+      return appProxy.liquid(
+        `<!doctype html>
 <html lang="tr">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <style>
-  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#f3f4f6}
-  iframe{display:block;width:100%;height:100vh;border:0;background:#f3f4f6}
+  body{margin:0;padding:24px;font:14px/1.5 system-ui,sans-serif;background:#f8fafc;color:#0f172a}
 </style>
 </head>
 <body>
-<iframe src="${iframeSrc}" allow="camera; microphone"></iframe>
+Designer uygulama çıktısı bulunamadı. \`npm run build --workspace designer-ui\` çalıştırın.
 </body>
 </html>`,
-      { layout: false },
-    );
+        { layout: false },
+      );
+    }
   }
 
   if (path === "personalization") {
