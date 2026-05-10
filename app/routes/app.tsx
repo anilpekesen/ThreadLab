@@ -12,14 +12,20 @@ import { authenticate } from "~/shopify.server";
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  console.log("[auth] request url params:", Object.fromEntries(url.searchParams.entries()));
+  console.log("[auth] SHOPIFY_API_KEY set:", !!process.env.SHOPIFY_API_KEY);
+  console.log("[auth] SHOPIFY_API_SECRET set:", !!process.env.SHOPIFY_API_SECRET);
+  console.log("[auth] SHOPIFY_APP_URL:", process.env.SHOPIFY_APP_URL);
   try {
     await authenticate.admin(request);
   } catch (e: unknown) {
     if (e instanceof Response) {
-      console.error("[auth] authenticate.admin threw Response:", e.status, await e.clone().text().catch(() => ""));
+      const body = await e.clone().text().catch(() => "");
+      console.error("[auth] authenticate.admin threw Response:", e.status, body);
       throw e;
     }
-    console.error("[auth] authenticate.admin threw:", e);
+    console.error("[auth] authenticate.admin threw error:", String(e));
     throw e;
   }
   return json({ apiKey: process.env.SHOPIFY_API_KEY ?? "" });
