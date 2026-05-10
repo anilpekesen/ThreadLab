@@ -332,6 +332,7 @@ export default function App() {
 
   const frontCanvasRef = useRef<CanvasAreaHandle>(null);
   const backCanvasRef = useRef<CanvasAreaHandle>(null);
+  const configRef = useRef(config);
 
   const [activeTab, setActiveTab] = useState<Tab>(null);
   const [selectedObj, setSelectedObj] = useState<fabric.Object | null>(null);
@@ -823,6 +824,42 @@ export default function App() {
       setSelectedColor(colorOptions[0] ?? '');
     }
   }, [colorOptions, selectedColor]);
+
+  useEffect(() => { configRef.current = config; }, [config]);
+
+  useEffect(() => {
+    if (!selectedColor) return;
+    const cfg = configRef.current;
+    if (!cfg?.variants?.length) return;
+
+    let newFront = '';
+    let newBack = '';
+
+    for (const v of cfg.variants) {
+      if (v.option1 !== selectedColor || !v.featured_image?.src) continue;
+      const opt3 = (v.option3 ?? '').toLowerCase();
+      const img = v.featured_image.src;
+      const isFront = (opt3.includes('ön') || opt3.includes('on') || opt3.includes('front')) && !opt3.includes('arka') && !opt3.includes('back');
+      const isBack = opt3.includes('arka') || opt3.includes('back');
+      const isBoth = (opt3.includes('ön') || opt3.includes('on')) && (opt3.includes('arka') || opt3.includes('back'));
+      if ((isFront || isBoth) && !newFront) newFront = img;
+      if ((isBack || isBoth) && !newBack) newBack = img;
+    }
+
+    // Eğer option3 yoksa, rengin herhangi bir variantının görselini kullan
+    if (!newFront && !newBack) {
+      const any = cfg.variants.find((v) => v.option1 === selectedColor && v.featured_image?.src);
+      if (any?.featured_image?.src) { newFront = any.featured_image.src; newBack = any.featured_image.src; }
+    }
+
+    if (!newFront && !newBack) return;
+    setConfig({
+      ...cfg,
+      frontImage: newFront || cfg.frontImage,
+      backImage: newBack || cfg.backImage,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedColor]);
 
   const baseVariantForSize = useCallback((size: string) => {
     const allVariants = (config?.variants ?? [])
