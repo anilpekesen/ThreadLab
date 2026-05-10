@@ -59,6 +59,38 @@ const MAIN_TABS: { id: 'image' | 'text' | 'layers'; label: string; Icon: React.F
 const TOOLBAR_FONTS = ['Inter', 'Roboto', 'Arial', 'Montserrat', 'Playfair Display', 'Oswald'];
 const CANVAS_W = 300;
 const CANVAS_H = 380;
+const COLOR_HEX_MAP: Record<string, string> = {
+  beyaz: '#ffffff',
+  white: '#ffffff',
+  siyah: '#111111',
+  black: '#111111',
+  lacivert: '#1e3a5f',
+  navy: '#1e3a5f',
+  mavi: '#2563eb',
+  blue: '#2563eb',
+  kirmizi: '#dc2626',
+  kırmızı: '#dc2626',
+  red: '#dc2626',
+  yesil: '#16a34a',
+  yeşil: '#16a34a',
+  green: '#16a34a',
+  sari: '#f59e0b',
+  sarı: '#f59e0b',
+  yellow: '#f59e0b',
+  gri: '#6b7280',
+  gray: '#6b7280',
+  grey: '#6b7280',
+  bordo: '#7f1d1d',
+  burgundy: '#7f1d1d',
+  pembe: '#ec4899',
+  pink: '#ec4899',
+  mor: '#7c3aed',
+  purple: '#7c3aed',
+  turuncu: '#f97316',
+  orange: '#f97316',
+  bej: '#d6b889',
+  beige: '#d6b889',
+};
 
 interface SideMetrics {
   widthCm: number;
@@ -277,6 +309,14 @@ function summarizeSidePricing(sideLabel: string, pricing: SidePricing) {
   return `${sideLabel}: ${formatMetricSize(pricing.metrics)} · ${pricing.band.label}`;
 }
 
+function normalizeColorKey(value: string) {
+  return value.toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+}
+
+function colorHexForLabel(value: string) {
+  return COLOR_HEX_MAP[normalizeColorKey(value)] ?? '#d1d5db';
+}
+
 function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(' ');
 }
@@ -310,6 +350,7 @@ export default function App() {
   const [draggedLayerIndex, setDraggedLayerIndex] = useState<number | null>(null);
   const [personalization, setPersonalization] = useState<PersonalizationConfig>(defaultPersonalization);
   const [canvasRevisions, setCanvasRevisions] = useState({ front: 0, back: 0 });
+  const [selectedColor, setSelectedColor] = useState('');
 
   const getActiveCanvasHandle = useCallback(() => (
     activeSide === 'front' ? frontCanvasRef.current : backCanvasRef.current
@@ -385,6 +426,11 @@ export default function App() {
       setActiveSide('front');
     }
   }, [activeSide, personalization.surfaceMode, setActiveSide]);
+
+  useEffect(() => {
+    const firstColor = config?.variants?.find((variant) => variant.option1)?.option1 ?? '';
+    if (firstColor && !selectedColor) setSelectedColor(firstColor);
+  }, [config?.variants, selectedColor]);
 
   useEffect(() => {
     syncLayers();
@@ -766,12 +812,28 @@ export default function App() {
     [config?.variants],
   );
 
+  const colorOptions = useMemo(
+    () => [...new Set(config?.variants?.map((v) => v.option1).filter(Boolean) ?? [])],
+    [config?.variants],
+  );
+
+  useEffect(() => {
+    if (!colorOptions.length) return;
+    if (!selectedColor || !colorOptions.includes(selectedColor)) {
+      setSelectedColor(colorOptions[0] ?? '');
+    }
+  }, [colorOptions, selectedColor]);
+
   const baseVariantForSize = useCallback((size: string) => {
-    const variants = (config?.variants ?? [])
+    const allVariants = (config?.variants ?? [])
       .filter((variant) => variant.option2 === size)
       .sort((a, b) => priceToCents(a.price) - priceToCents(b.price));
-    return variants[0] ?? null;
-  }, [config?.variants]);
+    const variants = selectedColor
+      ? allVariants.filter((variant) => variant.option1 === selectedColor)
+      : allVariants;
+    const pool = variants.length ? variants : allVariants;
+    return pool[0] ?? null;
+  }, [config?.variants, selectedColor]);
 
   const baseUnitPrice = useMemo(() => {
     const firstSize = sizes[0];
@@ -853,8 +915,8 @@ export default function App() {
   const reversedLayers = [...layers].reverse();
 
   return (
-    <div className="flex h-full items-stretch justify-center bg-[#f3f4f6] p-0 text-gray-900 sm:p-4">
-      <div className="flex h-full min-h-0 w-full max-w-[1160px] flex-1 flex-col overflow-hidden bg-white shadow-none sm:max-h-[900px] sm:flex-none sm:flex-row sm:rounded-[28px] sm:shadow-[0_24px_70px_rgba(15,23,42,0.14)]">
+    <div className="flex h-full min-h-screen items-stretch justify-center bg-[#eef2f7] p-0 text-gray-900 lg:p-4">
+      <div className="flex h-full min-h-0 w-full max-w-none flex-1 flex-col overflow-hidden bg-white shadow-none lg:min-h-[calc(100vh-2rem)] lg:flex-row lg:rounded-[30px] lg:shadow-[0_24px_70px_rgba(15,23,42,0.14)]">
         <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center justify-between border-b border-gray-100 bg-white px-3 py-2.5 md:px-4 md:py-3">
           <div className="flex items-center gap-2">
@@ -883,7 +945,7 @@ export default function App() {
             </div>
             <button
               onClick={handlePreview}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700 sm:hidden"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700 lg:hidden"
             >
               <Eye className="h-3.5 w-3.5 md:h-4 md:w-4" />
               <span>Önizleme</span>
@@ -915,7 +977,7 @@ export default function App() {
           </div>
 
           <div
-            className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 md:p-8"
+            className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 md:p-8 xl:p-12"
             onMouseMove={handleSceneMouseMove}
             onMouseUp={handleSceneMouseUp}
             onMouseLeave={handleSceneMouseUp}
@@ -1391,7 +1453,7 @@ export default function App() {
           )}
         </div>
 
-        <footer className="border-t border-gray-100 bg-white px-4 py-3 sm:hidden">
+        <footer className="border-t border-gray-100 bg-white px-4 py-4 lg:hidden">
           <div className="space-y-3">
             <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
               <div className="flex items-start justify-between gap-3">
@@ -1407,8 +1469,36 @@ export default function App() {
               <p className="mt-2 text-xs font-medium leading-relaxed text-gray-600">{pricingNarrative}</p>
             </div>
 
+            {colorOptions.length > 0 && (
+              <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Renk Varyantları</p>
+                  {selectedColor && <span className="text-xs font-bold text-gray-600">{selectedColor}</span>}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {colorOptions.map((color) => (
+                    <button
+                      key={color!}
+                      type="button"
+                      onClick={() => setSelectedColor(color!)}
+                      className={cn(
+                        'inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition-colors',
+                        selectedColor === color ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100',
+                      )}
+                    >
+                      <span
+                        className="h-3.5 w-3.5 rounded-full border border-black/10"
+                        style={{ backgroundColor: colorHexForLabel(color!) }}
+                      />
+                      {color}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {sizes.length > 0 && (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                 {sizes.map((size) => {
                   const qty = sizeQuantities[size!] ?? 0;
                   return (
@@ -1474,15 +1564,43 @@ export default function App() {
         </div>
 
         {/* RIGHT: Commerce sidebar — desktop only */}
-        <div className="hidden sm:flex sm:w-[360px] sm:flex-none sm:flex-col sm:border-l sm:border-gray-100 sm:bg-white">
+        <div className="hidden lg:flex lg:w-[420px] lg:flex-none lg:flex-col lg:border-l lg:border-gray-100 lg:bg-white">
           {config?.productTitle && (
             <div className="border-b border-gray-100 px-5 py-4">
               <h2 className="text-sm font-bold leading-snug text-gray-900">{config.productTitle}</h2>
             </div>
           )}
 
+          {colorOptions.length > 0 && (
+            <div className="order-1 border-b border-gray-100 px-5 py-5">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Renk Varyantları</p>
+                {selectedColor && <span className="text-xs font-bold text-gray-600">{selectedColor}</span>}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {colorOptions.map((color) => (
+                  <button
+                    key={color!}
+                    type="button"
+                    onClick={() => setSelectedColor(color!)}
+                    className={cn(
+                      'inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition-colors',
+                      selectedColor === color ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100',
+                    )}
+                  >
+                    <span
+                      className="h-3.5 w-3.5 rounded-full border border-black/10"
+                      style={{ backgroundColor: colorHexForLabel(color!) }}
+                    />
+                    {color}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {sizes.length > 0 ? (
-            <div className="order-2 border-b border-gray-100 px-5 py-5">
+            <div className="order-3 border-b border-gray-100 px-5 py-5">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Bedenler</p>
                 <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-500">{totalQuantity} adet</span>
@@ -1518,10 +1636,10 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="order-2 border-b border-gray-100" />
+            <div className="order-3 border-b border-gray-100" />
           )}
 
-          <div className="order-1 border-b border-gray-100 px-5 py-5">
+          <div className="order-2 border-b border-gray-100 px-5 py-5">
             <div className="rounded-[28px] border border-sky-100 bg-sky-50/70 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1567,7 +1685,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="order-3 border-b border-gray-100 px-5 py-3">
+          <div className="order-4 border-b border-gray-100 px-5 py-3">
             <button
               onClick={handlePreview}
               className="mb-1.5 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
@@ -1599,7 +1717,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="order-4 px-5 py-5">
+          <div className="order-5 px-5 py-5">
             <button
               onClick={handleAddToCart}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-blue-700 disabled:opacity-50"
