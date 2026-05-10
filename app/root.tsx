@@ -35,7 +35,21 @@ export default function App() {
 }
 
 export function ErrorBoundary() {
-  return boundary.error(useRouteError());
+  const error = useRouteError();
+  // boundary.error renders [object Object] when data is not a string — wrap in full page
+  return (
+    <html>
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <Links />
+      </head>
+      <body>
+        {boundary.error(error)}
+        <Scripts />
+      </body>
+    </html>
+  );
 }
 
 export const headers = boundary.headers;
