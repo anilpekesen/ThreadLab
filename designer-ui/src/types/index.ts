@@ -1,5 +1,6 @@
 export type Side = 'front' | 'back';
 export type LeftTab = 'image' | 'text' | 'templates' | 'saved';
+export type SurfaceMode = 'front_back' | 'front_only';
 
 export interface ShopifyVariant {
   id: number;
@@ -26,6 +27,31 @@ export interface DesignerConfig {
   doubleVariantId: string;
   singlePrice: number;
   doublePrice: number;
+}
+
+export interface PricingBand {
+  key: string;
+  maxWidthCm: number | null;
+  maxHeightCm: number | null;
+  maxAreaCm2: number | null;
+  label: string;
+  surcharge: number;
+}
+
+export interface PrintAreaConfig {
+  side: Side;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  realWidthMm: number;
+  realHeightMm: number;
+}
+
+export interface PersonalizationConfig {
+  surfaceMode: SurfaceMode;
+  printAreas: Record<Side, PrintAreaConfig>;
+  pricingBands: Record<Side, PricingBand[]>;
 }
 
 export interface UploadedImage {

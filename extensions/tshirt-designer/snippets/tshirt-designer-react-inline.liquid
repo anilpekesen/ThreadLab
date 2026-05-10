@@ -1,6 +1,6 @@
-{% assign designer_app_url = 'https://threadlab-production.up.railway.app/designer-app/' %}
+{% assign designer_app_url = '/apps/tshirt-designer/designer' %}
 {% assign configured_designer_url = block.settings.designer_app_url | default: '' | strip %}
-{% if configured_designer_url contains '/designer-app' %}
+{% if configured_designer_url contains '/designer-app' or configured_designer_url contains '/apps/tshirt-designer/designer' %}
   {% assign designer_app_url = configured_designer_url %}
 {% endif %}
 
@@ -94,7 +94,7 @@
       var iframe = root.querySelector('.dsgn-inline-react__frame');
       if (!iframe) return;
 
-      var baseUrl = root.dataset.designerUrl || 'https://threadlab-production.up.railway.app/designer-app/';
+      var baseUrl = root.dataset.designerUrl || '/apps/tshirt-designer/designer';
       iframe.src = baseUrl;
       iframe.addEventListener('load', function() {
         sendDesignerConfig(iframe, root);
@@ -109,31 +109,42 @@
       if (!e.data || !e.data.type) return;
 
       if (e.data.type === 'DESIGNER_ADD_TO_CART') {
-        var variantId = e.data.variantId;
-        var qty = e.data.quantity || 1;
+        var items = Array.isArray(e.data.items) ? e.data.items : [];
         var props = e.data.properties || {};
-
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/cart/add';
-        form.style.display = 'none';
-
-        function addInput(name, value) {
-          var inp = document.createElement('input');
-          inp.type = 'hidden';
-          inp.name = name;
-          inp.value = value;
-          form.appendChild(inp);
+        if (!items.length && e.data.variantId) {
+          items = [{
+            variantId: e.data.variantId,
+            quantity: e.data.quantity || 1
+          }];
         }
+        if (!items.length) return;
 
-        addInput('id', variantId);
-        addInput('quantity', qty);
-        Object.entries(props).forEach(function(pair) {
-          addInput('properties[' + pair[0] + ']', pair[1]);
-        });
-
-        document.body.appendChild(form);
-        form.submit();
+        fetch('/cart/add.js', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            items: items.map(function(item) {
+              return {
+                id: item.variantId,
+                quantity: item.quantity || 1,
+                properties: Object.assign({}, props, item.size ? { 'Beden': item.size } : {})
+              };
+            })
+          })
+        })
+          .then(function(res) {
+            if (!res.ok) throw new Error('cart_add_failed');
+            return res.json();
+          })
+          .then(function() {
+            window.location.href = '/cart';
+          })
+          .catch(function() {
+            window.alert('Ürün sepete eklenemedi. Lütfen tekrar deneyin.');
+          });
       }
     });
   })();

@@ -33,7 +33,7 @@ import ImagePanel from '@/components/panels/ImagePanel';
 import TextPanel from '@/components/panels/TextPanel';
 import TemplatesPanel, { type Template } from '@/components/panels/TemplatesPanel';
 import SavedPanel from '@/components/panels/SavedPanel';
-import type { DesignerConfig, SavedDesign } from '@/types';
+import type { DesignerConfig, PersonalizationConfig, PricingBand, PrintAreaConfig, SavedDesign, Side, SurfaceMode } from '@/types';
 import { generateId } from '@/utils/compress';
 
 type Tab = 'image' | 'text' | 'layers' | 'templates' | 'saved' | null;
@@ -57,6 +57,70 @@ const MAIN_TABS: { id: 'image' | 'text' | 'layers'; label: string; Icon: React.F
 ];
 
 const TOOLBAR_FONTS = ['Inter', 'Roboto', 'Arial', 'Montserrat', 'Playfair Display', 'Oswald'];
+const CANVAS_W = 300;
+const CANVAS_H = 380;
+
+interface SideMetrics {
+  widthCm: number;
+  heightCm: number;
+  areaCm2: number;
+  objectCount: number;
+}
+
+interface SidePricing {
+  hasContent: boolean;
+  metrics: SideMetrics;
+  band: PricingBand;
+  surcharge: number;
+  subtotal: number;
+}
+
+interface PricingSummary {
+  totalQuantity: number;
+  baseUnitPrice: number;
+  baseSubtotal: number;
+  total: number;
+  front: SidePricing;
+  back: SidePricing;
+}
+
+const DEFAULT_PRINT_AREAS: Record<Side, PrintAreaConfig> = {
+  front: {
+    side: 'front',
+    x: 139,
+    y: 157,
+    width: 202,
+    height: 325,
+    realWidthMm: 280,
+    realHeightMm: 450,
+  },
+  back: {
+    side: 'back',
+    x: 139,
+    y: 157,
+    width: 202,
+    height: 325,
+    realWidthMm: 280,
+    realHeightMm: 450,
+  },
+};
+
+const DEFAULT_PRICING_BANDS: PricingBand[] = [
+  { key: '10x15', maxWidthCm: 10, maxHeightCm: 15, maxAreaCm2: 150, label: '10 x 15 cm', surcharge: 60 },
+  { key: '21x29', maxWidthCm: 21, maxHeightCm: 29, maxAreaCm2: 609, label: '21 x 29 cm', surcharge: 120 },
+  { key: '29x42', maxWidthCm: 29, maxHeightCm: 42, maxAreaCm2: 1218, label: '29 x 42 cm', surcharge: 180 },
+];
+
+function defaultPersonalization(): PersonalizationConfig {
+  return {
+    surfaceMode: 'front_back',
+    printAreas: DEFAULT_PRINT_AREAS,
+    pricingBands: {
+      front: DEFAULT_PRICING_BANDS,
+      back: DEFAULT_PRICING_BANDS,
+    },
+  };
+}
 
 function readConfig(): DesignerConfig {
   const w = window as typeof window & { __DESIGNER_CONFIG__?: DesignerConfig };
@@ -92,9 +156,125 @@ function priceToCents(price: string | number | undefined): number {
   return Math.round(Number(price) * 100);
 }
 
-function printOptionForSide(side: 'front' | 'back' | 'double') {
-  if (side === 'double') return 'Ön + Arka Baskı';
-  return side === 'back' ? 'Arka Baskı' : 'Ön Baskı';
+function roundMetric(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function formatMetricSize(metrics: SideMetrics) {
+  return `${roundMetric(metrics.widthCm)} x ${roundMetric(metrics.heightCm)} cm`;
+}
+
+function emptyBand(): PricingBand {
+  return {
+    key: 'empty',
+    maxWidthCm: null,
+    maxHeightCm: null,
+    maxAreaCm2: null,
+    label: 'Alan yok',
+    surcharge: 0,
+  };
+}
+
+function normalizeBand(band: Partial<PricingBand> | null | undefined, index: number): PricingBand {
+  const maxWidthCm = band?.maxWidthCm == null ? null : Number(band.maxWidthCm);
+  const maxHeightCm = band?.maxHeightCm == null ? null : Number(band.maxHeightCm);
+  const maxAreaCm2 = band?.maxAreaCm2 == null
+    ? (maxWidthCm != null && maxHeightCm != null ? maxWidthCm * maxHeightCm : null)
+    : Number(band.maxAreaCm2);
+  return {
+    key: String(band?.key || `${maxWidthCm ?? 'max'}x${maxHeightCm ?? 'max'}-${index}`),
+    maxWidthCm,
+    maxHeightCm,
+    maxAreaCm2,
+    label: String(band?.label || `${maxWidthCm ?? '?'} x ${maxHeightCm ?? '?'}`),
+    surcharge: Number(band?.surcharge || 0),
+  };
+}
+
+function normalizePrintArea(side: Side, area: Partial<PrintAreaConfig> | null | undefined): PrintAreaConfig {
+  const fallback = DEFAULT_PRINT_AREAS[side];
+  return {
+    side,
+    x: Number(area?.x ?? fallback.x),
+    y: Number(area?.y ?? fallback.y),
+    width: Number(area?.width ?? fallback.width),
+    height: Number(area?.height ?? fallback.height),
+    realWidthMm: Number(area?.realWidthMm ?? fallback.realWidthMm),
+    realHeightMm: Number(area?.realHeightMm ?? fallback.realHeightMm),
+  };
+}
+
+function normalizePersonalizationPayload(payload: unknown): PersonalizationConfig {
+  const source = payload as {
+    settings?: { surfaceMode?: SurfaceMode; pricingBands?: Record<Side, PricingBand[]> };
+    printAreas?: PrintAreaConfig[];
+    product?: { surfaceMode?: SurfaceMode };
+  } | null;
+  const base = defaultPersonalization();
+  const surfaceMode = source?.settings?.surfaceMode || source?.product?.surfaceMode || base.surfaceMode;
+  const areaMap = new Map<Side, PrintAreaConfig>();
+  (source?.printAreas ?? []).forEach((area) => {
+    if (!area?.side) return;
+    areaMap.set(area.side, normalizePrintArea(area.side, area));
+  });
+  const pricingBands = {
+    front: (source?.settings?.pricingBands?.front ?? base.pricingBands.front).map((band, index) => normalizeBand(band, index)),
+    back: (source?.settings?.pricingBands?.back ?? base.pricingBands.back).map((band, index) => normalizeBand(band, index)),
+  };
+  return {
+    surfaceMode,
+    printAreas: {
+      front: areaMap.get('front') ?? base.printAreas.front,
+      back: areaMap.get('back') ?? base.printAreas.back,
+    },
+    pricingBands,
+  };
+}
+
+function canvasRectForArea(area: PrintAreaConfig) {
+  return {
+    left: (area.x / 480) * CANVAS_W,
+    top: (area.y / 580) * CANVAS_H,
+    width: (area.width / 480) * CANVAS_W,
+    height: (area.height / 580) * CANVAS_H,
+  };
+}
+
+function metricsFromObjects(objects: fabric.Object[], area: PrintAreaConfig): SideMetrics {
+  const bounds = objects
+    .map((obj) => obj.getBoundingRect(true, true))
+    .filter((rect) => rect.width > 0 && rect.height > 0);
+  if (!bounds.length) return { widthCm: 0, heightCm: 0, areaCm2: 0, objectCount: 0 };
+
+  const left = Math.min(...bounds.map((rect) => rect.left));
+  const top = Math.min(...bounds.map((rect) => rect.top));
+  const right = Math.max(...bounds.map((rect) => rect.left + rect.width));
+  const bottom = Math.max(...bounds.map((rect) => rect.top + rect.height));
+  const unionWidth = right - left;
+  const unionHeight = bottom - top;
+  const areaRect = canvasRectForArea(area);
+  const widthCm = unionWidth * ((area.realWidthMm / 10) / Math.max(areaRect.width, 1));
+  const heightCm = unionHeight * ((area.realHeightMm / 10) / Math.max(areaRect.height, 1));
+  return {
+    widthCm: roundMetric(widthCm),
+    heightCm: roundMetric(heightCm),
+    areaCm2: roundMetric(widthCm * heightCm),
+    objectCount: objects.length,
+  };
+}
+
+function pricingBandForMetrics(bands: PricingBand[], metrics: SideMetrics): PricingBand {
+  for (const band of bands) {
+    const hasDimensions = band.maxWidthCm != null && band.maxHeightCm != null;
+    if (hasDimensions && metrics.widthCm <= Number(band.maxWidthCm) && metrics.heightCm <= Number(band.maxHeightCm)) return band;
+    if (!hasDimensions && (band.maxAreaCm2 == null || metrics.areaCm2 <= Number(band.maxAreaCm2))) return band;
+  }
+  return bands[bands.length - 1] ?? emptyBand();
+}
+
+function summarizeSidePricing(sideLabel: string, pricing: SidePricing) {
+  if (!pricing.hasContent) return `${sideLabel}: tasarım yok`;
+  return `${sideLabel}: ${formatMetricSize(pricing.metrics)} · ${pricing.band.label}`;
 }
 
 function cn(...classes: (string | false | null | undefined)[]) {
@@ -106,7 +286,7 @@ export default function App() {
     config, setConfig,
     activeSide, setActiveSide,
     sizeQuantities, setSizeQuantity,
-    addSavedDesign, printSide, setPrintSide,
+    addSavedDesign,
     setIsBgRemoving,
   } = useDesignerStore();
 
@@ -128,6 +308,8 @@ export default function App() {
   const [textDraft, setTextDraft] = useState('');
   const [isEditingText, setIsEditingText] = useState(false);
   const [draggedLayerIndex, setDraggedLayerIndex] = useState<number | null>(null);
+  const [personalization, setPersonalization] = useState<PersonalizationConfig>(defaultPersonalization);
+  const [canvasRevisions, setCanvasRevisions] = useState({ front: 0, back: 0 });
 
   const getActiveCanvasHandle = useCallback(() => (
     activeSide === 'front' ? frontCanvasRef.current : backCanvasRef.current
@@ -177,6 +359,34 @@ export default function App() {
   }, [setConfig]);
 
   useEffect(() => {
+    if (!config?.productHandle) {
+      setPersonalization(defaultPersonalization());
+      return;
+    }
+    let cancelled = false;
+    fetch(`/apps/tshirt-designer/personalization?handle=${encodeURIComponent(config.productHandle)}`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (cancelled) return;
+        setPersonalization(payload ? normalizePersonalizationPayload(payload) : defaultPersonalization());
+      })
+      .catch(() => {
+        if (!cancelled) setPersonalization(defaultPersonalization());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [config?.productHandle]);
+
+  useEffect(() => {
+    if (personalization.surfaceMode === 'front_only' && activeSide !== 'front') {
+      setActiveSide('front');
+    }
+  }, [activeSide, personalization.surfaceMode, setActiveSide]);
+
+  useEffect(() => {
     syncLayers();
   }, [activeSide, syncLayers]);
 
@@ -186,6 +396,11 @@ export default function App() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [selectedObj, updateToolbarPosition]);
+
+  const handleDesignChange = useCallback((side: Side) => {
+    setCanvasRevisions((prev) => ({ ...prev, [side]: prev[side] + 1 }));
+    if (side === activeSide) syncLayers();
+  }, [activeSide, syncLayers]);
 
   const handleObjectSelected = useCallback((obj: fabric.Object | null) => {
     setSelectedObj(obj);
@@ -316,14 +531,12 @@ export default function App() {
     const frontHas = Boolean(frontCanvasRef.current?.canvas?.getObjects().length);
     const backHas = Boolean(backCanvasRef.current?.canvas?.getObjects().length);
     const resolvedSide = frontHas && backHas ? 'double' : backHas ? 'back' : 'front';
-    const printOption = printOptionForSide(resolvedSide);
+    const selectedSizes = sizes.filter((size) => (sizeQuantities[size!] ?? 0) > 0);
 
-    const cartItems = sizes
-      .filter((size) => (sizeQuantities[size!] ?? 0) > 0)
+    const cartItems = selectedSizes
       .map((size) => {
-        const variant = config?.variants?.find((v) => v.option2 === size && v.option3 === printOption);
-        const variantId = variant?.id ?? (resolvedSide === 'double' ? config?.doubleVariantId : config?.singleVariantId) ?? '';
-        return { variantId, quantity: sizeQuantities[size!] ?? 0 };
+        const variantId = baseVariantForSize(size!)?.id ?? config?.singleVariantId ?? config?.doubleVariantId ?? '';
+        return { variantId, quantity: sizeQuantities[size!] ?? 0, size };
       })
       .filter((item) => item.variantId);
 
@@ -349,9 +562,23 @@ export default function App() {
     const properties: Record<string, string> = {
       'Ön Tasarım': frontPng ? 'Var' : 'Yok',
       design_token: token,
+      'Toplam adet': String(totalQuantity),
+      'Tişört birim fiyatı': formatMoney(pricingSummary.baseUnitPrice),
+      'Tişört ara toplamı': formatMoney(pricingSummary.baseSubtotal),
+      'Toplam fiyat': formatMoney(pricingSummary.total),
       'Ön önizleme': frontPng.slice(0, 200),
     };
     if (resolvedSide !== 'front') properties['Arka Tasarım'] = backPng ? 'Var' : 'Yok';
+    if (pricingSummary.front.hasContent) {
+      properties['Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
+      properties['Ön alan fiyatı'] = formatMoney(pricingSummary.front.surcharge);
+      properties['Ön fiyat bandı'] = pricingSummary.front.band.label;
+    }
+    if (pricingSummary.back.hasContent) {
+      properties['Arka ölçü'] = formatMetricSize(pricingSummary.back.metrics);
+      properties['Arka alan fiyatı'] = formatMoney(pricingSummary.back.surcharge);
+      properties['Arka fiyat bandı'] = pricingSummary.back.band.label;
+    }
 
     window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token }, '*');
   };
@@ -509,40 +736,119 @@ export default function App() {
     setDraggedLayerIndex(null);
   };
 
-  const frontHasDesign = Boolean(frontCanvasRef.current?.canvas?.getObjects().length);
-  const backHasDesign = Boolean(backCanvasRef.current?.canvas?.getObjects().length);
-  const resolvedSide = frontHasDesign && backHasDesign ? 'double' : backHasDesign ? 'back' : printSide === 'double' ? 'front' : activeSide;
+  const surfaceMode = personalization.surfaceMode;
+  const availableSides = surfaceMode === 'front_only' ? (['front'] as const) : (['front', 'back'] as const);
+
+  const frontObjects = useMemo(
+    () => frontCanvasRef.current?.canvas?.getObjects() ?? [],
+    [canvasRevisions.front],
+  );
+  const backObjects = useMemo(
+    () => backCanvasRef.current?.canvas?.getObjects() ?? [],
+    [canvasRevisions.back],
+  );
+
+  const frontMetrics = useMemo(
+    () => metricsFromObjects(frontObjects, personalization.printAreas.front),
+    [frontObjects, personalization.printAreas.front],
+  );
+  const backMetrics = useMemo(
+    () => metricsFromObjects(backObjects, personalization.printAreas.back),
+    [backObjects, personalization.printAreas.back],
+  );
+
+  const frontHasDesign = frontMetrics.objectCount > 0;
+  const backHasDesign = surfaceMode === 'front_only' ? false : backMetrics.objectCount > 0;
+  const resolvedSide = frontHasDesign && backHasDesign ? 'double' : backHasDesign ? 'back' : frontHasDesign ? 'front' : activeSide;
 
   const sizes = useMemo(
     () => [...new Set(config?.variants?.map((v) => v.option2).filter(Boolean) ?? [])],
     [config?.variants],
   );
 
+  const baseVariantForSize = useCallback((size: string) => {
+    const variants = (config?.variants ?? [])
+      .filter((variant) => variant.option2 === size)
+      .sort((a, b) => priceToCents(a.price) - priceToCents(b.price));
+    return variants[0] ?? null;
+  }, [config?.variants]);
+
+  const baseUnitPrice = useMemo(() => {
+    const firstSize = sizes[0];
+    const baseVariant = firstSize ? baseVariantForSize(firstSize) : null;
+    const fallback = priceToCents(config?.singlePrice ?? 0) || priceToCents(config?.doublePrice ?? 0);
+    return baseVariant ? priceToCents(baseVariant.price) : fallback;
+  }, [baseVariantForSize, config?.doublePrice, config?.singlePrice, sizes]);
+
   const totalQuantity = useMemo(
     () => Object.values(sizeQuantities).reduce((sum, q) => sum + q, 0),
     [sizeQuantities],
   );
 
-  const totalPrice = useMemo(() => {
-    const printOption = printOptionForSide(resolvedSide);
+  const baseSubtotal = useMemo(() => {
     return sizes.reduce((sum, size) => {
       const qty = sizeQuantities[size!] ?? 0;
       if (qty === 0) return sum;
-      const variant = config?.variants?.find((v) => v.option2 === size && v.option3 === printOption);
-      const unitPrice = variant
-        ? priceToCents(variant.price)
-        : (resolvedSide === 'double' ? config?.doublePrice : config?.singlePrice) ?? 0;
-      return sum + (unitPrice as number) * qty;
+      const variant = baseVariantForSize(size!);
+      const unitPrice = variant ? priceToCents(variant.price) : baseUnitPrice;
+      return sum + unitPrice * qty;
     }, 0);
-  }, [sizes, sizeQuantities, resolvedSide, config]);
+  }, [baseUnitPrice, baseVariantForSize, sizeQuantities, sizes]);
 
-  const formattedPrice = totalPrice > 0
-    ? new Intl.NumberFormat(config?.locale ?? 'tr-TR', {
-        style: 'currency',
-        currency: config?.currency ?? 'TRY',
-        maximumFractionDigits: 0,
-      }).format(totalPrice / 100)
+  const pricingSummary = useMemo<PricingSummary>(() => {
+    const frontBand = pricingBandForMetrics(personalization.pricingBands.front, frontMetrics);
+    const backBand = pricingBandForMetrics(personalization.pricingBands.back, backMetrics);
+    const frontSurcharge = frontHasDesign ? frontBand.surcharge : 0;
+    const backSurcharge = backHasDesign ? backBand.surcharge : 0;
+    return {
+      totalQuantity,
+      baseUnitPrice,
+      baseSubtotal,
+      total: baseSubtotal + (frontSurcharge + backSurcharge) * totalQuantity,
+      front: {
+        hasContent: frontHasDesign,
+        metrics: frontMetrics,
+        band: frontBand,
+        surcharge: frontSurcharge,
+        subtotal: frontSurcharge * totalQuantity,
+      },
+      back: {
+        hasContent: backHasDesign,
+        metrics: backMetrics,
+        band: backBand,
+        surcharge: backSurcharge,
+        subtotal: backSurcharge * totalQuantity,
+      },
+    };
+  }, [
+    backHasDesign,
+    backMetrics,
+    baseSubtotal,
+    baseUnitPrice,
+    frontHasDesign,
+    frontMetrics,
+    personalization.pricingBands.back,
+    personalization.pricingBands.front,
+    totalQuantity,
+  ]);
+
+  const formatMoney = useCallback((amountInCents: number) => (
+    new Intl.NumberFormat(config?.locale ?? 'tr-TR', {
+      style: 'currency',
+      currency: config?.currency ?? 'TRY',
+      maximumFractionDigits: 0,
+    }).format(amountInCents / 100)
+  ), [config?.currency, config?.locale]);
+
+  const formattedPrice = pricingSummary.total > 0
+    ? formatMoney(pricingSummary.total)
     : '';
+
+  const activePrintArea = personalization.printAreas[activeSide];
+  const activeAreaSummary = `${Math.round(activePrintArea.realWidthMm / 10)} x ${Math.round(activePrintArea.realHeightMm / 10)} cm`;
+  const pricingNarrative = surfaceMode === 'front_only'
+    ? summarizeSidePricing('Ön', pricingSummary.front)
+    : `${summarizeSidePricing('Ön', pricingSummary.front)} | ${summarizeSidePricing('Arka', pricingSummary.back)}`;
 
   const reversedLayers = [...layers].reverse();
 
@@ -625,21 +931,43 @@ export default function App() {
             >
               <div className="relative rounded-3xl bg-white/40 p-2 shadow-inner backdrop-blur-sm md:p-4">
                 <div className={activeSide === 'front' ? 'block' : 'hidden'}>
-                  <CanvasArea ref={frontCanvasRef} side="front" zoom={zoom} onObjectSelected={handleObjectSelected} />
+                  <CanvasArea
+                    ref={frontCanvasRef}
+                    side="front"
+                    zoom={zoom}
+                    printArea={personalization.printAreas.front}
+                    onObjectSelected={handleObjectSelected}
+                    onDesignChange={handleDesignChange}
+                  />
                 </div>
-                <div className={activeSide === 'back' ? 'block' : 'hidden'}>
-                  <CanvasArea ref={backCanvasRef} side="back" zoom={zoom} onObjectSelected={handleObjectSelected} />
+                {surfaceMode !== 'front_only' && (
+                  <div className={activeSide === 'back' ? 'block' : 'hidden'}>
+                    <CanvasArea
+                      ref={backCanvasRef}
+                      side="back"
+                      zoom={zoom}
+                      printArea={personalization.printAreas.back}
+                      onObjectSelected={handleObjectSelected}
+                      onDesignChange={handleDesignChange}
+                    />
+                  </div>
+                )}
+
+                <div className="absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">Tasarım Alanı</p>
+                  <p className="mt-1 text-sm font-bold text-gray-900">{activeAreaSummary}</p>
                 </div>
 
                 <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 gap-2 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
-                  {([
-                    { side: 'front' as const, label: 'Ön', image: config?.frontImage, hasDesign: frontHasDesign },
-                    { side: 'back' as const, label: 'Arka', image: config?.backImage, hasDesign: backHasDesign },
-                  ]).map(({ side, label, image, hasDesign }) => (
+                  {availableSides.map((side) => {
+                    const label = side === 'front' ? 'Ön' : 'Arka';
+                    const image = side === 'front' ? config?.frontImage : config?.backImage;
+                    const hasDesign = side === 'front' ? frontHasDesign : backHasDesign;
+                    return (
                     <div key={side} className="flex flex-col items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setActiveSide(side)}
+                      <button
+                        type="button"
+                        onClick={() => setActiveSide(side)}
                         className={cn(
                           'h-20 w-16 overflow-hidden rounded-lg border-2 p-0.5 transition-all',
                           activeSide === side ? 'scale-105 border-blue-500 shadow-md' : 'border-transparent opacity-60 hover:opacity-100',
@@ -656,7 +984,8 @@ export default function App() {
                       </span>
                       {hasDesign && <span className="sr-only">tasarım var</span>}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1022,7 +1351,7 @@ export default function App() {
                   </div>
 
                   <div className="flex-1 overflow-y-auto bg-gray-50 p-8">
-                    <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+                    <div className={cn('grid grid-cols-1 gap-8', surfaceMode === 'front_only' ? 'md:grid-cols-1' : 'md:grid-cols-2')}>
                       <div className="flex flex-col gap-4">
                         <span className="text-center text-sm font-black uppercase tracking-widest text-gray-400">Ön Cephe</span>
                         <div className="relative aspect-[5/6] overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
@@ -1034,16 +1363,18 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-4">
-                        <span className="text-center text-sm font-black uppercase tracking-widest text-gray-400">Arka Cephe</span>
-                        <div className="relative aspect-[5/6] overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
-                          {previewImages.back ? (
-                            <img src={previewImages.back} className="absolute inset-0 h-full w-full object-cover" alt="Arka tasarım" />
-                          ) : config?.backImage ? (
-                            <img src={config.backImage} className="absolute inset-0 h-full w-full object-cover" alt="Arka mockup" />
-                          ) : null}
+                      {surfaceMode !== 'front_only' && (
+                        <div className="flex flex-col gap-4">
+                          <span className="text-center text-sm font-black uppercase tracking-widest text-gray-400">Arka Cephe</span>
+                          <div className="relative aspect-[5/6] overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
+                            {previewImages.back ? (
+                              <img src={previewImages.back} className="absolute inset-0 h-full w-full object-cover" alt="Arka tasarım" />
+                            ) : config?.backImage ? (
+                              <img src={config.backImage} className="absolute inset-0 h-full w-full object-cover" alt="Arka mockup" />
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
 
@@ -1060,123 +1391,102 @@ export default function App() {
           )}
         </div>
 
-        <footer className="border-t border-gray-100 bg-white px-4 py-2.5 sm:hidden">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex gap-1">
-                {(['single', 'double'] as const).map((value) => (
-                  <button
-                    key={value}
-                    onClick={() => setPrintSide(value)}
-                    className={cn(
-                      'rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors',
-                      printSide === value ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100',
-                    )}
-                  >
-                    {value === 'single' ? 'Tek Yüz' : 'Çift Yüz'}
-                  </button>
-                ))}
+        <footer className="border-t border-gray-100 bg-white px-4 py-3 sm:hidden">
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">Tasarım Alanı</p>
+                  <p className="mt-1 text-sm font-bold text-gray-900">{activeAreaSummary}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Toplam</p>
+                  <p className="mt-1 text-lg font-black text-gray-900">{formattedPrice || formatMoney(0)}</p>
+                </div>
               </div>
+              <p className="mt-2 text-xs font-medium leading-relaxed text-gray-600">{pricingNarrative}</p>
+            </div>
 
-              {sizes.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {sizes.map((size) => {
-                    const qty = sizeQuantities[size!] ?? 0;
-                    return (
-                      <div
-                        key={size!}
-                        className={cn(
-                          'flex items-center gap-0.5 rounded-lg border px-1.5 py-0.5 transition-colors',
-                          qty > 0 ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50',
-                        )}
-                      >
-                        <span className={cn('min-w-[18px] text-center text-xs font-bold', qty > 0 ? 'text-blue-700' : 'text-gray-500')}>
-                          {size}
-                        </span>
+            {sizes.length > 0 && (
+              <div className="grid grid-cols-4 gap-2">
+                {sizes.map((size) => {
+                  const qty = sizeQuantities[size!] ?? 0;
+                  return (
+                    <div
+                      key={size!}
+                      className={cn(
+                        'rounded-2xl border p-2 text-center transition-colors',
+                        qty > 0 ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-gray-50',
+                      )}
+                    >
+                      <p className={cn('text-xs font-black', qty > 0 ? 'text-blue-700' : 'text-gray-600')}>{size}</p>
+                      <div className="mt-2 flex items-center justify-center gap-1">
                         <button
                           type="button"
                           onClick={() => setSizeQuantity(size!, qty - 1)}
-                          className="flex h-5 w-5 items-center justify-center rounded text-sm font-bold text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+                          className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
                         >−</button>
-                        <span className={cn('w-4 text-center text-xs font-semibold tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>
-                          {qty}
-                        </span>
+                        <span className={cn('w-5 text-center text-sm font-black tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>{qty}</span>
                         <button
                           type="button"
                           onClick={() => setSizeQuantity(size!, qty + 1)}
-                          className="flex h-5 w-5 items-center justify-center rounded text-sm font-bold text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+                          className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
                         >+</button>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => setActiveTab('templates')}
-                className="hidden rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 lg:inline-flex"
+                className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
               >
                 Şablonlar
               </button>
               <button
                 onClick={() => setActiveTab('saved')}
-                className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
+                className="inline-flex items-center justify-center gap-1 rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
               >
                 <Bookmark className="h-3.5 w-3.5" />
                 Kayıtlar
               </button>
               <button
                 onClick={handleSave}
-                className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
+                className="inline-flex items-center justify-center gap-1 rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
               >
                 <Save className="h-3.5 w-3.5" />
                 Kaydet
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-3 sm:justify-end">
-              {formattedPrice && <span className="text-base font-black text-gray-900">{formattedPrice}</span>}
-              <button
-                onClick={handleAddToCart}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-              >
-                <ShoppingBag className="h-4 w-4" />
-                Sepete Ekle{totalQuantity > 0 ? ` (${totalQuantity})` : ''}
-              </button>
-            </div>
+            <button
+              onClick={handleAddToCart}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+            >
+              <ShoppingBag className="h-4 w-4" />
+              Sepete Ekle{totalQuantity > 0 ? ` (${totalQuantity})` : ''}
+            </button>
           </div>
         </footer>
         </div>
 
         {/* RIGHT: Commerce sidebar — desktop only */}
-        <div className="hidden sm:flex sm:w-[280px] sm:flex-none sm:flex-col sm:border-l sm:border-gray-100 sm:bg-white">
+        <div className="hidden sm:flex sm:w-[360px] sm:flex-none sm:flex-col sm:border-l sm:border-gray-100 sm:bg-white">
           {config?.productTitle && (
             <div className="border-b border-gray-100 px-5 py-4">
               <h2 className="text-sm font-bold leading-snug text-gray-900">{config.productTitle}</h2>
             </div>
           )}
 
-          <div className="border-b border-gray-100 px-5 py-4">
-            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-gray-400">Baskı Türü</p>
-            <div className="flex gap-1.5">
-              {(['single', 'double'] as const).map((value) => (
-                <button
-                  key={value}
-                  onClick={() => setPrintSide(value)}
-                  className={cn(
-                    'flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-colors',
-                    printSide === value ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100',
-                  )}
-                >
-                  {value === 'single' ? 'Tek Yüz' : 'Çift Yüz'}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {sizes.length > 0 ? (
-            <div className="flex-1 overflow-y-auto border-b border-gray-100 px-5 py-4">
-              <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Bedenler</p>
+            <div className="order-2 border-b border-gray-100 px-5 py-5">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Bedenler</p>
+                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-500">{totalQuantity} adet</span>
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {sizes.map((size) => {
                   const qty = sizeQuantities[size!] ?? 0;
@@ -1208,10 +1518,56 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 border-b border-gray-100" />
+            <div className="order-2 border-b border-gray-100" />
           )}
 
-          <div className="border-b border-gray-100 px-5 py-3">
+          <div className="order-1 border-b border-gray-100 px-5 py-5">
+            <div className="rounded-[28px] border border-sky-100 bg-sky-50/70 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">Tasarım Alanı</p>
+                  <p className="mt-1 text-lg font-black text-gray-900">{activeAreaSummary}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Toplam</p>
+                  <p className="mt-1 text-3xl font-black text-gray-900">{formattedPrice || formatMoney(0)}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2 rounded-2xl bg-white/80 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold text-gray-500">Tişört sabit fiyatı</span>
+                  <strong className="font-black text-gray-900">{formatMoney(pricingSummary.baseUnitPrice)}</strong>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold text-gray-500">Tişört ara toplamı</span>
+                  <strong className="font-black text-gray-900">{formatMoney(pricingSummary.baseSubtotal)}</strong>
+                </div>
+                {pricingSummary.front.hasContent && (
+                  <div className="flex items-start justify-between gap-3 text-sm">
+                    <span className="font-semibold text-gray-500">Ön baskı {pricingSummary.front.band.label}</span>
+                    <div className="text-right">
+                      <strong className="block font-black text-gray-900">{formatMoney(pricingSummary.front.subtotal)}</strong>
+                      <span className="text-[11px] font-semibold text-gray-400">{formatMetricSize(pricingSummary.front.metrics)}</span>
+                    </div>
+                  </div>
+                )}
+                {pricingSummary.back.hasContent && (
+                  <div className="flex items-start justify-between gap-3 text-sm">
+                    <span className="font-semibold text-gray-500">Arka baskı {pricingSummary.back.band.label}</span>
+                    <div className="text-right">
+                      <strong className="block font-black text-gray-900">{formatMoney(pricingSummary.back.subtotal)}</strong>
+                      <span className="text-[11px] font-semibold text-gray-400">{formatMetricSize(pricingSummary.back.metrics)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <p className="mt-3 text-xs font-medium leading-relaxed text-gray-600">{pricingNarrative}</p>
+            </div>
+          </div>
+
+          <div className="order-3 border-b border-gray-100 px-5 py-3">
             <button
               onClick={handlePreview}
               className="mb-1.5 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
@@ -1243,10 +1599,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="px-5 py-5">
-            {formattedPrice && (
-              <p className="mb-3 text-2xl font-black text-gray-900">{formattedPrice}</p>
-            )}
+          <div className="order-4 px-5 py-5">
             <button
               onClick={handleAddToCart}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-blue-700 disabled:opacity-50"

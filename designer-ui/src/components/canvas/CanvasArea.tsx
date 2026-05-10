@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { fabric } from 'fabric';
 import { useDesignerStore } from '@/store/designerStore';
-import type { Side } from '@/types';
+import type { PrintAreaConfig, Side } from '@/types';
 
 const PRINT_W = 300;
 const PRINT_H = 380;
@@ -23,7 +23,9 @@ export interface CanvasAreaHandle {
 interface Props {
   side: Side;
   zoom: number;
+  printArea: PrintAreaConfig;
   onObjectSelected: (obj: fabric.Object | null) => void;
+  onDesignChange: (side: Side) => void;
 }
 
 const HISTORY_LIMIT = 50;
@@ -68,7 +70,16 @@ function hasLiveContext(cv: fabric.Canvas) {
   return Boolean(cv.getElement()) && Boolean(runtimeCanvas.contextContainer);
 }
 
-const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSelected }, ref) => {
+function toCanvasRect(area: PrintAreaConfig) {
+  return {
+    left: (area.x / 480) * PRINT_W,
+    top: (area.y / 580) * PRINT_H,
+    width: (area.width / 480) * PRINT_W,
+    height: (area.height / 580) * PRINT_H,
+  };
+}
+
+const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea, onObjectSelected, onDesignChange }, ref) => {
   const hostEl = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
   const historyRef = useRef<string[]>([]);
@@ -113,16 +124,33 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
     });
     canvasRef.current = cv;
 
-    cv.on('object:added', (e) => { lockImageProportions(e.target); pushHistory(cv); });
+    cv.on('object:added', (e) => {
+      lockImageProportions(e.target);
+      pushHistory(cv);
+      onDesignChange(side);
+    });
     cv.on('object:modified', () => {
       pushHistory(cv);
       onObjectSelected(cv.getActiveObject() ?? null);
+      onDesignChange(side);
     });
     cv.on('object:scaling', (e) => keepImageUniform(e.target));
-    cv.on('object:removed', () => pushHistory(cv));
-    cv.on('object:moving', () => onObjectSelected(cv.getActiveObject() ?? null));
-    cv.on('object:scaling', () => onObjectSelected(cv.getActiveObject() ?? null));
-    cv.on('object:rotating', () => onObjectSelected(cv.getActiveObject() ?? null));
+    cv.on('object:removed', () => {
+      pushHistory(cv);
+      onDesignChange(side);
+    });
+    cv.on('object:moving', () => {
+      onObjectSelected(cv.getActiveObject() ?? null);
+      onDesignChange(side);
+    });
+    cv.on('object:scaling', () => {
+      onObjectSelected(cv.getActiveObject() ?? null);
+      onDesignChange(side);
+    });
+    cv.on('object:rotating', () => {
+      onObjectSelected(cv.getActiveObject() ?? null);
+      onDesignChange(side);
+    });
     cv.on('selection:created', (e) => onObjectSelected(e.selected?.[0] ?? null));
     cv.on('selection:updated', (e) => onObjectSelected(e.selected?.[0] ?? null));
     cv.on('selection:cleared', () => onObjectSelected(null));
@@ -135,7 +163,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
       try { if (hostEl.current) hostEl.current.innerHTML = ''; } catch { /* ignore */ }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [onDesignChange, onObjectSelected, pushHistory, side]);
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -151,6 +179,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
         cv.renderAll();
       });
       setBgLoaded(true);
+      onDesignChange(side);
       return () => {
         cancelled = true;
       };
@@ -165,39 +194,48 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
           if (!canRender()) return;
           try { cv.renderAll(); } catch { /* canvas disposed */ }
           setBgLoaded(true);
+          onDesignChange(side);
         });
       } catch {
         setBgLoaded(true);
+        onDesignChange(side);
       }
     }, { crossOrigin: 'anonymous' });
     return () => {
       cancelled = true;
     };
-  }, [config, side]);
+  }, [config, onDesignChange, side]);
 
   const addImageFromUrl = useCallback((url: string) => {
     const cv = canvasRef.current;
     if (!cv) return;
     fabric.Image.fromURL(url, (img) => {
       if (canvasRef.current !== cv || !hasLiveContext(cv)) return;
-      const maxW = PRINT_W * 0.7;
-      const maxH = PRINT_H * 0.7;
+      const areaRect = toCanvasRect(printArea);
+      const maxW = areaRect.width * 0.78;
+      const maxH = areaRect.height * 0.78;
       const scale = Math.min(maxW / (img.width ?? 1), maxH / (img.height ?? 1), 1);
       img.scale(scale);
-      img.set({ left: PRINT_W / 2, top: PRINT_H / 2, originX: 'center', originY: 'center' });
+      img.set({
+        left: areaRect.left + areaRect.width / 2,
+        top: areaRect.top + areaRect.height / 2,
+        originX: 'center',
+        originY: 'center',
+      });
       lockImageProportions(img);
       cv.add(img);
       cv.setActiveObject(img);
       cv.renderAll();
     }, { crossOrigin: 'anonymous' });
-  }, []);
+  }, [printArea]);
 
   const addText = useCallback((text: string, opts: Partial<fabric.ITextOptions> = {}) => {
     const cv = canvasRef.current;
     if (!cv) return;
+    const areaRect = toCanvasRect(printArea);
     const txt = new fabric.IText(text, {
-      left: PRINT_W / 2,
-      top: PRINT_H / 2,
+      left: areaRect.left + areaRect.width / 2,
+      top: areaRect.top + areaRect.height / 2,
       originX: 'center',
       originY: 'center',
       fontFamily: 'Inter',
@@ -208,7 +246,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
     cv.add(txt);
     cv.setActiveObject(txt);
     cv.renderAll();
-  }, []);
+  }, [printArea]);
 
   const deleteSelected = useCallback(() => {
     const cv = canvasRef.current;
@@ -278,8 +316,9 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
       cv.renderAll();
       isRestoringRef.current = false;
       pushHistory(cv);
+      onDesignChange(side);
     });
-  }, [pushHistory]);
+  }, [onDesignChange, pushHistory, side]);
 
   useImperativeHandle(ref, () => ({
     addImageFromUrl,
@@ -317,6 +356,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
 
   const isActive = side === activeSide;
   const zoomScale = zoom / 100;
+  const areaRect = toCanvasRect(printArea);
 
   void canUndo;
   void canRedo;
@@ -333,10 +373,18 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, onObjectSe
       >
         <div className="rounded-[30px] border border-white/80 bg-white/80 p-2 shadow-[0_18px_40px_rgba(148,163,184,0.28)] backdrop-blur">
           <div className="group relative overflow-hidden rounded-[24px] bg-white">
-            <div className="pointer-events-none absolute left-1/2 top-[22px] z-20 -translate-x-1/2 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold tracking-[0.18em] text-sky-400 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
-              TASARIM ALANI
+            <div className="pointer-events-none absolute left-1/2 top-[22px] z-20 -translate-x-1/2 rounded-full bg-white/92 px-3 py-1 text-[10px] font-bold tracking-[0.14em] text-sky-500 shadow-sm">
+              {Math.round(printArea.realWidthMm / 10)} × {Math.round(printArea.realHeightMm / 10)} CM
             </div>
-            <div className="pointer-events-none absolute left-1/2 top-[38px] z-10 h-[230px] w-[180px] -translate-x-1/2 rounded-[18px] border border-dashed border-sky-300/80 bg-white/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]" />
+            <div
+              className="pointer-events-none absolute z-10 rounded-[18px] border border-dashed border-sky-400/90 bg-sky-100/18 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.4)]"
+              style={{
+                left: areaRect.left,
+                top: areaRect.top,
+                width: areaRect.width,
+                height: areaRect.height,
+              }}
+            />
             <div className="relative flex items-center justify-center">
               <div
                 className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-slate-50/92 transition-opacity duration-200"
