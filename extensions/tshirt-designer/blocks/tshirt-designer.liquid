@@ -30,10 +30,6 @@
 {% elsif selected_options contains 'pembe' or selected_options contains 'pink' %}
   {% assign shirt_color = '#E91E8C' %}
 {% endif %}
-{% assign model_json_url = 'tshirt.glb.json' | asset_url %}
-{% if block.settings.model_json_url != blank %}
-  {% assign model_json_url = block.settings.model_json_url %}
-{% endif %}
 
 {% comment %} Ürün görselleri: seçili renk/beden için ön ve arka baskı varyant fotoğrafları {% endcomment %}
 {% assign selected_variant = product.selected_or_first_available_variant %}
