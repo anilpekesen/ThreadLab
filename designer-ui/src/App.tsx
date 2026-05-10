@@ -405,7 +405,7 @@ export default function App() {
       return;
     }
     let cancelled = false;
-    fetch(`/apps/tshirt-designer/personalization?handle=${encodeURIComponent(config.productHandle)}`, {
+    fetch(`/api/designer-config?handle=${encodeURIComponent(config.productHandle)}`, {
       headers: { Accept: 'application/json' },
     })
       .then((res) => (res.ok ? res.json() : null))
@@ -1015,7 +1015,7 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6">
+                <div className="absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6 lg:hidden">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">Tasarım Alanı</p>
                   <p className="mt-1 text-sm font-bold text-gray-900">{activeAreaSummary}</p>
                 </div>
