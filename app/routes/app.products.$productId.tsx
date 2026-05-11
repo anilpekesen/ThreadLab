@@ -16,7 +16,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { useEffect, useRef, useState } from "react";
-import { authenticate } from "~/shopify.server";
+import { authenticate, buildInstallUrl, clearShopSessions } from "~/shopify.server";
 import {
   fetchShopifyProductById,
   getProductConfig,
@@ -479,7 +479,6 @@ function PrintAreaEditor({
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin, session, redirect } = await authenticate.admin(request);
-  const url = new URL(request.url);
   const productToken = params.productId ?? "";
   const productId = decodeProductToken(productToken);
   let product;
@@ -487,11 +486,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     product = await fetchShopifyProductById(admin, productId);
   } catch (error: unknown) {
     if (error instanceof Response && error.status === 403) {
-      console.warn("[product-detail] graphql returned 403, redirecting to reauth for", session.shop);
-      const authUrl = new URL("/auth", url.origin);
-      authUrl.searchParams.set("shop", session.shop);
-      authUrl.searchParams.set("returnTo", `${url.pathname}${url.search}`);
-      throw redirect(`${authUrl.pathname}${authUrl.search}`, { target: "_parent" });
+      console.warn("[product-detail] graphql returned 403, clearing sessions and redirecting to install for", session.shop);
+      await clearShopSessions(session.shop);
+      throw redirect(buildInstallUrl(session.shop), { target: "_parent" });
     }
     throw error;
   }

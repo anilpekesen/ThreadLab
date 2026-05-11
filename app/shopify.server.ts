@@ -27,11 +27,13 @@ function resolveScopes() {
   return Array.from(new Set([...envScopes, ...REQUIRED_SCOPES]));
 }
 
+export const appScopes = resolveScopes();
+
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY ?? "",
   apiSecretKey: process.env.SHOPIFY_API_SECRET ?? "",
   apiVersion: ApiVersion.July25,
-  scopes: resolveScopes(),
+  scopes: appScopes,
   appUrl: process.env.SHOPIFY_APP_URL ?? "",
   authPathPrefix: "/auth",
   sessionStorage: buildSessionStorage(),
@@ -49,3 +51,29 @@ export const unauthenticated = shopify.unauthenticated;
 export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
 export const sessionStorage = shopify.sessionStorage;
+
+export async function clearShopSessions(shop: string) {
+  const storage = sessionStorage as {
+    findSessionsByShop?: (shop: string) => Promise<Array<{ id?: string }>>;
+    deleteSessions?: (ids: string[]) => Promise<boolean>;
+  };
+
+  const sessions = (await storage.findSessionsByShop?.(shop)) ?? [];
+  const sessionIds = sessions
+    .map((session) => session.id)
+    .filter((id): id is string => Boolean(id));
+
+  if (sessionIds.length > 0) {
+    await storage.deleteSessions?.(sessionIds);
+  }
+}
+
+export function buildInstallUrl(shop: string) {
+  const cleanShop = shop.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const params = new URLSearchParams({
+    client_id: process.env.SHOPIFY_API_KEY ?? "",
+    scope: appScopes.join(","),
+  });
+
+  return `https://${cleanShop}/admin/oauth/install?${params.toString()}`;
+}

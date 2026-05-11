@@ -15,7 +15,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { useState } from "react";
-import { authenticate } from "~/shopify.server";
+import { authenticate, buildInstallUrl, clearShopSessions } from "~/shopify.server";
 import { fetchShopifyProducts, getProductConfig } from "~/models/product-config.server";
 
 const PRODUCT_TYPE_LABELS: Record<string, string> = {
@@ -42,11 +42,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     products = await fetchShopifyProducts(admin, q);
   } catch (error: unknown) {
     if (error instanceof Response && error.status === 403) {
-      console.warn("[products] graphql returned 403, redirecting to reauth for", session.shop);
-      const authUrl = new URL("/auth", url.origin);
-      authUrl.searchParams.set("shop", session.shop);
-      authUrl.searchParams.set("returnTo", `${url.pathname}${url.search}`);
-      throw redirect(`${authUrl.pathname}${authUrl.search}`, { target: "_parent" });
+      console.warn("[products] graphql returned 403, clearing sessions and redirecting to install for", session.shop);
+      await clearShopSessions(session.shop);
+      throw redirect(buildInstallUrl(session.shop), { target: "_parent" });
     }
     throw error;
   }
