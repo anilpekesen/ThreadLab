@@ -1036,7 +1036,7 @@ export default function App() {
           </div>
 
           <div
-            className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 md:p-8 xl:p-12"
+            className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3 md:p-4"
             onMouseMove={handleSceneMouseMove}
             onMouseUp={handleSceneMouseUp}
             onMouseLeave={handleSceneMouseUp}
