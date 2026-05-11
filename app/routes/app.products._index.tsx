@@ -34,6 +34,16 @@ function encodeProductToken(productId: string) {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   console.log("[products] auth ok, shop:", session.shop, "scope:", session.scope);
+  // Test token validity directly
+  const tokenTest = await fetch(
+    `https://${session.shop}/admin/api/2025-07/shop.json`,
+    { headers: { "X-Shopify-Access-Token": session.accessToken ?? "" } }
+  );
+  console.log("[products] direct token test status:", tokenTest.status, "shop:", session.shop);
+  if (tokenTest.status !== 200) {
+    const body = await tokenTest.text().catch(() => "");
+    console.error("[products] token test failed:", body.slice(0, 300));
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const origGraphql = (admin as any).graphql?.bind(admin);
   if (origGraphql) {
