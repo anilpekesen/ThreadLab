@@ -33,11 +33,21 @@ function encodeProductToken(productId: string) {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
+  console.log("[products] token prefix:", session.accessToken?.substring(0, 12), "expires:", session.expires, "scope:", session.scope);
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
   const appBlockHandle = "tshirt-designer";
-  const products = await fetchShopifyProducts(admin, q);
+  let products;
+  try {
+    products = await fetchShopifyProducts(admin, q);
+  } catch (err) {
+    if (err instanceof Response) {
+      const body = await err.clone().text().catch(() => "");
+      console.error("[products] graphql 403 body:", body, "token expires:", session.expires);
+    }
+    throw err;
+  }
 
   const rows = products.map((product) => {
     const config = getProductConfig(product);
