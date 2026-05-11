@@ -57,8 +57,8 @@ const MAIN_TABS: { id: 'image' | 'text' | 'layers'; label: string; Icon: React.F
 ];
 
 const TOOLBAR_FONTS = ['Inter', 'Roboto', 'Arial', 'Montserrat', 'Playfair Display', 'Oswald'];
-const CANVAS_W = 300;
-const CANVAS_H = 380;
+const CANVAS_W = 480;
+const CANVAS_H = 580;
 const COLOR_HEX_MAP: Record<string, string> = {
   beyaz: '#ffffff',
   white: '#ffffff',
@@ -321,6 +321,15 @@ function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
+function getAutoZoom() {
+  if (typeof window === 'undefined') return 100;
+  const w = window.innerWidth;
+  if (w >= 860) return 100;
+  // Mobile: canvas area is full-width; 488 = PRINT_W (480) + card padding (8)
+  const usable = w - 32; // subtract p-4 padding on each side
+  return Math.max(50, Math.min(100, Math.floor(usable / 488 * 100)));
+}
+
 export default function App() {
   const {
     config, setConfig,
@@ -337,7 +346,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>(null);
   const [selectedObj, setSelectedObj] = useState<fabric.Object | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoom] = useState(getAutoZoom);
   const [layers, setLayers] = useState<fabric.Object[]>([]);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('selection');
   const [sceneOffset, setSceneOffset] = useState({ x: 0, y: 0 });
@@ -738,8 +747,21 @@ export default function App() {
     handleObjectSelected(selection);
   };
 
+  useEffect(() => {
+    let prevWidth = window.innerWidth;
+    const onResize = () => {
+      const w = window.innerWidth;
+      if (w !== prevWidth) {
+        prevWidth = w;
+        setZoom(getAutoZoom());
+      }
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const resetViewport = () => {
-    setZoom(100);
+    setZoom(getAutoZoom());
     setSceneOffset({ x: 0, y: 0 });
   };
 
