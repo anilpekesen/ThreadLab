@@ -15,7 +15,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { useState } from "react";
-import { authenticate, buildInstallUrl, clearShopSessions } from "~/shopify.server";
+import { authenticate } from "~/shopify.server";
 import { fetchShopifyProducts, getProductConfig } from "~/models/product-config.server";
 
 const PRODUCT_TYPE_LABELS: Record<string, string> = {
@@ -32,22 +32,12 @@ function encodeProductToken(productId: string) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session, redirect } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
   const appBlockHandle = "tshirt-designer";
-  let products;
-  try {
-    products = await fetchShopifyProducts(admin, q);
-  } catch (error: unknown) {
-    if (error instanceof Response && error.status === 403) {
-      console.warn("[products] graphql returned 403, clearing sessions and redirecting to install for", session.shop);
-      await clearShopSessions(session.shop);
-      throw redirect(buildInstallUrl(session.shop), { target: "_parent" });
-    }
-    throw error;
-  }
+  const products = await fetchShopifyProducts(admin, q);
 
   const rows = products.map((product) => {
     const config = getProductConfig(product);
