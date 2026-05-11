@@ -367,7 +367,6 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   return (
     <div className={`flex h-full items-center justify-center ${isActive ? '' : 'hidden'}`}>
       <div
-        className="relative"
         style={{
           transform: `scale(${zoomScale})`,
           transformOrigin: 'center center',
@@ -375,12 +374,18 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
         }}
       >
         <div className="rounded-[30px] border border-white/80 bg-white/80 p-2 shadow-[0_18px_40px_rgba(148,163,184,0.28)] backdrop-blur">
-          <div className="group relative overflow-hidden rounded-[24px] bg-white">
-            <div className="pointer-events-none absolute left-1/2 top-[22px] z-20 -translate-x-1/2 rounded-full bg-white/92 px-3 py-1 text-[10px] font-bold tracking-[0.14em] text-sky-500 shadow-sm">
+          {/* Fixed size = canvas size so overlay coordinates align perfectly */}
+          <div
+            className="relative overflow-hidden rounded-[24px] bg-white"
+            style={{ width: PRINT_W, height: PRINT_H }}
+          >
+            {/* Size label */}
+            <div className="pointer-events-none absolute left-1/2 top-[14px] z-20 -translate-x-1/2 rounded-full bg-white/92 px-3 py-1 text-[10px] font-bold tracking-[0.14em] text-sky-500 shadow-sm">
               {Math.round(printArea.realWidthMm / 10)} × {Math.round(printArea.realHeightMm / 10)} CM
             </div>
+            {/* Print area overlay — same coordinate space as fabric canvas */}
             <div
-              className="pointer-events-none absolute z-10 rounded-[18px] border border-dashed border-sky-400/90 bg-sky-100/18 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.4)]"
+              className="pointer-events-none absolute z-10 rounded-[14px] border-2 border-dashed border-sky-400 bg-sky-100/20"
               style={{
                 left: areaRect.left,
                 top: areaRect.top,
@@ -388,15 +393,15 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
                 height: areaRect.height,
               }}
             />
-            <div className="relative flex items-center justify-center">
-              <div
-                className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-slate-50/92 transition-opacity duration-200"
-                style={{ opacity: bgLoaded ? 0 : 1, pointerEvents: bgLoaded ? 'none' : 'auto' }}
-              >
-                <span className="text-sm text-gray-400">Yükleniyor...</span>
-              </div>
-              <div ref={hostEl} />
+            {/* Loading overlay */}
+            <div
+              className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-slate-50/92 transition-opacity duration-200"
+              style={{ opacity: bgLoaded ? 0 : 1, pointerEvents: bgLoaded ? 'none' : 'auto' }}
+            >
+              <span className="text-sm text-gray-400">Yükleniyor...</span>
             </div>
+            {/* Canvas host — fabric injects its canvas here, starts at 0,0 */}
+            <div ref={hostEl} />
           </div>
         </div>
       </div>
