@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { Form, useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Badge,
@@ -32,7 +32,7 @@ function encodeProductToken(productId: string) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session, redirect } = await authenticate.admin(request);
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
@@ -43,7 +43,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (error: unknown) {
     if (error instanceof Response && error.status === 403) {
       console.warn("[products] graphql returned 403, redirecting to reauth for", session.shop);
-      throw redirect(`/auth/login?shop=${encodeURIComponent(session.shop)}`);
+      throw redirect(`/auth?shop=${encodeURIComponent(session.shop)}`, { target: "_parent" });
     }
     throw error;
   }

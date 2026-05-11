@@ -478,7 +478,7 @@ function PrintAreaEditor({
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session, redirect } = await authenticate.admin(request);
   const productToken = params.productId ?? "";
   const productId = decodeProductToken(productToken);
   let product;
@@ -487,7 +487,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   } catch (error: unknown) {
     if (error instanceof Response && error.status === 403) {
       console.warn("[product-detail] graphql returned 403, redirecting to reauth for", session.shop);
-      throw redirect(`/auth/login?shop=${encodeURIComponent(session.shop)}`);
+      throw redirect(`/auth?shop=${encodeURIComponent(session.shop)}`, { target: "_parent" });
     }
     throw error;
   }
