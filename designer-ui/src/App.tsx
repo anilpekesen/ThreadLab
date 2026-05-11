@@ -1601,15 +1601,86 @@ export default function App() {
         </div>
 
         {/* RIGHT: Commerce sidebar — desktop only */}
-        <div className="hidden lg:flex lg:w-[420px] lg:flex-none lg:flex-col lg:border-l lg:border-gray-100 lg:bg-white">
+        <div className="hidden lg:flex lg:w-[380px] lg:flex-none lg:flex-col lg:border-l lg:border-gray-100 lg:bg-white">
           {config?.productTitle && (
             <div className="border-b border-gray-100 px-5 py-4">
               <h2 className="text-sm font-bold leading-snug text-gray-900">{config.productTitle}</h2>
             </div>
           )}
 
+          {/* TASARIM ALANI — always first */}
+          <div className="border-b border-gray-100 px-5 py-5">
+            <div className="rounded-[24px] border border-sky-100 bg-sky-50/60 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">Tasarım Alanı</p>
+                  <p className="mt-0.5 text-base font-black text-gray-900">{activeAreaSummary}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Toplam</p>
+                  <p className="mt-0.5 text-2xl font-black text-gray-900">{formattedPrice || formatMoney(0)}</p>
+                </div>
+              </div>
+
+              {/* Front / Back design status badges */}
+              <div className="mt-3 flex gap-2">
+                <div className={cn(
+                  'flex flex-1 items-center gap-1.5 rounded-xl px-2.5 py-2',
+                  frontHasDesign ? 'bg-emerald-50 text-emerald-700' : 'bg-white/70 text-gray-400',
+                )}>
+                  <span className={cn('h-2 w-2 rounded-full', frontHasDesign ? 'bg-emerald-500' : 'bg-gray-300')} />
+                  <span className="text-[11px] font-bold">Ön</span>
+                  <span className="ml-auto text-[10px] font-semibold">
+                    {frontHasDesign ? formatMoney(pricingSummary.front.subtotal) : 'tasarım yok'}
+                  </span>
+                </div>
+                {surfaceMode !== 'front_only' && (
+                  <div className={cn(
+                    'flex flex-1 items-center gap-1.5 rounded-xl px-2.5 py-2',
+                    backHasDesign ? 'bg-emerald-50 text-emerald-700' : 'bg-white/70 text-gray-400',
+                  )}>
+                    <span className={cn('h-2 w-2 rounded-full', backHasDesign ? 'bg-emerald-500' : 'bg-gray-300')} />
+                    <span className="text-[11px] font-bold">Arka</span>
+                    <span className="ml-auto text-[10px] font-semibold">
+                      {backHasDesign ? formatMoney(pricingSummary.back.subtotal) : 'tasarım yok'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3 space-y-1.5 rounded-2xl bg-white/80 p-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-gray-500">Ürün fiyatı</span>
+                  <strong className="font-black text-gray-900">{formatMoney(pricingSummary.baseUnitPrice)}</strong>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-gray-500">Ürün ara toplam</span>
+                  <strong className="font-black text-gray-900">{formatMoney(pricingSummary.baseSubtotal)}</strong>
+                </div>
+                {pricingSummary.front.hasContent && (
+                  <div className="flex items-start justify-between gap-2 text-xs">
+                    <span className="font-semibold text-gray-500">Ön baskı {pricingSummary.front.band.label}</span>
+                    <div className="text-right">
+                      <strong className="block font-black text-gray-900">{formatMoney(pricingSummary.front.subtotal)}</strong>
+                      <span className="text-[10px] font-semibold text-gray-400">{formatMetricSize(pricingSummary.front.metrics)}</span>
+                    </div>
+                  </div>
+                )}
+                {pricingSummary.back.hasContent && (
+                  <div className="flex items-start justify-between gap-2 text-xs">
+                    <span className="font-semibold text-gray-500">Arka baskı {pricingSummary.back.band.label}</span>
+                    <div className="text-right">
+                      <strong className="block font-black text-gray-900">{formatMoney(pricingSummary.back.subtotal)}</strong>
+                      <span className="text-[10px] font-semibold text-gray-400">{formatMetricSize(pricingSummary.back.metrics)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {colorOptions.length > 0 && (
-            <div className="order-1 border-b border-gray-100 px-5 py-5">
+            <div className="border-b border-gray-100 px-5 py-4">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Renk Varyantları</p>
                 {selectedColor && <span className="text-xs font-bold text-gray-600">{selectedColor}</span>}
@@ -1637,7 +1708,7 @@ export default function App() {
           )}
 
           {sizes.length > 0 ? (
-            <div className="order-3 border-b border-gray-100 px-5 py-5">
+            <div className="border-b border-gray-100 px-5 py-4">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Bedenler</p>
                 <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-500">{totalQuantity} adet</span>
@@ -1673,56 +1744,10 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="order-3 border-b border-gray-100" />
+            <div className="border-b border-gray-100" />
           )}
 
-          <div className="order-2 border-b border-gray-100 px-5 py-5">
-            <div className="rounded-[28px] border border-sky-100 bg-sky-50/70 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">Tasarım Alanı</p>
-                  <p className="mt-1 text-lg font-black text-gray-900">{activeAreaSummary}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Toplam</p>
-                  <p className="mt-1 text-3xl font-black text-gray-900">{formattedPrice || formatMoney(0)}</p>
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-2 rounded-2xl bg-white/80 p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold text-gray-500">Tişört sabit fiyatı</span>
-                  <strong className="font-black text-gray-900">{formatMoney(pricingSummary.baseUnitPrice)}</strong>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold text-gray-500">Tişört ara toplamı</span>
-                  <strong className="font-black text-gray-900">{formatMoney(pricingSummary.baseSubtotal)}</strong>
-                </div>
-                {pricingSummary.front.hasContent && (
-                  <div className="flex items-start justify-between gap-3 text-sm">
-                    <span className="font-semibold text-gray-500">Ön baskı {pricingSummary.front.band.label}</span>
-                    <div className="text-right">
-                      <strong className="block font-black text-gray-900">{formatMoney(pricingSummary.front.subtotal)}</strong>
-                      <span className="text-[11px] font-semibold text-gray-400">{formatMetricSize(pricingSummary.front.metrics)}</span>
-                    </div>
-                  </div>
-                )}
-                {pricingSummary.back.hasContent && (
-                  <div className="flex items-start justify-between gap-3 text-sm">
-                    <span className="font-semibold text-gray-500">Arka baskı {pricingSummary.back.band.label}</span>
-                    <div className="text-right">
-                      <strong className="block font-black text-gray-900">{formatMoney(pricingSummary.back.subtotal)}</strong>
-                      <span className="text-[11px] font-semibold text-gray-400">{formatMetricSize(pricingSummary.back.metrics)}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <p className="mt-3 text-xs font-medium leading-relaxed text-gray-600">{pricingNarrative}</p>
-            </div>
-          </div>
-
-          <div className="order-4 border-b border-gray-100 px-5 py-3">
+          <div className="border-b border-gray-100 px-5 py-3">
             <button
               onClick={handlePreview}
               className="mb-1.5 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
@@ -1754,7 +1779,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="order-5 px-5 py-5">
+          <div className="px-5 py-5">
             <button
               onClick={handleAddToCart}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-blue-700 disabled:opacity-50"
