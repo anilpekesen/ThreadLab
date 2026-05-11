@@ -50,8 +50,8 @@
     background: #f3f4f6;
   }
 
-  /* Desktop: canvas + sidebar side by side — tall enough for canvas */
-  @media (min-width: 640px) {
+  /* Desktop: canvas + sidebar side by side from 860px and up */
+  @media (min-width: 860px) {
     .dsgn-inline-react,
     .dsgn-inline-react__frame {
       min-height: 660px;
@@ -59,8 +59,8 @@
     }
   }
 
-  /* Mobile: canvas stacked above sidebar — needs more vertical space */
-  @media (max-width: 639px) {
+  /* Stacked layout below 860px needs more vertical space */
+  @media (max-width: 859px) {
     .dsgn-inline-react,
     .dsgn-inline-react__frame {
       min-height: 1100px;
