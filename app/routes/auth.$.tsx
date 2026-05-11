@@ -9,8 +9,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return login(request);
   }
   try {
-    await authenticate.admin(request);
+    const { redirect } = await authenticate.admin(request);
     console.log("[auth-route] authenticate.admin succeeded for", url.pathname);
+    if (url.pathname === "/auth") {
+      const returnTo = url.searchParams.get("returnTo") || "/app";
+      throw redirect(returnTo, { target: "_self" });
+    }
   } catch (e: unknown) {
     if (e instanceof Response) {
       console.log("[auth-route] Response thrown status:", e.status, "location:", e.headers.get("location"));
@@ -19,7 +23,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("[auth-route] Error:", String(e));
     throw e;
   }
-  return null;
+  return json({ ok: true });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
