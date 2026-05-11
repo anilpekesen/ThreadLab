@@ -7,6 +7,8 @@ import {
 import { MemorySessionStorage } from "@shopify/shopify-app-session-storage-memory";
 import { PostgreSQLSessionStorage } from "@shopify/shopify-app-session-storage-postgresql";
 
+const REQUIRED_SCOPES = ["read_products", "write_products", "read_orders", "write_app_proxy"];
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildSessionStorage(): any {
   const url = process.env.DATABASE_URL;
@@ -16,11 +18,20 @@ function buildSessionStorage(): any {
   return new MemorySessionStorage();
 }
 
+function resolveScopes() {
+  const envScopes = (process.env.SCOPES ?? "")
+    .split(",")
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set([...envScopes, ...REQUIRED_SCOPES]));
+}
+
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY ?? "",
   apiSecretKey: process.env.SHOPIFY_API_SECRET ?? "",
   apiVersion: ApiVersion.July25,
-  scopes: process.env.SCOPES?.split(",") ?? ["write_products", "read_orders", "write_app_proxy"],
+  scopes: resolveScopes(),
   appUrl: process.env.SHOPIFY_APP_URL ?? "",
   authPathPrefix: "/auth",
   sessionStorage: buildSessionStorage(),

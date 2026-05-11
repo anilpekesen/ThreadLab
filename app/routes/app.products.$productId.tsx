@@ -479,17 +479,18 @@ function PrintAreaEditor({
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const scopes = String(session.scope || "")
-    .split(",")
-    .map((scope) => scope.trim())
-    .filter(Boolean);
-  if (!scopes.includes("read_products")) {
-    console.warn("[product-detail] missing read_products scope, redirecting to reauth for", session.shop);
-    throw redirect(`/auth/login?shop=${encodeURIComponent(session.shop)}`);
-  }
   const productToken = params.productId ?? "";
   const productId = decodeProductToken(productToken);
-  const product = await fetchShopifyProductById(admin, productId);
+  let product;
+  try {
+    product = await fetchShopifyProductById(admin, productId);
+  } catch (error: unknown) {
+    if (error instanceof Response && error.status === 403) {
+      console.warn("[product-detail] graphql returned 403, redirecting to reauth for", session.shop);
+      throw redirect(`/auth/login?shop=${encodeURIComponent(session.shop)}`);
+    }
+    throw error;
+  }
   if (!product) {
     throw new Response("Product not found", { status: 404 });
   }
