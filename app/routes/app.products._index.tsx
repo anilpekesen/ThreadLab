@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Badge,
@@ -39,6 +39,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     admin = auth.admin;
     session = auth.session;
     console.log("[products] auth ok, shop:", session.shop, "scope:", session.scope);
+    const scopes = String(session.scope || "")
+      .split(",")
+      .map((scope) => scope.trim())
+      .filter(Boolean);
+    if (!scopes.includes("read_products")) {
+      console.warn("[products] missing read_products scope, redirecting to reauth for", session.shop);
+      throw redirect(`/auth/login?shop=${encodeURIComponent(session.shop)}`);
+    }
   } catch (e: unknown) {
     if (e instanceof Response) {
       console.error("[products] authenticate threw Response:", e.status, e.headers.get("location"));
