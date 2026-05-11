@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { Outlet, useLoaderData, useRouteError } from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-remix/react";
@@ -12,7 +12,21 @@ import { authenticate } from "~/shopify.server";
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const url = new URL(request.url);
+  try {
+    await authenticate.admin(request);
+  } catch (error: unknown) {
+    if (error instanceof Response && error.status === 401) {
+      const shop = url.searchParams.get("shop");
+      if (shop) {
+        const authUrl = new URL("/auth", url.origin);
+        authUrl.searchParams.set("shop", shop);
+        authUrl.searchParams.set("returnTo", `${url.pathname}${url.search}`);
+        throw redirect(`${authUrl.pathname}${authUrl.search}`);
+      }
+    }
+    throw error;
+  }
   return json({ apiKey: process.env.SHOPIFY_API_KEY ?? "" });
 };
 
