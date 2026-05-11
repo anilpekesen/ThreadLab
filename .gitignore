@@ -7,7 +7,7 @@ designer-ui/node_modules/
 # Builds and generated output
 build/
 dist/
-public/designer-app/
+# public/designer-app/ — tracked in git so Railway serves pre-built files
 .cache/
 .turbo/
 

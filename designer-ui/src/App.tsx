@@ -337,7 +337,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>(null);
   const [selectedObj, setSelectedObj] = useState<fabric.Object | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
-  const [zoom, setZoom] = useState(140);
+  const [zoom, setZoom] = useState(100);
   const [layers, setLayers] = useState<fabric.Object[]>([]);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('selection');
   const [sceneOffset, setSceneOffset] = useState({ x: 0, y: 0 });

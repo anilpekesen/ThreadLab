@@ -3,8 +3,8 @@ import { fabric } from 'fabric';
 import { useDesignerStore } from '@/store/designerStore';
 import type { PrintAreaConfig, Side } from '@/types';
 
-const PRINT_W = 300;
-const PRINT_H = 380;
+const PRINT_W = 480;
+const PRINT_H = 580;
 
 export interface CanvasAreaHandle {
   addImageFromUrl: (url: string) => void;
