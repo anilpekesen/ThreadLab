@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { Form, useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Badge,
@@ -32,29 +32,8 @@ function encodeProductToken(productId: string) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  let admin: Awaited<ReturnType<typeof authenticate.admin>>["admin"];
-  let session: Awaited<ReturnType<typeof authenticate.admin>>["session"];
-  try {
-    const auth = await authenticate.admin(request);
-    admin = auth.admin;
-    session = auth.session;
-    console.log("[products] auth ok, shop:", session.shop, "scope:", session.scope);
-    const scopes = String(session.scope || "")
-      .split(",")
-      .map((scope) => scope.trim())
-      .filter(Boolean);
-    if (!scopes.includes("read_products")) {
-      console.warn("[products] missing read_products scope, redirecting to reauth for", session.shop);
-      throw redirect(`/auth/login?shop=${encodeURIComponent(session.shop)}`);
-    }
-  } catch (e: unknown) {
-    if (e instanceof Response) {
-      console.error("[products] authenticate threw Response:", e.status, e.headers.get("location"));
-      throw e;
-    }
-    console.error("[products] authenticate threw:", String(e));
-    throw e;
-  }
+  const { admin, session } = await authenticate.admin(request);
+  console.log("[products] auth ok, shop:", session.shop, "scope:", session.scope);
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
