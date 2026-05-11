@@ -358,12 +358,12 @@ export default function App() {
   ), [activeSide]);
 
   const syncLayers = useCallback(() => {
-    const cv = getActiveCanvasHandle()?.canvas;
+    const cv = getActiveCanvasHandle()?.getCanvas();
     setLayers(cv ? [...cv.getObjects()] : []);
   }, [getActiveCanvasHandle]);
 
   const updateToolbarPosition = useCallback((obj: fabric.Object | null) => {
-    const cv = getActiveCanvasHandle()?.canvas;
+    const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv || !obj) {
       setToolbarPos(null);
       return;
@@ -483,7 +483,7 @@ export default function App() {
 
   const handleSubmitText = () => {
     const value = textDraft.trim();
-    const cv = getActiveCanvasHandle()?.canvas;
+    const cv = getActiveCanvasHandle()?.getCanvas();
     if (!value || !cv) return;
     if (isEditingText && selectedObj && (selectedObj.type === 'text' || selectedObj.type === 'i-text')) {
       const text = selectedObj as fabric.Text;
@@ -507,7 +507,7 @@ export default function App() {
   };
 
   const handleApplyTemplate = (tpl: Template) => {
-    const cv = getActiveCanvasHandle()?.canvas;
+    const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv) return;
     tpl.build(cv);
     cv.renderAll();
@@ -644,7 +644,7 @@ export default function App() {
   };
 
   const updateTextProp = (props: Partial<ObjectState>) => {
-    const cv = getActiveCanvasHandle()?.canvas;
+    const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv || !selectedObj || (selectedObj.type !== 'text' && selectedObj.type !== 'i-text')) return;
     const text = selectedObj as fabric.Text;
     if (props.color !== undefined) text.set('fill', props.color);
@@ -661,7 +661,7 @@ export default function App() {
   };
 
   const centerSelectedObject = () => {
-    const cv = getActiveCanvasHandle()?.canvas;
+    const cv = getActiveCanvasHandle()?.getCanvas();
     const obj = cv?.getActiveObject();
     if (!cv || !obj) return;
     obj.set({
@@ -677,7 +677,7 @@ export default function App() {
   };
 
   const toggleLayerOrder = () => {
-    const cv = getActiveCanvasHandle()?.canvas;
+    const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv || !selectedObj) return;
     const objects = cv.getObjects();
     const currentIndex = objects.indexOf(selectedObj);
@@ -697,7 +697,7 @@ export default function App() {
   };
 
   const alignHorizontal = (alignment: 'left' | 'center' | 'right') => {
-    const cv = getActiveCanvasHandle()?.canvas;
+    const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv || !selectedObj) return;
     if (selectedObj.type === 'text' || selectedObj.type === 'i-text') {
       updateTextProp({ textAlign: alignment });
@@ -725,7 +725,7 @@ export default function App() {
   };
 
   const selectAllLayers = () => {
-    const cv = getActiveCanvasHandle()?.canvas;
+    const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv) return;
     const objects = cv.getObjects();
     if (!objects.length) return;
@@ -769,7 +769,7 @@ export default function App() {
   };
 
   const handleLayerDrop = (index: number) => {
-    const cv = getActiveCanvasHandle()?.canvas;
+    const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv || draggedLayerIndex === null) return;
     const objects = cv.getObjects();
     const sourceIndex = objects.length - 1 - draggedLayerIndex;
@@ -787,11 +787,11 @@ export default function App() {
   const availableSides = surfaceMode === 'front_only' ? (['front'] as const) : (['front', 'back'] as const);
 
   const frontObjects = useMemo(
-    () => frontCanvasRef.current?.canvas?.getObjects() ?? [],
+    () => frontCanvasRef.current?.getCanvas()?.getObjects() ?? [],
     [canvasRevisions.front],
   );
   const backObjects = useMemo(
-    () => backCanvasRef.current?.canvas?.getObjects() ?? [],
+    () => backCanvasRef.current?.getCanvas()?.getObjects() ?? [],
     [canvasRevisions.back],
   );
 
@@ -1094,7 +1094,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     setInteractionMode('selection');
-                    const cv = getActiveCanvasHandle()?.canvas;
+                    const cv = getActiveCanvasHandle()?.getCanvas();
                     if (cv) {
                       cv.selection = true;
                       cv.renderAll();
@@ -1118,7 +1118,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     setInteractionMode('navigation');
-                    const cv = getActiveCanvasHandle()?.canvas;
+                    const cv = getActiveCanvasHandle()?.getCanvas();
                     if (cv) {
                       cv.discardActiveObject();
                       cv.selection = false;
@@ -1204,7 +1204,7 @@ export default function App() {
                       ) : (
                         reversedLayers.map((obj, index) => {
                           const isText = obj.type === 'text' || obj.type === 'i-text';
-                          const activeObject = getActiveCanvasHandle()?.canvas?.getActiveObject();
+                          const activeObject = getActiveCanvasHandle()?.getCanvas()?.getActiveObject();
                           return (
                             <div
                               key={index}
@@ -1213,7 +1213,7 @@ export default function App() {
                               onDragOver={(e) => e.preventDefault()}
                               onDrop={() => handleLayerDrop(index)}
                               onClick={() => {
-                                const cv = getActiveCanvasHandle()?.canvas;
+                                const cv = getActiveCanvasHandle()?.getCanvas();
                                 if (!cv) return;
                                 cv.setActiveObject(obj);
                                 cv.renderAll();
@@ -1242,7 +1242,7 @@ export default function App() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  const cv = getActiveCanvasHandle()?.canvas;
+                                  const cv = getActiveCanvasHandle()?.getCanvas();
                                   if (!cv) return;
                                   cv.remove(obj);
                                   cv.renderAll();
@@ -1378,7 +1378,7 @@ export default function App() {
                         <Layers className="h-4 w-4 text-gray-500 group-hover:text-blue-500 md:h-5 md:w-5" />
                         <span className="text-[9px] font-bold uppercase text-gray-500 group-hover:text-blue-500 md:text-[10px]">
                           {(() => {
-                            const objects = getActiveCanvasHandle()?.canvas?.getObjects() ?? [];
+                            const objects = getActiveCanvasHandle()?.getCanvas()?.getObjects() ?? [];
                             return objects.indexOf(selectedObj) === objects.length - 1 ? 'Arkaya' : 'Öne';
                           })()}
                         </span>
@@ -1415,7 +1415,7 @@ export default function App() {
                         <Layers className="h-4 w-4 text-gray-500 group-hover:text-blue-500 md:h-5 md:w-5" />
                         <span className="text-[9px] font-bold uppercase text-gray-500 group-hover:text-blue-500 md:text-[10px]">
                           {(() => {
-                            const objects = getActiveCanvasHandle()?.canvas?.getObjects() ?? [];
+                            const objects = getActiveCanvasHandle()?.getCanvas()?.getObjects() ?? [];
                             return objects.indexOf(selectedObj) === objects.length - 1 ? 'Arkaya' : 'Öne';
                           })()}
                         </span>

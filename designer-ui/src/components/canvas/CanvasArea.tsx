@@ -17,6 +17,8 @@ export interface CanvasAreaHandle {
   exportPng: (multiplier?: number) => string;
   loadDesign: (json: string) => void;
   saveDesign: () => string;
+  getCanvas: () => fabric.Canvas | null;
+  /** @deprecated use getCanvas() */
   canvas: fabric.Canvas | null;
 }
 
@@ -331,6 +333,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     exportPng,
     loadDesign,
     saveDesign,
+    getCanvas: () => canvasRef.current,
     canvas: canvasRef.current,
   }), [addImageFromUrl, addText, cloneSelected, deleteSelected, undo, redo, exportPng, loadDesign, saveDesign]);
 
