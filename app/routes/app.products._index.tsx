@@ -33,36 +33,6 @@ function encodeProductToken(productId: string) {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  console.log("[products] auth ok, shop:", session.shop, "scope:", session.scope);
-  // Test token validity directly
-  const tokenTest = await fetch(
-    `https://${session.shop}/admin/api/2025-07/shop.json`,
-    { headers: { "X-Shopify-Access-Token": session.accessToken ?? "" } }
-  );
-  console.log("[products] direct token test status:", tokenTest.status, "shop:", session.shop);
-  if (tokenTest.status !== 200) {
-    const body = await tokenTest.text().catch(() => "");
-    console.error("[products] token test failed:", body.slice(0, 300));
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const origGraphql = (admin as any).graphql?.bind(admin);
-  if (origGraphql) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (admin as any).graphql = async (...args: any[]) => {
-      try {
-        const res = await origGraphql(...args);
-        console.log("[products] graphql call succeeded, status:", res?.status);
-        return res;
-      } catch (e: unknown) {
-        console.error("[products] graphql call threw:", e instanceof Response ? `Response(${e.status})` : String(e));
-        if (e instanceof Response) {
-          const body = await e.clone().text().catch(() => "");
-          console.error("[products] graphql error body:", body.slice(0, 500));
-        }
-        throw e;
-      }
-    };
-  }
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
