@@ -318,7 +318,12 @@ export async function fetchShopifyProducts(
 
   console.log("[graphql] products response status:", response.status);
   const text = await response.text();
-  console.log("[graphql] products response body:", text.slice(0, 500));
+  console.log("[graphql] products response body:", text.slice(0, 800));
+
+  if (response.status !== 200) {
+    console.error("[graphql] non-200 from Shopify, returning empty");
+    return [];
+  }
 
   let payload: { data?: { products?: { nodes?: Array<Record<string, unknown>> } } };
   try {
