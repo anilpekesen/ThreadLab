@@ -1,11 +1,13 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { getDataDir } from "~/lib/storage.server";
+import { query, runMigrations } from "~/lib/db.server";
 
-const DATA_DIR = getDataDir();
-const SETTINGS_FILE = join(DATA_DIR, "settings.json");
-const PRINT_AREAS_FILE = join(DATA_DIR, "print_areas.json");
+let migrationsRan = false;
+async function ensureMigrations() {
+  if (!migrationsRan) {
+    await runMigrations();
+    migrationsRan = true;
+  }
+}
 
 export type SurfaceMode = "front_back" | "front_only";
 export type ProductType = "apparel" | "sweatshirt" | "bag" | "mug" | "boxer" | "other";
@@ -81,32 +83,71 @@ export interface ShopifyProductSummary {
 
 type SettingsMap = Record<string, ProductConfig>;
 
-function readJsonFile<T>(file: string, fallback: T): T {
-  try {
-    return JSON.parse(readFileSync(file, "utf8")) as T;
-  } catch {
-    return fallback;
+export async function readSettingsMap(): Promise<SettingsMap> {
+  await ensureMigrations();
+  const result = await query<{ product_id: string; config: ProductConfig }>(
+    "SELECT product_id, config FROM product_settings",
+  );
+  const map: SettingsMap = {};
+  for (const row of result.rows) {
+    map[row.product_id] = row.config;
+  }
+  return map;
+}
+
+export async function writeSettingsMap(settings: SettingsMap): Promise<void> {
+  await ensureMigrations();
+  for (const [productId, config] of Object.entries(settings)) {
+    await query(
+      `INSERT INTO product_settings (product_id, config, updated_at)
+       VALUES ($1, $2, now())
+       ON CONFLICT (product_id) DO UPDATE SET config = $2, updated_at = now()`,
+      [productId, JSON.stringify(config)],
+    );
   }
 }
 
-function writeJsonFile(file: string, value: unknown) {
-  writeFileSync(file, JSON.stringify(value, null, 2));
+export async function readPrintAreas(): Promise<PrintAreaRecord[]> {
+  await ensureMigrations();
+  const result = await query<{
+    id: string; product_id: string; name: string; side: "front" | "back";
+    x: string; y: string; width: string; height: string;
+    real_width_mm: number; real_height_mm: number;
+    safe_margin: string; bleed_margin: string; dpi: number; updated_at: string;
+  }>("SELECT * FROM product_print_areas ORDER BY updated_at");
+  return result.rows.map((r) => ({
+    id: r.id,
+    productId: r.product_id,
+    name: r.name,
+    side: r.side,
+    x: Number(r.x),
+    y: Number(r.y),
+    width: Number(r.width),
+    height: Number(r.height),
+    realWidthMm: r.real_width_mm,
+    realHeightMm: r.real_height_mm,
+    safeMargin: Number(r.safe_margin),
+    bleedMargin: Number(r.bleed_margin),
+    dpi: r.dpi,
+    updatedAt: r.updated_at,
+  }));
 }
 
-export function readSettingsMap(): SettingsMap {
-  return readJsonFile<SettingsMap>(SETTINGS_FILE, {});
-}
-
-export function writeSettingsMap(settings: SettingsMap) {
-  writeJsonFile(SETTINGS_FILE, settings);
-}
-
-export function readPrintAreas(): PrintAreaRecord[] {
-  return readJsonFile<PrintAreaRecord[]>(PRINT_AREAS_FILE, []);
-}
-
-export function writePrintAreas(areas: PrintAreaRecord[]) {
-  writeJsonFile(PRINT_AREAS_FILE, areas);
+export async function writePrintAreas(areas: PrintAreaRecord[]): Promise<void> {
+  await ensureMigrations();
+  if (areas.length === 0) return;
+  for (const a of areas) {
+    await query(
+      `INSERT INTO product_print_areas
+         (id, product_id, side, name, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())
+       ON CONFLICT (id) DO UPDATE SET
+         product_id=$2, side=$3, name=$4, x=$5, y=$6, width=$7, height=$8,
+         real_width_mm=$9, real_height_mm=$10, safe_margin=$11, bleed_margin=$12, dpi=$13, updated_at=now()`,
+      [a.id, a.productId, a.side, a.name, a.x, a.y, a.width, a.height,
+       a.realWidthMm, a.realHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
+    );
+  }
 }
 
 function normalizeBands(sideBands: unknown): PricingBand[] {
@@ -416,24 +457,28 @@ export async function fetchShopifyProductById(
   return mapped;
 }
 
-export function getProductConfig(product: ShopifyProductSummary): ProductConfig {
-  const settings = readSettingsMap();
+export async function getProductConfig(product: ShopifyProductSummary): Promise<ProductConfig> {
+  const settings = await readSettingsMap();
   const fallback = buildDefaultConfig(product);
   const stored = settings[product.id];
   return stored ? normalizeProductConfig(stored, fallback) : fallback;
 }
 
-export function saveProductConfig(productId: string, config: ProductConfig) {
-  const settings = readSettingsMap();
-  settings[productId] = config;
-  writeSettingsMap(settings);
+export async function saveProductConfig(productId: string, config: ProductConfig): Promise<void> {
+  await ensureMigrations();
+  await query(
+    `INSERT INTO product_settings (product_id, config, updated_at)
+     VALUES ($1, $2, now())
+     ON CONFLICT (product_id) DO UPDATE SET config = $2, updated_at = now()`,
+    [productId, JSON.stringify(config)],
+  );
 }
 
-export function findConfigForStorefront(productId: string, handle: string) {
+export async function findConfigForStorefront(productId: string, handle: string) {
   const idKey = String(productId || "").trim();
   const handleKey = String(handle || "").trim();
   if (!idKey && !handleKey) return null;
-  const settings = readSettingsMap();
+  const settings = await readSettingsMap();
   const entry = Object.entries(settings).find(([storedId, value]) => {
     if (idKey && String(storedId).trim() === idKey) return true;
     return handleKey && String(value?.productHandle || "").trim() === handleKey;
@@ -447,7 +492,8 @@ export function findConfigForStorefront(productId: string, handle: string) {
     productType: String(storedConfig?.productType || "apparel"),
   });
   const config = normalizeProductConfig(storedConfig, fallback);
-  const printAreas = readPrintAreas().filter((area) => area.productId === storedProductId);
+  const allAreas = await readPrintAreas();
+  const printAreas = allAreas.filter((area) => area.productId === storedProductId);
 
   return {
     productId: storedProductId,
@@ -456,13 +502,13 @@ export function findConfigForStorefront(productId: string, handle: string) {
   };
 }
 
-export function getProductPrintAreas(
+export async function getProductPrintAreas(
   productId: string,
   productType: string,
   surfaceMode: SurfaceMode,
   config: ProductConfig,
-): PrintAreaRecord[] {
-  const allAreas = readPrintAreas();
+): Promise<PrintAreaRecord[]> {
+  const allAreas = await readPrintAreas();
   const overlay = defaultOverlayForType(productType);
 
   const buildDefault = (side: "front" | "back"): PrintAreaRecord => ({
@@ -496,15 +542,16 @@ export function getProductPrintAreas(
   return result;
 }
 
-export function saveProductPrintAreas(productId: string, areas: PrintAreaRecord[]) {
-  const existing = readPrintAreas().filter((area) => area.productId !== productId);
-  writePrintAreas(
-    existing.concat(
-      areas.map((area) => ({
-        ...area,
-        productId,
-        updatedAt: new Date().toISOString(),
-      })),
-    ),
-  );
+export async function saveProductPrintAreas(productId: string, areas: PrintAreaRecord[]): Promise<void> {
+  await ensureMigrations();
+  await query("DELETE FROM product_print_areas WHERE product_id = $1", [productId]);
+  for (const a of areas) {
+    await query(
+      `INSERT INTO product_print_areas
+         (id, product_id, side, name, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())`,
+      [a.id, productId, a.side, a.name, a.x, a.y, a.width, a.height,
+       a.realWidthMm, a.realHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
+    );
+  }
 }

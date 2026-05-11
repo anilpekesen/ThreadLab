@@ -1,0 +1,53 @@
+import pg from "pg";
+
+const { Pool } = pg;
+
+let pool: pg.Pool | null = null;
+
+function getPool(): pg.Pool {
+  if (!pool) {
+    const url = process.env.DATABASE_URL;
+    if (!url) throw new Error("DATABASE_URL is not set");
+    pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } });
+  }
+  return pool;
+}
+
+export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
+  sql: string,
+  params?: unknown[],
+): Promise<pg.QueryResult<T>> {
+  return getPool().query<T>(sql, params);
+}
+
+export async function runMigrations() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS product_settings (
+      product_id TEXT PRIMARY KEY,
+      config     JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS product_print_areas (
+      id              TEXT PRIMARY KEY,
+      product_id      TEXT NOT NULL,
+      side            TEXT NOT NULL,
+      name            TEXT NOT NULL,
+      x               NUMERIC NOT NULL DEFAULT 0,
+      y               NUMERIC NOT NULL DEFAULT 0,
+      width           NUMERIC NOT NULL DEFAULT 0,
+      height          NUMERIC NOT NULL DEFAULT 0,
+      real_width_mm   INTEGER NOT NULL DEFAULT 0,
+      real_height_mm  INTEGER NOT NULL DEFAULT 0,
+      safe_margin     NUMERIC NOT NULL DEFAULT 10,
+      bleed_margin    NUMERIC NOT NULL DEFAULT 5,
+      dpi             INTEGER NOT NULL DEFAULT 300,
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS product_print_areas_product_id
+      ON product_print_areas (product_id)
+  `);
+}

@@ -486,8 +486,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     throw new Response("Product not found", { status: 404 });
   }
 
-  const config = getProductConfig(product);
-  const printAreas = getProductPrintAreas(product.id, config.productType, config.surfaceMode, config);
+  const config = await getProductConfig(product);
+  const printAreas = await getProductPrintAreas(product.id, config.productType, config.surfaceMode, config);
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
   const appBlockHandle = "tshirt-designer";
   const themeUrl = apiKey
@@ -554,8 +554,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     fallback,
   );
 
-  saveProductConfig(productId, normalized);
-  saveProductPrintAreas(productId, printAreas);
+  await saveProductConfig(productId, normalized);
+  await saveProductPrintAreas(productId, printAreas);
   return redirect(`/app/products/${encodeURIComponent(productToken)}?saved=1`);
 };
 

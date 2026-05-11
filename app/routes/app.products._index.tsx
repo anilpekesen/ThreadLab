@@ -39,8 +39,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const appBlockHandle = "tshirt-designer";
   const products = await fetchShopifyProducts(admin, q);
 
-  const rows = products.map((product) => {
-    const config = getProductConfig(product);
+  const rows = await Promise.all(products.map(async (product) => {
+    const config = await getProductConfig(product);
     const themeUrl = apiKey
       ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=mainSection`
       : null;
@@ -55,7 +55,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       editUrl: `/app/products/${encodeProductToken(product.id)}`,
       themeUrl,
     };
-  });
+  }));
 
   return json({ rows, q });
 };

@@ -62,7 +62,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (path === "personalization") {
     const handle = new URL(request.url).searchParams.get("handle") ?? "";
     const productId = new URL(request.url).searchParams.get("productId") ?? "";
-    const config = findConfigForStorefront(productId, handle);
+    const config = await findConfigForStorefront(productId, handle);
     if (!config) {
       return json({ error: "Not found" }, { status: 404 });
     }
