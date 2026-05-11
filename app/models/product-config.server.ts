@@ -316,9 +316,16 @@ export async function fetchShopifyProducts(
     { variables: { query } },
   );
 
-  const payload = (await response.json()) as {
-    data?: { products?: { nodes?: Array<Record<string, unknown>> } };
-  };
+  console.log("[graphql] products response status:", response.status);
+  const text = await response.text();
+  console.log("[graphql] products response body:", text.slice(0, 500));
+
+  let payload: { data?: { products?: { nodes?: Array<Record<string, unknown>> } } };
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    payload = {};
+  }
 
   const nodes = payload.data?.products?.nodes ?? [];
   return nodes.map((node) => ({
