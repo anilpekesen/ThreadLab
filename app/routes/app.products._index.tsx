@@ -32,7 +32,21 @@ function encodeProductToken(productId: string) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  let admin: Awaited<ReturnType<typeof authenticate.admin>>["admin"];
+  let session: Awaited<ReturnType<typeof authenticate.admin>>["session"];
+  try {
+    const auth = await authenticate.admin(request);
+    admin = auth.admin;
+    session = auth.session;
+    console.log("[products] auth ok, shop:", session.shop, "scope:", session.scope);
+  } catch (e: unknown) {
+    if (e instanceof Response) {
+      console.error("[products] authenticate threw Response:", e.status, e.headers.get("location"));
+      throw e;
+    }
+    console.error("[products] authenticate threw:", String(e));
+    throw e;
+  }
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";

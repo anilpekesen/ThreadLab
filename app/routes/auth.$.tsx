@@ -3,12 +3,22 @@ import { json } from "@remix-run/node";
 import { authenticate, login } from "~/shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const pathname = new URL(request.url).pathname;
-  if (pathname === "/auth/login") {
+  const url = new URL(request.url);
+  console.log("[auth-route] path:", url.pathname, "params:", Object.fromEntries(url.searchParams.entries()));
+  if (url.pathname === "/auth/login") {
     return login(request);
   }
-
-  await authenticate.admin(request);
+  try {
+    await authenticate.admin(request);
+    console.log("[auth-route] authenticate.admin succeeded for", url.pathname);
+  } catch (e: unknown) {
+    if (e instanceof Response) {
+      console.log("[auth-route] Response thrown status:", e.status, "location:", e.headers.get("location"));
+      throw e;
+    }
+    console.error("[auth-route] Error:", String(e));
+    throw e;
+  }
   return null;
 };
 
