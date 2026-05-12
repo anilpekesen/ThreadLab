@@ -1075,7 +1075,7 @@ export default function App() {
   return (
     <div className="flex h-full min-h-screen items-stretch justify-center bg-[#eef2f7] text-gray-900">
       <div className="flex h-full min-h-0 w-full max-w-none flex-1 flex-col overflow-hidden bg-white shadow-none layout:flex-row">
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col layout:min-w-0">
         <div className="flex items-center justify-between border-b border-gray-100 bg-white px-3 py-2.5 md:px-4 md:py-3">
           <div className="flex items-center gap-2">
             <button className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-medium transition-colors hover:bg-gray-50 md:px-3 md:text-sm">
@@ -1723,7 +1723,7 @@ export default function App() {
         </div>
 
         {/* RIGHT: Commerce sidebar — right on desktop, below on mobile */}
-        <div className="flex w-full flex-none flex-col border-t border-gray-100 bg-white overflow-y-auto layout:w-[280px] layout:border-l layout:border-t-0">
+        <div className="flex w-full flex-none flex-col overflow-y-auto border-t border-gray-100 bg-white layout:w-[300px] layout:min-w-[300px] layout:border-l layout:border-t-0 lg:w-[340px] lg:min-w-[340px] xl:w-[380px] xl:min-w-[380px]">
           {config?.productTitle && (
             <div className="border-b border-gray-100 px-3 py-3">
               <h2 className="text-xs font-bold leading-snug text-gray-900">{config.productTitle}</h2>
