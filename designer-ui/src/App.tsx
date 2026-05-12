@@ -1211,8 +1211,8 @@ export default function App() {
               </div>
             </div>
 
-            <div className="absolute bottom-24 right-4 z-30 flex scale-95 flex-col gap-2 origin-right md:right-6 md:top-1/2 md:-translate-y-1/2 md:scale-100 md:gap-3">
-              <div className="flex w-16 flex-col rounded-2xl border border-gray-100 bg-white/95 shadow-xl backdrop-blur-sm md:w-20">
+            <div className="absolute bottom-24 right-2 z-30 flex scale-[0.8] flex-col gap-1.5 origin-right md:right-5 md:top-1/2 md:-translate-y-1/2 md:scale-90 md:gap-2">
+              <div className="flex w-14 flex-col rounded-2xl border border-gray-100 bg-white/95 shadow-xl backdrop-blur-sm md:w-16">
                 <button
                   onClick={() => {
                     setInteractionMode('selection');
@@ -1223,19 +1223,19 @@ export default function App() {
                     }
                   }}
                   className={cn(
-                    'flex w-full flex-col items-center justify-center rounded-t-2xl border-b border-gray-100 p-2.5 transition-colors md:p-3',
+                    'flex w-full flex-col items-center justify-center rounded-t-2xl border-b border-gray-100 p-2 transition-colors md:p-2.5',
                     interactionMode === 'selection' ? 'bg-blue-50/50 text-blue-600' : 'text-gray-400 hover:bg-gray-50',
                   )}
                 >
-                  <MousePointer2 className="h-5 w-5" />
-                  <span className="mt-1 block text-[7px] font-bold uppercase tracking-tighter md:text-[9px]">Seçim</span>
+                  <MousePointer2 className="h-4 w-4 md:h-[18px] md:w-[18px]" />
+                  <span className="mt-1 block text-[6px] font-bold uppercase tracking-tighter md:text-[8px]">Seçim</span>
                 </button>
                 <button
                   onClick={selectAllLayers}
-                  className="flex w-full flex-col items-center justify-center border-b border-gray-100 p-2.5 text-gray-500 transition-colors hover:bg-gray-50 md:p-3"
+                  className="flex w-full flex-col items-center justify-center border-b border-gray-100 p-2 text-gray-500 transition-colors hover:bg-gray-50 md:p-2.5"
                 >
-                  <LayoutGrid className="h-5 w-5" />
-                  <span className="mt-1 block text-center text-[7px] font-bold uppercase tracking-tighter md:text-[9px]">Toplu S.</span>
+                  <LayoutGrid className="h-4 w-4 md:h-[18px] md:w-[18px]" />
+                  <span className="mt-1 block text-center text-[6px] font-bold uppercase tracking-tighter md:text-[8px]">Toplu S.</span>
                 </button>
                 <button
                   onClick={() => {
@@ -1251,34 +1251,34 @@ export default function App() {
                     setToolbarPos(null);
                   }}
                   className={cn(
-                    'flex w-full flex-col items-center justify-center rounded-b-2xl p-2.5 transition-colors md:p-3',
+                    'flex w-full flex-col items-center justify-center rounded-b-2xl p-2 transition-colors md:p-2.5',
                     interactionMode === 'navigation' ? 'bg-blue-50/50 text-blue-600' : 'text-gray-400 hover:bg-gray-50',
                   )}
                 >
-                  <Move className="h-5 w-5" />
-                  <span className="mt-1 block text-center text-[7px] font-bold uppercase tracking-tighter md:text-[9px]">Gezinme</span>
+                  <Move className="h-4 w-4 md:h-[18px] md:w-[18px]" />
+                  <span className="mt-1 block text-center text-[6px] font-bold uppercase tracking-tighter md:text-[8px]">Gezinme</span>
                 </button>
               </div>
 
-              <div className="flex w-16 flex-col rounded-2xl border border-gray-100 bg-white/95 shadow-xl backdrop-blur-sm md:w-20">
+              <div className="flex w-14 flex-col rounded-2xl border border-gray-100 bg-white/95 shadow-xl backdrop-blur-sm md:w-16">
                 <button
                   onClick={() => setZoom((value) => Math.min(300, value + 20))}
-                  className="flex w-full justify-center rounded-t-2xl border-b border-gray-100 p-2.5 text-gray-400 transition-colors hover:bg-gray-50 md:p-3"
+                  className="flex w-full justify-center rounded-t-2xl border-b border-gray-100 p-2 text-gray-400 transition-colors hover:bg-gray-50 md:p-2.5"
                 >
-                  <ZoomIn className="h-5 w-5" />
+                  <ZoomIn className="h-4 w-4 md:h-[18px] md:w-[18px]" />
                 </button>
                 <button
                   onClick={resetViewport}
-                  className="w-full select-none bg-gray-50 py-2 text-center text-[9px] font-black text-gray-600 transition-colors hover:bg-gray-100 md:py-3 md:text-[11px]"
+                  className="w-full select-none bg-gray-50 py-1.5 text-center text-[8px] font-black text-gray-600 transition-colors hover:bg-gray-100 md:py-2.5 md:text-[10px]"
                   title="Sıfırla"
                 >
                   {zoom}%
                 </button>
                 <button
                   onClick={() => setZoom((value) => Math.max(20, value - 20))}
-                  className="flex w-full justify-center rounded-b-2xl p-2.5 text-gray-400 transition-colors hover:bg-gray-50 md:p-3"
+                  className="flex w-full justify-center rounded-b-2xl p-2 text-gray-400 transition-colors hover:bg-gray-50 md:p-2.5"
                 >
-                  <ZoomOut className="h-5 w-5" />
+                  <ZoomOut className="h-4 w-4 md:h-[18px] md:w-[18px]" />
                 </button>
               </div>
             </div>
