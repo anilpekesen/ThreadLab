@@ -466,6 +466,20 @@ function PrintAreaEditor({
               type="number"
             />
           </InlineGrid>
+          <InlineStack gap="200">
+            <Button
+              size="slim"
+              onClick={() => onChange("x", String(Math.round((PREVIEW_WIDTH - Number(area.width)) / 2)))}
+            >
+              Yatay ortala
+            </Button>
+            <Button
+              size="slim"
+              onClick={() => onChange("y", String(Math.round((PREVIEW_HEIGHT - Number(area.height)) / 2)))}
+            >
+              Dikey ortala
+            </Button>
+          </InlineStack>
           <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
             <TextField
               label="Gercek baski genisligi (mm)"
