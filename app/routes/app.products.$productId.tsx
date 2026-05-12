@@ -256,12 +256,15 @@ function PrintAreaEditor({
   area,
   onChange,
   imageUrl,
+  imageOptions = [],
 }: {
   title: string;
   area: AreaState;
   onChange: (field: keyof AreaState, value: string) => void;
   imageUrl?: string | null;
+  imageOptions?: string[];
 }) {
+  const [activeImage, setActiveImage] = useState<string | null | undefined>(imageUrl);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<
     | {
@@ -356,6 +359,31 @@ function PrintAreaEditor({
             Kutuyu surukleyerek tasiyabilir, sag alt koseden yeniden boyutlandirabilirsin.
           </Text>
 
+          {imageOptions.length > 1 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+              {imageOptions.map((url, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setActiveImage(url)}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 8,
+                    overflow: "hidden",
+                    border: activeImage === url ? "2.5px solid #0f766e" : "2px solid #e5e7eb",
+                    cursor: "pointer",
+                    padding: 0,
+                    background: "none",
+                    flexShrink: 0,
+                  }}
+                >
+                  <img src={url} alt={`Gorsel ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </button>
+              ))}
+            </div>
+          )}
+
           <div
             ref={frameRef}
             style={{
@@ -365,8 +393,8 @@ function PrintAreaEditor({
               aspectRatio: `${PREVIEW_WIDTH} / ${PREVIEW_HEIGHT}`,
               borderRadius: 16,
               overflow: "hidden",
-              background: imageUrl
-                ? `center / cover no-repeat url("${imageUrl}")`
+              background: activeImage
+                ? `center / cover no-repeat url("${activeImage}")`
                 : "linear-gradient(160deg, #f3f4f6 0%, #e5e7eb 100%)",
               border: "1px solid rgba(15, 23, 42, 0.12)",
             }}
@@ -688,6 +716,7 @@ export default function ProductSettingsRoute() {
                     area={frontArea}
                     onChange={(field, value) => setFrontArea((current) => updateAreaState(current, field, value))}
                     imageUrl={product.images[0] || product.featuredImage}
+                    imageOptions={product.images}
                   />
 
                   {surfaceMode === "front_back" ? (
@@ -709,6 +738,7 @@ export default function ProductSettingsRoute() {
                         area={backArea}
                         onChange={(field, value) => setBackArea((current) => updateAreaState(current, field, value))}
                         imageUrl={product.images[1] || product.images[0] || product.featuredImage}
+                        imageOptions={product.images}
                       />
                     </>
                   ) : null}
