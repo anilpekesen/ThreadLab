@@ -389,22 +389,28 @@ function PrintAreaEditor({
             style={{
               position: "relative",
               width: "100%",
-              maxWidth: 280,
+              maxWidth: 420,
               aspectRatio: `${PREVIEW_WIDTH} / ${PREVIEW_HEIGHT}`,
               borderRadius: 16,
               overflow: "hidden",
-              background: activeImage
-                ? `center / cover no-repeat url("${activeImage}")`
-                : "linear-gradient(160deg, #f3f4f6 0%, #e5e7eb 100%)",
+              background: activeImage ? "transparent" : "linear-gradient(160deg, #f3f4f6 0%, #e5e7eb 100%)",
               border: "1px solid rgba(15, 23, 42, 0.12)",
             }}
           >
+            {/* object-fit:fill matches Fabric.js scaleToWidth+scaleToHeight — image stretched to fill, no crop */}
+            {activeImage && (
+              <img
+                src={activeImage}
+                alt="Urun gorseli"
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block", objectFit: "fill" }}
+              />
+            )}
             <div
               style={{
                 position: "absolute",
                 inset: 0,
                 background:
-                  "linear-gradient(180deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.04) 60%, rgba(15,23,42,0.08) 100%)",
+                  "linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.00) 60%, rgba(15,23,42,0.06) 100%)",
               }}
             />
             <div
