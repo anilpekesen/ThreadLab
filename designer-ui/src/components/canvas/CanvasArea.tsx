@@ -260,25 +260,22 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       onObjectSelectedRef.current(cv.getActiveObject() ?? null);
       onDesignChangeRef.current(side);
     });
-    cv.on('object:scaling', (e) => keepImageUniform(e.target));
     cv.on('object:removed', () => {
       pushHistory(cv);
       onDesignChangeRef.current(side);
     });
     cv.on('object:moving', (e) => {
       constrainTarget(e.target);
-      onObjectSelectedRef.current(cv.getActiveObject() ?? null);
-      onDesignChangeRef.current(side);
+      cv.requestRenderAll();
     });
     cv.on('object:scaling', (e) => {
+      keepImageUniform(e.target);
       constrainTarget(e.target);
-      onObjectSelectedRef.current(cv.getActiveObject() ?? null);
-      onDesignChangeRef.current(side);
+      cv.requestRenderAll();
     });
     cv.on('object:rotating', (e) => {
       constrainTarget(e.target);
-      onObjectSelectedRef.current(cv.getActiveObject() ?? null);
-      onDesignChangeRef.current(side);
+      cv.requestRenderAll();
     });
     cv.on('selection:created', (e) => onObjectSelectedRef.current(e.selected?.[0] ?? null));
     cv.on('selection:updated', (e) => onObjectSelectedRef.current(e.selected?.[0] ?? null));
