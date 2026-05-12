@@ -397,12 +397,12 @@ function PrintAreaEditor({
               border: "1px solid rgba(15, 23, 42, 0.12)",
             }}
           >
-            {/* object-fit:fill matches Fabric.js scaleToWidth+scaleToHeight — image stretched to fill, no crop */}
+            {/* object-fit:contain matches Fabric.js contain scaling — full garment visible, centered */}
             {activeImage && (
               <img
                 src={activeImage}
                 alt="Urun gorseli"
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block", objectFit: "fill" }}
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block", objectFit: "contain" }}
               />
             )}
             <div

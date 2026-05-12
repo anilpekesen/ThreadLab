@@ -259,8 +259,12 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     setBgLoaded(false);
     fabric.Image.fromURL(imgSrc, (img) => {
       if (!canRender()) return;
-      img.scaleToWidth(PRINT_W);
-      img.scaleToHeight(PRINT_H);
+      const scale = Math.min(PRINT_W / (img.width ?? 1), PRINT_H / (img.height ?? 1));
+      img.scale(scale);
+      img.set({
+        left: (PRINT_W - scale * (img.width ?? 0)) / 2,
+        top: (PRINT_H - scale * (img.height ?? 0)) / 2,
+      });
       try {
         cv.setBackgroundImage(img, () => {
           if (!canRender()) return;
