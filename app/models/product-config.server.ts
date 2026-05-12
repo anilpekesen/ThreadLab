@@ -79,6 +79,7 @@ export interface ShopifyProductSummary {
     title: string;
     price: string;
     selectedOptions: Array<{ name: string; value: string }>;
+    image?: string | null;
   }>;
 }
 
@@ -421,6 +422,9 @@ export async function fetchShopifyProductById(
               name
               value
             }
+            image {
+              url
+            }
           }
         }
       }
@@ -462,6 +466,9 @@ export async function fetchShopifyProductById(
                       value: String((option as { value?: string }).value || ""),
                     }))
                   : [],
+                image: variant.image && typeof variant.image === "object"
+                  ? String((variant.image as { url?: string }).url || "") || null
+                  : null,
               })) as ShopifyProductSummary["variants"])
             : [],
       },

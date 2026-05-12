@@ -621,6 +621,23 @@ export default function ProductSettingsRoute() {
   const [frontArea, setFrontArea] = useState<AreaState>(toAreaState(printAreas, "front"));
   const [backArea, setBackArea] = useState<AreaState>(toAreaState(printAreas, "back"));
 
+  // Liquid mantığıyla aynı: option3'e göre ön/arka variant görselini seç
+  const designerFrontImage = (() => {
+    const v = product.variants.find((variant) => {
+      const opt3 = (variant.selectedOptions[2]?.value ?? "").toLowerCase();
+      return (opt3.includes("ön") || opt3.includes("on") || opt3.includes("front")) && !opt3.includes("arka") && !opt3.includes("back");
+    });
+    return v?.image || product.images[0] || product.featuredImage || "";
+  })();
+
+  const designerBackImage = (() => {
+    const v = product.variants.find((variant) => {
+      const opt3 = (variant.selectedOptions[2]?.value ?? "").toLowerCase();
+      return opt3.includes("arka") || opt3.includes("back");
+    });
+    return v?.image || product.images[1] || product.images[0] || product.featuredImage || "";
+  })();
+
   const variantOptions = [
     { label: "Secilmedi", value: "" },
     ...product.variants.map((variant) => ({
@@ -735,7 +752,7 @@ export default function ProductSettingsRoute() {
                     title="On yuz"
                     area={frontArea}
                     onChange={(field, value) => setFrontArea((current) => updateAreaState(current, field, value))}
-                    imageUrl={product.images[0] || product.featuredImage}
+                    imageUrl={designerFrontImage}
                     imageOptions={product.images}
                   />
 
@@ -757,7 +774,7 @@ export default function ProductSettingsRoute() {
                         title="Arka yuz"
                         area={backArea}
                         onChange={(field, value) => setBackArea((current) => updateAreaState(current, field, value))}
-                        imageUrl={product.images[1] || product.images[0] || product.featuredImage}
+                        imageUrl={designerBackImage}
                         imageOptions={product.images}
                       />
                     </>
