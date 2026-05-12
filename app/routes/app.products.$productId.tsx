@@ -18,16 +18,14 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { authenticate } from "~/shopify.server";
 import {
-  defaultMockupBoundsForType,
   fetchShopifyProductById,
   getProductConfig,
   getProductPrintAreas,
   normalizeProductConfig,
   saveProductConfig,
   saveProductPrintAreas,
-  type PrintAreaRecord,
-  type ProductConfig,
 } from "~/models/product-config.server";
+import type { PrintAreaRecord, ProductConfig } from "~/models/product-config.server";
 
 const PREVIEW_WIDTH = 480;
 const PREVIEW_HEIGHT = 580;
@@ -318,9 +316,44 @@ function defaultOverlay(productType: ProductConfig["productType"]) {
   };
 }
 
+function defaultMockupBounds(productType: ProductConfig["productType"]) {
+  if (productType === "bag") {
+    return {
+      front: { x: 74, y: 57, width: 332, height: 460 },
+      back: { x: 74, y: 57, width: 332, height: 460 },
+    };
+  }
+
+  if (productType === "mug") {
+    return {
+      front: { x: 32, y: 152, width: 416, height: 232 },
+      back: { x: 32, y: 152, width: 416, height: 232 },
+    };
+  }
+
+  if (productType === "boxer") {
+    return {
+      front: { x: 110, y: 116, width: 260, height: 318 },
+      back: { x: 110, y: 116, width: 260, height: 318 },
+    };
+  }
+
+  if (productType === "other") {
+    return {
+      front: { x: 80, y: 70, width: 320, height: 440 },
+      back: { x: 80, y: 70, width: 320, height: 440 },
+    };
+  }
+
+  return {
+    front: { x: 76, y: 28, width: 328, height: 524 },
+    back: { x: 76, y: 28, width: 328, height: 524 },
+  };
+}
+
 function applyProductPreset(area: AreaState, productType: ProductConfig["productType"], side: "front" | "back") {
   const overlay = defaultOverlay(productType)[side];
-  const mockup = defaultMockupBoundsForType(productType)[side];
+  const mockup = defaultMockupBounds(productType)[side];
   const dimensions = defaultPrintDimensions(productType)[side];
 
   return normalizeAreaState({
