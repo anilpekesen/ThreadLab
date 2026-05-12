@@ -139,7 +139,7 @@
             return {
               id: parseInt(item.variantId, 10),
               quantity: item.quantity,
-              properties: props
+              properties: Object.assign({}, props, item.properties || {}, item.size ? { 'Beden': item.size } : {})
             };
           })
         })

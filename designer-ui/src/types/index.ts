@@ -14,6 +14,7 @@ export interface ShopifyVariant {
 }
 
 export interface DesignerConfig {
+  productId: string;
   productHandle: string;
   productTitle: string;
   frontImage: string;
@@ -52,6 +53,7 @@ export interface PersonalizationConfig {
   surfaceMode: SurfaceMode;
   printAreas: Record<Side, PrintAreaConfig>;
   pricingBands: Record<Side, PricingBand[]>;
+  surchargeVariantId: string;
 }
 
 export interface UploadedImage {

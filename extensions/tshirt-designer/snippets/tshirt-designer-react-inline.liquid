@@ -78,6 +78,7 @@
       iframe.contentWindow.postMessage({
         type: 'DESIGNER_INIT',
         config: {
+          productId: root.dataset.productId || '',
           productHandle: root.dataset.productHandle || '',
           productTitle: root.dataset.productTitle || '',
           frontImage: root.dataset.frontImage || '',
@@ -138,7 +139,7 @@
               return {
                 id: item.variantId,
                 quantity: item.quantity || 1,
-                properties: Object.assign({}, props, item.size ? { 'Beden': item.size } : {})
+                properties: Object.assign({}, props, item.properties || {}, item.size ? { 'Beden': item.size } : {})
               };
             })
           })

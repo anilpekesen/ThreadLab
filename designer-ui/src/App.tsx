@@ -50,6 +50,13 @@ interface ObjectState {
   textAlign?: 'left' | 'center' | 'right';
 }
 
+interface CartItemPayload {
+  variantId: string;
+  quantity: number;
+  size?: string;
+  properties?: Record<string, string>;
+}
+
 const MAIN_TABS: { id: 'image' | 'text' | 'layers'; label: string; Icon: React.FC<{ className?: string }> }[] = [
   { id: 'image', label: 'Görsel', Icon: ImageIcon },
   { id: 'text', label: 'Metin', Icon: Type },
@@ -104,6 +111,7 @@ interface SidePricing {
   metrics: SideMetrics;
   band: PricingBand;
   surcharge: number;
+  surchargeUnitAmount: number;
   subtotal: number;
 }
 
@@ -151,6 +159,7 @@ function defaultPersonalization(): PersonalizationConfig {
       front: DEFAULT_PRICING_BANDS,
       back: DEFAULT_PRICING_BANDS,
     },
+    surchargeVariantId: '',
   };
 }
 
@@ -161,6 +170,7 @@ function readConfig(): DesignerConfig {
   let variants: DesignerConfig['variants'] = [];
   try { variants = JSON.parse(p.get('variants') ?? '[]') as DesignerConfig['variants']; } catch { variants = []; }
   return {
+    productId: p.get('productId') ?? '',
     productHandle: p.get('handle') ?? '',
     productTitle: p.get('title') ?? 'Tişört',
     frontImage: p.get('front') ?? '',
@@ -190,6 +200,10 @@ function priceToCents(price: string | number | undefined): number {
 
 function roundMetric(value: number) {
   return Math.round(value * 10) / 10;
+}
+
+function surchargeToCents(value: number) {
+  return Math.round(Number(value || 0) * 100);
 }
 
 function formatMetricSize(metrics: SideMetrics) {
@@ -238,7 +252,7 @@ function normalizePrintArea(side: Side, area: Partial<PrintAreaConfig> | null | 
 
 function normalizePersonalizationPayload(payload: unknown): PersonalizationConfig {
   const source = payload as {
-    settings?: { surfaceMode?: SurfaceMode; pricingBands?: Record<Side, PricingBand[]> };
+    settings?: { surfaceMode?: SurfaceMode; pricingBands?: Record<Side, PricingBand[]>; surchargeVariantId?: string };
     printAreas?: PrintAreaConfig[];
     product?: { surfaceMode?: SurfaceMode };
   } | null;
@@ -260,6 +274,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
       back: areaMap.get('back') ?? base.printAreas.back,
     },
     pricingBands,
+    surchargeVariantId: String(source?.settings?.surchargeVariantId || ''),
   };
 }
 
@@ -410,12 +425,15 @@ export default function App() {
   }, [setConfig]);
 
   useEffect(() => {
-    if (!config?.productHandle) {
+    if (!config?.productHandle && !config?.productId) {
       setPersonalization(defaultPersonalization());
       return;
     }
     let cancelled = false;
-    fetch(`/api/designer-config?handle=${encodeURIComponent(config.productHandle)}`, {
+    const params = new URLSearchParams();
+    if (config?.productHandle) params.set('handle', config.productHandle);
+    if (config?.productId) params.set('productId', config.productId);
+    fetch(`/api/designer-config?${params.toString()}`, {
       headers: { Accept: 'application/json' },
     })
       .then((res) => (res.ok ? res.json() : null))
@@ -429,7 +447,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [config?.productHandle]);
+  }, [config?.productHandle, config?.productId]);
 
   useEffect(() => {
     if (personalization.surfaceMode === 'front_only' && activeSide !== 'front') {
@@ -589,10 +607,10 @@ export default function App() {
     const resolvedSide = frontHas && backHas ? 'double' : backHas ? 'back' : 'front';
     const selectedSizes = sizes.filter((size) => (sizeQuantities[size!] ?? 0) > 0);
 
-    const cartItems = selectedSizes
+    const cartItems: CartItemPayload[] = selectedSizes
       .map((size) => {
-        const variantId = baseVariantForSize(size!)?.id ?? config?.singleVariantId ?? config?.doubleVariantId ?? '';
-        return { variantId, quantity: sizeQuantities[size!] ?? 0, size };
+        const variantId = String(baseVariantForSize(size!)?.id ?? config?.singleVariantId ?? config?.doubleVariantId ?? '');
+        return { variantId, quantity: sizeQuantities[size!] ?? 0, size: size ?? undefined };
       })
       .filter((item) => item.variantId);
 
@@ -605,7 +623,7 @@ export default function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        productId: config?.productHandle,
+        productId: config?.productId || config?.productHandle,
         designJson: {
           front: frontCanvasRef.current?.saveDesign(),
           back: backCanvasRef.current?.saveDesign(),
@@ -627,13 +645,57 @@ export default function App() {
     if (resolvedSide !== 'front') properties['Arka Tasarım'] = backPng ? 'Var' : 'Yok';
     if (pricingSummary.front.hasContent) {
       properties['Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
+      properties['Ön alan'] = `${roundMetric(pricingSummary.front.metrics.areaCm2)} cm²`;
       properties['Ön alan fiyatı'] = formatMoney(pricingSummary.front.surcharge);
       properties['Ön fiyat bandı'] = pricingSummary.front.band.label;
     }
     if (pricingSummary.back.hasContent) {
       properties['Arka ölçü'] = formatMetricSize(pricingSummary.back.metrics);
+      properties['Arka alan'] = `${roundMetric(pricingSummary.back.metrics.areaCm2)} cm²`;
       properties['Arka alan fiyatı'] = formatMoney(pricingSummary.back.surcharge);
       properties['Arka fiyat bandı'] = pricingSummary.back.band.label;
+    }
+
+    if (personalization.surchargeVariantId) {
+      if (pricingSummary.front.hasContent && pricingSummary.front.surchargeUnitAmount > 0) {
+        const quantity = Math.round(pricingSummary.front.surchargeUnitAmount * totalQuantity);
+        if (quantity > 0) {
+          cartItems.push({
+            variantId: personalization.surchargeVariantId,
+            quantity,
+            properties: {
+              ...properties,
+              '_design_role': 'surcharge',
+              'Ürün tipi': 'Ön baskı ek ücreti',
+              'Baskı yüzü': 'Ön',
+              'Baskı ölçü': formatMetricSize(pricingSummary.front.metrics),
+              'Baskı alanı': `${roundMetric(pricingSummary.front.metrics.areaCm2)} cm²`,
+              'Fiyat bandı': pricingSummary.front.band.label,
+              'Ek ücret / adet': formatMoney(pricingSummary.front.surcharge),
+            },
+          });
+        }
+      }
+
+      if (pricingSummary.back.hasContent && pricingSummary.back.surchargeUnitAmount > 0) {
+        const quantity = Math.round(pricingSummary.back.surchargeUnitAmount * totalQuantity);
+        if (quantity > 0) {
+          cartItems.push({
+            variantId: personalization.surchargeVariantId,
+            quantity,
+            properties: {
+              ...properties,
+              '_design_role': 'surcharge',
+              'Ürün tipi': 'Arka baskı ek ücreti',
+              'Baskı yüzü': 'Arka',
+              'Baskı ölçü': formatMetricSize(pricingSummary.back.metrics),
+              'Baskı alanı': `${roundMetric(pricingSummary.back.metrics.areaCm2)} cm²`,
+              'Fiyat bandı': pricingSummary.back.band.label,
+              'Ek ücret / adet': formatMoney(pricingSummary.back.surcharge),
+            },
+          });
+        }
+      }
     }
 
     window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token }, '*');
@@ -673,11 +735,13 @@ export default function App() {
     const cv = getActiveCanvasHandle()?.getCanvas();
     const obj = cv?.getActiveObject();
     if (!cv || !obj) return;
+    const areaRect = canvasRectForArea(personalization.printAreas[activeSide]);
+    const bounds = obj.getBoundingRect(true, true);
+    const deltaX = areaRect.left + (areaRect.width / 2) - (bounds.left + bounds.width / 2);
+    const deltaY = areaRect.top + (areaRect.height / 2) - (bounds.top + bounds.height / 2);
     obj.set({
-      left: cv.getWidth() / 2,
-      top: cv.getHeight() / 2,
-      originX: 'center',
-      originY: 'center',
+      left: (obj.left ?? 0) + deltaX,
+      top: (obj.top ?? 0) + deltaY,
     });
     obj.setCoords();
     cv.fire('object:modified', { target: obj });
@@ -708,23 +772,23 @@ export default function App() {
   const alignHorizontal = (alignment: 'left' | 'center' | 'right') => {
     const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv || !selectedObj) return;
+    const areaRect = canvasRectForArea(personalization.printAreas[activeSide]);
+    const bounds = selectedObj.getBoundingRect(true, true);
+    const padding = 6;
     if (selectedObj.type === 'text' || selectedObj.type === 'i-text') {
       updateTextProp({ textAlign: alignment });
     }
     if (alignment === 'left') {
       selectedObj.set({
-        left: selectedObj.getScaledWidth() / 2 + 6,
-        originX: 'center',
+        left: (selectedObj.left ?? 0) + (areaRect.left + padding - bounds.left),
       });
     } else if (alignment === 'center') {
       selectedObj.set({
-        left: cv.getWidth() / 2,
-        originX: 'center',
+        left: (selectedObj.left ?? 0) + (areaRect.left + (areaRect.width / 2) - (bounds.left + bounds.width / 2)),
       });
     } else {
       selectedObj.set({
-        left: cv.getWidth() - selectedObj.getScaledWidth() / 2 - 6,
-        originX: 'center',
+        left: (selectedObj.left ?? 0) + ((areaRect.left + areaRect.width - padding) - (bounds.left + bounds.width)),
       });
     }
     selectedObj.setCoords();
@@ -919,8 +983,10 @@ export default function App() {
   const pricingSummary = useMemo<PricingSummary>(() => {
     const frontBand = pricingBandForMetrics(personalization.pricingBands.front, frontMetrics);
     const backBand = pricingBandForMetrics(personalization.pricingBands.back, backMetrics);
-    const frontSurcharge = frontHasDesign ? frontBand.surcharge : 0;
-    const backSurcharge = backHasDesign ? backBand.surcharge : 0;
+    const frontSurchargeUnitAmount = frontHasDesign ? Number(frontBand.surcharge || 0) : 0;
+    const backSurchargeUnitAmount = backHasDesign ? Number(backBand.surcharge || 0) : 0;
+    const frontSurcharge = surchargeToCents(frontSurchargeUnitAmount);
+    const backSurcharge = surchargeToCents(backSurchargeUnitAmount);
     return {
       totalQuantity,
       baseUnitPrice,
@@ -931,6 +997,7 @@ export default function App() {
         metrics: frontMetrics,
         band: frontBand,
         surcharge: frontSurcharge,
+        surchargeUnitAmount: frontSurchargeUnitAmount,
         subtotal: frontSurcharge * totalQuantity,
       },
       back: {
@@ -938,6 +1005,7 @@ export default function App() {
         metrics: backMetrics,
         band: backBand,
         surcharge: backSurcharge,
+        surchargeUnitAmount: backSurchargeUnitAmount,
         subtotal: backSurcharge * totalQuantity,
       },
     };
@@ -967,6 +1035,7 @@ export default function App() {
 
   const activePrintArea = personalization.printAreas[activeSide];
   const activeAreaSummary = `${Math.round(activePrintArea.realWidthMm / 10)} x ${Math.round(activePrintArea.realHeightMm / 10)} cm`;
+  const activeAreaCoordsSummary = `X:${Math.round(activePrintArea.x)} Y:${Math.round(activePrintArea.y)} · Kutu ${Math.round(activePrintArea.width)} x ${Math.round(activePrintArea.height)}`;
   const pricingNarrative = surfaceMode === 'front_only'
     ? summarizeSidePricing('Ön', pricingSummary.front)
     : `${summarizeSidePricing('Ön', pricingSummary.front)} | ${summarizeSidePricing('Arka', pricingSummary.back)}`;
@@ -1077,6 +1146,7 @@ export default function App() {
                 <div className="absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6 lg:hidden">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">Tasarım Alanı</p>
                   <p className="mt-1 text-sm font-bold text-gray-900">{activeAreaSummary}</p>
+                  <p className="mt-1 text-[10px] font-semibold text-gray-500">{activeAreaCoordsSummary}</p>
                 </div>
 
                 <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 gap-2 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
@@ -1637,6 +1707,7 @@ export default function App() {
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-[0.16em] text-sky-500">Tasarım Alanı</p>
                   <p className="mt-0.5 text-sm font-black text-gray-900">{activeAreaSummary}</p>
+                  <p className="mt-1 text-[10px] font-semibold text-gray-500">{activeAreaCoordsSummary}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-400">Toplam</p>

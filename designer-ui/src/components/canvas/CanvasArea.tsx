@@ -81,6 +81,61 @@ function toCanvasRect(area: PrintAreaConfig) {
   };
 }
 
+function scaleObjectToFitArea(obj: fabric.Object, areaRect: ReturnType<typeof toCanvasRect>) {
+  let changed = false;
+  let bounds = obj.getBoundingRect(true, true);
+  if (bounds.width > areaRect.width || bounds.height > areaRect.height) {
+    const ratio = Math.min(areaRect.width / Math.max(bounds.width, 1), areaRect.height / Math.max(bounds.height, 1));
+    obj.set({
+      scaleX: (obj.scaleX ?? 1) * ratio,
+      scaleY: (obj.scaleY ?? 1) * ratio,
+    });
+    keepImageUniform(obj);
+    obj.setCoords();
+    bounds = obj.getBoundingRect(true, true);
+    changed = true;
+  }
+  return { changed, bounds };
+}
+
+function constrainObjectToArea(obj: fabric.Object, areaRect: ReturnType<typeof toCanvasRect>) {
+  const scaled = scaleObjectToFitArea(obj, areaRect);
+  const bounds = scaled.bounds;
+  let deltaX = 0;
+  let deltaY = 0;
+
+  if (bounds.left < areaRect.left) {
+    deltaX = areaRect.left - bounds.left;
+  } else if (bounds.left + bounds.width > areaRect.left + areaRect.width) {
+    deltaX = areaRect.left + areaRect.width - (bounds.left + bounds.width);
+  }
+
+  if (bounds.top < areaRect.top) {
+    deltaY = areaRect.top - bounds.top;
+  } else if (bounds.top + bounds.height > areaRect.top + areaRect.height) {
+    deltaY = areaRect.top + areaRect.height - (bounds.top + bounds.height);
+  }
+
+  if (deltaX || deltaY) {
+    obj.set({
+      left: (obj.left ?? 0) + deltaX,
+      top: (obj.top ?? 0) + deltaY,
+    });
+    obj.setCoords();
+    return true;
+  }
+
+  return scaled.changed;
+}
+
+function constrainCanvasObjects(cv: fabric.Canvas, areaRect: ReturnType<typeof toCanvasRect>) {
+  let changed = false;
+  cv.getObjects().forEach((obj) => {
+    changed = constrainObjectToArea(obj, areaRect) || changed;
+  });
+  return changed;
+}
+
 const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea, onObjectSelected, onDesignChange }, ref) => {
   const hostEl = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
@@ -97,6 +152,16 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     setCanUndo(historyIdxRef.current > 0);
     setCanRedo(historyIdxRef.current < historyRef.current.length - 1);
   };
+
+  const constrainTarget = useCallback((target: fabric.Object | null | undefined) => {
+    const cv = canvasRef.current;
+    if (!cv || !target) return false;
+    const changed = constrainObjectToArea(target, toCanvasRect(printArea));
+    if (changed && hasLiveContext(cv)) {
+      cv.renderAll();
+    }
+    return changed;
+  }, [printArea]);
 
   const pushHistory = useCallback((cv: fabric.Canvas) => {
     if (isRestoringRef.current) return;
@@ -128,10 +193,12 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
 
     cv.on('object:added', (e) => {
       lockImageProportions(e.target);
+      constrainTarget(e.target);
       pushHistory(cv);
       onDesignChange(side);
     });
-    cv.on('object:modified', () => {
+    cv.on('object:modified', (e) => {
+      constrainTarget(e.target);
       pushHistory(cv);
       onObjectSelected(cv.getActiveObject() ?? null);
       onDesignChange(side);
@@ -141,15 +208,18 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       pushHistory(cv);
       onDesignChange(side);
     });
-    cv.on('object:moving', () => {
+    cv.on('object:moving', (e) => {
+      constrainTarget(e.target);
       onObjectSelected(cv.getActiveObject() ?? null);
       onDesignChange(side);
     });
-    cv.on('object:scaling', () => {
+    cv.on('object:scaling', (e) => {
+      constrainTarget(e.target);
       onObjectSelected(cv.getActiveObject() ?? null);
       onDesignChange(side);
     });
-    cv.on('object:rotating', () => {
+    cv.on('object:rotating', (e) => {
+      constrainTarget(e.target);
       onObjectSelected(cv.getActiveObject() ?? null);
       onDesignChange(side);
     });
@@ -165,7 +235,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       try { if (hostEl.current) hostEl.current.innerHTML = ''; } catch { /* ignore */ }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onDesignChange, onObjectSelected, pushHistory, side]);
+  }, [constrainTarget, onDesignChange, onObjectSelected, pushHistory, side]);
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -225,6 +295,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
         originY: 'center',
       });
       lockImageProportions(img);
+      constrainObjectToArea(img, areaRect);
       cv.add(img);
       cv.setActiveObject(img);
       cv.renderAll();
@@ -245,6 +316,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       fill: '#111827',
       ...opts,
     });
+    constrainObjectToArea(txt, areaRect);
     cv.add(txt);
     cv.setActiveObject(txt);
     cv.renderAll();
@@ -268,12 +340,13 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
         top: (obj.top ?? 0) + 18,
       });
       lockImageProportions(cloned);
+      constrainObjectToArea(cloned, toCanvasRect(printArea));
       cv.add(cloned);
       cv.setActiveObject(cloned);
       cv.renderAll();
       onObjectSelected(cloned);
     });
-  }, [onObjectSelected]);
+  }, [onObjectSelected, printArea]);
 
   const undo = useCallback(() => {
     const cv = canvasRef.current;
@@ -315,12 +388,13 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     isRestoringRef.current = true;
     cv.loadFromJSON(json, () => {
       normalizeCanvasImages(cv);
+      constrainCanvasObjects(cv, toCanvasRect(printArea));
       cv.renderAll();
       isRestoringRef.current = false;
       pushHistory(cv);
       onDesignChange(side);
     });
-  }, [onDesignChange, pushHistory, side]);
+  }, [onDesignChange, printArea, pushHistory, side]);
 
   useImperativeHandle(ref, () => ({
     addImageFromUrl,
@@ -336,6 +410,17 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     getCanvas: () => canvasRef.current,
     canvas: canvasRef.current,
   }), [addImageFromUrl, addText, cloneSelected, deleteSelected, undo, redo, exportPng, loadDesign, saveDesign]);
+
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const changed = constrainCanvasObjects(cv, toCanvasRect(printArea));
+    if (changed) {
+      cv.renderAll();
+      onObjectSelected(cv.getActiveObject() ?? null);
+      onDesignChange(side);
+    }
+  }, [onDesignChange, onObjectSelected, printArea, side]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
