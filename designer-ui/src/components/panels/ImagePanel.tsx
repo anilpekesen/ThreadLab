@@ -28,6 +28,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg }: Props) {
       };
       addUploadedImage(img);
     }
+    if (fileRef.current) fileRef.current.value = '';
   }, [addUploadedImage]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -60,7 +61,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg }: Props) {
         onClick={() => fileRef.current?.click()}
         className="group relative cursor-pointer rounded-[24px] border-2 border-dashed border-gray-200 px-6 py-8 transition-all hover:border-blue-400 hover:bg-blue-50/40"
       >
-        <label className="flex cursor-pointer flex-col items-center justify-center gap-4 text-center">
+        <div className="flex cursor-pointer flex-col items-center justify-center gap-4 text-center">
           <input
             ref={fileRef}
             type="file"
@@ -76,7 +77,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg }: Props) {
             <p className="font-bold text-gray-700">Görsel sürükleyin veya yüklemek için tıklayın</p>
             <p className="mt-1 text-xs font-bold uppercase tracking-wider text-gray-400">PNG, JPG, SVG, WebP</p>
           </div>
-        </label>
+        </div>
       </div>
 
       <div className="flex gap-2">
