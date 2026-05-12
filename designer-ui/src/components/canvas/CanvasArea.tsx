@@ -151,6 +151,9 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const historyRef = useRef<string[]>([]);
   const historyIdxRef = useRef(-1);
   const isRestoringRef = useRef(false);
+  const printAreaRef = useRef(printArea);
+  const onObjectSelectedRef = useRef(onObjectSelected);
+  const onDesignChangeRef = useRef(onDesignChange);
 
   const { config, activeSide } = useDesignerStore();
   const [bgLoaded, setBgLoaded] = useState(false);
@@ -162,15 +165,27 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     setCanRedo(historyIdxRef.current < historyRef.current.length - 1);
   };
 
+  useEffect(() => {
+    printAreaRef.current = printArea;
+  }, [printArea]);
+
+  useEffect(() => {
+    onObjectSelectedRef.current = onObjectSelected;
+  }, [onObjectSelected]);
+
+  useEffect(() => {
+    onDesignChangeRef.current = onDesignChange;
+  }, [onDesignChange]);
+
   const constrainTarget = useCallback((target: fabric.Object | null | undefined) => {
     const cv = canvasRef.current;
     if (!cv || !target) return false;
-    const changed = constrainObjectToArea(target, toCanvasRect(printArea));
+    const changed = constrainObjectToArea(target, toCanvasRect(printAreaRef.current));
     if (changed && hasLiveContext(cv)) {
       cv.renderAll();
     }
     return changed;
-  }, [printArea]);
+  }, []);
 
   const pushHistory = useCallback((cv: fabric.Canvas) => {
     if (isRestoringRef.current) return;
@@ -204,37 +219,37 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       lockImageProportions(e.target);
       constrainTarget(e.target);
       pushHistory(cv);
-      onDesignChange(side);
+      onDesignChangeRef.current(side);
     });
     cv.on('object:modified', (e) => {
       constrainTarget(e.target);
       pushHistory(cv);
-      onObjectSelected(cv.getActiveObject() ?? null);
-      onDesignChange(side);
+      onObjectSelectedRef.current(cv.getActiveObject() ?? null);
+      onDesignChangeRef.current(side);
     });
     cv.on('object:scaling', (e) => keepImageUniform(e.target));
     cv.on('object:removed', () => {
       pushHistory(cv);
-      onDesignChange(side);
+      onDesignChangeRef.current(side);
     });
     cv.on('object:moving', (e) => {
       constrainTarget(e.target);
-      onObjectSelected(cv.getActiveObject() ?? null);
-      onDesignChange(side);
+      onObjectSelectedRef.current(cv.getActiveObject() ?? null);
+      onDesignChangeRef.current(side);
     });
     cv.on('object:scaling', (e) => {
       constrainTarget(e.target);
-      onObjectSelected(cv.getActiveObject() ?? null);
-      onDesignChange(side);
+      onObjectSelectedRef.current(cv.getActiveObject() ?? null);
+      onDesignChangeRef.current(side);
     });
     cv.on('object:rotating', (e) => {
       constrainTarget(e.target);
-      onObjectSelected(cv.getActiveObject() ?? null);
-      onDesignChange(side);
+      onObjectSelectedRef.current(cv.getActiveObject() ?? null);
+      onDesignChangeRef.current(side);
     });
-    cv.on('selection:created', (e) => onObjectSelected(e.selected?.[0] ?? null));
-    cv.on('selection:updated', (e) => onObjectSelected(e.selected?.[0] ?? null));
-    cv.on('selection:cleared', () => onObjectSelected(null));
+    cv.on('selection:created', (e) => onObjectSelectedRef.current(e.selected?.[0] ?? null));
+    cv.on('selection:updated', (e) => onObjectSelectedRef.current(e.selected?.[0] ?? null));
+    cv.on('selection:cleared', () => onObjectSelectedRef.current(null));
 
     pushHistory(cv);
 
@@ -244,7 +259,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       try { if (hostEl.current) hostEl.current.innerHTML = ''; } catch { /* ignore */ }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [constrainTarget, onDesignChange, onObjectSelected, pushHistory, side]);
+  }, [constrainTarget, pushHistory, side]);
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -260,7 +275,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
         cv.renderAll();
       });
       setBgLoaded(true);
-      onDesignChange(side);
+      onDesignChangeRef.current(side);
       return () => {
         cancelled = true;
       };
@@ -281,11 +296,11 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
           if (!canRender()) return;
           try { cv.renderAll(); } catch { /* canvas disposed */ }
           setBgLoaded(true);
-          onDesignChange(side);
+          onDesignChangeRef.current(side);
         });
       } catch {
         setBgLoaded(true);
-        onDesignChange(side);
+        onDesignChangeRef.current(side);
       }
     }, { crossOrigin: 'anonymous' });
     return () => {
@@ -298,7 +313,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     if (!cv) return;
     fabric.Image.fromURL(url, (img) => {
       if (canvasRef.current !== cv || !hasLiveContext(cv)) return;
-      const areaRect = toCanvasRect(printArea);
+      const areaRect = toCanvasRect(printAreaRef.current);
       const maxW = areaRect.width * 0.78;
       const maxH = areaRect.height * 0.78;
       const scale = Math.min(maxW / (img.width ?? 1), maxH / (img.height ?? 1), 1);
@@ -315,12 +330,12 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       cv.setActiveObject(img);
       cv.renderAll();
     }, { crossOrigin: 'anonymous' });
-  }, [printArea]);
+  }, []);
 
   const addText = useCallback((text: string, opts: Partial<fabric.ITextOptions> = {}) => {
     const cv = canvasRef.current;
     if (!cv) return;
-    const areaRect = toCanvasRect(printArea);
+    const areaRect = toCanvasRect(printAreaRef.current);
     const txt = new fabric.IText(text, {
       left: areaRect.left + areaRect.width / 2,
       top: areaRect.top + areaRect.height / 2,
@@ -335,7 +350,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     cv.add(txt);
     cv.setActiveObject(txt);
     cv.renderAll();
-  }, [printArea]);
+  }, []);
 
   const deleteSelected = useCallback(() => {
     const cv = canvasRef.current;
@@ -355,13 +370,13 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
         top: (obj.top ?? 0) + 18,
       });
       lockImageProportions(cloned);
-      constrainObjectToArea(cloned, toCanvasRect(printArea));
+      constrainObjectToArea(cloned, toCanvasRect(printAreaRef.current));
       cv.add(cloned);
       cv.setActiveObject(cloned);
       cv.renderAll();
-      onObjectSelected(cloned);
+      onObjectSelectedRef.current(cloned);
     });
-  }, [onObjectSelected, printArea]);
+  }, []);
 
   const undo = useCallback(() => {
     const cv = canvasRef.current;
@@ -403,13 +418,13 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     isRestoringRef.current = true;
     cv.loadFromJSON(json, () => {
       normalizeCanvasImages(cv);
-      constrainCanvasObjects(cv, toCanvasRect(printArea));
+      constrainCanvasObjects(cv, toCanvasRect(printAreaRef.current));
       cv.renderAll();
       isRestoringRef.current = false;
       pushHistory(cv);
-      onDesignChange(side);
+      onDesignChangeRef.current(side);
     });
-  }, [onDesignChange, printArea, pushHistory, side]);
+  }, [pushHistory, side]);
 
   useImperativeHandle(ref, () => ({
     addImageFromUrl,
