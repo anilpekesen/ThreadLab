@@ -34,10 +34,10 @@
   /* Always break out of the Shopify theme column — width: 100% alone is not enough */
   .dsgn-inline-react {
     position: relative;
-    left: 50%;
-    transform: translateX(-50%);
     width: 100vw !important;
     max-width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
     min-height: 820px;
     height: 820px;
     border-left: none;
@@ -56,6 +56,8 @@
     height: 820px;
     border: 0;
     background: #f3f4f6;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
   }
 
   /* Mobile: taller to fit stacked canvas + sidebar */
