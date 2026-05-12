@@ -1135,7 +1135,7 @@ export default function App() {
           </div>
 
           <div
-            className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3 md:p-4"
+            className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 pb-24 pt-3 md:p-4"
             onMouseMove={handleSceneMouseMove}
             onMouseUp={handleSceneMouseUp}
             onMouseLeave={handleSceneMouseUp}
@@ -1179,7 +1179,7 @@ export default function App() {
                   <p className="mt-1 text-[10px] font-semibold text-gray-500">{activeAreaCoordsSummary}</p>
                 </div>
 
-                <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 gap-2 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
+                <div className="absolute bottom-14 left-1/2 z-30 flex -translate-x-1/2 gap-1.5 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
                   {availableSides.map((side) => {
                     const label = side === 'front' ? 'Ön' : 'Arka';
                     const image = sidePreviews[side] || (side === 'front' ? config?.frontImage : config?.backImage);
@@ -1190,7 +1190,7 @@ export default function App() {
                         type="button"
                         onClick={() => setActiveSide(side)}
                         className={cn(
-                          'h-20 w-16 overflow-hidden rounded-lg border-2 p-0.5 transition-all',
+                          'h-16 w-12 overflow-hidden rounded-lg border-2 p-0.5 transition-all md:h-20 md:w-16',
                           activeSide === side ? 'scale-105 border-blue-500 shadow-md' : 'border-transparent opacity-60 hover:opacity-100',
                         )}
                       >
@@ -1200,7 +1200,7 @@ export default function App() {
                           <div className="flex h-full items-center justify-center rounded bg-gray-100 text-[10px] font-bold text-gray-400">{label}</div>
                         )}
                       </button>
-                      <span className={cn('text-[10px] font-bold uppercase', activeSide === side ? 'text-blue-600' : 'text-gray-400')}>
+                      <span className={cn('text-[9px] font-bold uppercase md:text-[10px]', activeSide === side ? 'text-blue-600' : 'text-gray-400')}>
                         {label}
                       </span>
                       {hasDesign && <span className="sr-only">tasarım var</span>}
