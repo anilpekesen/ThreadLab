@@ -17,6 +17,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg }: Props) {
 
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files) return;
+    let firstImageUrl = '';
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) continue;
       const dataUrl = await compressImage(file, 1800);
@@ -27,9 +28,11 @@ export default function ImagePanel({ onAddImage, onRemoveBg }: Props) {
         addedAt: Date.now(),
       };
       addUploadedImage(img);
+      if (!firstImageUrl) firstImageUrl = dataUrl;
     }
+    if (firstImageUrl) onAddImage(firstImageUrl);
     if (fileRef.current) fileRef.current.value = '';
-  }, [addUploadedImage]);
+  }, [addUploadedImage, onAddImage]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();

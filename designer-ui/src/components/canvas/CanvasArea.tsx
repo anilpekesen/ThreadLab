@@ -204,6 +204,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     canvasNode.style.width = `${PRINT_W}px`;
     canvasNode.style.height = `${PRINT_H}px`;
     canvasNode.style.display = 'block';
+    canvasNode.style.touchAction = 'none';
     hostEl.current.innerHTML = '';
     hostEl.current.appendChild(canvasNode);
 
@@ -214,6 +215,18 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       height: PRINT_H,
     });
     canvasRef.current = cv;
+
+    const runtimeCanvas = cv as fabric.Canvas & {
+      upperCanvasEl?: HTMLCanvasElement;
+      lowerCanvasEl?: HTMLCanvasElement;
+    };
+
+    hostEl.current.style.touchAction = 'none';
+    hostEl.current.style.webkitUserSelect = 'none';
+    runtimeCanvas.upperCanvasEl?.style.setProperty('touch-action', 'none');
+    runtimeCanvas.lowerCanvasEl?.style.setProperty('touch-action', 'none');
+    runtimeCanvas.upperCanvasEl?.style.setProperty('-webkit-user-select', 'none');
+    runtimeCanvas.lowerCanvasEl?.style.setProperty('-webkit-user-select', 'none');
 
     cv.on('object:added', (e) => {
       lockImageProportions(e.target);
