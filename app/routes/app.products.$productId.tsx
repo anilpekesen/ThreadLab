@@ -687,7 +687,7 @@ export default function ProductSettingsRoute() {
                     title="On yuz"
                     area={frontArea}
                     onChange={(field, value) => setFrontArea((current) => updateAreaState(current, field, value))}
-                    imageUrl={product.featuredImage}
+                    imageUrl={product.images[0] || product.featuredImage}
                   />
 
                   {surfaceMode === "front_back" ? (
@@ -708,7 +708,7 @@ export default function ProductSettingsRoute() {
                         title="Arka yuz"
                         area={backArea}
                         onChange={(field, value) => setBackArea((current) => updateAreaState(current, field, value))}
-                        imageUrl={product.featuredImage}
+                        imageUrl={product.images[1] || product.images[0] || product.featuredImage}
                       />
                     </>
                   ) : null}

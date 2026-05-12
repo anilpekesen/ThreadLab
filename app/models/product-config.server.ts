@@ -73,6 +73,7 @@ export interface ShopifyProductSummary {
   productType: string;
   status: string;
   featuredImage?: string | null;
+  images: string[];
   variants: Array<{
     id: string;
     title: string;
@@ -372,6 +373,7 @@ export async function fetchShopifyProducts(
       node.featuredImage && typeof node.featuredImage === "object"
         ? String((node.featuredImage as { url?: string }).url || "")
         : null,
+    images: [],
     variants:
       node.variants && typeof node.variants === "object"
         ? (((node.variants as { nodes?: Array<Record<string, unknown>> }).nodes ?? []).map((variant) => ({
@@ -405,6 +407,11 @@ export async function fetchShopifyProductById(
         featuredImage {
           url
         }
+        images(first: 5) {
+          nodes {
+            url
+          }
+        }
         variants(first: 50) {
           nodes {
             id
@@ -437,6 +444,12 @@ export async function fetchShopifyProductById(
           product.featuredImage && typeof product.featuredImage === "object"
             ? String((product.featuredImage as { url?: string }).url || "")
             : null,
+        images:
+          product.images && typeof product.images === "object"
+            ? (((product.images as { nodes?: Array<Record<string, unknown>> }).nodes ?? [])
+                .map((img) => String((img as { url?: string }).url || ""))
+                .filter(Boolean))
+            : [],
         variants:
           product.variants && typeof product.variants === "object"
             ? (((product.variants as { nodes?: Array<Record<string, unknown>> }).nodes ?? []).map((variant) => ({
