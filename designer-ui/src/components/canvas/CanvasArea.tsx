@@ -36,7 +36,22 @@ function isImageObject(obj: fabric.Object | null | undefined): obj is fabric.Ima
   return obj?.type === 'image';
 }
 
+function applyObjectInteractionPreset(obj: fabric.Object | null | undefined) {
+  if (!obj) return;
+  obj.set({
+    cornerSize: 18,
+    touchCornerSize: 32,
+    padding: 10,
+    transparentCorners: false,
+    cornerColor: '#2563eb',
+    cornerStrokeColor: '#ffffff',
+    borderColor: '#38bdf8',
+    borderScaleFactor: 2.2,
+  } as Partial<fabric.Object>);
+}
+
 function lockImageProportions(obj: fabric.Object | null | undefined) {
+  applyObjectInteractionPreset(obj);
   if (!isImageObject(obj)) return;
   obj.set({
     lockUniScaling: true,
@@ -64,7 +79,10 @@ function keepImageUniform(obj: fabric.Object | null | undefined) {
 }
 
 function normalizeCanvasImages(cv: fabric.Canvas) {
-  cv.getObjects().forEach(lockImageProportions);
+  cv.getObjects().forEach((obj) => {
+    applyObjectInteractionPreset(obj);
+    lockImageProportions(obj);
+  });
 }
 
 function hasLiveContext(cv: fabric.Canvas) {
@@ -213,6 +231,8 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       preserveObjectStacking: true,
       width: PRINT_W,
       height: PRINT_H,
+      allowTouchScrolling: false,
+      targetFindTolerance: 14,
     });
     canvasRef.current = cv;
 
@@ -359,6 +379,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       fill: '#111827',
       ...opts,
     });
+    applyObjectInteractionPreset(txt);
     constrainObjectToArea(txt, areaRect);
     cv.add(txt);
     cv.setActiveObject(txt);
