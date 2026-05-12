@@ -382,6 +382,7 @@ export default function App() {
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [previewImages, setPreviewImages] = useState({ front: '', back: '' });
+  const [sidePreviews, setSidePreviews] = useState({ front: '', back: '' });
   const [textDraft, setTextDraft] = useState('');
   const [isEditingText, setIsEditingText] = useState(false);
   const [draggedLayerIndex, setDraggedLayerIndex] = useState<number | null>(null);
@@ -389,9 +390,13 @@ export default function App() {
   const [canvasRevisions, setCanvasRevisions] = useState({ front: 0, back: 0 });
   const [selectedColor, setSelectedColor] = useState('');
 
+  const getCanvasHandle = useCallback((side: Side) => (
+    side === 'front' ? frontCanvasRef.current : backCanvasRef.current
+  ), []);
+
   const getActiveCanvasHandle = useCallback(() => (
-    activeSide === 'front' ? frontCanvasRef.current : backCanvasRef.current
-  ), [activeSide]);
+    getCanvasHandle(activeSide)
+  ), [activeSide, getCanvasHandle]);
 
   const syncLayers = useCallback(() => {
     const cv = getActiveCanvasHandle()?.getCanvas();
@@ -477,6 +482,15 @@ export default function App() {
   }, [activeSide, syncLayers]);
 
   useEffect(() => {
+    const cv = getActiveCanvasHandle()?.getCanvas();
+    cv?.discardActiveObject();
+    cv?.renderAll();
+    setSelectedObj(null);
+    setObjState(null);
+    setToolbarPos(null);
+  }, [activeSide, getActiveCanvasHandle]);
+
+  useEffect(() => {
     if (!selectedObj) return;
     const onResize = () => updateToolbarPosition(selectedObj);
     window.addEventListener('resize', onResize);
@@ -485,8 +499,12 @@ export default function App() {
 
   const handleDesignChange = useCallback((side: Side) => {
     setCanvasRevisions((prev) => ({ ...prev, [side]: prev[side] + 1 }));
+    window.setTimeout(() => {
+      const png = getCanvasHandle(side)?.exportPng(0.35) ?? '';
+      setSidePreviews((prev) => ({ ...prev, [side]: png }));
+    }, 0);
     if (side === activeSide) syncLayers();
-  }, [activeSide, syncLayers]);
+  }, [activeSide, getCanvasHandle, syncLayers]);
 
   const handleObjectSelected = useCallback((obj: fabric.Object | null) => {
     setSelectedObj(obj);
@@ -1164,7 +1182,7 @@ export default function App() {
                 <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 gap-2 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
                   {availableSides.map((side) => {
                     const label = side === 'front' ? 'Ön' : 'Arka';
-                    const image = side === 'front' ? config?.frontImage : config?.backImage;
+                    const image = sidePreviews[side] || (side === 'front' ? config?.frontImage : config?.backImage);
                     const hasDesign = side === 'front' ? frontHasDesign : backHasDesign;
                     return (
                     <div key={side} className="flex flex-col items-center gap-1">
