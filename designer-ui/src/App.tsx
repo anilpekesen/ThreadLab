@@ -127,6 +127,10 @@ interface PricingSummary {
 const DEFAULT_PRINT_AREAS: Record<Side, PrintAreaConfig> = {
   front: {
     side: 'front',
+    mockupX: 76,
+    mockupY: 28,
+    mockupWidth: 328,
+    mockupHeight: 524,
     x: 139,
     y: 157,
     width: 202,
@@ -136,6 +140,10 @@ const DEFAULT_PRINT_AREAS: Record<Side, PrintAreaConfig> = {
   },
   back: {
     side: 'back',
+    mockupX: 76,
+    mockupY: 28,
+    mockupWidth: 328,
+    mockupHeight: 524,
     x: 139,
     y: 157,
     width: 202,
@@ -241,6 +249,10 @@ function normalizePrintArea(side: Side, area: Partial<PrintAreaConfig> | null | 
   const fallback = DEFAULT_PRINT_AREAS[side];
   return {
     side,
+    mockupX: Number(area?.mockupX ?? fallback.mockupX),
+    mockupY: Number(area?.mockupY ?? fallback.mockupY),
+    mockupWidth: Number(area?.mockupWidth ?? fallback.mockupWidth),
+    mockupHeight: Number(area?.mockupHeight ?? fallback.mockupHeight),
     x: Number(area?.x ?? fallback.x),
     y: Number(area?.y ?? fallback.y),
     width: Number(area?.width ?? fallback.width),

@@ -34,6 +34,10 @@ export async function runMigrations() {
       product_id      TEXT NOT NULL,
       side            TEXT NOT NULL,
       name            TEXT NOT NULL,
+      mockup_x        NUMERIC NOT NULL DEFAULT 0,
+      mockup_y        NUMERIC NOT NULL DEFAULT 0,
+      mockup_width    NUMERIC NOT NULL DEFAULT 480,
+      mockup_height   NUMERIC NOT NULL DEFAULT 580,
       x               NUMERIC NOT NULL DEFAULT 0,
       y               NUMERIC NOT NULL DEFAULT 0,
       width           NUMERIC NOT NULL DEFAULT 0,
@@ -49,5 +53,12 @@ export async function runMigrations() {
   await query(`
     CREATE INDEX IF NOT EXISTS product_print_areas_product_id
       ON product_print_areas (product_id)
+  `);
+  await query(`
+    ALTER TABLE product_print_areas
+      ADD COLUMN IF NOT EXISTS mockup_x NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS mockup_y NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS mockup_width NUMERIC NOT NULL DEFAULT 480,
+      ADD COLUMN IF NOT EXISTS mockup_height NUMERIC NOT NULL DEFAULT 580
   `);
 }

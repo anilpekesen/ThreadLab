@@ -41,6 +41,10 @@ export interface PricingBand {
 
 export interface PrintAreaConfig {
   side: Side;
+  mockupX: number;
+  mockupY: number;
+  mockupWidth: number;
+  mockupHeight: number;
   x: number;
   y: number;
   width: number;

@@ -18,6 +18,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { authenticate } from "~/shopify.server";
 import {
+  defaultMockupBoundsForType,
   fetchShopifyProductById,
   getProductConfig,
   getProductPrintAreas,
@@ -52,6 +53,10 @@ type AreaState = {
   id: string;
   name: string;
   side: "front" | "back";
+  mockupX: string;
+  mockupY: string;
+  mockupWidth: string;
+  mockupHeight: string;
   x: string;
   y: string;
   width: string;
@@ -98,21 +103,38 @@ function parseBandRows(form: FormData, side: "front" | "back") {
 
 function parseAreaRows(form: FormData, surfaceMode: ProductConfig["surfaceMode"]): PrintAreaRecord[] {
   const sides: Array<"front" | "back"> = surfaceMode === "front_only" ? ["front"] : ["front", "back"];
-  return sides.map((side) => ({
-    id: String(form.get(`${side}AreaId`) || ""),
-    productId: "",
-    name: String(form.get(`${side}AreaName`) || `${side} Print`),
-    side,
-    x: parseNumber(form.get(`${side}AreaX`)),
-    y: parseNumber(form.get(`${side}AreaY`)),
-    width: parseNumber(form.get(`${side}AreaWidth`)),
-    height: parseNumber(form.get(`${side}AreaHeight`)),
-    realWidthMm: parseNumber(form.get(`${side}AreaRealWidthMm`)),
-    realHeightMm: parseNumber(form.get(`${side}AreaRealHeightMm`)),
-    safeMargin: parseNumber(form.get(`${side}AreaSafeMargin`), 10),
-    bleedMargin: parseNumber(form.get(`${side}AreaBleedMargin`), 5),
-    dpi: parseNumber(form.get(`${side}AreaDpi`), 300),
-  }));
+  return sides.map((side) => {
+    const normalized = normalizeAreaNumbers({
+      mockupX: parseNumber(form.get(`${side}AreaMockupX`)),
+      mockupY: parseNumber(form.get(`${side}AreaMockupY`)),
+      mockupWidth: parseNumber(form.get(`${side}AreaMockupWidth`), PREVIEW_WIDTH),
+      mockupHeight: parseNumber(form.get(`${side}AreaMockupHeight`), PREVIEW_HEIGHT),
+      x: parseNumber(form.get(`${side}AreaX`)),
+      y: parseNumber(form.get(`${side}AreaY`)),
+      width: parseNumber(form.get(`${side}AreaWidth`)),
+      height: parseNumber(form.get(`${side}AreaHeight`)),
+    });
+
+    return {
+      id: String(form.get(`${side}AreaId`) || ""),
+      productId: "",
+      name: String(form.get(`${side}AreaName`) || `${side} Print`),
+      side,
+      mockupX: normalized.mockupX,
+      mockupY: normalized.mockupY,
+      mockupWidth: normalized.mockupWidth,
+      mockupHeight: normalized.mockupHeight,
+      x: normalized.x,
+      y: normalized.y,
+      width: normalized.width,
+      height: normalized.height,
+      realWidthMm: parseNumber(form.get(`${side}AreaRealWidthMm`)),
+      realHeightMm: parseNumber(form.get(`${side}AreaRealHeightMm`)),
+      safeMargin: parseNumber(form.get(`${side}AreaSafeMargin`), 10),
+      bleedMargin: parseNumber(form.get(`${side}AreaBleedMargin`), 5),
+      dpi: parseNumber(form.get(`${side}AreaDpi`), 300),
+    };
+  });
 }
 
 function toBandState(config: ProductConfig, side: "front" | "back"): BandState[] {
@@ -131,6 +153,10 @@ function toAreaState(areas: PrintAreaRecord[], side: "front" | "back"): AreaStat
     id: area?.id || "",
     name: area?.name || `${side} Print`,
     side,
+    mockupX: String(area?.mockupX ?? 0),
+    mockupY: String(area?.mockupY ?? 0),
+    mockupWidth: String(area?.mockupWidth ?? PREVIEW_WIDTH),
+    mockupHeight: String(area?.mockupHeight ?? PREVIEW_HEIGHT),
     x: String(area?.x ?? 0),
     y: String(area?.y ?? 0),
     width: String(area?.width ?? 0),
@@ -154,8 +180,64 @@ function updateBandArray(
   );
 }
 
-function updateAreaState(area: AreaState, field: keyof AreaState, value: string) {
-  return { ...area, [field]: value };
+function normalizeAreaNumbers(input: {
+  mockupX: number;
+  mockupY: number;
+  mockupWidth: number;
+  mockupHeight: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}) {
+  const mockupWidth = clamp(Math.round(input.mockupWidth || PREVIEW_WIDTH), MIN_AREA_SIZE, PREVIEW_WIDTH);
+  const mockupHeight = clamp(Math.round(input.mockupHeight || PREVIEW_HEIGHT), MIN_AREA_SIZE, PREVIEW_HEIGHT);
+  const mockupX = clamp(Math.round(input.mockupX || 0), 0, PREVIEW_WIDTH - mockupWidth);
+  const mockupY = clamp(Math.round(input.mockupY || 0), 0, PREVIEW_HEIGHT - mockupHeight);
+  const width = clamp(Math.round(input.width || MIN_AREA_SIZE), MIN_AREA_SIZE, mockupWidth);
+  const height = clamp(Math.round(input.height || MIN_AREA_SIZE), MIN_AREA_SIZE, mockupHeight);
+  const x = clamp(Math.round(input.x || mockupX), mockupX, mockupX + mockupWidth - width);
+  const y = clamp(Math.round(input.y || mockupY), mockupY, mockupY + mockupHeight - height);
+
+  return {
+    mockupX,
+    mockupY,
+    mockupWidth,
+    mockupHeight,
+    x,
+    y,
+    width,
+    height,
+  };
+}
+
+function normalizeAreaState(area: AreaState): AreaState {
+  const normalized = normalizeAreaNumbers({
+    mockupX: Number(area.mockupX || 0),
+    mockupY: Number(area.mockupY || 0),
+    mockupWidth: Number(area.mockupWidth || PREVIEW_WIDTH),
+    mockupHeight: Number(area.mockupHeight || PREVIEW_HEIGHT),
+    x: Number(area.x || 0),
+    y: Number(area.y || 0),
+    width: Number(area.width || MIN_AREA_SIZE),
+    height: Number(area.height || MIN_AREA_SIZE),
+  });
+
+  return {
+    ...area,
+    mockupX: String(normalized.mockupX),
+    mockupY: String(normalized.mockupY),
+    mockupWidth: String(normalized.mockupWidth),
+    mockupHeight: String(normalized.mockupHeight),
+    x: String(normalized.x),
+    y: String(normalized.y),
+    width: String(normalized.width),
+    height: String(normalized.height),
+  };
+}
+
+function patchAreaState(area: AreaState, patch: Partial<AreaState>) {
+  return normalizeAreaState({ ...area, ...patch, side: area.side });
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -238,17 +320,22 @@ function defaultOverlay(productType: ProductConfig["productType"]) {
 
 function applyProductPreset(area: AreaState, productType: ProductConfig["productType"], side: "front" | "back") {
   const overlay = defaultOverlay(productType)[side];
+  const mockup = defaultMockupBoundsForType(productType)[side];
   const dimensions = defaultPrintDimensions(productType)[side];
 
-  return {
+  return normalizeAreaState({
     ...area,
+    mockupX: String(mockup.x),
+    mockupY: String(mockup.y),
+    mockupWidth: String(mockup.width),
+    mockupHeight: String(mockup.height),
     x: String(overlay.x),
     y: String(overlay.y),
     width: String(overlay.width),
     height: String(overlay.height),
     realWidthMm: String(dimensions.realWidthMm),
     realHeightMm: String(dimensions.realHeightMm),
-  };
+  });
 }
 
 function PrintAreaEditor({
@@ -260,18 +347,24 @@ function PrintAreaEditor({
 }: {
   title: string;
   area: AreaState;
-  onChange: (field: keyof AreaState, value: string) => void;
+  onChange: (nextArea: AreaState) => void;
   imageUrl?: string | null;
   imageOptions?: string[];
 }) {
   const [activeImage, setActiveImage] = useState<string | null | undefined>(imageUrl);
+  const [activeTarget, setActiveTarget] = useState<"mockup" | "print">("print");
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<
     | {
         pointerId: number;
+        target: "mockup" | "print";
         mode: "move" | "resize";
         startX: number;
         startY: number;
+        originMockupX: number;
+        originMockupY: number;
+        originMockupWidth: number;
+        originMockupHeight: number;
         originX: number;
         originY: number;
         originWidth: number;
@@ -279,10 +372,18 @@ function PrintAreaEditor({
       }
     | null
   >(null);
-  const x = Number(area.x || 0);
-  const y = Number(area.y || 0);
-  const width = Number(area.width || 0);
-  const height = Number(area.height || 0);
+  const currentArea = normalizeAreaState(area);
+  const mockupX = Number(currentArea.mockupX || 0);
+  const mockupY = Number(currentArea.mockupY || 0);
+  const mockupWidth = Number(currentArea.mockupWidth || PREVIEW_WIDTH);
+  const mockupHeight = Number(currentArea.mockupHeight || PREVIEW_HEIGHT);
+  const x = Number(currentArea.x || 0);
+  const y = Number(currentArea.y || 0);
+  const width = Number(currentArea.width || 0);
+  const height = Number(currentArea.height || 0);
+  const centerX = x + Math.round(width / 2);
+  const leftGap = x - mockupX;
+  const rightGap = mockupX + mockupWidth - x - width;
 
   useEffect(() => {
     if (!dragState.current) return;
@@ -297,27 +398,46 @@ function PrintAreaEditor({
       const scaleY = PREVIEW_HEIGHT / bounds.height;
       const deltaX = (event.clientX - dragState.current.startX) * scaleX;
       const deltaY = (event.clientY - dragState.current.startY) * scaleY;
+      const origin = dragState.current;
 
-      if (dragState.current.mode === "move") {
-        const nextX = clamp(Math.round(dragState.current.originX + deltaX), 0, PREVIEW_WIDTH - width);
-        const nextY = clamp(Math.round(dragState.current.originY + deltaY), 0, PREVIEW_HEIGHT - height);
-        onChange("x", String(nextX));
-        onChange("y", String(nextY));
+      if (origin.target === "mockup" && origin.mode === "move") {
+        const nextMockupX = clamp(Math.round(origin.originMockupX + deltaX), 0, PREVIEW_WIDTH - origin.originMockupWidth);
+        const nextMockupY = clamp(Math.round(origin.originMockupY + deltaY), 0, PREVIEW_HEIGHT - origin.originMockupHeight);
+        const moveDeltaX = nextMockupX - origin.originMockupX;
+        const moveDeltaY = nextMockupY - origin.originMockupY;
+        onChange(
+          patchAreaState(currentArea, {
+            mockupX: String(nextMockupX),
+            mockupY: String(nextMockupY),
+            x: String(origin.originX + moveDeltaX),
+            y: String(origin.originY + moveDeltaY),
+          }),
+        );
         return;
       }
 
-      const nextWidth = clamp(
-        Math.round(dragState.current.originWidth + deltaX),
-        MIN_AREA_SIZE,
-        PREVIEW_WIDTH - x,
-      );
-      const nextHeight = clamp(
-        Math.round(dragState.current.originHeight + deltaY),
-        MIN_AREA_SIZE,
-        PREVIEW_HEIGHT - y,
-      );
-      onChange("width", String(nextWidth));
-      onChange("height", String(nextHeight));
+      if (origin.target === "mockup" && origin.mode === "resize") {
+        const nextMockupWidth = clamp(Math.round(origin.originMockupWidth + deltaX), MIN_AREA_SIZE, PREVIEW_WIDTH - origin.originMockupX);
+        const nextMockupHeight = clamp(Math.round(origin.originMockupHeight + deltaY), MIN_AREA_SIZE, PREVIEW_HEIGHT - origin.originMockupY);
+        onChange(
+          patchAreaState(currentArea, {
+            mockupWidth: String(nextMockupWidth),
+            mockupHeight: String(nextMockupHeight),
+          }),
+        );
+        return;
+      }
+
+      if (origin.target === "print" && origin.mode === "move") {
+        const nextX = clamp(Math.round(origin.originX + deltaX), origin.originMockupX, origin.originMockupX + origin.originMockupWidth - origin.originWidth);
+        const nextY = clamp(Math.round(origin.originY + deltaY), origin.originMockupY, origin.originMockupY + origin.originMockupHeight - origin.originHeight);
+        onChange(patchAreaState(currentArea, { x: String(nextX), y: String(nextY) }));
+        return;
+      }
+
+      const nextWidth = clamp(Math.round(origin.originWidth + deltaX), MIN_AREA_SIZE, origin.originMockupX + origin.originMockupWidth - origin.originX);
+      const nextHeight = clamp(Math.round(origin.originHeight + deltaY), MIN_AREA_SIZE, origin.originMockupY + origin.originMockupHeight - origin.originY);
+      onChange(patchAreaState(currentArea, { width: String(nextWidth), height: String(nextHeight) }));
     };
 
     const handlePointerUp = (event: PointerEvent) => {
@@ -332,17 +452,23 @@ function PrintAreaEditor({
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [height, onChange, width, x, y]);
+  }, [currentArea, onChange]);
 
-  function startDrag(event: React.PointerEvent<HTMLDivElement>, mode: "move" | "resize") {
+  function startDrag(event: React.PointerEvent<HTMLDivElement>, target: "mockup" | "print", mode: "move" | "resize") {
     event.preventDefault();
     event.stopPropagation();
+    setActiveTarget(target);
 
     dragState.current = {
       pointerId: event.pointerId,
+      target,
       mode,
       startX: event.clientX,
       startY: event.clientY,
+      originMockupX: mockupX,
+      originMockupY: mockupY,
+      originMockupWidth: mockupWidth,
+      originMockupHeight: mockupHeight,
       originX: x,
       originY: y,
       originWidth: width,
@@ -356,8 +482,25 @@ function PrintAreaEditor({
         <BlockStack gap="300">
           <Text as="h3" variant="headingSm">{title}</Text>
           <Text as="p" tone="subdued">
-            Kutuyu surukleyerek tasiyabilir, sag alt koseden yeniden boyutlandirabilirsin.
+            Sari kutu urunun gercek govde alanini, yesil kutu ise baski alanini temsil eder. Once urun alanini,
+            sonra baski alanini bu sinirin icinde ayarlayin.
           </Text>
+          <InlineStack gap="200">
+            <Button
+              size="slim"
+              variant={activeTarget === "mockup" ? "primary" : "secondary"}
+              onClick={() => setActiveTarget("mockup")}
+            >
+              Urun alani
+            </Button>
+            <Button
+              size="slim"
+              variant={activeTarget === "print" ? "primary" : "secondary"}
+              onClick={() => setActiveTarget("print")}
+            >
+              Baski alani
+            </Button>
+          </InlineStack>
 
           {imageOptions.length > 1 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
@@ -416,16 +559,50 @@ function PrintAreaEditor({
             <div
               style={{
                 position: "absolute",
+                left: `${(mockupX / PREVIEW_WIDTH) * 100}%`,
+                top: `${(mockupY / PREVIEW_HEIGHT) * 100}%`,
+                width: `${(mockupWidth / PREVIEW_WIDTH) * 100}%`,
+                height: `${(mockupHeight / PREVIEW_HEIGHT) * 100}%`,
+                border: activeTarget === "mockup" ? "2px solid #d97706" : "2px solid rgba(217, 119, 6, 0.8)",
+                background: activeTarget === "mockup" ? "rgba(245, 158, 11, 0.14)" : "rgba(245, 158, 11, 0.08)",
+                boxSizing: "border-box",
+                cursor: "move",
+                zIndex: 1,
+              }}
+              onPointerDown={(event) => startDrag(event, "mockup", "move")}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: `${((mockupX + mockupWidth) / PREVIEW_WIDTH) * 100}%`,
+                top: `${((mockupY + mockupHeight) / PREVIEW_HEIGHT) * 100}%`,
+                width: 18,
+                height: 18,
+                marginLeft: -9,
+                marginTop: -9,
+                borderRadius: 999,
+                background: "#d97706",
+                border: "2px solid white",
+                boxShadow: "0 4px 12px rgba(217, 119, 6, 0.35)",
+                cursor: "nwse-resize",
+                zIndex: 2,
+              }}
+              onPointerDown={(event) => startDrag(event, "mockup", "resize")}
+            />
+            <div
+              style={{
+                position: "absolute",
                 left: `${(x / PREVIEW_WIDTH) * 100}%`,
                 top: `${(y / PREVIEW_HEIGHT) * 100}%`,
                 width: `${(width / PREVIEW_WIDTH) * 100}%`,
                 height: `${(height / PREVIEW_HEIGHT) * 100}%`,
-                border: "2px dashed #0f766e",
-                background: "rgba(20, 184, 166, 0.14)",
+                border: activeTarget === "print" ? "2px dashed #0f766e" : "2px dashed rgba(15, 118, 110, 0.82)",
+                background: activeTarget === "print" ? "rgba(20, 184, 166, 0.16)" : "rgba(20, 184, 166, 0.12)",
                 boxSizing: "border-box",
                 cursor: "move",
+                zIndex: 3,
               }}
-              onPointerDown={(event) => startDrag(event, "move")}
+              onPointerDown={(event) => startDrag(event, "print", "move")}
             />
             <div
               style={{
@@ -441,27 +618,41 @@ function PrintAreaEditor({
                 border: "2px solid white",
                 boxShadow: "0 4px 12px rgba(15, 118, 110, 0.35)",
                 cursor: "nwse-resize",
+                zIndex: 4,
               }}
-              onPointerDown={(event) => startDrag(event, "resize")}
+              onPointerDown={(event) => startDrag(event, "print", "resize")}
             />
           </div>
 
-          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
-            <TextField label="X" value={area.x} onChange={(value) => onChange("x", value)} autoComplete="off" type="number" />
-            <TextField label="Y" value={area.y} onChange={(value) => onChange("y", value)} autoComplete="off" type="number" />
-          </InlineGrid>
+          <Text as="h4" variant="headingSm">Urun / mockup alani</Text>
           <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
             <TextField
-              label="Kutu genisligi"
-              value={area.width}
-              onChange={(value) => onChange("width", value)}
+              label="Mockup X"
+              value={currentArea.mockupX}
+              onChange={(value) => onChange(patchAreaState(currentArea, { mockupX: value }))}
               autoComplete="off"
               type="number"
             />
             <TextField
-              label="Kutu yuksekligi"
-              value={area.height}
-              onChange={(value) => onChange("height", value)}
+              label="Mockup Y"
+              value={currentArea.mockupY}
+              onChange={(value) => onChange(patchAreaState(currentArea, { mockupY: value }))}
+              autoComplete="off"
+              type="number"
+            />
+          </InlineGrid>
+          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+            <TextField
+              label="Mockup genisligi"
+              value={currentArea.mockupWidth}
+              onChange={(value) => onChange(patchAreaState(currentArea, { mockupWidth: value }))}
+              autoComplete="off"
+              type="number"
+            />
+            <TextField
+              label="Mockup yuksekligi"
+              value={currentArea.mockupHeight}
+              onChange={(value) => onChange(patchAreaState(currentArea, { mockupHeight: value }))}
               autoComplete="off"
               type="number"
             />
@@ -469,13 +660,89 @@ function PrintAreaEditor({
           <InlineStack gap="200">
             <Button
               size="slim"
-              onClick={() => onChange("x", String(Math.round((PREVIEW_WIDTH - Number(area.width)) / 2)))}
+              onClick={() =>
+                onChange(
+                  patchAreaState(currentArea, {
+                    mockupX: String(Math.round((PREVIEW_WIDTH - mockupWidth) / 2)),
+                  }),
+                )
+              }
+            >
+              Mockup yatay ortala
+            </Button>
+            <Button
+              size="slim"
+              onClick={() =>
+                onChange(
+                  patchAreaState(currentArea, {
+                    mockupY: String(Math.round((PREVIEW_HEIGHT - mockupHeight) / 2)),
+                  }),
+                )
+              }
+            >
+              Mockup dikey ortala
+            </Button>
+          </InlineStack>
+
+          <Text as="h4" variant="headingSm">Baski alani</Text>
+          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+            <TextField
+              label="Merkez X (sol-sağ ekseni)"
+              value={String(centerX)}
+              onChange={(value) => {
+                const cx = Number(value);
+                onChange(patchAreaState(currentArea, { x: String(Math.round(cx - width / 2)) }));
+              }}
+              helpText={`Mockup icinde sol: ${leftGap}px | sag: ${rightGap}px`}
+              autoComplete="off"
+              type="number"
+            />
+            <TextField
+              label="Y"
+              value={currentArea.y}
+              onChange={(value) => onChange(patchAreaState(currentArea, { y: value }))}
+              autoComplete="off"
+              type="number"
+            />
+          </InlineGrid>
+          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+            <TextField
+              label="Kutu genisligi"
+              value={currentArea.width}
+              onChange={(value) => onChange(patchAreaState(currentArea, { width: value }))}
+              autoComplete="off"
+              type="number"
+            />
+            <TextField
+              label="Kutu yuksekligi"
+              value={currentArea.height}
+              onChange={(value) => onChange(patchAreaState(currentArea, { height: value }))}
+              autoComplete="off"
+              type="number"
+            />
+          </InlineGrid>
+          <InlineStack gap="200">
+            <Button
+              size="slim"
+              onClick={() =>
+                onChange(
+                  patchAreaState(currentArea, {
+                    x: String(Math.round(mockupX + (mockupWidth - width) / 2)),
+                  }),
+                )
+              }
             >
               Yatay ortala
             </Button>
             <Button
               size="slim"
-              onClick={() => onChange("y", String(Math.round((PREVIEW_HEIGHT - Number(area.height)) / 2)))}
+              onClick={() =>
+                onChange(
+                  patchAreaState(currentArea, {
+                    y: String(Math.round(mockupY + (mockupHeight - height) / 2)),
+                  }),
+                )
+              }
             >
               Dikey ortala
             </Button>
@@ -483,15 +750,15 @@ function PrintAreaEditor({
           <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
             <TextField
               label="Gercek baski genisligi (mm)"
-              value={area.realWidthMm}
-              onChange={(value) => onChange("realWidthMm", value)}
+              value={currentArea.realWidthMm}
+              onChange={(value) => onChange({ ...currentArea, realWidthMm: value })}
               autoComplete="off"
               type="number"
             />
             <TextField
               label="Gercek baski yuksekligi (mm)"
-              value={area.realHeightMm}
-              onChange={(value) => onChange("realHeightMm", value)}
+              value={currentArea.realHeightMm}
+              onChange={(value) => onChange({ ...currentArea, realHeightMm: value })}
               autoComplete="off"
               type="number"
             />
@@ -499,22 +766,22 @@ function PrintAreaEditor({
           <InlineGrid columns={{ xs: 1, md: 3 }} gap="300">
             <TextField
               label="Safe margin"
-              value={area.safeMargin}
-              onChange={(value) => onChange("safeMargin", value)}
+              value={currentArea.safeMargin}
+              onChange={(value) => onChange({ ...currentArea, safeMargin: value })}
               autoComplete="off"
               type="number"
             />
             <TextField
               label="Bleed margin"
-              value={area.bleedMargin}
-              onChange={(value) => onChange("bleedMargin", value)}
+              value={currentArea.bleedMargin}
+              onChange={(value) => onChange({ ...currentArea, bleedMargin: value })}
               autoComplete="off"
               type="number"
             />
             <TextField
               label="DPI"
-              value={area.dpi}
-              onChange={(value) => onChange("dpi", value)}
+              value={currentArea.dpi}
+              onChange={(value) => onChange({ ...currentArea, dpi: value })}
               autoComplete="off"
               type="number"
             />
@@ -738,6 +1005,10 @@ export default function ProductSettingsRoute() {
 
                   <input type="hidden" name="frontAreaId" value={frontArea.id} />
                   <input type="hidden" name="frontAreaName" value={frontArea.name} />
+                  <input type="hidden" name="frontAreaMockupX" value={frontArea.mockupX} />
+                  <input type="hidden" name="frontAreaMockupY" value={frontArea.mockupY} />
+                  <input type="hidden" name="frontAreaMockupWidth" value={frontArea.mockupWidth} />
+                  <input type="hidden" name="frontAreaMockupHeight" value={frontArea.mockupHeight} />
                   <input type="hidden" name="frontAreaX" value={frontArea.x} />
                   <input type="hidden" name="frontAreaY" value={frontArea.y} />
                   <input type="hidden" name="frontAreaWidth" value={frontArea.width} />
@@ -751,7 +1022,7 @@ export default function ProductSettingsRoute() {
                   <PrintAreaEditor
                     title="On yuz"
                     area={frontArea}
-                    onChange={(field, value) => setFrontArea((current) => updateAreaState(current, field, value))}
+                    onChange={(nextArea) => setFrontArea(nextArea)}
                     imageUrl={designerFrontImage}
                     imageOptions={product.images}
                   />
@@ -760,6 +1031,10 @@ export default function ProductSettingsRoute() {
                     <>
                       <input type="hidden" name="backAreaId" value={backArea.id} />
                       <input type="hidden" name="backAreaName" value={backArea.name} />
+                      <input type="hidden" name="backAreaMockupX" value={backArea.mockupX} />
+                      <input type="hidden" name="backAreaMockupY" value={backArea.mockupY} />
+                      <input type="hidden" name="backAreaMockupWidth" value={backArea.mockupWidth} />
+                      <input type="hidden" name="backAreaMockupHeight" value={backArea.mockupHeight} />
                       <input type="hidden" name="backAreaX" value={backArea.x} />
                       <input type="hidden" name="backAreaY" value={backArea.y} />
                       <input type="hidden" name="backAreaWidth" value={backArea.width} />
@@ -773,7 +1048,7 @@ export default function ProductSettingsRoute() {
                       <PrintAreaEditor
                         title="Arka yuz"
                         area={backArea}
-                        onChange={(field, value) => setBackArea((current) => updateAreaState(current, field, value))}
+                        onChange={(nextArea) => setBackArea(nextArea)}
                         imageUrl={designerBackImage}
                         imageOptions={product.images}
                       />

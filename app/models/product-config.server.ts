@@ -53,6 +53,10 @@ export interface PrintAreaRecord {
   productId: string;
   name: string;
   side: "front" | "back";
+  mockupX: number;
+  mockupY: number;
+  mockupWidth: number;
+  mockupHeight: number;
   x: number;
   y: number;
   width: number;
@@ -113,6 +117,7 @@ export async function readPrintAreas(): Promise<PrintAreaRecord[]> {
   await ensureMigrations();
   const result = await query<{
     id: string; product_id: string; name: string; side: "front" | "back";
+    mockup_x: string; mockup_y: string; mockup_width: string; mockup_height: string;
     x: string; y: string; width: string; height: string;
     real_width_mm: number; real_height_mm: number;
     safe_margin: string; bleed_margin: string; dpi: number; updated_at: string;
@@ -122,6 +127,10 @@ export async function readPrintAreas(): Promise<PrintAreaRecord[]> {
     productId: r.product_id,
     name: r.name,
     side: r.side,
+    mockupX: Number(r.mockup_x ?? 0),
+    mockupY: Number(r.mockup_y ?? 0),
+    mockupWidth: Number(r.mockup_width ?? 480),
+    mockupHeight: Number(r.mockup_height ?? 580),
     x: Number(r.x),
     y: Number(r.y),
     width: Number(r.width),
@@ -141,12 +150,13 @@ export async function writePrintAreas(areas: PrintAreaRecord[]): Promise<void> {
   for (const a of areas) {
     await query(
       `INSERT INTO product_print_areas
-         (id, product_id, side, name, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())
+         (id, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())
        ON CONFLICT (id) DO UPDATE SET
-         product_id=$2, side=$3, name=$4, x=$5, y=$6, width=$7, height=$8,
-         real_width_mm=$9, real_height_mm=$10, safe_margin=$11, bleed_margin=$12, dpi=$13, updated_at=now()`,
-      [a.id, a.productId, a.side, a.name, a.x, a.y, a.width, a.height,
+         product_id=$2, side=$3, name=$4, mockup_x=$5, mockup_y=$6, mockup_width=$7, mockup_height=$8,
+         x=$9, y=$10, width=$11, height=$12,
+         real_width_mm=$13, real_height_mm=$14, safe_margin=$15, bleed_margin=$16, dpi=$17, updated_at=now()`,
+      [a.id, a.productId, a.side, a.name, a.mockupX, a.mockupY, a.mockupWidth, a.mockupHeight, a.x, a.y, a.width, a.height,
        a.realWidthMm, a.realHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
     );
   }
@@ -239,6 +249,38 @@ export function defaultOverlayForType(productType: string) {
   return {
     front: { x: 139, y: 157, width: 202, height: 325 },
     back: { x: 139, y: 157, width: 202, height: 325 },
+  };
+}
+
+export function defaultMockupBoundsForType(productType: string) {
+  const type = String(productType || "apparel");
+  if (type === "bag") {
+    return {
+      front: { x: 74, y: 57, width: 332, height: 460 },
+      back: { x: 74, y: 57, width: 332, height: 460 },
+    };
+  }
+  if (type === "mug") {
+    return {
+      front: { x: 32, y: 152, width: 416, height: 232 },
+      back: { x: 32, y: 152, width: 416, height: 232 },
+    };
+  }
+  if (type === "boxer") {
+    return {
+      front: { x: 110, y: 116, width: 260, height: 318 },
+      back: { x: 110, y: 116, width: 260, height: 318 },
+    };
+  }
+  if (type === "other") {
+    return {
+      front: { x: 80, y: 70, width: 320, height: 440 },
+      back: { x: 80, y: 70, width: 320, height: 440 },
+    };
+  }
+  return {
+    front: { x: 76, y: 28, width: 328, height: 524 },
+    back: { x: 76, y: 28, width: 328, height: 524 },
   };
 }
 
@@ -530,12 +572,17 @@ export async function getProductPrintAreas(
 ): Promise<PrintAreaRecord[]> {
   const allAreas = await readPrintAreas();
   const overlay = defaultOverlayForType(productType);
+  const mockup = defaultMockupBoundsForType(productType);
 
   const buildDefault = (side: "front" | "back"): PrintAreaRecord => ({
     id: `area_${randomBytes(8).toString("hex")}`,
     productId,
     name: side === "front" ? "Front Print" : "Back Print",
     side,
+    mockupX: mockup[side].x,
+    mockupY: mockup[side].y,
+    mockupWidth: mockup[side].width,
+    mockupHeight: mockup[side].height,
     x: overlay[side].x,
     y: overlay[side].y,
     width: overlay[side].width,
@@ -568,9 +615,9 @@ export async function saveProductPrintAreas(productId: string, areas: PrintAreaR
   for (const a of areas) {
     await query(
       `INSERT INTO product_print_areas
-         (id, product_id, side, name, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())`,
-      [a.id, productId, a.side, a.name, a.x, a.y, a.width, a.height,
+         (id, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())`,
+      [a.id, productId, a.side, a.name, a.mockupX, a.mockupY, a.mockupWidth, a.mockupHeight, a.x, a.y, a.width, a.height,
        a.realWidthMm, a.realHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
     );
   }

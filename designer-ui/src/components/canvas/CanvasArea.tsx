@@ -81,6 +81,15 @@ function toCanvasRect(area: PrintAreaConfig) {
   };
 }
 
+function toMockupRect(area: PrintAreaConfig) {
+  return {
+    left: (area.mockupX / 480) * PRINT_W,
+    top: (area.mockupY / 580) * PRINT_H,
+    width: (area.mockupWidth / 480) * PRINT_W,
+    height: (area.mockupHeight / 580) * PRINT_H,
+  };
+}
+
 function scaleObjectToFitArea(obj: fabric.Object, areaRect: ReturnType<typeof toCanvasRect>) {
   let changed = false;
   let bounds = obj.getBoundingRect(true, true);
@@ -451,6 +460,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const isActive = side === activeSide;
   const zoomScale = zoom / 100;
   const areaRect = toCanvasRect(printArea);
+  const mockupRect = toMockupRect(printArea);
 
   void canUndo;
   void canRedo;
@@ -475,6 +485,15 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
               {Math.round(printArea.realWidthMm / 10)} × {Math.round(printArea.realHeightMm / 10)} CM
             </div>
             {/* Print area overlay — same coordinate space as fabric canvas */}
+            <div
+              className="pointer-events-none absolute z-[9] rounded-[18px] border border-amber-400/90 bg-amber-100/10"
+              style={{
+                left: mockupRect.left,
+                top: mockupRect.top,
+                width: mockupRect.width,
+                height: mockupRect.height,
+              }}
+            />
             <div
               className="pointer-events-none absolute z-10 rounded-[14px] border-2 border-dashed border-sky-400 bg-sky-100/20"
               style={{
