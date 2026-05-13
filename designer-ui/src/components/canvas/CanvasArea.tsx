@@ -241,6 +241,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       width: PRINT_W,
       height: PRINT_H,
       allowTouchScrolling: false,
+      selection: false,
       targetFindTolerance: 14,
     });
     canvasRef.current = cv;
@@ -559,6 +560,27 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
                 top: areaRect.top,
                 width: areaRect.width,
                 height: areaRect.height,
+              }}
+            />
+            <div
+              className="absolute left-0 right-0 top-0 z-20 md:hidden"
+              style={{ height: areaRect.top, touchAction: 'pan-y' }}
+            />
+            <div
+              className="absolute bottom-0 left-0 right-0 z-20 md:hidden"
+              style={{ top: areaRect.top + areaRect.height, touchAction: 'pan-y' }}
+            />
+            <div
+              className="absolute left-0 z-20 md:hidden"
+              style={{ top: areaRect.top, width: areaRect.left, height: areaRect.height, touchAction: 'pan-y' }}
+            />
+            <div
+              className="absolute right-0 z-20 md:hidden"
+              style={{
+                top: areaRect.top,
+                left: areaRect.left + areaRect.width,
+                height: areaRect.height,
+                touchAction: 'pan-y',
               }}
             />
             {/* Loading overlay */}
