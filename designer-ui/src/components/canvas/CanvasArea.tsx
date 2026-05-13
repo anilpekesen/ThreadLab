@@ -255,6 +255,9 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     setCanvasTouchAction(cv, 'none');
     runtimeCanvas.upperCanvasEl?.style.setProperty('-webkit-user-select', 'none');
     runtimeCanvas.lowerCanvasEl?.style.setProperty('-webkit-user-select', 'none');
+    cv.on('mouse:down', (e) => {
+      if (e.target) onObjectSelectedRef.current(e.target);
+    });
     cv.on('object:added', (e) => {
       lockImageProportions(e.target);
       constrainTarget(e.target);
@@ -365,6 +368,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       constrainObjectToArea(img, areaRect);
       cv.add(img);
       cv.setActiveObject(img);
+      onObjectSelectedRef.current(img);
       cv.renderAll();
     }, { crossOrigin: 'anonymous' });
   }, []);
@@ -387,6 +391,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     constrainObjectToArea(txt, areaRect);
     cv.add(txt);
     cv.setActiveObject(txt);
+    onObjectSelectedRef.current(txt);
     cv.renderAll();
   }, []);
 

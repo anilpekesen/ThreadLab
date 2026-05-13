@@ -590,7 +590,7 @@ export default function App() {
       return;
     }
     setActiveTab(null);
-    if (obj.type === 'text' || obj.type === 'i-text') {
+    if (obj.type === 'text' || obj.type === 'i-text' || obj.type === 'textbox') {
       const text = obj as fabric.Text;
       setObjState({
         type: 'text',
@@ -618,7 +618,7 @@ export default function App() {
     const value = textDraft.trim();
     const cv = getActiveCanvasHandle()?.getCanvas();
     if (!value || !cv) return;
-    if (isEditingText && selectedObj && (selectedObj.type === 'text' || selectedObj.type === 'i-text')) {
+    if (isEditingText && selectedObj && (selectedObj.type === 'text' || selectedObj.type === 'i-text' || selectedObj.type === 'textbox')) {
       const text = selectedObj as fabric.Text;
       text.set('text', value);
       text.setCoords();
@@ -822,7 +822,7 @@ export default function App() {
 
   const updateTextProp = (props: Partial<ObjectState>) => {
     const cv = getActiveCanvasHandle()?.getCanvas();
-    if (!cv || !selectedObj || (selectedObj.type !== 'text' && selectedObj.type !== 'i-text')) return;
+    if (!cv || !selectedObj || (selectedObj.type !== 'text' && selectedObj.type !== 'i-text' && selectedObj.type !== 'textbox')) return;
     const text = selectedObj as fabric.Text;
     if (props.color !== undefined) text.set('fill', props.color);
     if (props.fontSize !== undefined) text.set('fontSize', props.fontSize);
@@ -869,7 +869,7 @@ export default function App() {
   };
 
   const editText = () => {
-    if (!selectedObj || (selectedObj.type !== 'text' && selectedObj.type !== 'i-text')) return;
+    if (!selectedObj || (selectedObj.type !== 'text' && selectedObj.type !== 'i-text' && selectedObj.type !== 'textbox')) return;
     setTextDraft((selectedObj as fabric.Text).text ?? '');
     setIsEditingText(true);
     setActiveTab('text');
@@ -881,7 +881,7 @@ export default function App() {
     const areaRect = canvasRectForArea(personalization.printAreas[activeSide]);
     const bounds = selectedObj.getBoundingRect(true, true);
     const padding = 6;
-    if (selectedObj.type === 'text' || selectedObj.type === 'i-text') {
+    if (selectedObj.type === 'text' || selectedObj.type === 'i-text' || selectedObj.type === 'textbox') {
       updateTextProp({ textAlign: alignment });
     }
     if (alignment === 'left') {
