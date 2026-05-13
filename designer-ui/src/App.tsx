@@ -1666,21 +1666,24 @@ export default function App() {
 
           {showPreview && (
             <div
-              className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm md:items-center md:p-4"
+              className="fixed inset-0 z-[100] flex items-stretch justify-center overflow-hidden bg-black/60 backdrop-blur-sm md:items-center md:p-4"
               onClick={() => setShowPreview(false)}
             >
               <div
-                className="my-3 flex w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl md:my-0 md:max-h-[90vh]"
+                className="flex h-[100dvh] w-full max-w-4xl flex-col overflow-hidden bg-white shadow-2xl md:h-auto md:max-h-[90vh] md:rounded-3xl"
                 onClick={(e) => e.stopPropagation()}
               >
-                  <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4 md:px-8 md:py-6">
+                  <div className="flex flex-none items-center justify-between border-b border-gray-100 bg-white px-5 py-4 md:px-8 md:py-6">
                     <h3 className="text-lg font-black md:text-xl">Tasarım Önizleme</h3>
                     <button onClick={() => setShowPreview(false)} className="rounded-full p-2 transition-colors hover:bg-gray-100">
                       <X className="h-6 w-6 text-gray-500" />
                     </button>
                   </div>
 
-                  <div className="bg-gray-50 p-4 md:flex-1 md:overflow-y-auto md:p-8">
+                  <div
+                    className="min-h-0 flex-1 overflow-y-auto bg-gray-50 p-4 md:p-8"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
+                  >
                     <div className={cn('grid grid-cols-1 gap-5 md:gap-8', surfaceMode === 'front_only' ? 'md:grid-cols-1' : 'md:grid-cols-2')}>
                       <div className="flex flex-col gap-4">
                         <span className="text-center text-sm font-black uppercase tracking-widest text-gray-400">Ön Cephe</span>
@@ -1708,7 +1711,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="sticky bottom-0 flex justify-end border-t border-gray-100 bg-white p-4 md:p-6">
+                  <div className="flex flex-none justify-end border-t border-gray-100 bg-white p-4 md:p-6">
                     <button
                       onClick={() => setShowPreview(false)}
                       className="rounded-xl bg-blue-600 px-8 py-3 font-black text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700"
