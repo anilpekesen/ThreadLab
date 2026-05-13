@@ -348,6 +348,36 @@ function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
+const CANVAS_STATE_KEY = 'bkf_canvas_state';
+
+function canvasStorageKey(productKey: string) {
+  return `${CANVAS_STATE_KEY}:${productKey}`;
+}
+
+function readStoredCanvasState(productKey: string) {
+  if (typeof window === 'undefined' || !productKey) return null;
+  try {
+    const raw = localStorage.getItem(canvasStorageKey(productKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { frontJson?: string; backJson?: string };
+    return {
+      frontJson: parsed.frontJson ?? '',
+      backJson: parsed.backJson ?? '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredCanvasState(productKey: string, value: { frontJson: string; backJson: string }) {
+  if (typeof window === 'undefined' || !productKey) return;
+  try {
+    localStorage.setItem(canvasStorageKey(productKey), JSON.stringify(value));
+  } catch {
+    /* ignore quota/storage errors */
+  }
+}
+
 function getAutoZoom() {
   if (typeof window === 'undefined') return 100;
   const w = window.innerWidth;
@@ -364,11 +394,13 @@ export default function App() {
     sizeQuantities, setSizeQuantity,
     addSavedDesign,
     setIsBgRemoving,
+    canvasState, setCanvasJson,
   } = useDesignerStore();
 
   const frontCanvasRef = useRef<CanvasAreaHandle>(null);
   const backCanvasRef = useRef<CanvasAreaHandle>(null);
   const configRef = useRef(config);
+  const restoredCanvasRef = useRef<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<Tab>(null);
   const [selectedObj, setSelectedObj] = useState<fabric.Object | null>(null);
@@ -393,6 +425,11 @@ export default function App() {
   const getCanvasHandle = useCallback((side: Side) => (
     side === 'front' ? frontCanvasRef.current : backCanvasRef.current
   ), []);
+
+  const productCanvasKey = useMemo(
+    () => config?.productHandle || config?.productId || '',
+    [config?.productHandle, config?.productId],
+  );
 
   const getActiveCanvasHandle = useCallback(() => (
     getCanvasHandle(activeSide)
@@ -482,6 +519,33 @@ export default function App() {
   }, [activeSide, syncLayers]);
 
   useEffect(() => {
+    restoredCanvasRef.current = null;
+    setCanvasJson('front', '');
+    setCanvasJson('back', '');
+  }, [productCanvasKey]);
+
+  useEffect(() => {
+    if (!productCanvasKey || restoredCanvasRef.current === productCanvasKey) return;
+    if (!frontCanvasRef.current) return;
+    if (personalization.surfaceMode !== 'front_only' && !backCanvasRef.current) return;
+    const stored = readStoredCanvasState(productCanvasKey);
+    if (!stored) {
+      restoredCanvasRef.current = productCanvasKey;
+      return;
+    }
+    if (stored.frontJson) {
+      frontCanvasRef.current.loadDesign(stored.frontJson);
+      setCanvasJson('front', stored.frontJson);
+    }
+    if (personalization.surfaceMode !== 'front_only' && stored.backJson) {
+      backCanvasRef.current?.loadDesign(stored.backJson);
+      setCanvasJson('back', stored.backJson);
+    }
+    restoredCanvasRef.current = productCanvasKey;
+    window.setTimeout(syncLayers, 0);
+  }, [personalization.surfaceMode, productCanvasKey, setCanvasJson, syncLayers]);
+
+  useEffect(() => {
     const cv = getActiveCanvasHandle()?.getCanvas();
     cv?.discardActiveObject();
     cv?.renderAll();
@@ -498,13 +562,20 @@ export default function App() {
   }, [selectedObj, updateToolbarPosition]);
 
   const handleDesignChange = useCallback((side: Side) => {
+    const nextJson = getCanvasHandle(side)?.saveDesign() ?? '';
+    const nextState = {
+      ...canvasState,
+      [`${side}Json`]: nextJson,
+    } as typeof canvasState;
+    setCanvasJson(side, nextJson);
+    if (productCanvasKey) writeStoredCanvasState(productCanvasKey, nextState);
     setCanvasRevisions((prev) => ({ ...prev, [side]: prev[side] + 1 }));
     window.setTimeout(() => {
       const png = getCanvasHandle(side)?.exportPng(0.35) ?? '';
       setSidePreviews((prev) => ({ ...prev, [side]: png }));
     }, 0);
     if (side === activeSide) syncLayers();
-  }, [activeSide, getCanvasHandle, syncLayers]);
+  }, [activeSide, canvasState, getCanvasHandle, productCanvasKey, setCanvasJson, syncLayers]);
 
   const handleObjectSelected = useCallback((obj: fabric.Object | null) => {
     setSelectedObj(obj);
