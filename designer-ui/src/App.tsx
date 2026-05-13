@@ -1147,7 +1147,7 @@ export default function App() {
     : `${summarizeSidePricing('Ön', pricingSummary.front)} | ${summarizeSidePricing('Arka', pricingSummary.back)}`;
 
   const reversedLayers = [...layers].reverse();
-  const dockToolbar = zoom < 100 || (typeof window !== 'undefined' && window.innerWidth < 860);
+  const mobileToolbar = zoom < 100 || (typeof window !== 'undefined' && window.innerWidth < 860);
 
   return (
     <div className="flex h-full min-h-screen items-stretch justify-center bg-[#eef2f7] text-gray-900">
@@ -1469,11 +1469,18 @@ export default function App() {
             </div>
           )}
 
-          {selectedObj && (toolbarPos || dockToolbar) && (!activeTab || dockToolbar) && !showPreview && (
+          {selectedObj && (toolbarPos || mobileToolbar) && !activeTab && !showPreview && (
             <div
               className="fixed z-[100] flex items-center justify-center"
-              style={dockToolbar
-                ? { left: '50%', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', transform: 'translateX(-50%)' }
+              style={mobileToolbar
+                ? {
+                    left: 8,
+                    right: 8,
+                    top: toolbarPos
+                      ? `clamp(88px, ${Math.round(toolbarPos.y)}px, calc(100vh - 156px))`
+                      : 'calc(50vh - 78px)',
+                    transform: 'none',
+                  }
                 : { left: toolbarPos?.x ?? 0, top: toolbarPos?.y ?? 0, transform: 'translateX(-50%)' }}
             >
                 <div className="pointer-events-auto flex flex-col items-center gap-2">
