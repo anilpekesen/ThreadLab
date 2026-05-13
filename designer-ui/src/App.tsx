@@ -64,6 +64,7 @@ const MAIN_TABS: { id: 'image' | 'text' | 'layers'; label: string; Icon: React.F
 ];
 
 const TOOLBAR_FONTS = ['Inter', 'Roboto', 'Arial', 'Montserrat', 'Playfair Display', 'Oswald'];
+const TEXT_COLOR_SWATCHES = ['#111827', '#ffffff', '#2563eb', '#dc2626', '#16a34a', '#f59e0b', '#ec4899', '#7c3aed'];
 const CANVAS_W = 480;
 const CANVAS_H = 580;
 const COLOR_HEX_MAP: Record<string, string> = {
@@ -412,6 +413,7 @@ export default function App() {
   const [isDraggingScene, setIsDraggingScene] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(null);
+  const [showTextColorPalette, setShowTextColorPalette] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewImages, setPreviewImages] = useState({ front: '', back: '' });
   const [sidePreviews, setSidePreviews] = useState({ front: '', back: '' });
@@ -552,6 +554,7 @@ export default function App() {
     setSelectedObj(null);
     setObjState(null);
     setToolbarPos(null);
+    setShowTextColorPalette(false);
   }, [activeSide, getActiveCanvasHandle]);
 
   useEffect(() => {
@@ -582,6 +585,7 @@ export default function App() {
     if (!obj) {
       setObjState(null);
       setToolbarPos(null);
+      setShowTextColorPalette(false);
       syncLayers();
       return;
     }
@@ -1468,19 +1472,41 @@ export default function App() {
               className="fixed z-[100] flex items-center justify-center"
               style={{ left: toolbarPos.x, top: toolbarPos.y, transform: 'translateX(-50%)' }}
             >
+                <div className="pointer-events-auto flex flex-col items-center gap-2">
+                {objState?.type === 'text' && showTextColorPalette && (
+                  <div className="flex max-w-[92vw] flex-wrap items-center justify-center gap-2 rounded-[18px] border border-white/60 bg-white/96 px-3 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.14)] backdrop-blur-xl">
+                    {TEXT_COLOR_SWATCHES.map((color) => {
+                      const isActive = (objState.color ?? '#111827').toLowerCase() === color.toLowerCase();
+                      return (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => updateTextProp({ color })}
+                          className={cn(
+                            'h-8 w-8 rounded-full border-2 transition-transform hover:scale-105',
+                            isActive ? 'border-blue-500 shadow-md' : 'border-white shadow-sm',
+                          )}
+                          style={{ backgroundColor: color }}
+                          aria-label={`Renk ${color}`}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
                 <div className="pointer-events-auto flex max-w-[95vw] items-center gap-0.5 overflow-x-auto rounded-[20px] border border-white/50 bg-white/95 p-1 shadow-[0_10px_50px_rgba(0,0,0,0.15)] backdrop-blur-xl no-scrollbar md:max-w-none md:gap-1 md:rounded-[28px] md:p-2">
                   {objState?.type === 'text' ? (
                     <>
-                      <label className="relative flex shrink-0 cursor-pointer flex-col items-center gap-0.5 rounded-xl border-r border-gray-100 px-2 py-1.5 hover:bg-gray-50/50 md:gap-1 md:px-3 md:py-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowTextColorPalette((prev) => !prev)}
+                        className={cn(
+                          'relative flex shrink-0 flex-col items-center gap-0.5 rounded-xl border-r border-gray-100 px-2 py-1.5 transition-colors hover:bg-gray-50/50 md:gap-1 md:px-3 md:py-2',
+                          showTextColorPalette ? 'bg-blue-50/70' : '',
+                        )}
+                      >
                         <div className="h-5 w-5 rounded-full border border-gray-200 shadow-inner md:h-6 md:w-6" style={{ backgroundColor: objState.color }} />
                         <span className="text-[9px] font-bold text-gray-500 md:text-[10px]">Renk</span>
-                        <input
-                          type="color"
-                          value={objState.color ?? '#111827'}
-                          onChange={(e) => updateTextProp({ color: e.target.value })}
-                          className="absolute inset-0 opacity-0"
-                        />
-                      </label>
+                      </button>
 
                       <button
                         onClick={editText}
@@ -1622,6 +1648,7 @@ export default function App() {
                       </button>
                     </>
                   )}
+                </div>
                 </div>
             </div>
           )}
