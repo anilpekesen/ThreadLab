@@ -5,6 +5,18 @@ import type { PrintAreaConfig, Side } from '@/types';
 
 const PRINT_W = 480;
 const PRINT_H = 580;
+const CONTROL_ICON_SIZE = 32;
+const DELETE_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E";
+const CLONE_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='9' width='13' height='13' rx='2' ry='2'%3E%3C/rect%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'%3E%3C/path%3E%3C/svg%3E";
+const ROTATE_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8'%3E%3C/path%3E%3Cpolyline points='21 3 21 8 16 8'%3E%3C/polyline%3E%3C/svg%3E";
+const RESIZE_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='15 3 21 3 21 9'%3E%3C/polyline%3E%3Cpolyline points='9 21 3 21 3 15'%3E%3C/polyline%3E%3Cline x1='21' y1='3' x2='14' y2='10'%3E%3C/line%3E%3Cline x1='3' y1='21' x2='10' y2='14'%3E%3C/line%3E%3C/svg%3E";
+
+const controlIcons = {
+  delete: createControlImage(DELETE_ICON),
+  clone: createControlImage(CLONE_ICON),
+  rotate: createControlImage(ROTATE_ICON),
+  resize: createControlImage(RESIZE_ICON),
+};
 
 export interface CanvasAreaHandle {
   addImageFromUrl: (url: string) => void;
@@ -36,16 +48,132 @@ function isImageObject(obj: fabric.Object | null | undefined): obj is fabric.Ima
   return obj?.type === 'image';
 }
 
+function createControlImage(src: string) {
+  const img = new Image();
+  img.src = src;
+  return img;
+}
+
+function renderControlIcon(
+  ctx: CanvasRenderingContext2D,
+  left: number,
+  top: number,
+  _styleOverride: unknown,
+  fabricObject: fabric.Object,
+  img: HTMLImageElement,
+) {
+  const size = CONTROL_ICON_SIZE;
+  ctx.save();
+  ctx.translate(left, top);
+  ctx.shadowColor = 'rgba(15, 23, 42, 0.18)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, size / 2, 0, 2 * Math.PI);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = '#e5e7eb';
+  ctx.stroke();
+
+  const iconSize = size * 0.52;
+  if (img.complete) {
+    ctx.drawImage(img, -iconSize / 2, -iconSize / 2, iconSize, iconSize);
+  } else {
+    img.onload = () => fabricObject.canvas?.requestRenderAll();
+  }
+  ctx.restore();
+}
+
+function cloneFabricObject(target: fabric.Object) {
+  target.clone((cloned: fabric.Object) => {
+    cloned.set({
+      left: (cloned.left ?? 0) + 24,
+      top: (cloned.top ?? 0) + 24,
+    });
+    applyObjectInteractionPreset(cloned);
+    lockImageProportions(cloned);
+    target.canvas?.add(cloned);
+    target.canvas?.setActiveObject(cloned);
+    target.canvas?.requestRenderAll();
+  });
+}
+
+function buildObjectControls() {
+  const runtimeControls = (fabric as typeof fabric & {
+    controlsUtils?: Record<string, fabric.Control['actionHandler']>;
+  }).controlsUtils;
+  const defaultControls = (fabric.Object.prototype.controls ?? {}) as Record<string, fabric.Control>;
+  const rotateAction = runtimeControls?.rotationWithSnapping ?? defaultControls.mtr?.actionHandler;
+  const scaleAction = runtimeControls?.scalingEqually ?? defaultControls.br?.actionHandler;
+  const controls = {
+    ...defaultControls,
+  } as Record<string, fabric.Control>;
+
+  controls.tl = new fabric.Control({
+    x: -0.5,
+    y: -0.5,
+    cursorStyle: 'pointer',
+    mouseUpHandler: (_eventData, transform) => {
+      const target = transform.target;
+      target.canvas?.remove(target);
+      target.canvas?.discardActiveObject();
+      target.canvas?.requestRenderAll();
+      return true;
+    },
+    render: (ctx, left, top, styleOverride, object) => renderControlIcon(ctx, left, top, styleOverride, object, controlIcons.delete),
+  });
+
+  controls.tr = new fabric.Control({
+    x: 0.5,
+    y: -0.5,
+    cursorStyle: 'pointer',
+    mouseUpHandler: (_eventData, transform) => {
+      cloneFabricObject(transform.target);
+      return true;
+    },
+    render: (ctx, left, top, styleOverride, object) => renderControlIcon(ctx, left, top, styleOverride, object, controlIcons.clone),
+  });
+
+  controls.bl = new fabric.Control({
+    x: -0.5,
+    y: 0.5,
+    cursorStyle: 'crosshair',
+    ...(rotateAction ? { actionHandler: rotateAction } : {}),
+    actionName: 'rotate',
+    render: (ctx, left, top, styleOverride, object) => renderControlIcon(ctx, left, top, styleOverride, object, controlIcons.rotate),
+  } as Partial<fabric.Control>);
+
+  controls.br = new fabric.Control({
+    x: 0.5,
+    y: 0.5,
+    cursorStyle: 'nwse-resize',
+    ...(scaleAction ? { actionHandler: scaleAction } : {}),
+    actionName: 'scale',
+    render: (ctx, left, top, styleOverride, object) => renderControlIcon(ctx, left, top, styleOverride, object, controlIcons.resize),
+  } as Partial<fabric.Control>);
+
+  ['mt', 'mb', 'ml', 'mr', 'mtr'].forEach((key) => {
+    if (controls[key]) controls[key].visible = false;
+  });
+
+  return controls;
+}
+
 function applyObjectInteractionPreset(obj: fabric.Object | null | undefined) {
   if (!obj) return;
+  obj.controls = buildObjectControls();
   obj.set({
-    cornerSize: 18,
-    touchCornerSize: 32,
-    padding: 10,
+    cornerSize: CONTROL_ICON_SIZE,
+    touchCornerSize: 44,
+    padding: 12,
     transparentCorners: false,
-    cornerColor: '#2563eb',
-    cornerStrokeColor: '#ffffff',
-    borderColor: '#38bdf8',
+    cornerColor: '#ffffff',
+    cornerStyle: 'circle',
+    cornerStrokeColor: '#cbd5e1',
+    borderColor: '#3b82f6',
+    borderDashArray: [4, 4],
     borderScaleFactor: 2.2,
   } as Partial<fabric.Object>);
 }
