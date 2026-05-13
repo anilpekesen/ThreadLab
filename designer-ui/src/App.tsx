@@ -1146,6 +1146,7 @@ export default function App() {
     : `${summarizeSidePricing('Ön', pricingSummary.front)} | ${summarizeSidePricing('Arka', pricingSummary.back)}`;
 
   const reversedLayers = [...layers].reverse();
+  const dockToolbar = typeof window !== 'undefined' && window.innerWidth < 860;
 
   return (
     <div className="flex h-full min-h-screen items-stretch justify-center bg-[#eef2f7] text-gray-900">
@@ -1467,10 +1468,12 @@ export default function App() {
             </div>
           )}
 
-          {selectedObj && toolbarPos && !activeTab && !showPreview && (
+          {selectedObj && (toolbarPos || dockToolbar) && !activeTab && !showPreview && (
             <div
               className="fixed z-[100] flex items-center justify-center"
-              style={{ left: toolbarPos.x, top: toolbarPos.y, transform: 'translateX(-50%)' }}
+              style={dockToolbar
+                ? { left: '50%', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 74px)', transform: 'translateX(-50%)' }
+                : { left: toolbarPos?.x ?? 0, top: toolbarPos?.y ?? 0, transform: 'translateX(-50%)' }}
             >
                 <div className="pointer-events-auto flex flex-col items-center gap-2">
                 {objState?.type === 'text' && showTextColorPalette && (

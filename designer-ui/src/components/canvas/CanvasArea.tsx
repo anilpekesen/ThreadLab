@@ -90,6 +90,15 @@ function hasLiveContext(cv: fabric.Canvas) {
   return Boolean(cv.getElement()) && Boolean(runtimeCanvas.contextContainer);
 }
 
+function setCanvasTouchAction(cv: fabric.Canvas, action: 'none' | 'pan-y') {
+  const runtimeCanvas = cv as fabric.Canvas & {
+    upperCanvasEl?: HTMLCanvasElement;
+    lowerCanvasEl?: HTMLCanvasElement;
+  };
+  runtimeCanvas.upperCanvasEl?.style.setProperty('touch-action', action);
+  runtimeCanvas.lowerCanvasEl?.style.setProperty('touch-action', action);
+}
+
 function toCanvasRect(area: PrintAreaConfig) {
   return {
     left: (area.x / 480) * PRINT_W,
@@ -231,7 +240,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       preserveObjectStacking: true,
       width: PRINT_W,
       height: PRINT_H,
-      allowTouchScrolling: false,
+      allowTouchScrolling: true,
       targetFindTolerance: 14,
     });
     canvasRef.current = cv;
@@ -241,13 +250,18 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       lowerCanvasEl?: HTMLCanvasElement;
     };
 
-    hostEl.current.style.touchAction = 'none';
+    hostEl.current.style.touchAction = 'pan-y';
     hostEl.current.style.webkitUserSelect = 'none';
-    runtimeCanvas.upperCanvasEl?.style.setProperty('touch-action', 'none');
-    runtimeCanvas.lowerCanvasEl?.style.setProperty('touch-action', 'none');
+    setCanvasTouchAction(cv, 'pan-y');
     runtimeCanvas.upperCanvasEl?.style.setProperty('-webkit-user-select', 'none');
     runtimeCanvas.lowerCanvasEl?.style.setProperty('-webkit-user-select', 'none');
 
+    cv.on('mouse:down', (e) => {
+      setCanvasTouchAction(cv, e.target ? 'none' : 'pan-y');
+    });
+    cv.on('mouse:up', () => {
+      setCanvasTouchAction(cv, 'pan-y');
+    });
     cv.on('object:added', (e) => {
       lockImageProportions(e.target);
       constrainTarget(e.target);
