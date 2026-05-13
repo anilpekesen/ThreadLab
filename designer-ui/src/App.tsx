@@ -107,10 +107,19 @@ interface SideMetrics {
   objectCount: number;
 }
 
+interface PrintObjectPricing {
+  metrics: SideMetrics;
+  band: PricingBand;
+  surcharge: number;
+  surchargeUnitAmount: number;
+  subtotal: number;
+}
+
 interface SidePricing {
   hasContent: boolean;
   metrics: SideMetrics;
   band: PricingBand;
+  items: PrintObjectPricing[];
   surcharge: number;
   surchargeUnitAmount: number;
   subtotal: number;
@@ -300,6 +309,18 @@ function canvasRectForArea(area: PrintAreaConfig) {
   };
 }
 
+function metricsFromRect(rect: { width: number; height: number }, area: PrintAreaConfig, objectCount: number): SideMetrics {
+  const areaRect = canvasRectForArea(area);
+  const widthCm = rect.width * ((area.realWidthMm / 10) / Math.max(areaRect.width, 1));
+  const heightCm = rect.height * ((area.realHeightMm / 10) / Math.max(areaRect.height, 1));
+  return {
+    widthCm: roundMetric(widthCm),
+    heightCm: roundMetric(heightCm),
+    areaCm2: roundMetric(widthCm * heightCm),
+    objectCount,
+  };
+}
+
 function metricsFromObjects(objects: fabric.Object[], area: PrintAreaConfig): SideMetrics {
   const bounds = objects
     .map((obj) => obj.getBoundingRect(true, true))
@@ -307,20 +328,34 @@ function metricsFromObjects(objects: fabric.Object[], area: PrintAreaConfig): Si
   if (!bounds.length) return { widthCm: 0, heightCm: 0, areaCm2: 0, objectCount: 0 };
 
   const left = Math.min(...bounds.map((rect) => rect.left));
-  const top = Math.min(...bounds.map((rect) => rect.top));
   const right = Math.max(...bounds.map((rect) => rect.left + rect.width));
+  const top = Math.min(...bounds.map((rect) => rect.top));
   const bottom = Math.max(...bounds.map((rect) => rect.top + rect.height));
-  const unionWidth = right - left;
-  const unionHeight = bottom - top;
-  const areaRect = canvasRectForArea(area);
-  const widthCm = unionWidth * ((area.realWidthMm / 10) / Math.max(areaRect.width, 1));
-  const heightCm = unionHeight * ((area.realHeightMm / 10) / Math.max(areaRect.height, 1));
-  return {
-    widthCm: roundMetric(widthCm),
-    heightCm: roundMetric(heightCm),
-    areaCm2: roundMetric(widthCm * heightCm),
-    objectCount: objects.length,
-  };
+  return metricsFromRect({ width: right - left, height: bottom - top }, area, objects.length);
+}
+
+function pricingItemsForObjects(
+  objects: fabric.Object[],
+  area: PrintAreaConfig,
+  bands: PricingBand[],
+  totalQuantity: number,
+): PrintObjectPricing[] {
+  return objects
+    .map((obj) => obj.getBoundingRect(true, true))
+    .filter((rect) => rect.width > 0 && rect.height > 0)
+    .map((rect) => {
+      const metrics = metricsFromRect(rect, area, 1);
+      const band = pricingBandForMetrics(bands, metrics);
+      const surchargeUnitAmount = Number(band.surcharge || 0);
+      const surcharge = surchargeToCents(surchargeUnitAmount);
+      return {
+        metrics,
+        band,
+        surcharge,
+        surchargeUnitAmount,
+        subtotal: surcharge * totalQuantity,
+      };
+    });
 }
 
 function pricingBandForMetrics(bands: PricingBand[], metrics: SideMetrics): PricingBand {
@@ -334,6 +369,7 @@ function pricingBandForMetrics(bands: PricingBand[], metrics: SideMetrics): Pric
 
 function summarizeSidePricing(sideLabel: string, pricing: SidePricing) {
   if (!pricing.hasContent) return `${sideLabel}: tasarım yok`;
+  if (pricing.items.length > 1) return `${sideLabel}: ${pricing.items.length} öğe · ${formatMetricSize(pricing.metrics)}`;
   return `${sideLabel}: ${formatMetricSize(pricing.metrics)} · ${pricing.band.label}`;
 }
 
@@ -343,6 +379,10 @@ function normalizeColorKey(value: string) {
 
 function colorHexForLabel(value: string) {
   return COLOR_HEX_MAP[normalizeColorKey(value)] ?? '#d1d5db';
+}
+
+function colorInputValue(value: string | undefined) {
+  return /^#[0-9a-f]{6}$/i.test(value ?? '') ? value! : '#111827';
 }
 
 function cn(...classes: (string | false | null | undefined)[]) {
@@ -750,16 +790,18 @@ export default function App() {
     };
     if (resolvedSide !== 'front') properties['Arka Tasarım'] = backPng ? 'Var' : 'Yok';
     if (pricingSummary.front.hasContent) {
+      properties['Ön öğe sayısı'] = String(pricingSummary.front.items.length);
       properties['Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
       properties['Ön alan'] = `${roundMetric(pricingSummary.front.metrics.areaCm2)} cm²`;
       properties['Ön alan fiyatı'] = formatMoney(pricingSummary.front.surcharge);
-      properties['Ön fiyat bandı'] = pricingSummary.front.band.label;
+      properties['Ön fiyat bandı'] = pricingSummary.front.items.map((item) => item.band.label).join(', ');
     }
     if (pricingSummary.back.hasContent) {
+      properties['Arka öğe sayısı'] = String(pricingSummary.back.items.length);
       properties['Arka ölçü'] = formatMetricSize(pricingSummary.back.metrics);
       properties['Arka alan'] = `${roundMetric(pricingSummary.back.metrics.areaCm2)} cm²`;
       properties['Arka alan fiyatı'] = formatMoney(pricingSummary.back.surcharge);
-      properties['Arka fiyat bandı'] = pricingSummary.back.band.label;
+      properties['Arka fiyat bandı'] = pricingSummary.back.items.map((item) => item.band.label).join(', ');
     }
 
     if (personalization.surchargeVariantId) {
@@ -774,9 +816,10 @@ export default function App() {
               '_design_role': 'surcharge',
               'Ürün tipi': 'Ön baskı ek ücreti',
               'Baskı yüzü': 'Ön',
+              'Baskı öğe sayısı': String(pricingSummary.front.items.length),
               'Baskı ölçü': formatMetricSize(pricingSummary.front.metrics),
               'Baskı alanı': `${roundMetric(pricingSummary.front.metrics.areaCm2)} cm²`,
-              'Fiyat bandı': pricingSummary.front.band.label,
+              'Fiyat bandı': pricingSummary.front.items.map((item) => item.band.label).join(', '),
               'Ek ücret / adet': formatMoney(pricingSummary.front.surcharge),
             },
           });
@@ -794,9 +837,10 @@ export default function App() {
               '_design_role': 'surcharge',
               'Ürün tipi': 'Arka baskı ek ücreti',
               'Baskı yüzü': 'Arka',
+              'Baskı öğe sayısı': String(pricingSummary.back.items.length),
               'Baskı ölçü': formatMetricSize(pricingSummary.back.metrics),
               'Baskı alanı': `${roundMetric(pricingSummary.back.metrics.areaCm2)} cm²`,
-              'Fiyat bandı': pricingSummary.back.band.label,
+              'Fiyat bandı': pricingSummary.back.items.map((item) => item.band.label).join(', '),
               'Ek ücret / adet': formatMoney(pricingSummary.back.surcharge),
             },
           });
@@ -1087,10 +1131,16 @@ export default function App() {
   }, [baseUnitPrice, baseVariantForSize, sizeQuantities, sizes]);
 
   const pricingSummary = useMemo<PricingSummary>(() => {
-    const frontBand = pricingBandForMetrics(personalization.pricingBands.front, frontMetrics);
-    const backBand = pricingBandForMetrics(personalization.pricingBands.back, backMetrics);
-    const frontSurchargeUnitAmount = frontHasDesign ? Number(frontBand.surcharge || 0) : 0;
-    const backSurchargeUnitAmount = backHasDesign ? Number(backBand.surcharge || 0) : 0;
+    const frontItems = frontHasDesign
+      ? pricingItemsForObjects(frontObjects, personalization.printAreas.front, personalization.pricingBands.front, totalQuantity)
+      : [];
+    const backItems = backHasDesign
+      ? pricingItemsForObjects(backObjects, personalization.printAreas.back, personalization.pricingBands.back, totalQuantity)
+      : [];
+    const frontBand = frontItems[0]?.band ?? pricingBandForMetrics(personalization.pricingBands.front, frontMetrics);
+    const backBand = backItems[0]?.band ?? pricingBandForMetrics(personalization.pricingBands.back, backMetrics);
+    const frontSurchargeUnitAmount = frontItems.reduce((sum, item) => sum + item.surchargeUnitAmount, 0);
+    const backSurchargeUnitAmount = backItems.reduce((sum, item) => sum + item.surchargeUnitAmount, 0);
     const frontSurcharge = surchargeToCents(frontSurchargeUnitAmount);
     const backSurcharge = surchargeToCents(backSurchargeUnitAmount);
     return {
@@ -1102,6 +1152,7 @@ export default function App() {
         hasContent: frontHasDesign,
         metrics: frontMetrics,
         band: frontBand,
+        items: frontItems,
         surcharge: frontSurcharge,
         surchargeUnitAmount: frontSurchargeUnitAmount,
         subtotal: frontSurcharge * totalQuantity,
@@ -1110,6 +1161,7 @@ export default function App() {
         hasContent: backHasDesign,
         metrics: backMetrics,
         band: backBand,
+        items: backItems,
         surcharge: backSurcharge,
         surchargeUnitAmount: backSurchargeUnitAmount,
         subtotal: backSurcharge * totalQuantity,
@@ -1118,10 +1170,14 @@ export default function App() {
   }, [
     backHasDesign,
     backMetrics,
+    backObjects,
     baseSubtotal,
     baseUnitPrice,
     frontHasDesign,
     frontMetrics,
+    frontObjects,
+    personalization.printAreas.back,
+    personalization.printAreas.front,
     personalization.pricingBands.back,
     personalization.pricingBands.front,
     totalQuantity,
@@ -1135,9 +1191,13 @@ export default function App() {
     }).format(amountInCents / 100)
   ), [config?.currency, config?.locale]);
 
-  const formattedPrice = pricingSummary.total > 0
-    ? formatMoney(pricingSummary.total)
-    : '';
+  const displayBaseSubtotal = totalQuantity > 0 ? pricingSummary.baseSubtotal : pricingSummary.baseUnitPrice;
+  const displayFrontSubtotal = totalQuantity > 0 ? pricingSummary.front.subtotal : pricingSummary.front.surcharge;
+  const displayBackSubtotal = totalQuantity > 0 ? pricingSummary.back.subtotal : pricingSummary.back.surcharge;
+  const displayTotal = totalQuantity > 0
+    ? pricingSummary.total
+    : pricingSummary.baseUnitPrice + pricingSummary.front.surcharge + pricingSummary.back.surcharge;
+  const formattedPrice = formatMoney(displayTotal);
 
   const activePrintArea = personalization.printAreas[activeSide];
   const activeAreaSummary = `${Math.round(activePrintArea.realWidthMm / 10)} x ${Math.round(activePrintArea.realHeightMm / 10)} cm`;
@@ -1486,6 +1546,16 @@ export default function App() {
                 <div className="pointer-events-auto flex flex-col items-center gap-2">
                 {objState?.type === 'text' && showTextColorPalette && (
                   <div className="flex max-w-[92vw] flex-wrap items-center justify-center gap-2 rounded-[18px] border border-white/60 bg-white/96 px-3 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.14)] backdrop-blur-xl">
+                    <label className="flex h-8 items-center gap-2 rounded-full border border-gray-200 bg-white px-2 text-[10px] font-black uppercase tracking-wide text-gray-500 shadow-sm">
+                      Özel
+                      <input
+                        type="color"
+                        value={colorInputValue(objState.color)}
+                        onChange={(event) => updateTextProp({ color: event.target.value })}
+                        className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                        aria-label="Özel metin rengi seç"
+                      />
+                    </label>
                     {TEXT_COLOR_SWATCHES.map((color) => {
                       const isActive = (objState.color ?? '#111827').toLowerCase() === color.toLowerCase();
                       return (
@@ -1734,7 +1804,7 @@ export default function App() {
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Toplam</p>
-                  <p className="mt-1 text-lg font-black text-gray-900">{formattedPrice || formatMoney(0)}</p>
+                  <p className="mt-1 text-lg font-black text-gray-900">{formattedPrice}</p>
                 </div>
               </div>
               <p className="mt-2 text-xs font-medium leading-relaxed text-gray-600">{pricingNarrative}</p>
@@ -1853,7 +1923,7 @@ export default function App() {
                 </div>
                 <div className="text-right">
                   <p className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-400">Toplam</p>
-                  <p className="mt-0.5 text-xl font-black text-gray-900">{formattedPrice || formatMoney(0)}</p>
+                  <p className="mt-0.5 text-xl font-black text-gray-900">{formattedPrice}</p>
                 </div>
               </div>
 
@@ -1866,7 +1936,7 @@ export default function App() {
                   <span className={cn('h-1.5 w-1.5 rounded-full flex-none', frontHasDesign ? 'bg-emerald-500' : 'bg-gray-300')} />
                   <span className="text-[10px] font-bold">Ön</span>
                   <span className="ml-auto text-[9px] font-semibold">
-                    {frontHasDesign ? formatMoney(pricingSummary.front.subtotal) : 'yok'}
+                    {frontHasDesign ? formatMoney(displayFrontSubtotal) : 'yok'}
                   </span>
                 </div>
                 {surfaceMode !== 'front_only' && (
@@ -1877,7 +1947,7 @@ export default function App() {
                     <span className={cn('h-1.5 w-1.5 rounded-full flex-none', backHasDesign ? 'bg-emerald-500' : 'bg-gray-300')} />
                     <span className="text-[10px] font-bold">Arka</span>
                     <span className="ml-auto text-[9px] font-semibold">
-                      {backHasDesign ? formatMoney(pricingSummary.back.subtotal) : 'yok'}
+                      {backHasDesign ? formatMoney(displayBackSubtotal) : 'yok'}
                     </span>
                   </div>
                 )}
@@ -1890,18 +1960,18 @@ export default function App() {
                 </div>
                 <div className="flex items-center justify-between text-[10px]">
                   <span className="font-semibold text-gray-500">Ara toplam</span>
-                  <strong className="font-black text-gray-900">{formatMoney(pricingSummary.baseSubtotal)}</strong>
+                  <strong className="font-black text-gray-900">{formatMoney(displayBaseSubtotal)}</strong>
                 </div>
                 {pricingSummary.front.hasContent && (
                   <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">Ön baskı</span>
-                    <strong className="font-black text-gray-900">{formatMoney(pricingSummary.front.subtotal)}</strong>
+                    <span className="font-semibold text-gray-500">Ön baskı ({pricingSummary.front.items.length} öğe)</span>
+                    <strong className="font-black text-gray-900">{formatMoney(displayFrontSubtotal)}</strong>
                   </div>
                 )}
                 {pricingSummary.back.hasContent && (
                   <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">Arka baskı</span>
-                    <strong className="font-black text-gray-900">{formatMoney(pricingSummary.back.subtotal)}</strong>
+                    <span className="font-semibold text-gray-500">Arka baskı ({pricingSummary.back.items.length} öğe)</span>
+                    <strong className="font-black text-gray-900">{formatMoney(displayBackSubtotal)}</strong>
                   </div>
                 )}
               </div>
