@@ -336,7 +336,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     return () => {
       cancelled = true;
     };
-  }, [config, onDesignChange, side]);
+  }, [config, side]);
 
   const addImageFromUrl = useCallback((url: string) => {
     const cv = canvasRef.current;
@@ -478,10 +478,10 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     const changed = constrainCanvasObjects(cv, toCanvasRect(printArea));
     if (changed) {
       cv.renderAll();
-      onObjectSelected(cv.getActiveObject() ?? null);
-      onDesignChange(side);
+      onObjectSelectedRef.current(cv.getActiveObject() ?? null);
+      onDesignChangeRef.current(side);
     }
-  }, [onDesignChange, onObjectSelected, printArea, side]);
+  }, [printArea, side]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
