@@ -100,6 +100,42 @@ function cloneFabricObject(target: fabric.Object) {
   });
 }
 
+function clearCanvasTopLayer(cv: fabric.Canvas) {
+  const runtimeCanvas = cv as fabric.Canvas & {
+    clearContext?: (ctx: CanvasRenderingContext2D) => void;
+    contextTop?: CanvasRenderingContext2D | null;
+  };
+  if (runtimeCanvas.clearContext && runtimeCanvas.contextTop) {
+    runtimeCanvas.clearContext(runtimeCanvas.contextTop);
+  }
+}
+
+function removeFabricObject(target: fabric.Object) {
+  const cv = target.canvas;
+  if (!cv) return true;
+
+  cv.discardActiveObject();
+  target.set({
+    visible: false,
+    evented: false,
+    selectable: false,
+  } as Partial<fabric.Object>);
+  target.setCoords();
+  cv.remove(target);
+  clearCanvasTopLayer(cv);
+  cv.renderAll();
+
+  if (typeof window !== 'undefined') {
+    window.requestAnimationFrame(() => {
+      if (!hasLiveContext(cv)) return;
+      clearCanvasTopLayer(cv);
+      cv.renderAll();
+    });
+  }
+
+  return true;
+}
+
 function buildObjectControls() {
   const runtimeControls = (fabric as typeof fabric & {
     controlsUtils?: Record<string, fabric.Control['actionHandler']>;
@@ -116,11 +152,7 @@ function buildObjectControls() {
     y: -0.5,
     cursorStyle: 'pointer',
     mouseUpHandler: (_eventData, transform) => {
-      const target = transform.target;
-      target.canvas?.remove(target);
-      target.canvas?.discardActiveObject();
-      target.canvas?.requestRenderAll();
-      return true;
+      return removeFabricObject(transform.target);
     },
     render: (ctx, left, top, styleOverride, object) => renderControlIcon(ctx, left, top, styleOverride, object, controlIcons.delete),
   });
@@ -527,8 +559,9 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const deleteSelected = useCallback(() => {
     const cv = canvasRef.current;
     if (!cv) return;
-    cv.getActiveObjects().forEach((o) => cv.remove(o));
+    cv.getActiveObjects().forEach((o) => removeFabricObject(o));
     cv.discardActiveObject();
+    clearCanvasTopLayer(cv);
     cv.renderAll();
   }, []);
 
