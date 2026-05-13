@@ -240,7 +240,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       preserveObjectStacking: true,
       width: PRINT_W,
       height: PRINT_H,
-      allowTouchScrolling: true,
+      allowTouchScrolling: false,
       targetFindTolerance: 14,
     });
     canvasRef.current = cv;
@@ -250,18 +250,11 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       lowerCanvasEl?: HTMLCanvasElement;
     };
 
-    hostEl.current.style.touchAction = 'pan-y';
+    hostEl.current.style.touchAction = 'none';
     hostEl.current.style.webkitUserSelect = 'none';
-    setCanvasTouchAction(cv, 'pan-y');
+    setCanvasTouchAction(cv, 'none');
     runtimeCanvas.upperCanvasEl?.style.setProperty('-webkit-user-select', 'none');
     runtimeCanvas.lowerCanvasEl?.style.setProperty('-webkit-user-select', 'none');
-
-    cv.on('mouse:down', (e) => {
-      setCanvasTouchAction(cv, e.target ? 'none' : 'pan-y');
-    });
-    cv.on('mouse:up', () => {
-      setCanvasTouchAction(cv, 'pan-y');
-    });
     cv.on('object:added', (e) => {
       lockImageProportions(e.target);
       constrainTarget(e.target);
