@@ -22,9 +22,12 @@ import { getGlobalSettings, saveGlobalSettings } from "~/models/global-settings.
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
   const settings = await getGlobalSettings();
-  const saved = new URL(request.url).searchParams.get("saved") === "1";
-  const created = new URL(request.url).searchParams.get("created") === "1";
-  return json({ settings, saved, created });
+  const url = new URL(request.url);
+  const saved = url.searchParams.get("saved") === "1";
+  const created = url.searchParams.get("created") === "1";
+  const ctOk = url.searchParams.get("ct_ok");
+  const ctError = url.searchParams.get("ct_error");
+  return json({ settings, saved, created, ctOk, ctError });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -100,7 +103,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "registerCartTransform") {
     try {
-      // Check existing cart transforms first
+      // Check existing
       const existingRes = await admin.graphql(`#graphql
         { cartTransforms(first: 5) { nodes { id functionId } } }
       `);
@@ -108,17 +111,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         data?: { cartTransforms?: { nodes?: Array<{ id: string; functionId: string }> } };
         errors?: Array<{ message: string }>;
       };
-
       if (existingData.errors?.length) {
-        return json({ error: `GraphQL hatası: ${existingData.errors.map(e => e.message).join(", ")}` });
+        return redirect(`/app/settings?ct_error=${encodeURIComponent("GraphQL: " + existingData.errors.map(e => e.message).join(", "))}`);
       }
-
       const existing = existingData.data?.cartTransforms?.nodes ?? [];
       if (existing.length > 0) {
-        return json({ success: `Cart Transform zaten kayıtlı (ID: ${existing[0].id}). Checkout'u test edin.` });
+        return redirect(`/app/settings?ct_ok=zaten`);
       }
 
-      // Find our function
+      // Find function
       const fnRes = await admin.graphql(`#graphql
         { shopifyFunctions(first: 25) { nodes { id title apiType } } }
       `);
@@ -126,17 +127,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         data?: { shopifyFunctions?: { nodes?: Array<{ id: string; title: string; apiType: string }> } };
         errors?: Array<{ message: string }>;
       };
-
       if (fnData.errors?.length) {
-        return json({ error: `Fonksiyon sorgu hatası: ${fnData.errors.map(e => e.message).join(", ")}` });
+        return redirect(`/app/settings?ct_error=${encodeURIComponent("Fn sorgu: " + fnData.errors.map(e => e.message).join(", "))}`);
       }
-
       const functions = fnData.data?.shopifyFunctions?.nodes ?? [];
       const cartFn = functions.find((f) => f.apiType === "purchase.cart-transform.run");
       if (!cartFn) {
-        return json({ error: `Fonksiyon bulunamadı. Mevcut: ${functions.map(f => `${f.title}(${f.apiType})`).join(", ") || "hiç yok"}` });
+        const list = functions.map(f => `${f.title}(${f.apiType})`).join(", ") || "hiç yok";
+        return redirect(`/app/settings?ct_error=${encodeURIComponent("Fonksiyon bulunamadı. Mevcut: " + list)}`);
       }
 
+      // Register
       const regRes = await admin.graphql(`#graphql
         mutation { cartTransformCreate(functionId: "${cartFn.id}") {
           cartTransform { id }
@@ -147,18 +148,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         data?: { cartTransformCreate?: { cartTransform?: { id: string }; userErrors?: Array<{ message: string }> } };
         errors?: Array<{ message: string }>;
       };
-
       if (regData.errors?.length) {
-        return json({ error: `Mutation hatası: ${regData.errors.map(e => e.message).join(", ")}` });
+        return redirect(`/app/settings?ct_error=${encodeURIComponent(regData.errors.map(e => e.message).join(", "))}`);
       }
-
       const regErrors = regData.data?.cartTransformCreate?.userErrors ?? [];
-      if (regErrors.length) return json({ error: regErrors.map((e) => e.message).join(", ") });
-
-      const newId = regData.data?.cartTransformCreate?.cartTransform?.id ?? "";
-      return json({ success: `Cart Transform başarıyla kaydedildi! ID: ${newId}` });
+      if (regErrors.length) {
+        return redirect(`/app/settings?ct_error=${encodeURIComponent(regErrors.map(e => e.message).join(", "))}`);
+      }
+      return redirect(`/app/settings?ct_ok=yeni`);
     } catch (err) {
-      return json({ error: `Beklenmeyen hata: ${err instanceof Error ? err.message : String(err)}` });
+      return redirect(`/app/settings?ct_error=${encodeURIComponent(err instanceof Error ? err.message : String(err))}`);
     }
   }
 
@@ -203,7 +202,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created } = useLoaderData<typeof loader>();
+  const { settings, saved, created, ctOk, ctError } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const fetcher = useFetcher<{ error?: string; success?: string }>();
   const isSaving = navigation.state === "submitting";
@@ -220,6 +219,9 @@ export default function SettingsRoute() {
         {created && <Banner tone="success" title="Baskı Ücreti ürünü oluşturuldu ve kaydedildi." />}
         {fetcher.data?.error && <Banner tone="critical" title={`Hata: ${fetcher.data.error}`} />}
         {fetcher.data?.success && <Banner tone="success" title={fetcher.data.success} />}
+        {ctOk === "yeni" && <Banner tone="success" title="Cart Transform başarıyla kaydedildi! Şimdi checkout'u test edin." />}
+        {ctOk === "zaten" && <Banner tone="info" title="Cart Transform zaten kayıtlıydı. Sorun başka bir yerde — checkout'u test edin." />}
+        {ctError && <Banner tone="critical" title={`Cart Transform hatası: ${ctError}`} />}
 
         <Form method="post">
           <BlockStack gap="400">
