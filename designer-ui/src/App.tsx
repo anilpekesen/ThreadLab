@@ -894,47 +894,25 @@ export default function App() {
       properties['Arka fiyat bandı'] = pricingSummary.back.items.map((item) => item.band.label).join(', ');
     }
 
+    // Cart Transform approach: add surcharge info as properties on each line item.
+    // Shopify's Cart Transform Function reads these and adds the surcharge as a
+    // child line (customer cannot delete it; removing the parent removes both).
     if (personalization.surchargeVariantId) {
-      if (pricingSummary.front.hasContent && pricingSummary.front.surchargeUnitAmount > 0) {
-        const quantity = Math.round(pricingSummary.front.surchargeUnitAmount * totalQuantity);
-        if (quantity > 0) {
-          cartItems.push({
-            variantId: personalization.surchargeVariantId,
-            quantity,
-            properties: {
-              ...properties,
-              '_design_role': 'surcharge',
-              'Ürün tipi': 'Ön baskı ek ücreti',
-              'Baskı yüzü': 'Ön',
-              'Baskı öğe sayısı': String(pricingSummary.front.items.length),
-              'Baskı ölçü': formatMetricSize(pricingSummary.front.metrics),
-              'Baskı alanı': `${roundMetric(pricingSummary.front.metrics.areaCm2)} cm²`,
-              'Fiyat bandı': pricingSummary.front.items.map((item) => item.band.label).join(', '),
-              'Ek ücret / adet': formatMoney(pricingSummary.front.surcharge),
-            },
-          });
-        }
-      }
+      const surchargeGid = `gid://shopify/ProductVariant/${personalization.surchargeVariantId}`;
+      const frontUnitAmt = pricingSummary.front.hasContent ? pricingSummary.front.surchargeUnitAmount : 0;
+      const backUnitAmt  = pricingSummary.back.hasContent  ? pricingSummary.back.surchargeUnitAmount  : 0;
 
-      if (pricingSummary.back.hasContent && pricingSummary.back.surchargeUnitAmount > 0) {
-        const quantity = Math.round(pricingSummary.back.surchargeUnitAmount * totalQuantity);
-        if (quantity > 0) {
-          cartItems.push({
-            variantId: personalization.surchargeVariantId,
-            quantity,
-            properties: {
-              ...properties,
-              '_design_role': 'surcharge',
-              'Ürün tipi': 'Arka baskı ek ücreti',
-              'Baskı yüzü': 'Arka',
-              'Baskı öğe sayısı': String(pricingSummary.back.items.length),
-              'Baskı ölçü': formatMetricSize(pricingSummary.back.metrics),
-              'Baskı alanı': `${roundMetric(pricingSummary.back.metrics.areaCm2)} cm²`,
-              'Fiyat bandı': pricingSummary.back.items.map((item) => item.band.label).join(', '),
-              'Ek ücret / adet': formatMoney(pricingSummary.back.surcharge),
-            },
-          });
-        }
+      for (const item of cartItems) {
+        const qty = item.quantity || 1;
+        const frontQty = Math.round(frontUnitAmt * qty);
+        const backQty  = Math.round(backUnitAmt  * qty);
+        if (frontQty + backQty === 0) continue;
+        item.properties = {
+          ...(item.properties ?? {}),
+          '_surcharge_variant_gid': surchargeGid,
+          ...(frontQty > 0 ? { '_surcharge_qty_front': String(frontQty) } : {}),
+          ...(backQty  > 0 ? { '_surcharge_qty_back':  String(backQty)  } : {}),
+        };
       }
     }
 

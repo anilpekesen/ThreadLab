@@ -1,0 +1,12 @@
+api_version = "2024-10"
+
+[[extensions]]
+name = "Tasarim Baski Ucret"
+handle = "tasarim-baski-ucret"
+type = "function"
+api_version = "2024-10"
+
+[extensions.build]
+command = "npm run build"
+path = "dist/index.wasm"
+watch_paths = ["src/**/*.js"]

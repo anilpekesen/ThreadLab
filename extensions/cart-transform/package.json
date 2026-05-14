@@ -1,0 +1,7 @@
+{
+  "name": "tasarim-baski-ucret",
+  "private": true,
+  "scripts": {
+    "build": "javy compile -d -o dist/index.wasm src/run.js"
+  }
+}
