@@ -21,6 +21,7 @@
   data-single-price="{{ block.settings.single_price }}"
   data-double-price="{{ block.settings.double_price }}"
   data-product-variants="{{ product.variants | json | escape }}"
+  data-option-names="{{ product.options | join: ',' | escape }}"
 >
   <iframe
     class="dsgn-inline-react__frame"
@@ -87,6 +88,7 @@
           backImage: root.dataset.backImage || '',
           shirtColor: root.dataset.shirtColor || '#1C1C1E',
           variants: JSON.parse(root.dataset.productVariants || '[]'),
+          optionNames: (root.dataset.optionNames || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean),
           currency: root.dataset.currency || 'TRY',
           locale: root.dataset.locale || 'tr-TR',
           uploadEndpoint: '/apps/tshirt-designer/upload',

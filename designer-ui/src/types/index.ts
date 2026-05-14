@@ -21,6 +21,7 @@ export interface DesignerConfig {
   backImage: string;
   shirtColor: string;
   variants: ShopifyVariant[];
+  optionNames: string[];
   currency: string;
   locale: string;
   uploadEndpoint: string;

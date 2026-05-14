@@ -196,6 +196,7 @@ function readConfig(): DesignerConfig {
     backImage: p.get('back') ?? '',
     shirtColor: p.get('color') ?? '#1C1C1E',
     variants,
+    optionNames: (p.get('optionNames') ?? '').split(',').map((s) => s.trim()).filter(Boolean),
     currency: p.get('currency') ?? 'TRY',
     locale: p.get('locale') ?? 'tr-TR',
     uploadEndpoint: p.get('upload') ?? '/apps/tshirt-designer/upload',
@@ -208,6 +209,21 @@ function readConfig(): DesignerConfig {
 
 function applyConfig(cfg: DesignerConfig, setConfig: (config: DesignerConfig) => void) {
   setConfig(cfg);
+}
+
+function detectOptionKeys(optionNames: string[]): { colorKey: 'option1' | 'option2' | 'option3'; sizeKey: 'option1' | 'option2' | 'option3' | null } {
+  const COLOR_KEYWORDS = ['renk', 'color', 'colour', 'rengi', 'rang'];
+  const SIZE_KEYWORDS = ['beden', 'size', 'boyut', 'ölçü'];
+  const keys = ['option1', 'option2', 'option3'] as const;
+  let colorIdx = optionNames.findIndex((n) => COLOR_KEYWORDS.some((k) => n.toLowerCase().includes(k)));
+  let sizeIdx = optionNames.findIndex((n) => SIZE_KEYWORDS.some((k) => n.toLowerCase().includes(k)));
+  // Fallback defaults: color=0, size=1
+  if (colorIdx === -1) colorIdx = 0;
+  if (sizeIdx === -1) sizeIdx = optionNames.length > 1 ? 1 : -1;
+  return {
+    colorKey: keys[colorIdx] ?? 'option1',
+    sizeKey: sizeIdx >= 0 ? (keys[sizeIdx] ?? null) : null,
+  };
 }
 
 function priceToCents(price: string | number | undefined): number {
@@ -491,6 +507,7 @@ export default function App() {
   const [canvasRevisions, setCanvasRevisions] = useState({ front: 0, back: 0 });
   const [selectedColor, setSelectedColor] = useState('');
   const [isCartLoading, setIsCartLoading] = useState(false);
+  const [noSizeQuantity, setNoSizeQuantity] = useState(1);
 
   const getCanvasHandle = useCallback((side: Side) => (
     side === 'front' ? frontCanvasRef.current : backCanvasRef.current
@@ -579,10 +596,15 @@ export default function App() {
     }
   }, [activeSide, personalization.surfaceMode, setActiveSide]);
 
+  const { colorKey, sizeKey } = useMemo(
+    () => detectOptionKeys(config?.optionNames ?? []),
+    [config?.optionNames],
+  );
+
   useEffect(() => {
-    const firstColor = config?.variants?.find((variant) => variant.option1)?.option1 ?? '';
+    const firstColor = config?.variants?.find((variant) => variant[colorKey])?.[colorKey] ?? '';
     if (firstColor && !selectedColor) setSelectedColor(firstColor);
-  }, [config?.variants, selectedColor]);
+  }, [config?.variants, colorKey, selectedColor]);
 
   useEffect(() => {
     syncLayers();
@@ -780,18 +802,35 @@ export default function App() {
     const frontHas = Boolean(frontCanvasRef.current?.canvas?.getObjects().length);
     const backHas = Boolean(backCanvasRef.current?.canvas?.getObjects().length);
     const resolvedSide = frontHas && backHas ? 'double' : backHas ? 'back' : 'front';
-    const selectedSizes = sizes.filter((size) => (sizeQuantities[size!] ?? 0) > 0);
+    let cartItems: CartItemPayload[];
 
-    const cartItems: CartItemPayload[] = selectedSizes
-      .map((size) => {
-        const variantId = String(baseVariantForSize(size!)?.id ?? config?.singleVariantId ?? config?.doubleVariantId ?? '');
-        return { variantId, quantity: sizeQuantities[size!] ?? 0, size: size ?? undefined };
-      })
-      .filter((item) => item.variantId);
-
-    if (cartItems.length === 0) {
-      alert('Lütfen en az bir beden için adet seçin');
-      return;
+    if (sizes.length === 0) {
+      // Beden seçeneği olmayan ürünler (kupa, bardak vb.)
+      const variantId = String(
+        (selectedColor
+          ? config?.variants?.find((v) => v[colorKey] === selectedColor)?.id
+          : config?.variants?.[0]?.id)
+        ?? config?.singleVariantId
+        ?? config?.doubleVariantId
+        ?? ''
+      );
+      if (!variantId) {
+        alert('Bu ürün için varyant bulunamadı. Shopify ürün ayarlarını kontrol edin.');
+        return;
+      }
+      cartItems = [{ variantId, quantity: noSizeQuantity }];
+    } else {
+      const selectedSizes = sizes.filter((size) => (sizeQuantities[size!] ?? 0) > 0);
+      cartItems = selectedSizes
+        .map((size) => {
+          const variantId = String(baseVariantForSize(size!)?.id ?? config?.singleVariantId ?? config?.doubleVariantId ?? '');
+          return { variantId, quantity: sizeQuantities[size!] ?? 0, size: size ?? undefined };
+        })
+        .filter((item) => item.variantId);
+      if (cartItems.length === 0) {
+        alert('Lütfen en az bir beden için adet seçin');
+        return;
+      }
     }
 
     setIsCartLoading(true);
@@ -1102,13 +1141,15 @@ export default function App() {
   const resolvedSide = frontHasDesign && backHasDesign ? 'double' : backHasDesign ? 'back' : frontHasDesign ? 'front' : activeSide;
 
   const sizes = useMemo(
-    () => [...new Set(config?.variants?.map((v) => v.option2).filter(Boolean) ?? [])],
-    [config?.variants],
+    () => sizeKey
+      ? [...new Set(config?.variants?.map((v) => v[sizeKey]).filter(Boolean) ?? [])]
+      : [],
+    [config?.variants, sizeKey],
   );
 
   const colorOptions = useMemo(
-    () => [...new Set(config?.variants?.map((v) => v.option1).filter(Boolean) ?? [])],
-    [config?.variants],
+    () => [...new Set(config?.variants?.map((v) => v[colorKey]).filter(Boolean) ?? [])],
+    [config?.variants, colorKey],
   );
 
   useEffect(() => {
@@ -1129,7 +1170,7 @@ export default function App() {
     let newBack = '';
 
     for (const v of cfg.variants) {
-      if (v.option1 !== selectedColor || !v.featured_image?.src) continue;
+      if (v[colorKey] !== selectedColor || !v.featured_image?.src) continue;
       const opt3 = (v.option3 ?? '').toLowerCase();
       const img = v.featured_image.src;
       const isFront = (opt3.includes('ön') || opt3.includes('on') || opt3.includes('front')) && !opt3.includes('arka') && !opt3.includes('back');
@@ -1141,7 +1182,7 @@ export default function App() {
 
     // Eğer option3 yoksa, rengin herhangi bir variantının görselini kullan
     if (!newFront && !newBack) {
-      const any = cfg.variants.find((v) => v.option1 === selectedColor && v.featured_image?.src);
+      const any = cfg.variants.find((v) => v[colorKey] === selectedColor && v.featured_image?.src);
       if (any?.featured_image?.src) { newFront = any.featured_image.src; newBack = any.featured_image.src; }
     }
 
@@ -1156,10 +1197,10 @@ export default function App() {
 
   const baseVariantForSize = useCallback((size: string) => {
     const allVariants = (config?.variants ?? [])
-      .filter((variant) => variant.option2 === size)
+      .filter((variant) => sizeKey ? variant[sizeKey] === size : true)
       .sort((a, b) => priceToCents(a.price) - priceToCents(b.price));
     const variants = selectedColor
-      ? allVariants.filter((variant) => variant.option1 === selectedColor)
+      ? allVariants.filter((variant) => variant[colorKey] === selectedColor)
       : allVariants;
     const pool = variants.length ? variants : allVariants;
     return pool[0] ?? null;
@@ -1173,8 +1214,10 @@ export default function App() {
   }, [baseVariantForSize, config?.doublePrice, config?.singlePrice, sizes]);
 
   const totalQuantity = useMemo(
-    () => Object.values(sizeQuantities).reduce((sum, q) => sum + q, 0),
-    [sizeQuantities],
+    () => sizes.length > 0
+      ? Object.values(sizeQuantities).reduce((sum, q) => sum + q, 0)
+      : noSizeQuantity,
+    [sizes, sizeQuantities, noSizeQuantity],
   );
 
   const baseSubtotal = useMemo(() => {
@@ -1899,7 +1942,7 @@ export default function App() {
               </div>
             )}
 
-            {sizes.length > 0 && (
+            {sizes.length > 0 ? (
               <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                 {sizes.map((size) => {
                   const qty = sizeQuantities[size!] ?? 0;
@@ -1928,6 +1971,23 @@ export default function App() {
                     </div>
                   );
                 })}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <p className="text-xs font-bold text-gray-500">Adet</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNoSizeQuantity(Math.max(1, noSizeQuantity - 1))}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500 hover:bg-gray-200"
+                  >−</button>
+                  <span className="w-8 text-center text-sm font-black text-gray-700 tabular-nums">{noSizeQuantity}</span>
+                  <button
+                    type="button"
+                    onClick={() => setNoSizeQuantity(noSizeQuantity + 1)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500 hover:bg-gray-200"
+                  >+</button>
+                </div>
               </div>
             )}
 
@@ -2105,7 +2165,24 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="border-b border-gray-100" />
+            <div className="border-b border-gray-100 px-3 py-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Adet</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNoSizeQuantity(Math.max(1, noSizeQuantity - 1))}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500 hover:bg-gray-200"
+                >−</button>
+                <span className="w-8 text-center text-sm font-black text-gray-700 tabular-nums">{noSizeQuantity}</span>
+                <button
+                  type="button"
+                  onClick={() => setNoSizeQuantity(noSizeQuantity + 1)}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500 hover:bg-gray-200"
+                >+</button>
+              </div>
+            </div>
           )}
 
           <div className="border-b border-gray-100 px-3 py-2">
