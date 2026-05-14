@@ -7,7 +7,7 @@ import {
   Grid,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getOrders, updateOrderStatus, getDashboardStats } from "~/models/orders.server";
+import { getOrders, updateOrderStatus, getDashboardStats, syncOrdersFromShopify } from "~/models/orders.server";
 
 const STATUSES = [
   { label: "Tümü", value: "" },
@@ -42,9 +42,13 @@ const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | 
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const status = url.searchParams.get("status") ?? "";
+
+  // Sync design orders from Shopify Admin API (no webhook approval needed)
+  await syncOrdersFromShopify(admin).catch(() => {});
+
   const [orders, stats] = await Promise.all([
     getOrders(status || undefined),
     getDashboardStats(),
