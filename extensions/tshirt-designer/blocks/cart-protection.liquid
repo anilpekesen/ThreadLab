@@ -1,5 +1,5 @@
 {% comment %} App Embed: hides & locks surcharge line items on cart page {% endcomment %}
-{{ 'cart-protection.js' | asset_url | script_tag }}
+<script src="{{ 'cart-protection.js' | asset_url }}" defer></script>
 
 {% schema %}
 {

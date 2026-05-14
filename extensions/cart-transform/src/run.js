@@ -1,18 +1,11 @@
-// Cart Transform Function — compiled with javy v3 (-d dynamic mode)
-// Input: stdin JSON, Output: stdout JSON
-//
-// Properties expected on cart line items (set by App.tsx):
-//   _surcharge_variant_gid   "gid://shopify/ProductVariant/..."
-//   _surcharge_qty_front     "30"
-//   _surcharge_qty_back      "0"
+// Cart Transform Function
+// _surcharge_variant_gid, _surcharge_qty_front, _surcharge_qty_back
+// properties set by App.tsx on each main product line item.
 
-const input = JSON.parse(readInput());
-writeOutput(JSON.stringify(run(input)));
-
-function run(input) {
+export function run(input) {
   const operations = [];
 
-  for (const line of (input.cart?.lines ?? [])) {
+  for (const line of input.cart.lines) {
     const attrs = line.attributes ?? [];
     const find = (key) => (attrs.find((a) => a.key === key) ?? {}).value ?? null;
 
