@@ -1,7 +1,21 @@
 {
   "name": "tasarim-baski-ucret",
   "private": true,
-  "scripts": {
-    "build": "javy compile -d -o dist/function.wasm src/run.js"
+  "scripts": {},
+  "dependencies": {
+    "@shopify/shopify_function": "^2.0.1"
+  },
+  "graphql": {
+    "schema": "schema.graphql",
+    "documents": ["src/run.graphql"],
+    "extensions": {
+      "codegen": {
+        "generates": {
+          "src/generated/api.ts": {
+            "plugins": ["typescript", "typescript-operations"]
+          }
+        }
+      }
+    }
   }
 }
