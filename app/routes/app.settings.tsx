@@ -99,30 +99,67 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "registerCartTransform") {
-    // Find our Cart Transform function and register it with this store
-    const fnRes = await admin.graphql(`#graphql
-      { shopifyFunctions(first: 25) { nodes { id title apiType } } }
-    `);
-    const fnData = await fnRes.json() as {
-      data?: { shopifyFunctions?: { nodes?: Array<{ id: string; title: string; apiType: string }> } };
-    };
-    const functions = fnData.data?.shopifyFunctions?.nodes ?? [];
-    const cartFn = functions.find((f) => f.apiType === "purchase.cart-transform.run");
-    if (!cartFn) return json({ error: `Cart Transform fonksiyonu bulunamadı. Mevcut fonksiyonlar: ${functions.map(f => f.title).join(", ") || "yok"}` });
+    try {
+      // Check existing cart transforms first
+      const existingRes = await admin.graphql(`#graphql
+        { cartTransforms(first: 5) { nodes { id functionId } } }
+      `);
+      const existingData = await existingRes.json() as {
+        data?: { cartTransforms?: { nodes?: Array<{ id: string; functionId: string }> } };
+        errors?: Array<{ message: string }>;
+      };
 
-    const regRes = await admin.graphql(`#graphql
-      mutation { cartTransformCreate(functionId: "${cartFn.id}") {
-        cartTransform { id }
-        userErrors { field message }
-      }}
-    `);
-    const regData = await regRes.json() as {
-      data?: { cartTransformCreate?: { cartTransform?: { id: string }; userErrors?: Array<{ message: string }> } };
-    };
-    const regErrors = regData.data?.cartTransformCreate?.userErrors ?? [];
-    if (regErrors.length) return json({ error: regErrors.map((e) => e.message).join(", ") });
-    const newId = regData.data?.cartTransformCreate?.cartTransform?.id ?? "";
-    return json({ success: `Cart Transform kaydedildi: ${newId}` });
+      if (existingData.errors?.length) {
+        return json({ error: `GraphQL hatası: ${existingData.errors.map(e => e.message).join(", ")}` });
+      }
+
+      const existing = existingData.data?.cartTransforms?.nodes ?? [];
+      if (existing.length > 0) {
+        return json({ success: `Cart Transform zaten kayıtlı (ID: ${existing[0].id}). Checkout'u test edin.` });
+      }
+
+      // Find our function
+      const fnRes = await admin.graphql(`#graphql
+        { shopifyFunctions(first: 25) { nodes { id title apiType } } }
+      `);
+      const fnData = await fnRes.json() as {
+        data?: { shopifyFunctions?: { nodes?: Array<{ id: string; title: string; apiType: string }> } };
+        errors?: Array<{ message: string }>;
+      };
+
+      if (fnData.errors?.length) {
+        return json({ error: `Fonksiyon sorgu hatası: ${fnData.errors.map(e => e.message).join(", ")}` });
+      }
+
+      const functions = fnData.data?.shopifyFunctions?.nodes ?? [];
+      const cartFn = functions.find((f) => f.apiType === "purchase.cart-transform.run");
+      if (!cartFn) {
+        return json({ error: `Fonksiyon bulunamadı. Mevcut: ${functions.map(f => `${f.title}(${f.apiType})`).join(", ") || "hiç yok"}` });
+      }
+
+      const regRes = await admin.graphql(`#graphql
+        mutation { cartTransformCreate(functionId: "${cartFn.id}") {
+          cartTransform { id }
+          userErrors { field message }
+        }}
+      `);
+      const regData = await regRes.json() as {
+        data?: { cartTransformCreate?: { cartTransform?: { id: string }; userErrors?: Array<{ message: string }> } };
+        errors?: Array<{ message: string }>;
+      };
+
+      if (regData.errors?.length) {
+        return json({ error: `Mutation hatası: ${regData.errors.map(e => e.message).join(", ")}` });
+      }
+
+      const regErrors = regData.data?.cartTransformCreate?.userErrors ?? [];
+      if (regErrors.length) return json({ error: regErrors.map((e) => e.message).join(", ") });
+
+      const newId = regData.data?.cartTransformCreate?.cartTransform?.id ?? "";
+      return json({ success: `Cart Transform başarıyla kaydedildi! ID: ${newId}` });
+    } catch (err) {
+      return json({ error: `Beklenmeyen hata: ${err instanceof Error ? err.message : String(err)}` });
+    }
   }
 
   if (intent === "fixSurchargeVariant") {
