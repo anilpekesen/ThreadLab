@@ -40,7 +40,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           title: "Baskı Ücreti"
           productType: "Service"
           status: ACTIVE
-          variants: [{ price: "1.00" }]
+          requiresSellingPlan: false
+          variants: [{
+            price: "1.00"
+            inventoryPolicy: CONTINUE
+            inventoryManagement: null
+          }]
         }) {
           product {
             variants(first: 1) { nodes { id } }
@@ -68,6 +73,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const settings = await getGlobalSettings();
     await saveGlobalSettings({ ...settings, surchargeVariantId: variantId });
     return redirect("/app/settings?created=1");
+  }
+
+  if (intent === "fixSurchargeVariant") {
+    const settings = await getGlobalSettings();
+    const variantId = settings.surchargeVariantId;
+    if (!variantId) return json({ error: "Önce variant ID kaydedin" });
+    const gid = `gid://shopify/ProductVariant/${variantId}`;
+    const fixRes = await admin.graphql(
+      `#graphql
+      mutation variantUpdate($input: ProductVariantInput!) {
+        productVariantUpdate(input: $input) {
+          productVariant { id inventoryPolicy }
+          userErrors { field message }
+        }
+      }`,
+      { variables: { input: { id: gid, inventoryPolicy: "CONTINUE" } } },
+    );
+    const fixData = await fixRes.json() as {
+      data?: { productVariantUpdate?: { userErrors?: Array<{ message: string }> } };
+    };
+    const fixErrors = fixData.data?.productVariantUpdate?.userErrors ?? [];
+    if (fixErrors.length) return json({ error: fixErrors.map((e) => e.message).join(", ") });
+    return redirect("/app/settings?saved=1");
   }
 
   await saveGlobalSettings({
@@ -119,11 +147,11 @@ export default function SettingsRoute() {
                   ) : (
                     <Banner tone="warning" title="Ek ücret variant'ı ayarlanmamış">
                       <p>Sepete eklenen tasarım baskı ücretleri Shopify'a yansıtılamıyor.
-                         Aşağıdaki butona tıklayarak otomatik oluşturun.</p>
+                         Aşağıdaki butona tıklayarak otomatik oluşturun ya da mevcut variant ID'nizi girin.</p>
                     </Banner>
                   )}
 
-                  <InlineStack gap="200">
+                  <InlineStack gap="200" wrap>
                     <fetcher.Form method="post">
                       <input type="hidden" name="intent" value="createSurchargeProduct" />
                       <Button
@@ -131,11 +159,17 @@ export default function SettingsRoute() {
                         submit
                         loading={isCreating}
                       >
-                        {settings.surchargeVariantId
-                          ? "Yeni Baskı Ücreti ürünü oluştur (sıfırla)"
-                          : "Otomatik oluştur"}
+                        {settings.surchargeVariantId ? "Yeniden oluştur" : "Otomatik oluştur"}
                       </Button>
                     </fetcher.Form>
+                    {settings.surchargeVariantId && (
+                      <fetcher.Form method="post">
+                        <input type="hidden" name="intent" value="fixSurchargeVariant" />
+                        <Button variant="secondary" submit loading={isCreating}>
+                          Stok sınırını kaldır (satışa devam et)
+                        </Button>
+                      </fetcher.Form>
+                    )}
                   </InlineStack>
 
                   <Divider />
