@@ -30,6 +30,7 @@ export interface Order {
   previewUrl: string;
   productionFileUrl: string;
   productionStatus: string;
+  missingSurcharge?: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -48,6 +49,7 @@ export async function getDashboardStats() {
     today: orders.filter((o) => new Date(o.createdAt).toDateString() === today).length,
     pendingProduction: orders.filter((o) => o.productionStatus === "pending").length,
     ready: orders.filter((o) => o.productionStatus === "ready").length,
+    missingSurcharge: orders.filter((o) => o.missingSurcharge).length,
   };
 }
 
@@ -67,10 +69,28 @@ export async function createOrderFromWebhook(shopifyOrder: Record<string, unknow
   if (orders.some((o) => o.shopifyOrderId === shopifyOrderId)) return;
 
   const lineItems = (shopifyOrder.line_items as Record<string, unknown>[]) ?? [];
+  const getProp = (item: Record<string, unknown>, name: string) =>
+    ((item.properties as { name: string; value: string }[]) ?? []).find((p) => p.name === name)?.value;
+
   for (const item of lineItems) {
     const props = (item.properties as { name: string; value: string }[]) ?? [];
     const tokenProp = props.find((p) => p.name === "design_token");
     if (!tokenProp) continue;
+    // skip surcharge line items — they are not standalone orders
+    if (props.some((p) => p.name === "_design_role" && p.value === "surcharge")) continue;
+
+    // detect if customer deleted the surcharge item before checkout
+    const hasExpectedSurcharge = props.some(
+      (p) => p.name === "Ön alan fiyatı" || p.name === "Arka alan fiyatı",
+    );
+    const hasSurchargeItem = lineItems.some((li) => {
+      const liProps = (li.properties as { name: string; value: string }[]) ?? [];
+      return (
+        liProps.some((p) => p.name === "design_token" && p.value === tokenProp.value) &&
+        liProps.some((p) => p.name === "_design_role" && p.value === "surcharge")
+      );
+    });
+
     orders.push({
       id: `order_${randomBytes(8).toString("hex")}`,
       shopifyOrderId,
@@ -81,9 +101,10 @@ export async function createOrderFromWebhook(shopifyOrder: Record<string, unknow
       productName: (item.name as string) ?? (item.title as string) ?? "",
       variantId: String(item.variant_id),
       designToken: tokenProp.value,
-      previewUrl: props.find((p) => p.name === "_front_preview_url")?.value ?? "",
-      productionFileUrl: props.find((p) => p.name === "_front_print_url")?.value ?? "",
+      previewUrl: getProp(item, "_front_preview_url") ?? "",
+      productionFileUrl: getProp(item, "_front_print_url") ?? "",
       productionStatus: "pending",
+      missingSurcharge: hasExpectedSurcharge && !hasSurchargeItem,
       createdAt: new Date().toISOString(),
     });
   }

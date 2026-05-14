@@ -146,9 +146,14 @@ export default function Orders() {
 
         {/* Durum */}
         <IndexTable.Cell>
-          <Badge tone={BADGE_TONE[o.productionStatus] ?? "new"}>
-            {STATUS_LABELS[o.productionStatus] ?? o.productionStatus}
-          </Badge>
+          <InlineStack gap="150" blockAlign="center">
+            <Badge tone={BADGE_TONE[o.productionStatus] ?? "new"}>
+              {STATUS_LABELS[o.productionStatus] ?? o.productionStatus}
+            </Badge>
+            {o.missingSurcharge && (
+              <Badge tone="critical">Baskı ücreti eksik</Badge>
+            )}
+          </InlineStack>
         </IndexTable.Cell>
 
         {/* Tarih */}
@@ -202,6 +207,11 @@ export default function Orders() {
           <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
             <StatCard label="Hazır / Kargoda" value={stats.ready} tone="success" />
           </Grid.Cell>
+          {stats.missingSurcharge > 0 && (
+            <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+              <StatCard label="Baskı Ücreti Eksik" value={stats.missingSurcharge} tone="critical" />
+            </Grid.Cell>
+          )}
         </Grid>
 
         {/* Filtre + Tablo */}
