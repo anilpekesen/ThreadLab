@@ -7,7 +7,7 @@ import {
   Grid,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getOrders, updateOrderStatus, getDashboardStats, syncOrdersFromShopify } from "~/models/orders.server";
+import { getOrders, updateOrderStatus, getDashboardStats } from "~/models/orders.server";
 
 const STATUSES = [
   { label: "Tümü", value: "" },
@@ -42,20 +42,14 @@ const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | 
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const status = url.searchParams.get("status") ?? "";
-
-  // Sync design orders from Shopify Admin API (no webhook approval needed)
-  const syncResult = await syncOrdersFromShopify(admin).catch((e) => ({
-    shopifyTotal: 0, newlySynced: 0, skippedExisting: 0, error: String(e),
-  }));
-
   const [orders, stats] = await Promise.all([
     getOrders(status || undefined),
     getDashboardStats(),
   ]);
-  return json({ orders, status, stats, shop: session.shop, syncResult });
+  return json({ orders, status, stats, shop: session.shop });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -84,7 +78,7 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
 }
 
 export default function Orders() {
-  const { orders, status, stats, shop, syncResult } = useLoaderData<typeof loader>();
+  const { orders, status, stats, shop } = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
   const fetcher = useFetcher();
 
@@ -250,8 +244,7 @@ export default function Orders() {
                     : "Henüz hiç baskılı sipariş alınmamış"}
                 </Text>
                 <Text as="p" tone="subdued" alignment="center">
-                  {`Shopify'dan ${syncResult.shopifyTotal} sipariş tarandı, ${syncResult.newlySynced} yeni eklendi.`}
-                  {syncResult.error ? ` Hata: ${syncResult.error}` : ""}
+                  Tasarım içeren siparişler checkout tamamlandığında otomatik buraya eklenir.
                 </Text>
               </BlockStack>
             </Box>

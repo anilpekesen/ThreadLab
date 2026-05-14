@@ -1,0 +1,7 @@
+api_version = "2025-07"
+
+[[extensions]]
+name = "Order Tracking Pixel"
+handle = "order-tracking-pixel"
+type = "web_pixel"
+runtime_context = "strict"

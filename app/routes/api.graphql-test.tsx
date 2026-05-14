@@ -38,7 +38,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         "X-Shopify-Access-Token": session.accessToken ?? "",
       },
       body: JSON.stringify({
-        query: `{ shop { name } }`,
+        query: `{
+          cartTransforms(first: 5) { nodes { id functionId } }
+          shopifyFunctions(first: 25) { nodes { id title apiType } }
+        }`,
       }),
     });
 
