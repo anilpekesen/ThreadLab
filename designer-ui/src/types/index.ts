@@ -58,6 +58,7 @@ export interface PersonalizationConfig {
   printAreas: Record<Side, PrintAreaConfig>;
   pricingBands: Record<Side, PricingBand[]>;
   surchargeVariantId: string;
+  removeBgAvailable: boolean;
 }
 
 export interface UploadedImage {

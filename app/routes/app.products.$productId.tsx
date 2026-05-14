@@ -863,6 +863,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     allowedTypes: ["PNG", "JPG"],
     minResolution: 1000,
     removeBg: false,
+    photoroomApiKey: "",
     printFormat: "PNG",
     printDpi: 300,
     requireApproval: true,
@@ -892,6 +893,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       frontPrintHeightCm: Number((frontArea?.realHeightMm || 0) / 10),
       backPrintWidthCm: Number(((backArea?.realWidthMm || frontArea?.realWidthMm || 0) / 10)),
       backPrintHeightCm: Number(((backArea?.realHeightMm || frontArea?.realHeightMm || 0) / 10)),
+      removeBg: form.get("removeBg") === "true",
+      photoroomApiKey: String(form.get("photoroomApiKey") || "").trim(),
       pricingBands: {
         front: frontBands.bands,
         back: backBands.bands,
@@ -915,6 +918,8 @@ export default function ProductSettingsRoute() {
   const [isActive, setIsActive] = useState(config.isActive);
   const [productType, setProductType] = useState<ProductConfig["productType"]>(config.productType);
   const [surfaceMode, setSurfaceMode] = useState<ProductConfig["surfaceMode"]>(config.surfaceMode);
+  const [removeBg, setRemoveBg] = useState(Boolean(config.removeBg));
+  const [photoroomApiKey, setPhotoroomApiKey] = useState(config.photoroomApiKey || "");
   const [surchargeVariantId, setSurchargeVariantId] = useState(config.surchargeVariantId || "");
   const [frontBands, setFrontBands] = useState<BandState[]>(toBandState(config, "front"));
   const [backBands, setBackBands] = useState<BandState[]>(toBandState(config, "back"));
@@ -1023,6 +1028,35 @@ export default function ProductSettingsRoute() {
                       onChange={(value) => setSurfaceMode(value as ProductConfig["surfaceMode"])}
                     />
                   </InlineGrid>
+                </BlockStack>
+              </Box>
+            </Card>
+
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">Arka plan temizleme</Text>
+                  <Text as="p" tone="subdued">
+                    Musteri gorsel ekledikten sonra arka plani Photoroom Remove Background API ile temizleyebilir.
+                    API key tarayiciya gonderilmez, sadece server tarafinda kullanilir.
+                  </Text>
+                  <Checkbox
+                    label="Photoroom ile arka plan temizlemeyi aktif et"
+                    name="removeBg"
+                    value="true"
+                    checked={removeBg}
+                    onChange={setRemoveBg}
+                  />
+                  <TextField
+                    label="Photoroom Remove Background API key"
+                    name="photoroomApiKey"
+                    value={photoroomApiKey}
+                    onChange={setPhotoroomApiKey}
+                    autoComplete="off"
+                    type="password"
+                    placeholder="phr_..."
+                    helpText="Kullanici Photoroom hesabindan kendi API keyini alip buraya girmeli."
+                  />
                 </BlockStack>
               </Box>
             </Card>

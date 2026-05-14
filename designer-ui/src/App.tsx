@@ -178,6 +178,7 @@ function defaultPersonalization(): PersonalizationConfig {
       back: DEFAULT_PRICING_BANDS,
     },
     surchargeVariantId: '',
+    removeBgAvailable: false,
   };
 }
 
@@ -274,7 +275,12 @@ function normalizePrintArea(side: Side, area: Partial<PrintAreaConfig> | null | 
 
 function normalizePersonalizationPayload(payload: unknown): PersonalizationConfig {
   const source = payload as {
-    settings?: { surfaceMode?: SurfaceMode; pricingBands?: Record<Side, PricingBand[]>; surchargeVariantId?: string };
+    settings?: {
+      surfaceMode?: SurfaceMode;
+      pricingBands?: Record<Side, PricingBand[]>;
+      surchargeVariantId?: string;
+      removeBgAvailable?: boolean;
+    };
     printAreas?: PrintAreaConfig[];
     product?: { surfaceMode?: SurfaceMode };
   } | null;
@@ -297,6 +303,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     },
     pricingBands,
     surchargeVariantId: String(source?.settings?.surchargeVariantId || ''),
+    removeBgAvailable: Boolean(source?.settings?.removeBgAvailable),
   };
 }
 
@@ -707,23 +714,24 @@ export default function App() {
   };
 
   const handleRemoveBg = async (dataUrl: string): Promise<string> => {
+    if (!personalization.removeBgAvailable) {
+      alert('Photoroom API key ayarlanmamış');
+      return '';
+    }
     setIsBgRemoving(true);
     try {
       const blob = await fetch(dataUrl).then((r) => r.blob());
       const form = new FormData();
-      form.append('image_file', blob, 'image.jpg');
-      const apiKey = (window as typeof window & { REMOVE_BG_KEY?: string }).REMOVE_BG_KEY ?? '';
-      if (!apiKey) {
-        alert('Remove.bg API key ayarlanmamış');
-        return '';
-      }
-      const res = await fetch('https://api.remove.bg/v1.0/removebg', {
+      form.append('image_file', blob, 'design-image.png');
+      form.append('productId', config?.productId || '');
+      form.append('handle', config?.productHandle || '');
+      const res = await fetch('/apps/tshirt-designer/remove-background', {
         method: 'POST',
-        headers: { 'X-Api-Key': apiKey },
         body: form,
       });
       if (!res.ok) {
-        alert('Arka plan kaldırma başarısız');
+        const error = await res.json().catch(() => null) as { error?: string } | null;
+        alert(error?.error || 'Arka plan kaldırma başarısız');
         return '';
       }
       const blob2 = await res.blob();
@@ -1441,7 +1449,11 @@ export default function App() {
 
                 <div className="max-h-[54vh] overflow-y-auto p-6">
                   {activeTab === 'image' && (
-                    <ImagePanel onAddImage={handleAddImage} onRemoveBg={handleRemoveBg} />
+                    <ImagePanel
+                      onAddImage={handleAddImage}
+                      onRemoveBg={handleRemoveBg}
+                      canRemoveBg={personalization.removeBgAvailable}
+                    />
                   )}
 
                   {activeTab === 'text' && (

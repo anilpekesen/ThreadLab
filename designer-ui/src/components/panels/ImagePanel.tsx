@@ -7,9 +7,10 @@ import type { UploadedImage } from '@/types';
 interface Props {
   onAddImage: (url: string) => void;
   onRemoveBg: (url: string) => Promise<string>;
+  canRemoveBg: boolean;
 }
 
-export default function ImagePanel({ onAddImage, onRemoveBg }: Props) {
+export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [activeSource, setActiveSource] = useState<'upload' | 'qr' | 'ai'>('upload');
@@ -129,17 +130,19 @@ export default function ImagePanel({ onAddImage, onRemoveBg }: Props) {
                   >
                     Ekle
                   </button>
-                  <button
-                    className="flex items-center justify-center rounded-lg bg-white/20 px-2 py-1 text-white transition-colors hover:bg-white/30 disabled:opacity-40"
-                    disabled={isBgRemoving}
-                    onClick={async () => {
-                      const result = await onRemoveBg(img.dataUrl);
-                      if (result) onAddImage(result);
-                    }}
-                    title="Arka planı kaldır"
-                  >
-                    <Sparkles className="h-3 w-3" />
-                  </button>
+                  {canRemoveBg && (
+                    <button
+                      className="flex items-center justify-center rounded-lg bg-white/20 px-2 py-1 text-white transition-colors hover:bg-white/30 disabled:opacity-40"
+                      disabled={isBgRemoving}
+                      onClick={async () => {
+                        const result = await onRemoveBg(img.dataUrl);
+                        if (result) onAddImage(result);
+                      }}
+                      title="Arka planı kaldır"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                    </button>
+                  )}
                   <button
                     className="flex items-center rounded-lg bg-red-500/80 px-2 py-1 text-white transition-colors hover:bg-red-500"
                     onClick={() => removeUploadedImage(img.id)}

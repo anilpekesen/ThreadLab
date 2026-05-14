@@ -5,7 +5,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import nodePath from "node:path";
 import { handleDesignerUpload } from "~/models/uploads.server";
 import { authenticate } from "~/shopify.server";
-import { findConfigForStorefront } from "~/models/product-config.server";
+import { findConfigForStorefront, toStorefrontSettings } from "~/models/product-config.server";
+import { handlePhotoroomRemoveBackground } from "~/models/background-removal.server";
 
 const DATA_DIR = nodePath.join(process.cwd(), "data");
 const DESIGNS_FILE = nodePath.join(DATA_DIR, "designs.json");
@@ -74,7 +75,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         productType: config.settings.productType,
         surfaceMode: config.settings.surfaceMode,
       },
-      settings: config.settings,
+      settings: toStorefrontSettings(config.settings),
       printAreas: config.printAreas,
     });
   }
@@ -98,6 +99,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   if (path === "upload") {
     return handleDesignerUpload(request);
+  }
+
+  if (path === "remove-background") {
+    return handlePhotoroomRemoveBackground(request);
   }
 
   // POST /apps/tshirt-designer/designs

@@ -1,5 +1,5 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
-import { findConfigForStorefront } from "~/models/product-config.server";
+import { findConfigForStorefront, toStorefrontSettings } from "~/models/product-config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -19,7 +19,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       productType: config.settings.productType,
       surfaceMode: config.settings.surfaceMode,
     },
-    settings: config.settings,
+    settings: toStorefrontSettings(config.settings),
     printAreas: config.printAreas,
   });
 };

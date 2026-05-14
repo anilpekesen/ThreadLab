@@ -33,6 +33,7 @@ export interface ProductConfig {
   allowedTypes: string[];
   minResolution: number;
   removeBg: boolean;
+  photoroomApiKey: string;
   printFormat: string;
   printDpi: number;
   requireApproval: boolean;
@@ -88,6 +89,14 @@ export interface ShopifyProductSummary {
 }
 
 type SettingsMap = Record<string, ProductConfig>;
+
+export function toStorefrontSettings(config: ProductConfig) {
+  const { photoroomApiKey: _photoroomApiKey, ...safeSettings } = config;
+  return {
+    ...safeSettings,
+    removeBgAvailable: Boolean(config.removeBg && config.photoroomApiKey),
+  };
+}
 
 export async function readSettingsMap(): Promise<SettingsMap> {
   await ensureMigrations();
@@ -315,6 +324,7 @@ export function buildDefaultConfig(product: Pick<ShopifyProductSummary, "title" 
     allowedTypes: ["PNG", "JPG"],
     minResolution: 1000,
     removeBg: false,
+    photoroomApiKey: "",
     printFormat: "PNG",
     printDpi: 300,
     requireApproval: true,
@@ -347,6 +357,7 @@ export function normalizeProductConfig(
       : fallback.allowedTypes,
     minResolution: Number(input?.minResolution || fallback.minResolution),
     removeBg: input?.removeBg ?? fallback.removeBg,
+    photoroomApiKey: String((input as { photoroomApiKey?: unknown })?.photoroomApiKey || fallback.photoroomApiKey || ""),
     printFormat: String(input?.printFormat || fallback.printFormat),
     printDpi: Number(input?.printDpi || fallback.printDpi),
     requireApproval: input?.requireApproval ?? fallback.requireApproval,
