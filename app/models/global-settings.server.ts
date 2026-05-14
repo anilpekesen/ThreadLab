@@ -2,10 +2,12 @@ import { query } from "~/lib/db.server";
 
 export interface GlobalSettings {
   photoroomApiKey: string;
+  surchargeVariantId: string;
 }
 
 const DEFAULTS: GlobalSettings = {
   photoroomApiKey: "",
+  surchargeVariantId: "",
 };
 
 export async function getGlobalSettings(): Promise<GlobalSettings> {

@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, useLoaderData, useActionData, useNavigation } from "@remix-run/react";
+import { Form, useLoaderData, useNavigation, useFetcher } from "@remix-run/react";
 import {
   BlockStack,
   Box,
@@ -12,6 +12,8 @@ import {
   Text,
   TextField,
   Banner,
+  Badge,
+  Divider,
 } from "@shopify/polaris";
 import { useState } from "react";
 import { authenticate } from "~/shopify.server";
@@ -21,59 +23,149 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
   const settings = await getGlobalSettings();
   const saved = new URL(request.url).searchParams.get("saved") === "1";
-  return json({ settings, saved });
+  const created = new URL(request.url).searchParams.get("created") === "1";
+  return json({ settings, saved, created });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  await authenticate.admin(request);
+  const { admin } = await authenticate.admin(request);
   const form = await request.formData();
+  const intent = form.get("intent");
+
+  if (intent === "createSurchargeProduct") {
+    const response = await admin.graphql(`
+      #graphql
+      mutation {
+        productCreate(input: {
+          title: "Baskı Ücreti"
+          productType: "Service"
+          status: ACTIVE
+          variants: [{ price: "1.00" }]
+        }) {
+          product {
+            variants(first: 1) { nodes { id } }
+          }
+          userErrors { field message }
+        }
+      }
+    `);
+    const data = await response.json() as {
+      data?: {
+        productCreate?: {
+          product?: { variants?: { nodes?: Array<{ id: string }> } };
+          userErrors?: Array<{ field: string; message: string }>;
+        };
+      };
+    };
+    const errors = data.data?.productCreate?.userErrors ?? [];
+    if (errors.length) {
+      return json({ error: errors.map((e) => e.message).join(", ") });
+    }
+    const gid = data.data?.productCreate?.product?.variants?.nodes?.[0]?.id ?? "";
+    const variantId = gid.split("/").pop() ?? "";
+    if (!variantId) return json({ error: "Variant ID alınamadı" });
+
+    const settings = await getGlobalSettings();
+    await saveGlobalSettings({ ...settings, surchargeVariantId: variantId });
+    return redirect("/app/settings?created=1");
+  }
+
   await saveGlobalSettings({
     photoroomApiKey: String(form.get("photoroomApiKey") || "").trim(),
+    surchargeVariantId: String(form.get("surchargeVariantId") || "").trim(),
   });
   return redirect("/app/settings?saved=1");
 };
 
 export default function SettingsRoute() {
-  const { settings, saved } = useLoaderData<typeof loader>();
+  const { settings, saved, created } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
+  const fetcher = useFetcher<{ error?: string }>();
   const isSaving = navigation.state === "submitting";
+  const isCreating = fetcher.state === "submitting";
 
   const [photoroomApiKey, setPhotoroomApiKey] = useState(settings.photoroomApiKey || "");
+  const [surchargeVariantId, setSurchargeVariantId] = useState(settings.surchargeVariantId || "");
   const [showHelp, setShowHelp] = useState(false);
 
   return (
     <Page title="Ayarlar">
       <BlockStack gap="500">
-        {saved && (
-          <Banner tone="success" title="Ayarlar kaydedildi." />
-        )}
+        {saved && <Banner tone="success" title="Ayarlar kaydedildi." />}
+        {created && <Banner tone="success" title="Baskı Ücreti ürünü oluşturuldu ve kaydedildi." />}
+        {fetcher.data?.error && <Banner tone="critical" title={`Hata: ${fetcher.data.error}`} />}
 
         <Form method="post">
           <BlockStack gap="400">
+
+            {/* Surcharge / Ek ücret */}
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingMd">Baskı Ek Ücreti</Text>
+                  <Text as="p" tone="subdued">
+                    Shopify, sepet fiyatlarını yalnızca gerçek ürün variant'larıyla kabul eder.
+                    Baskı boyutuna göre ek ücret eklemek için ₺1 fiyatlı bir "Baskı Ücreti" ürünü gerekir.
+                    Tasarımın tutarı kadar adet eklenerek ücret yansıtılır (₺40 baskı = 40 adet × ₺1).
+                  </Text>
+
+                  {settings.surchargeVariantId ? (
+                    <InlineStack gap="200" blockAlign="center">
+                      <Badge tone="success">Aktif</Badge>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Variant ID: {settings.surchargeVariantId}
+                      </Text>
+                    </InlineStack>
+                  ) : (
+                    <Banner tone="warning" title="Ek ücret variant'ı ayarlanmamış">
+                      <p>Sepete eklenen tasarım baskı ücretleri Shopify'a yansıtılamıyor.
+                         Aşağıdaki butona tıklayarak otomatik oluşturun.</p>
+                    </Banner>
+                  )}
+
+                  <InlineStack gap="200">
+                    <fetcher.Form method="post">
+                      <input type="hidden" name="intent" value="createSurchargeProduct" />
+                      <Button
+                        variant={settings.surchargeVariantId ? "plain" : "primary"}
+                        submit
+                        loading={isCreating}
+                      >
+                        {settings.surchargeVariantId
+                          ? "Yeni Baskı Ücreti ürünü oluştur (sıfırla)"
+                          : "Otomatik oluştur"}
+                      </Button>
+                    </fetcher.Form>
+                  </InlineStack>
+
+                  <Divider />
+
+                  <TextField
+                    label="Variant ID (manuel giriş)"
+                    name="surchargeVariantId"
+                    value={surchargeVariantId}
+                    onChange={setSurchargeVariantId}
+                    autoComplete="off"
+                    helpText="Shopify'da mevcut ₺1 fiyatlı bir variant varsa buraya ID'sini girebilirsiniz."
+                    placeholder="12345678901234"
+                  />
+                </BlockStack>
+              </Box>
+            </Card>
+
+            {/* Photoroom */}
             <Card>
               <Box padding="400">
                 <BlockStack gap="400">
                   <InlineStack align="space-between" blockAlign="center">
-                    <BlockStack gap="100">
-                      <Text as="h2" variant="headingMd">Photoroom Arka Plan Temizleme</Text>
-                      <Text as="p" tone="subdued">
-                        Müşteri görsel yükleyince "Arka planı temizleyelim mi?" sorusu çıkar.
-                        API key yalnızca sunucu tarafında kullanılır, tarayıcıya gönderilmez.
-                      </Text>
-                    </BlockStack>
+                    <Text as="h2" variant="headingMd">Photoroom Arka Plan Temizleme</Text>
                     <Button variant="plain" size="slim" onClick={() => setShowHelp((v) => !v)}>
                       {showHelp ? "Kapat" : "API key nasıl alınır?"}
                     </Button>
                   </InlineStack>
 
                   <Collapsible open={showHelp} id="photoroom-help">
-                    <Box
-                      background="bg-surface-secondary"
-                      padding="400"
-                      borderRadius="200"
-                      borderColor="border"
-                      borderWidth="025"
-                    >
+                    <Box background="bg-surface-secondary" padding="400" borderRadius="200" borderColor="border" borderWidth="025">
                       <BlockStack gap="300">
                         <Text as="h3" variant="headingSm">Photoroom API key nasıl alınır?</Text>
                         <BlockStack gap="200">
@@ -91,20 +183,22 @@ export default function SettingsRoute() {
                                 fontSize: 11, fontWeight: 700,
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 flexShrink: 0, marginTop: 1,
-                              }}>
-                                {i + 1}
-                              </div>
+                              }}>{i + 1}</div>
                               <Text as="p" variant="bodySm">{text}</Text>
                             </InlineStack>
                           ))}
                         </BlockStack>
                         <Text as="p" tone="subdued" variant="bodySm">
                           Sandbox key ile aylık 30 görsel ücretsiz işleyebilirsiniz.
-                          Daha fazlası için ücretli plana geçmeniz gerekir.
                         </Text>
                       </BlockStack>
                     </Box>
                   </Collapsible>
+
+                  <Text as="p" tone="subdued">
+                    Müşteri görsel yükleyince "Arka planı temizleyelim mi?" sorusu çıkar.
+                    API key yalnızca sunucu tarafında kullanılır.
+                  </Text>
 
                   <TextField
                     label="Photoroom API key"
@@ -116,7 +210,7 @@ export default function SettingsRoute() {
                     placeholder="sk_pr_..."
                     helpText={
                       photoroomApiKey
-                        ? "API key girilmiş. Ürün ayarlarından 'Arka plan temizleme' etkinleştirilirse müşterilere sor seçeneği çıkar."
+                        ? "API key girilmiş."
                         : "Yukarıdaki 'API key nasıl alınır?' adımlarını takip edin."
                     }
                   />
