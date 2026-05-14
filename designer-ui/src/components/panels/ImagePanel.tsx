@@ -14,11 +14,12 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
   const fileRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [activeSource, setActiveSource] = useState<'upload' | 'qr' | 'ai'>('upload');
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const { uploadedImages, addUploadedImage, removeUploadedImage, isBgRemoving } = useDesignerStore();
 
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files) return;
-    let firstImageUrl = '';
+    let firstDataUrl = '';
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) continue;
       const dataUrl = await compressImage(file, 1800);
@@ -29,11 +30,16 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
         addedAt: Date.now(),
       };
       addUploadedImage(img);
-      if (!firstImageUrl) firstImageUrl = dataUrl;
+      if (!firstDataUrl) firstDataUrl = dataUrl;
     }
-    if (firstImageUrl) onAddImage(firstImageUrl);
     if (fileRef.current) fileRef.current.value = '';
-  }, [addUploadedImage, onAddImage]);
+    if (!firstDataUrl) return;
+    if (canRemoveBg) {
+      setPendingUrl(firstDataUrl);
+    } else {
+      onAddImage(firstDataUrl);
+    }
+  }, [addUploadedImage, onAddImage, canRemoveBg]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -107,6 +113,46 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
           Ekle
         </button>
       </div>
+
+      {pendingUrl && canRemoveBg && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-blue-500" />
+            <p className="text-sm font-bold text-blue-700">Arka planı temizleyelim mi?</p>
+          </div>
+          <img
+            src={pendingUrl}
+            alt="Önizleme"
+            className="mx-auto mb-3 max-h-28 rounded-xl object-contain"
+          />
+          <div className="flex gap-2">
+            <button
+              disabled={isBgRemoving}
+              onClick={async () => {
+                const url = pendingUrl;
+                setPendingUrl(null);
+                const result = await onRemoveBg(url);
+                onAddImage(result || url);
+              }}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-blue-500 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Evet, temizle
+            </button>
+            <button
+              disabled={isBgRemoving}
+              onClick={() => {
+                const url = pendingUrl;
+                setPendingUrl(null);
+                onAddImage(url);
+              }}
+              className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-bold text-gray-600 transition-colors hover:bg-gray-200 disabled:opacity-50"
+            >
+              Olduğu gibi ekle
+            </button>
+          </div>
+        </div>
+      )}
 
       {isBgRemoving && (
         <div className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-amber-600">
