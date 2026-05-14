@@ -426,6 +426,26 @@ function writeStoredCanvasState(productKey: string, value: { frontJson: string; 
   }
 }
 
+async function uploadBlob(blob: Blob, side: string): Promise<string | null> {
+  try {
+    const form = new FormData();
+    form.append('image', blob, `${side}.png`);
+    form.append('side', side);
+    const res = await fetch('/apps/tshirt-designer/upload', { method: 'POST', body: form });
+    if (!res.ok) return null;
+    const data = await res.json() as { url?: string };
+    return data.url ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function dataUrlToServerUrl(dataUrl: string, side: string): Promise<string> {
+  if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
+  const blob = await fetch(dataUrl).then((r) => r.blob());
+  return (await uploadBlob(blob, side)) ?? dataUrl;
+}
+
 function getAutoZoom() {
   if (typeof window === 'undefined') return 100;
   const w = window.innerWidth;
@@ -470,6 +490,7 @@ export default function App() {
   const [personalization, setPersonalization] = useState<PersonalizationConfig>(defaultPersonalization);
   const [canvasRevisions, setCanvasRevisions] = useState({ front: 0, back: 0 });
   const [selectedColor, setSelectedColor] = useState('');
+  const [isCartLoading, setIsCartLoading] = useState(false);
 
   const getCanvasHandle = useCallback((side: Side) => (
     side === 'front' ? frontCanvasRef.current : backCanvasRef.current
@@ -735,6 +756,8 @@ export default function App() {
         return '';
       }
       const blob2 = await res.blob();
+      const serverUrl = await uploadBlob(blob2, 'user-upload');
+      if (serverUrl) return serverUrl;
       return new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target?.result as string);
@@ -754,8 +777,6 @@ export default function App() {
   };
 
   const handleAddToCart = async () => {
-    const frontPng = frontCanvasRef.current?.exportPng() ?? '';
-    const backPng = backCanvasRef.current?.exportPng() ?? '';
     const frontHas = Boolean(frontCanvasRef.current?.canvas?.getObjects().length);
     const backHas = Boolean(backCanvasRef.current?.canvas?.getObjects().length);
     const resolvedSide = frontHas && backHas ? 'double' : backHas ? 'back' : 'front';
@@ -773,30 +794,52 @@ export default function App() {
       return;
     }
 
-    const designRes = await fetch('/api/storefront/designs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        productId: config?.productId || config?.productHandle,
-        designJson: {
-          front: frontCanvasRef.current?.saveDesign(),
-          back: backCanvasRef.current?.saveDesign(),
-        },
-        previewUrl: frontPng,
-      }),
-    }).then((r) => r.json());
+    setIsCartLoading(true);
+    try {
+      // Export canvas: 1x preview + 2x print quality
+      const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(1) ?? '') : '';
+      const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(1) ?? '') : '';
+      const frontPrintDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(2) ?? '') : '';
+      const backPrintDataUrl = backHas ? (backCanvasRef.current?.exportPng(2) ?? '') : '';
 
-    const token = designRes.token ?? '';
-    const properties: Record<string, string> = {
-      'Ön Tasarım': frontPng ? 'Var' : 'Yok',
-      design_token: token,
-      'Toplam adet': String(totalQuantity),
-      'Tişört birim fiyatı': formatMoney(pricingSummary.baseUnitPrice),
-      'Tişört ara toplamı': formatMoney(pricingSummary.baseSubtotal),
-      'Toplam fiyat': formatMoney(pricingSummary.total),
-      'Ön önizleme': frontPng.slice(0, 200),
-    };
-    if (resolvedSide !== 'front') properties['Arka Tasarım'] = backPng ? 'Var' : 'Yok';
+      // Upload all to server in parallel to get permanent URLs
+      const [frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl] = await Promise.all([
+        frontPreviewDataUrl ? dataUrlToServerUrl(frontPreviewDataUrl, 'front-preview') : Promise.resolve(''),
+        backPreviewDataUrl ? dataUrlToServerUrl(backPreviewDataUrl, 'back-preview') : Promise.resolve(''),
+        frontPrintDataUrl ? dataUrlToServerUrl(frontPrintDataUrl, 'front-print') : Promise.resolve(''),
+        backPrintDataUrl ? dataUrlToServerUrl(backPrintDataUrl, 'back-print') : Promise.resolve(''),
+      ]);
+
+      const designRes = await fetch('/api/storefront/designs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: config?.productId || config?.productHandle,
+          designJson: {
+            front: frontCanvasRef.current?.saveDesign(),
+            back: backCanvasRef.current?.saveDesign(),
+          },
+          frontPreviewUrl,
+          backPreviewUrl,
+          frontPrintUrl,
+          backPrintUrl,
+        }),
+      }).then((r) => r.json());
+
+      const token = (designRes as { token?: string }).token ?? '';
+      const properties: Record<string, string> = {
+        'Ön Tasarım': frontHas ? 'Var' : 'Yok',
+        design_token: token,
+        'Toplam adet': String(totalQuantity),
+        'Tişört birim fiyatı': formatMoney(pricingSummary.baseUnitPrice),
+        'Tişört ara toplamı': formatMoney(pricingSummary.baseSubtotal),
+        'Toplam fiyat': formatMoney(pricingSummary.total),
+      };
+      if (frontPreviewUrl) properties['_front_preview_url'] = frontPreviewUrl;
+      if (backPreviewUrl) properties['_back_preview_url'] = backPreviewUrl;
+      if (frontPrintUrl) properties['_front_print_url'] = frontPrintUrl;
+      if (backPrintUrl) properties['_back_print_url'] = backPrintUrl;
+    if (resolvedSide !== 'front') properties['Arka Tasarım'] = backHas ? 'Var' : 'Yok';
     if (pricingSummary.front.hasContent) {
       properties['Ön öğe sayısı'] = String(pricingSummary.front.items.length);
       properties['Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
@@ -856,7 +899,13 @@ export default function App() {
       }
     }
 
-    window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token }, '*');
+      window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token }, '*');
+    } catch (err) {
+      console.error('Sepete ekleme hatası:', err);
+      alert('Sepete eklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setIsCartLoading(false);
+    }
   };
 
   const deleteSelected = () => {
@@ -1907,10 +1956,11 @@ export default function App() {
 
             <button
               onClick={handleAddToCart}
+              disabled={isCartLoading}
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
             >
               <ShoppingBag className="h-4 w-4" />
-              Sepete Ekle{totalQuantity > 0 ? ` (${totalQuantity})` : ''}
+              {isCartLoading ? 'Yükleniyor...' : `Sepete Ekle${totalQuantity > 0 ? ` (${totalQuantity})` : ''}`}
             </button>
           </div>
         </footer>
@@ -2093,10 +2143,11 @@ export default function App() {
           <div className="px-3 py-3">
             <button
               onClick={handleAddToCart}
+              disabled={isCartLoading}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-3 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-blue-700 disabled:opacity-50"
             >
               <ShoppingBag className="h-3.5 w-3.5" />
-              Sepete Ekle{totalQuantity > 0 ? ` (${totalQuantity})` : ''}
+              {isCartLoading ? 'Yükleniyor...' : `Sepete Ekle${totalQuantity > 0 ? ` (${totalQuantity})` : ''}`}
             </button>
           </div>
         </div>

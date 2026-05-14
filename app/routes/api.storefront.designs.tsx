@@ -7,7 +7,10 @@ type DesignRecord = {
   token: string;
   productId?: string;
   designJson?: unknown;
-  previewUrl?: string;
+  frontPreviewUrl?: string;
+  backPreviewUrl?: string;
+  frontPrintUrl?: string;
+  backPrintUrl?: string;
   createdAt: string;
 };
 
@@ -42,11 +45,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const token = `d_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
+  const b = body as Record<string, unknown>;
   const record: DesignRecord = {
     token,
-    productId: typeof body.productId === "string" ? body.productId : undefined,
-    designJson: "designJson" in body ? body.designJson : undefined,
-    previewUrl: typeof body.previewUrl === "string" ? body.previewUrl : undefined,
+    productId: typeof b.productId === "string" ? b.productId : undefined,
+    designJson: "designJson" in b ? b.designJson : undefined,
+    frontPreviewUrl: typeof b.frontPreviewUrl === "string" ? b.frontPreviewUrl : undefined,
+    backPreviewUrl: typeof b.backPreviewUrl === "string" ? b.backPreviewUrl : undefined,
+    frontPrintUrl: typeof b.frontPrintUrl === "string" ? b.frontPrintUrl : undefined,
+    backPrintUrl: typeof b.backPrintUrl === "string" ? b.backPrintUrl : undefined,
     createdAt: new Date().toISOString(),
   };
 

@@ -81,8 +81,8 @@ export async function createOrderFromWebhook(shopifyOrder: Record<string, unknow
       productName: (item.name as string) ?? (item.title as string) ?? "",
       variantId: String(item.variant_id),
       designToken: tokenProp.value,
-      previewUrl: props.find((p) => p.name === "Ön önizleme")?.value ?? "",
-      productionFileUrl: "",
+      previewUrl: props.find((p) => p.name === "_front_preview_url")?.value ?? "",
+      productionFileUrl: props.find((p) => p.name === "_front_print_url")?.value ?? "",
       productionStatus: "pending",
       createdAt: new Date().toISOString(),
     });
