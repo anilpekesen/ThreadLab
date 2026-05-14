@@ -3,81 +3,88 @@
 
   function lockSurchargeItems(cartData) {
     var items = cartData.items || [];
-    var surchargeKeys = [];
+    var surchargeLines = []; // 1-based line numbers
 
     items.forEach(function (item, index) {
       var props = item.properties || {};
       if (props['_design_role'] === 'surcharge') {
-        surchargeKeys.push({ key: item.key, line: index + 1, variantId: item.variant_id });
+        surchargeLines.push({ line: index + 1, key: item.key, variantId: String(item.variant_id) });
       }
     });
 
-    if (!surchargeKeys.length) return;
+    if (!surchargeLines.length) return;
 
-    // Inject hide styles
-    var style = document.createElement('style');
-    style.id = 'dsgn-cart-protection';
-    surchargeKeys.forEach(function (s) {
-      // Dawn and most themes: target by variant id in href or data, or by line number
-      style.textContent += [
-        // Hide remove buttons that link to this variant (change?line=N&quantity=0)
-        'a[href*="line=' + s.line + '&quantity=0"]',
-        'a[href*="quantity=0&line=' + s.line + '"]',
-        // cart-remove-button web component by line index
-        'cart-remove-button[data-index="' + (s.line - 1) + '"]',
-        'cart-remove-button[line-item-index="' + s.line + '"]',
-        // Generic remove buttons inside a row that contains this variant id
-        '[data-variant-id="' + s.variantId + '"] cart-remove-button',
-        '[data-variant-id="' + s.variantId + '"] .cart-item__remove',
-        '[data-variant-id="' + s.variantId + '"] .remove',
-      ].join(', ') + ' { display: none !important; }\n';
+    surchargeLines.forEach(function (s) {
+      // --- Strategy 1: Dawn theme — cart-remove-button[data-index] (1-based) ---
+      var removeBtn = document.querySelector('cart-remove-button[data-index="' + s.line + '"]');
+      if (removeBtn) removeBtn.style.display = 'none';
 
-      // Lock quantity inputs for this line
-      style.textContent += [
-        '[data-variant-id="' + s.variantId + '"] quantity-input',
-        '[data-variant-id="' + s.variantId + '"] .quantity',
-        '[data-variant-id="' + s.variantId + '"] input[name="updates[]"]',
-      ].join(', ') + ' { pointer-events: none !important; opacity: 0.4 !important; }\n';
-    });
-    document.head.appendChild(style);
-
-    // Also patch form-based remove links (quantity=0 submits)
-    surchargeKeys.forEach(function (s) {
-      var removeLinks = document.querySelectorAll(
-        'a[href*="line=' + s.line + '"], a[href*="/cart/change"]'
-      );
-      removeLinks.forEach(function (link) {
-        var href = link.getAttribute('href') || '';
-        if (href.includes('quantity=0')) {
-          link.style.display = 'none';
-        }
+      // --- Strategy 2: Any <a> that links to change?line=N&quantity=0 ---
+      document.querySelectorAll('a[href*="line=' + s.line + '"]').forEach(function (el) {
+        if ((el.getAttribute('href') || '').includes('quantity=0')) el.style.display = 'none';
       });
 
-      // Disable quantity inputs by name="updates[]" (nth occurrence = line number)
-      var allQtyInputs = document.querySelectorAll('input[name="updates[]"]');
-      var targetInput = allQtyInputs[s.line - 1];
-      if (targetInput) {
-        targetInput.readOnly = true;
-        targetInput.style.opacity = '0.4';
-        targetInput.style.pointerEvents = 'none';
+      // --- Strategy 3: buttons/links with the item key in href or data ---
+      document.querySelectorAll('[href*="' + s.key + '"], [data-key="' + s.key + '"]').forEach(function (el) {
+        el.style.display = 'none';
+      });
+
+      // --- Strategy 4: quantity input by nth occurrence of updates[] ---
+      var qtyInputs = document.querySelectorAll('input[name="updates[]"], input[name^="updates"]');
+      var qtyInput = qtyInputs[s.line - 1];
+      if (qtyInput) {
+        qtyInput.readOnly = true;
+        qtyInput.style.pointerEvents = 'none';
+        qtyInput.style.opacity = '0.5';
+        // Also hide +/- buttons around it
+        var qtyParent = qtyInput.parentElement;
+        if (qtyParent) {
+          qtyParent.querySelectorAll('button').forEach(function (btn) {
+            btn.style.display = 'none';
+          });
+        }
+      }
+
+      // --- Strategy 5: find any element containing variantId and hide its remove button ---
+      document.querySelectorAll('[data-variant-id="' + s.variantId + '"]').forEach(function (el) {
+        el.querySelectorAll(
+          'cart-remove-button, .cart-item__remove, .remove-item, [aria-label*="emove"], button[name="remove"], a[href*="quantity=0"]'
+        ).forEach(function (btn) { btn.style.display = 'none'; });
+      });
+
+      // --- Strategy 6: inject CSS as last-resort catch-all ---
+      var styleId = 'dsgn-cart-lock-' + s.line;
+      if (!document.getElementById(styleId)) {
+        var style = document.createElement('style');
+        style.id = styleId;
+        style.textContent =
+          'cart-remove-button[data-index="' + s.line + '"] { display:none!important }' +
+          'a[href*="line=' + s.line + '&quantity=0"] { display:none!important }' +
+          'a[href*="quantity=0&line=' + s.line + '"] { display:none!important }';
+        document.head.appendChild(style);
       }
     });
   }
 
-  function init() {
+  function run() {
     fetch('/cart.js')
       .then(function (r) { return r.json(); })
-      .then(function (cart) { lockSurchargeItems(cart); })
+      .then(lockSurchargeItems)
       .catch(function () {});
   }
 
+  // Run on load
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', run);
   } else {
-    init();
+    run();
   }
 
-  // Re-run after Shopify cart section renders (AJAX themes)
-  document.addEventListener('cart:updated', init);
-  document.addEventListener('cart-update', init);
+  // Re-run after AJAX cart updates (covers drawer carts, section renders)
+  document.addEventListener('cart:updated', run);
+  document.addEventListener('cart-update', run);
+
+  // MutationObserver: re-run if new cart items appear in DOM
+  var observer = new MutationObserver(function () { run(); });
+  observer.observe(document.body, { childList: true, subtree: true });
 })();
