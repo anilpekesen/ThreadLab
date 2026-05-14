@@ -3,10 +3,15 @@ api_version = "2024-10"
 [[extensions]]
 name = "Tasarim Baski Ucret"
 handle = "tasarim-baski-ucret"
+uid = "54ae9f49-a0c9-d3ec-6f5d-867c6357557ea37a6656"
 type = "function"
 api_version = "2024-10"
 
 [extensions.build]
 command = "npm run build"
-path = "dist/index.wasm"
+path = "dist/function.wasm"
 watch_paths = ["src/**/*.js"]
+
+[[extensions.targeting]]
+target = "purchase.cart-transform.run"
+export = "run"

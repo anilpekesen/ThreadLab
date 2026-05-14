@@ -1,22 +1,13 @@
-// Shopify Cart Transform Function
-// Compiled to WASM by Shopify CLI (javy).
-//
-// Reads cart lines. Any line with "_surcharge_variant_gid" property is
-// expanded into: [original line] + [surcharge child line].
-// Child is linked to parent — customer cannot delete it independently.
-//
-// Properties expected on the main product line item (set by App.tsx):
-//   _surcharge_variant_gid   "gid://shopify/ProductVariant/47803169898722"
-//   _surcharge_qty_front     "30"   (number of ₺1 units for front print)
-//   _surcharge_qty_back      "0"    (number of ₺1 units for back print)
+// Cart Transform Function — ES module format for Shopify targeting
+// Properties read from cart line items (set by App.tsx):
+//   _surcharge_variant_gid   "gid://shopify/ProductVariant/..."
+//   _surcharge_qty_front     "30"
+//   _surcharge_qty_back      "0"
 
-const input = JSON.parse(readInput());
-writeOutput(JSON.stringify(run(input)));
-
-function run(input) {
+export function run(input) {
   const operations = [];
 
-  for (const line of input.cart?.lines ?? []) {
+  for (const line of input.cart.lines) {
     const attrs = line.attributes ?? [];
     const find = (key) => (attrs.find((a) => a.key === key) ?? {}).value ?? null;
 
@@ -32,16 +23,8 @@ function run(input) {
       expand: {
         cartLineId: line.id,
         expandedCartItems: [
-          // Parent: the original product line (keeps its price)
-          {
-            merchandiseId: line.merchandise.id,
-            quantity: line.quantity,
-          },
-          // Child: surcharge units (₺1 × totalQty = baskı ücreti)
-          {
-            merchandiseId: surchargeGid,
-            quantity: totalQty,
-          },
+          { merchandiseId: line.merchandise.id, quantity: line.quantity },
+          { merchandiseId: surchargeGid, quantity: totalQty },
         ],
       },
     });
