@@ -2,6 +2,6 @@
   "name": "tasarim-baski-ucret",
   "private": true,
   "scripts": {
-    "build": "javy emit-plugin -o dist/plugin.wasm && javy build -C dynamic -C plugin=dist/plugin.wasm -o dist/function.wasm src/run.js"
+    "build": "javy compile -d -o dist/function.wasm src/run.js"
   }
 }

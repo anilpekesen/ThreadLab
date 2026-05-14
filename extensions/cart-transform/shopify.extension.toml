@@ -11,7 +11,3 @@ api_version = "2024-10"
 command = "npm run build"
 path = "dist/function.wasm"
 watch_paths = ["src/**/*.js"]
-
-[[extensions.targeting]]
-target = "purchase.cart-transform.run"
-export = "run"
