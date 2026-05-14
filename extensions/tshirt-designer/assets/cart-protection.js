@@ -1,90 +1,160 @@
 (function () {
   if (!window.location.pathname.startsWith('/cart')) return;
 
-  function lockSurchargeItems(cartData) {
-    var items = cartData.items || [];
-    var surchargeLines = []; // 1-based line numbers
+  var surchargeKeys = new Set();
+  var surchargeVariantIds = new Set();
+  var surchargeLines = new Set(); // 1-based
 
-    items.forEach(function (item, index) {
-      var props = item.properties || {};
-      if (props['_design_role'] === 'surcharge') {
-        surchargeLines.push({ line: index + 1, key: item.key, variantId: String(item.variant_id) });
-      }
-    });
-
-    if (!surchargeLines.length) return;
-
-    surchargeLines.forEach(function (s) {
-      // --- Strategy 1: Dawn theme — cart-remove-button[data-index] (1-based) ---
-      var removeBtn = document.querySelector('cart-remove-button[data-index="' + s.line + '"]');
-      if (removeBtn) removeBtn.style.display = 'none';
-
-      // --- Strategy 2: Any <a> that links to change?line=N&quantity=0 ---
-      document.querySelectorAll('a[href*="line=' + s.line + '"]').forEach(function (el) {
-        if ((el.getAttribute('href') || '').includes('quantity=0')) el.style.display = 'none';
+  // ── Load surcharge item info from cart ──────────────────────────────────────
+  function loadCart() {
+    return fetch('/cart.js')
+      .then(function (r) { return r.json(); })
+      .then(function (cart) {
+        surchargeKeys.clear();
+        surchargeVariantIds.clear();
+        surchargeLines.clear();
+        (cart.items || []).forEach(function (item, idx) {
+          if ((item.properties || {})['_design_role'] === 'surcharge') {
+            surchargeKeys.add(String(item.key));
+            surchargeVariantIds.add(String(item.variant_id));
+            surchargeLines.add(idx + 1);
+          }
+        });
+        hideRemoveButtons();
       });
+  }
 
-      // --- Strategy 3: buttons/links with the item key in href or data ---
-      document.querySelectorAll('[href*="' + s.key + '"], [data-key="' + s.key + '"]').forEach(function (el) {
-        el.style.display = 'none';
+  // ── Detect if a request would remove a surcharge item ───────────────────────
+  function isSurchargeRemoval(url, opts) {
+    var urlStr = String(url || '');
+    if (!urlStr.includes('/cart/change')) return false;
+
+    // Check URL params (GET-style: /cart/change?line=1&quantity=0)
+    if (urlStr.includes('quantity=0')) {
+      surchargeLines.forEach(function (line) {
+        if (urlStr.includes('line=' + line)) return (isSurchargeRemoval._hit = true);
       });
+      surchargeKeys.forEach(function (key) {
+        if (urlStr.includes(encodeURIComponent(key))) return (isSurchargeRemoval._hit = true);
+      });
+    }
+    if (isSurchargeRemoval._hit) { isSurchargeRemoval._hit = false; return true; }
 
-      // --- Strategy 4: quantity input by nth occurrence of updates[] ---
-      var qtyInputs = document.querySelectorAll('input[name="updates[]"], input[name^="updates"]');
-      var qtyInput = qtyInputs[s.line - 1];
-      if (qtyInput) {
-        qtyInput.readOnly = true;
-        qtyInput.style.pointerEvents = 'none';
-        qtyInput.style.opacity = '0.5';
-        // Also hide +/- buttons around it
-        var qtyParent = qtyInput.parentElement;
-        if (qtyParent) {
-          qtyParent.querySelectorAll('button').forEach(function (btn) {
-            btn.style.display = 'none';
+    // Check POST body
+    if (opts && opts.body) {
+      var bodyStr = typeof opts.body === 'string' ? opts.body : '';
+      try {
+        var parsed = JSON.parse(bodyStr);
+        var qty = Number(parsed.quantity);
+        if (qty === 0) {
+          if (surchargeLines.has(Number(parsed.line))) return true;
+          if (surchargeKeys.has(String(parsed.id))) return true;
+          if (surchargeVariantIds.has(String(parsed.id))) return true;
+        }
+      } catch (_) {
+        // URL-encoded body: quantity=0&line=1 or id=KEY&quantity=0
+        if (bodyStr.includes('quantity=0')) {
+          var lineMatch = bodyStr.match(/line=(\d+)/);
+          if (lineMatch && surchargeLines.has(Number(lineMatch[1]))) return true;
+          surchargeKeys.forEach(function (key) {
+            if (bodyStr.includes(encodeURIComponent(key)) || bodyStr.includes(key)) {
+              isSurchargeRemoval._hit = true;
+            }
           });
+          if (isSurchargeRemoval._hit) { isSurchargeRemoval._hit = false; return true; }
         }
       }
+    }
+    return false;
+  }
 
-      // --- Strategy 5: find any element containing variantId and hide its remove button ---
-      document.querySelectorAll('[data-variant-id="' + s.variantId + '"]').forEach(function (el) {
-        el.querySelectorAll(
-          'cart-remove-button, .cart-item__remove, .remove-item, [aria-label*="emove"], button[name="remove"], a[href*="quantity=0"]'
-        ).forEach(function (btn) { btn.style.display = 'none'; });
+  // ── Intercept fetch ─────────────────────────────────────────────────────────
+  var _fetch = window.fetch;
+  window.fetch = function (url, opts) {
+    if (isSurchargeRemoval(url, opts)) {
+      // Return current cart unchanged (no error, no UI glitch)
+      return _fetch('/cart.js');
+    }
+    return _fetch.apply(this, arguments);
+  };
+
+  // ── Intercept XHR (some themes still use $.ajax / XMLHttpRequest) ───────────
+  var _xhrOpen = XMLHttpRequest.prototype.open;
+  var _xhrSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function (method, url) {
+    this._dsgnUrl = url;
+    return _xhrOpen.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.send = function (body) {
+    if (isSurchargeRemoval(this._dsgnUrl, { body: body })) {
+      return; // silently drop
+    }
+    return _xhrSend.apply(this, arguments);
+  };
+
+  // ── Intercept link clicks (/cart/change?line=N&quantity=0) ──────────────────
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest
+      ? e.target.closest('a[href*="/cart/change"]')
+      : null;
+    if (!el) return;
+    if (isSurchargeRemoval(el.getAttribute('href'), null)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
+
+  // ── Intercept form submit ───────────────────────────────────────────────────
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form || !String(form.action || '').includes('/cart/change')) return;
+    var data = new FormData(form);
+    var qty = Number(data.get('quantity') || data.get('updates[]') || 1);
+    var line = Number(data.get('line') || 0);
+    if (qty === 0 && surchargeLines.has(line)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
+
+  // ── DOM: hide remove buttons visually ──────────────────────────────────────
+  function hideRemoveButtons() {
+    surchargeLines.forEach(function (line) {
+      // Dawn & most themes
+      var btn = document.querySelector('cart-remove-button[data-index="' + line + '"]');
+      if (btn) btn.style.setProperty('display', 'none', 'important');
+
+      document.querySelectorAll('a[href*="/cart/change"]').forEach(function (el) {
+        var href = el.getAttribute('href') || '';
+        if (href.includes('line=' + line) && href.includes('quantity=0')) {
+          el.style.setProperty('display', 'none', 'important');
+        }
       });
+    });
 
-      // --- Strategy 6: inject CSS as last-resort catch-all ---
-      var styleId = 'dsgn-cart-lock-' + s.line;
-      if (!document.getElementById(styleId)) {
-        var style = document.createElement('style');
-        style.id = styleId;
-        style.textContent =
-          'cart-remove-button[data-index="' + s.line + '"] { display:none!important }' +
-          'a[href*="line=' + s.line + '&quantity=0"] { display:none!important }' +
-          'a[href*="quantity=0&line=' + s.line + '"] { display:none!important }';
-        document.head.appendChild(style);
-      }
+    surchargeVariantIds.forEach(function (vid) {
+      document.querySelectorAll('[data-variant-id="' + vid + '"]').forEach(function (row) {
+        row.querySelectorAll(
+          'cart-remove-button, .cart-item__remove, .remove-item, [aria-label*="emove"], button[name="remove"]'
+        ).forEach(function (el) {
+          el.style.setProperty('display', 'none', 'important');
+        });
+      });
     });
   }
 
-  function run() {
-    fetch('/cart.js')
-      .then(function (r) { return r.json(); })
-      .then(lockSurchargeItems)
-      .catch(function () {});
-  }
-
-  // Run on load
+  // ── Boot ────────────────────────────────────────────────────────────────────
+  loadCart();
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', run);
-  } else {
-    run();
+    document.addEventListener('DOMContentLoaded', loadCart);
   }
+  document.addEventListener('cart:updated', loadCart);
+  document.addEventListener('cart-update', loadCart);
 
-  // Re-run after AJAX cart updates (covers drawer carts, section renders)
-  document.addEventListener('cart:updated', run);
-  document.addEventListener('cart-update', run);
-
-  // MutationObserver: re-run if new cart items appear in DOM
-  var observer = new MutationObserver(function () { run(); });
-  observer.observe(document.body, { childList: true, subtree: true });
+  // Re-apply DOM protection after section/drawer re-renders
+  var _domTimer;
+  new MutationObserver(function () {
+    clearTimeout(_domTimer);
+    _domTimer = setTimeout(hideRemoveButtons, 150);
+  }).observe(document.body, { childList: true, subtree: true });
 })();
