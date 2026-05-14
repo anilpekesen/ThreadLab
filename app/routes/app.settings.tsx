@@ -48,6 +48,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }]
         }) {
           product {
+            id
             variants(first: 1) { nodes { id } }
           }
           userErrors { field message }
@@ -57,7 +58,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const data = await response.json() as {
       data?: {
         productCreate?: {
-          product?: { variants?: { nodes?: Array<{ id: string }> } };
+          product?: { id: string; variants?: { nodes?: Array<{ id: string }> } };
           userErrors?: Array<{ field: string; message: string }>;
         };
       };
@@ -66,9 +67,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (errors.length) {
       return json({ error: errors.map((e) => e.message).join(", ") });
     }
+    const productGid = data.data?.productCreate?.product?.id ?? "";
     const gid = data.data?.productCreate?.product?.variants?.nodes?.[0]?.id ?? "";
     const variantId = gid.split("/").pop() ?? "";
     if (!variantId) return json({ error: "Variant ID alınamadı" });
+
+    // Publish to all available sales channels so Cart Transform can add it
+    if (productGid) {
+      const pubRes = await admin.graphql(`#graphql
+        { publications(first: 20) { nodes { id name } } }
+      `);
+      const pubData = await pubRes.json() as {
+        data?: { publications?: { nodes?: Array<{ id: string; name: string }> } };
+      };
+      const publications = pubData.data?.publications?.nodes ?? [];
+      if (publications.length > 0) {
+        const publicationInputs = publications.map((p) => `{publicationId: "${p.id}"}`).join(", ");
+        await admin.graphql(`#graphql
+          mutation {
+            publishablePublish(id: "${productGid}", input: [${publicationInputs}]) {
+              userErrors { field message }
+            }
+          }
+        `);
+      }
+    }
 
     const settings = await getGlobalSettings();
     await saveGlobalSettings({ ...settings, surchargeVariantId: variantId });
