@@ -1,5 +1,6 @@
 import { json } from "@remix-run/node";
 import { findConfigForStorefront } from "~/models/product-config.server";
+import { getGlobalSettings } from "~/models/global-settings.server";
 
 const PHOTOROOM_SEGMENT_URL = "https://sdk.photoroom.com/v1/segment";
 
@@ -25,8 +26,12 @@ export async function handlePhotoroomRemoveBackground(request: Request) {
     return json({ error: "image_file is required" }, { status: 400 });
   }
 
-  const config = await findConfigForStorefront(productId, handle);
-  const apiKey = String(config?.settings?.photoroomApiKey || "").trim();
+  const [config, globalSettings] = await Promise.all([
+    findConfigForStorefront(productId, handle),
+    getGlobalSettings(),
+  ]);
+
+  const apiKey = globalSettings.photoroomApiKey || String(config?.settings?.photoroomApiKey || "").trim();
 
   if (!config?.settings?.removeBg || !apiKey) {
     return json({ error: "Photoroom API key is not configured" }, { status: 400 });
@@ -44,9 +49,7 @@ export async function handlePhotoroomRemoveBackground(request: Request) {
 
   const response = await fetch(PHOTOROOM_SEGMENT_URL, {
     method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-    },
+    headers: { "x-api-key": apiKey },
     body: outbound,
   });
 

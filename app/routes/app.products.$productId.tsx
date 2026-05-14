@@ -8,7 +8,6 @@ import {
   Button,
   Card,
   Checkbox,
-  Collapsible,
   InlineGrid,
   InlineStack,
   Page,
@@ -895,7 +894,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       backPrintWidthCm: Number(((backArea?.realWidthMm || frontArea?.realWidthMm || 0) / 10)),
       backPrintHeightCm: Number(((backArea?.realHeightMm || frontArea?.realHeightMm || 0) / 10)),
       removeBg: form.get("removeBg") === "true",
-      photoroomApiKey: String(form.get("photoroomApiKey") || "").trim(),
+      photoroomApiKey: "",
       pricingBands: {
         front: frontBands.bands,
         back: backBands.bands,
@@ -920,8 +919,6 @@ export default function ProductSettingsRoute() {
   const [productType, setProductType] = useState<ProductConfig["productType"]>(config.productType);
   const [surfaceMode, setSurfaceMode] = useState<ProductConfig["surfaceMode"]>(config.surfaceMode);
   const [removeBg, setRemoveBg] = useState(Boolean(config.removeBg));
-  const [photoroomApiKey, setPhotoroomApiKey] = useState(config.photoroomApiKey || "");
-  const [showPhotoroomHelp, setShowPhotoroomHelp] = useState(false);
   const [surchargeVariantId, setSurchargeVariantId] = useState(config.surchargeVariantId || "");
   const [frontBands, setFrontBands] = useState<BandState[]>(toBandState(config, "front"));
   const [backBands, setBackBands] = useState<BandState[]>(toBandState(config, "back"));
@@ -1039,65 +1036,13 @@ export default function ProductSettingsRoute() {
                 <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="center">
                     <Text as="h2" variant="headingMd">Arka plan temizleme</Text>
-                    <Button
-                      variant="plain"
-                      size="slim"
-                      onClick={() => setShowPhotoroomHelp((v) => !v)}
-                    >
-                      {showPhotoroomHelp ? "Kapat" : "API key nasıl alınır?"}
+                    <Button variant="plain" size="slim" url="/app/settings">
+                      API key ayarları →
                     </Button>
                   </InlineStack>
-
-                  <Collapsible open={showPhotoroomHelp} id="photoroom-help">
-                    <Box
-                      background="bg-surface-secondary"
-                      padding="400"
-                      borderRadius="200"
-                      borderColor="border"
-                      borderWidth="025"
-                    >
-                      <BlockStack gap="300">
-                        <Text as="h3" variant="headingSm">Photoroom API key nasıl alınır?</Text>
-                        <BlockStack gap="200">
-                          {[
-                            { step: "1", text: "photoroom.com/api adresine gidin ve ücretsiz bir hesap oluşturun." },
-                            { step: "2", text: "Giriş yaptıktan sonra sol menüden API & SDK bölümüne tıklayın." },
-                            { step: "3", text: "\"API Keys\" sekmesinde \"Create new key\" butonuna tıklayın." },
-                            { step: "4", text: "Oluşturulan anahtarı kopyalayın — sadece bir kez gösterilir, kaydedin." },
-                            { step: "5", text: "Kopyaladığınız anahtarı aşağıdaki alana yapıştırın ve kaydedin." },
-                          ].map(({ step, text }) => (
-                            <InlineStack key={step} gap="200" blockAlign="start">
-                              <div style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: "50%",
-                                background: "#0f766e",
-                                color: "white",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                flexShrink: 0,
-                                marginTop: 1,
-                              }}>
-                                {step}
-                              </div>
-                              <Text as="p" variant="bodySm">{text}</Text>
-                            </InlineStack>
-                          ))}
-                        </BlockStack>
-                        <Text as="p" tone="subdued" variant="bodySm">
-                          Sandbox key ile aylık 30 görsel ücretsiz işleyebilirsiniz. Daha fazlası için ücretli plana geçmeniz gerekir.
-                          API anahtarı tarayıcıya gönderilmez — yalnızca sunucu tarafında kullanılır.
-                        </Text>
-                      </BlockStack>
-                    </Box>
-                  </Collapsible>
-
                   <Text as="p" tone="subdued">
-                    Musteri gorsel yukledikten sonra arka plani Photoroom ile temizleyip temizlemeyecegini sorabilirsiniz.
-                    API key tarayiciya gonderilmez, sadece server tarafinda kullanilir.
+                    Bu ürün için müşteri görsel yükleyince "Arka planı temizleyelim mi?" sorusu çıksın mı?
+                    Photoroom API key'i Ayarlar sayfasından girebilirsiniz.
                   </Text>
                   <Checkbox
                     label="Photoroom ile arka plan temizlemeyi aktif et"
@@ -1105,16 +1050,6 @@ export default function ProductSettingsRoute() {
                     value="true"
                     checked={removeBg}
                     onChange={setRemoveBg}
-                  />
-                  <TextField
-                    label="Photoroom Remove Background API key"
-                    name="photoroomApiKey"
-                    value={photoroomApiKey}
-                    onChange={setPhotoroomApiKey}
-                    autoComplete="off"
-                    type="password"
-                    placeholder="sk_pr_..."
-                    helpText={photoroomApiKey ? "API key girilmiş. Müşteri görseli yükleyince 'Arka planı temizle?' sorusu çıkacak." : "Yukarıdaki 'API key nasıl alınır?' bağlantısına tıklayın."}
                   />
                 </BlockStack>
               </Box>

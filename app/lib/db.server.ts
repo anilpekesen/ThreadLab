@@ -61,4 +61,11 @@ export async function runMigrations() {
       ADD COLUMN IF NOT EXISTS mockup_width NUMERIC NOT NULL DEFAULT 480,
       ADD COLUMN IF NOT EXISTS mockup_height NUMERIC NOT NULL DEFAULT 580
   `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS global_settings (
+      id         INTEGER PRIMARY KEY DEFAULT 1,
+      config     JSONB NOT NULL DEFAULT '{}',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
 }
