@@ -11,7 +11,6 @@ export function run(input) {
     if (totalQty === 0) continue;
 
     const totalAmount = parseFloat(line.cost?.totalAmount?.amount ?? '0');
-    const currencyCode = line.cost?.totalAmount?.currencyCode ?? 'TRY';
     const perUnitPrice = line.quantity > 0
       ? (totalAmount / line.quantity).toFixed(2)
       : totalAmount.toFixed(2);
@@ -25,7 +24,7 @@ export function run(input) {
             quantity: line.quantity,
             price: {
               adjustment: {
-                fixedPricePerUnit: { amount: perUnitPrice, currencyCode },
+                fixedPricePerUnit: { amount: perUnitPrice },
               },
             },
           },
@@ -34,7 +33,7 @@ export function run(input) {
             quantity: totalQty,
             price: {
               adjustment: {
-                fixedPricePerUnit: { amount: '1.00', currencyCode },
+                fixedPricePerUnit: { amount: '1.00' },
               },
             },
           },
