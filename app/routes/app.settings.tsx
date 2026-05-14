@@ -84,11 +84,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       `#graphql
       mutation variantUpdate($input: ProductVariantInput!) {
         productVariantUpdate(input: $input) {
-          productVariant { id inventoryPolicy }
+          productVariant { id inventoryPolicy price }
           userErrors { field message }
         }
       }`,
-      { variables: { input: { id: gid, inventoryPolicy: "CONTINUE" } } },
+      {
+        variables: {
+          input: {
+            id: gid,
+            price: "1.00",
+            compareAtPrice: null,
+            inventoryPolicy: "CONTINUE",
+            requiresShipping: false,
+          },
+        },
+      },
     );
     const fixData = await fixRes.json() as {
       data?: { productVariantUpdate?: { userErrors?: Array<{ message: string }> } };
