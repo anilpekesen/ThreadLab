@@ -47,9 +47,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     };
     const transforms = data.data?.cartTransforms?.nodes ?? [];
     const functions = data.data?.shopifyFunctions?.nodes ?? [];
-    cartTransformStatus = transforms.length > 0
-      ? `kayıtlı (${transforms.map(t => t.id).join(", ")})`
-      : `KAYITSIZ — fonksiyonlar: ${functions.map(f => `${f.title}[${f.apiType}]`).join(", ") || "hiç yok"}`;
+
+    if (transforms.length === 0) {
+      // Auto-register: find cart_transform function and register it
+      const cartFn = functions.find((f) =>
+        f.apiType === "cart_transform" || f.apiType === "purchase.cart-transform.run"
+      );
+      if (cartFn) {
+        const regRes = await admin.graphql(`#graphql
+          mutation { cartTransformCreate(functionId: "${cartFn.id}") {
+            cartTransform { id }
+            userErrors { field message }
+          }}
+        `);
+        const regData = await regRes.json() as {
+          data?: { cartTransformCreate?: { cartTransform?: { id: string }; userErrors?: Array<{ message: string }> } };
+        };
+        const regErrors = regData.data?.cartTransformCreate?.userErrors ?? [];
+        const newId = regData.data?.cartTransformCreate?.cartTransform?.id;
+        cartTransformStatus = newId
+          ? `otomatik kaydedildi: ${newId}`
+          : `kayıt hatası: ${regErrors.map(e => e.message).join(", ") || "bilinmiyor"}`;
+      } else {
+        cartTransformStatus = `KAYITSIZ — fonksiyonlar: ${functions.map(f => `${f.title}[${f.apiType}]`).join(", ") || "hiç yok"}`;
+      }
+    } else {
+      cartTransformStatus = `kayıtlı (${transforms.map(t => t.id).join(", ")})`;
+    }
     shopifyFunctionsRaw = JSON.stringify(data);
   } catch (e) {
     cartTransformStatus = `sorgu hatası: ${String(e)}`;
