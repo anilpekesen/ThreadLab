@@ -382,6 +382,7 @@ export async function fetchShopifyProducts(
   admin: { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> },
   query = "",
 ): Promise<ShopifyProductSummary[]> {
+  const activeQuery = query ? `status:active ${query}` : "status:active";
   const response = await admin.graphql(
     `#graphql
     query Products($query: String!) {
@@ -409,7 +410,7 @@ export async function fetchShopifyProducts(
         }
       }
     }`,
-    { variables: { query } },
+    { variables: { query: activeQuery } },
   );
 
   const payload = (await response.json()) as {
