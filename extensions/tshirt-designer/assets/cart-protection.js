@@ -1,5 +1,5 @@
 (function () {
-  if (!window.location.pathname.startsWith('/cart')) return;
+  // Run on /cart page AND cart drawers (which can open on any page)
 
   var _cartItems = [];
   var _allowSurchargeRemoval = false;
