@@ -98,6 +98,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return redirect("/app/settings?created=1");
   }
 
+  if (intent === "registerCartTransform") {
+    // Find our Cart Transform function and register it with this store
+    const fnRes = await admin.graphql(`#graphql
+      { shopifyFunctions(first: 25) { nodes { id title apiType } } }
+    `);
+    const fnData = await fnRes.json() as {
+      data?: { shopifyFunctions?: { nodes?: Array<{ id: string; title: string; apiType: string }> } };
+    };
+    const functions = fnData.data?.shopifyFunctions?.nodes ?? [];
+    const cartFn = functions.find((f) => f.apiType === "purchase.cart-transform.run");
+    if (!cartFn) return json({ error: `Cart Transform fonksiyonu bulunamadı. Mevcut fonksiyonlar: ${functions.map(f => f.title).join(", ") || "yok"}` });
+
+    const regRes = await admin.graphql(`#graphql
+      mutation { cartTransformCreate(functionId: "${cartFn.id}") {
+        cartTransform { id }
+        userErrors { field message }
+      }}
+    `);
+    const regData = await regRes.json() as {
+      data?: { cartTransformCreate?: { cartTransform?: { id: string }; userErrors?: Array<{ message: string }> } };
+    };
+    const regErrors = regData.data?.cartTransformCreate?.userErrors ?? [];
+    if (regErrors.length) return json({ error: regErrors.map((e) => e.message).join(", ") });
+    const newId = regData.data?.cartTransformCreate?.cartTransform?.id ?? "";
+    return json({ success: `Cart Transform kaydedildi: ${newId}` });
+  }
+
   if (intent === "fixSurchargeVariant") {
     const settings = await getGlobalSettings();
     const variantId = settings.surchargeVariantId;
@@ -141,7 +168,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function SettingsRoute() {
   const { settings, saved, created } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
-  const fetcher = useFetcher<{ error?: string }>();
+  const fetcher = useFetcher<{ error?: string; success?: string }>();
   const isSaving = navigation.state === "submitting";
   const isCreating = fetcher.state === "submitting";
 
@@ -155,6 +182,7 @@ export default function SettingsRoute() {
         {saved && <Banner tone="success" title="Ayarlar kaydedildi." />}
         {created && <Banner tone="success" title="Baskı Ücreti ürünü oluşturuldu ve kaydedildi." />}
         {fetcher.data?.error && <Banner tone="critical" title={`Hata: ${fetcher.data.error}`} />}
+        {fetcher.data?.success && <Banner tone="success" title={fetcher.data.success} />}
 
         <Form method="post">
           <BlockStack gap="400">
@@ -203,6 +231,12 @@ export default function SettingsRoute() {
                         </Button>
                       </fetcher.Form>
                     )}
+                    <fetcher.Form method="post">
+                      <input type="hidden" name="intent" value="registerCartTransform" />
+                      <Button variant="secondary" submit loading={isCreating}>
+                        Cart Transform'u kaydet
+                      </Button>
+                    </fetcher.Form>
                   </InlineStack>
 
                   <Divider />
