@@ -10,12 +10,34 @@ export function run(input) {
     const totalQty = frontQty + backQty;
     if (totalQty === 0) continue;
 
+    const totalAmount = parseFloat(line.cost?.totalAmount?.amount ?? '0');
+    const currencyCode = line.cost?.totalAmount?.currencyCode ?? 'TRY';
+    const perUnitPrice = line.quantity > 0
+      ? (totalAmount / line.quantity).toFixed(2)
+      : totalAmount.toFixed(2);
+
     operations.push({
       expand: {
         cartLineId: line.id,
         expandedCartItems: [
-          { merchandiseId: line.merchandise.id, quantity: line.quantity },
-          { merchandiseId: surchargeGid, quantity: totalQty },
+          {
+            merchandiseId: line.merchandise.id,
+            quantity: line.quantity,
+            price: {
+              adjustment: {
+                fixedPricePerUnit: { amount: perUnitPrice, currencyCode },
+              },
+            },
+          },
+          {
+            merchandiseId: surchargeGid,
+            quantity: totalQty,
+            price: {
+              adjustment: {
+                fixedPricePerUnit: { amount: '1.00', currencyCode },
+              },
+            },
+          },
         ],
       },
     });

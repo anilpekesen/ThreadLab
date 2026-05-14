@@ -3,6 +3,9 @@ query RunInput {
     lines {
       id
       quantity
+      cost {
+        totalAmount { amount currencyCode }
+      }
       surchargeVariantGid: attribute(key: "_surcharge_variant_gid") {
         value
       }
