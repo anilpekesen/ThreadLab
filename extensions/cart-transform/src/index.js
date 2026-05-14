@@ -30,10 +30,10 @@ export function run(input) {
           },
           {
             merchandiseId: surchargeGid,
-            quantity: totalQty,
+            quantity: 1,
             price: {
               adjustment: {
-                fixedPricePerUnit: { amount: '1.00' },
+                fixedPricePerUnit: { amount: totalQty.toFixed(2) },
               },
             },
           },
