@@ -63,18 +63,26 @@ export async function updateOrderStatus(id: string, status: string) {
   return orders[idx];
 }
 
+export interface SyncResult {
+  shopifyTotal: number;
+  newlySynced: number;
+  skippedExisting: number;
+  error?: string;
+  sampleLineItemAttrs?: string;
+}
+
 // Fetch recent orders from Shopify Admin API and sync design orders into local JSON.
 // Called on the orders page load so no webhook approval is needed.
 export async function syncOrdersFromShopify(
   admin: { graphql: (query: string) => Promise<{ json: () => Promise<unknown> }> }
-) {
+): Promise<SyncResult> {
   type Attr = { key: string; value: string };
   type LineItem = {
     id: string;
     name: string;
-    quantity: number;
     product?: { id: string };
     variant?: { id: string };
+    requiresShipping: boolean;
     customAttributes: Attr[];
   };
   type ShopifyOrder = {
@@ -83,61 +91,88 @@ export async function syncOrdersFromShopify(
     createdAt: string;
     customer?: { firstName: string; lastName: string; email: string };
     lineItems: { nodes: LineItem[] };
-    note?: string;
     customAttributes: Attr[];
   };
 
-  const res = await admin.graphql(`#graphql
-    {
-      orders(first: 100, sortKey: CREATED_AT, reverse: true) {
-        nodes {
-          id
-          name
-          createdAt
-          customer { firstName lastName email }
-          customAttributes { key value }
-          lineItems(first: 20) {
-            nodes {
-              id
-              name
-              product { id }
-              variant { id }
-              customAttributes { key value }
+  let res: { json: () => Promise<unknown> };
+  try {
+    res = await admin.graphql(`#graphql
+      {
+        orders(first: 100, sortKey: CREATED_AT, reverse: true) {
+          nodes {
+            id
+            name
+            createdAt
+            customer { firstName lastName email }
+            customAttributes { key value }
+            lineItems(first: 20) {
+              nodes {
+                id
+                name
+                requiresShipping
+                product { id }
+                variant { id }
+                customAttributes { key value }
+              }
             }
           }
         }
       }
-    }
-  `);
-  const data = await res.json() as { data?: { orders?: { nodes?: ShopifyOrder[] } } };
-  const shopifyOrders = data.data?.orders?.nodes ?? [];
+    `);
+  } catch (e) {
+    return { shopifyTotal: 0, newlySynced: 0, skippedExisting: 0, error: String(e) };
+  }
 
+  const data = await res.json() as { data?: { orders?: { nodes?: ShopifyOrder[] } }; errors?: unknown };
+  if (!data.data?.orders) {
+    return { shopifyTotal: 0, newlySynced: 0, skippedExisting: 0, error: JSON.stringify(data.errors ?? "no data") };
+  }
+
+  const shopifyOrders = data.data.orders.nodes ?? [];
   const orders = readJson<Order[]>("orders.json", []);
-  let changed = false;
+  let newlySynced = 0;
+  let skippedExisting = 0;
 
   for (const so of shopifyOrders) {
     const shopifyOrderId = so.id.split("/").pop() ?? so.id;
-    if (orders.some((o) => o.shopifyOrderId === shopifyOrderId)) continue;
+    if (orders.some((o) => o.shopifyOrderId === shopifyOrderId)) {
+      skippedExisting++;
+      continue;
+    }
 
     const getAttr = (attrs: Attr[], key: string) => attrs.find((a) => a.key === key)?.value;
 
-    // Find design line items (those with design_token in customAttributes)
+    // Primary: design_token in line item customAttributes (set before Cart Transform)
     const designItems = so.lineItems.nodes.filter((li) =>
       getAttr(li.customAttributes, "design_token") !== undefined
     );
 
-    // Fallback: check cart-level customAttributes
-    const fallbackToken = getAttr(so.customAttributes, "design_token");
-    const itemsToProcess =
+    // Secondary: design_token in order-level customAttributes (= cart attributes → note_attributes)
+    // This works for orders placed after the liquid fix.
+    const orderToken = getAttr(so.customAttributes, "design_token");
+
+    // Tertiary: identify design order by having a non-shipping (surcharge) line item.
+    // Cart Transform creates one requires_shipping=false line for the print fee.
+    // The remaining requires_shipping=true item is the t-shirt.
+    const hasSurcharge = so.lineItems.nodes.some((li) => !li.requiresShipping);
+    const tshirtItem = hasSurcharge
+      ? so.lineItems.nodes.find((li) => li.requiresShipping)
+      : null;
+
+    const itemsToProcess: LineItem[] =
       designItems.length > 0
         ? designItems
-        : fallbackToken
-        ? [so.lineItems.nodes[0]].filter(Boolean)
+        : orderToken
+        ? (tshirtItem ? [tshirtItem] : [so.lineItems.nodes[0]].filter(Boolean))
+        : tshirtItem
+        ? [tshirtItem]
         : [];
 
     for (const item of itemsToProcess) {
-      const token = getAttr(item.customAttributes, "design_token") ?? fallbackToken ?? "";
-      if (!token) continue;
+      const token =
+        getAttr(item.customAttributes, "design_token") ??
+        orderToken ??
+        "";
 
       orders.push({
         id: `order_${randomBytes(8).toString("hex")}`,
@@ -149,17 +184,24 @@ export async function syncOrdersFromShopify(
         productName: item.name ?? "",
         variantId: item.variant?.id.split("/").pop() ?? "",
         designToken: token,
-        previewUrl: getAttr(item.customAttributes, "_front_preview_url") ?? getAttr(so.customAttributes, "_front_preview_url") ?? "",
-        productionFileUrl: getAttr(item.customAttributes, "_front_print_url") ?? getAttr(so.customAttributes, "_front_print_url") ?? "",
+        previewUrl:
+          getAttr(item.customAttributes, "_front_preview_url") ??
+          getAttr(so.customAttributes, "_front_preview_url") ??
+          "",
+        productionFileUrl:
+          getAttr(item.customAttributes, "_front_print_url") ??
+          getAttr(so.customAttributes, "_front_print_url") ??
+          "",
         productionStatus: "pending",
         missingSurcharge: false,
         createdAt: so.createdAt,
       });
-      changed = true;
+      newlySynced++;
     }
   }
 
-  if (changed) writeJson("orders.json", orders);
+  if (newlySynced > 0) writeJson("orders.json", orders);
+  return { shopifyTotal: shopifyOrders.length, newlySynced, skippedExisting };
 }
 
 export async function createOrderFromWebhook(shopifyOrder: Record<string, unknown>) {

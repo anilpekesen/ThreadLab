@@ -47,13 +47,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const status = url.searchParams.get("status") ?? "";
 
   // Sync design orders from Shopify Admin API (no webhook approval needed)
-  await syncOrdersFromShopify(admin).catch(() => {});
+  const syncResult = await syncOrdersFromShopify(admin).catch((e) => ({
+    shopifyTotal: 0, newlySynced: 0, skippedExisting: 0, error: String(e),
+  }));
 
   const [orders, stats] = await Promise.all([
     getOrders(status || undefined),
     getDashboardStats(),
   ]);
-  return json({ orders, status, stats, shop: session.shop });
+  return json({ orders, status, stats, shop: session.shop, syncResult });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -82,7 +84,7 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
 }
 
 export default function Orders() {
-  const { orders, status, stats, shop } = useLoaderData<typeof loader>();
+  const { orders, status, stats, shop, syncResult } = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
   const fetcher = useFetcher();
 
@@ -240,16 +242,19 @@ export default function Orders() {
           </Box>
 
           {orders.length === 0 ? (
-            <EmptyState
-              heading="Bu durumda sipariş yok"
-              image=""
-            >
-              <Text as="p" tone="subdued">
-                {status
-                  ? `"${STATUS_LABELS[status]}" durumunda henüz sipariş bulunmuyor.`
-                  : "Henüz hiç sipariş alınmamış."}
-              </Text>
-            </EmptyState>
+            <Box padding="800">
+              <BlockStack gap="300" inlineAlign="center">
+                <Text as="p" variant="headingMd" alignment="center">
+                  {status
+                    ? `"${STATUS_LABELS[status]}" durumunda sipariş yok`
+                    : "Henüz hiç baskılı sipariş alınmamış"}
+                </Text>
+                <Text as="p" tone="subdued" alignment="center">
+                  {`Shopify'dan ${syncResult.shopifyTotal} sipariş tarandı, ${syncResult.newlySynced} yeni eklendi.`}
+                  {syncResult.error ? ` Hata: ${syncResult.error}` : ""}
+                </Text>
+              </BlockStack>
+            </Box>
           ) : (
             <IndexTable
               resourceName={resourceName}

@@ -144,6 +144,22 @@
           })
         })
       }).then(function() {
+        // Cart Transform expand strips line item properties from the order.
+        // Save key design fields as cart attributes so they survive as note_attributes.
+        return fetch('/cart/update.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            attributes: {
+              design_token: props.design_token || '',
+              _front_preview_url: props._front_preview_url || '',
+              _front_print_url: props._front_print_url || '',
+              _back_preview_url: props._back_preview_url || '',
+              _back_print_url: props._back_print_url || ''
+            }
+          })
+        });
+      }).then(function() {
         window.location.href = '/cart';
       }).catch(function() {
         alert('Sepete eklenirken bir hata oluştu. Lütfen tekrar deneyin.');
