@@ -176,11 +176,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         errors?: Array<{ message: string }>;
       };
       if (existingData.errors?.length) {
-        return redirect(`/app/settings?ct_error=${encodeURIComponent("GraphQL: " + existingData.errors.map(e => e.message).join(", "))}`);
+        return json({ error: "GraphQL: " + existingData.errors.map((e) => e.message).join(", ") });
       }
       const existing = existingData.data?.cartTransforms?.nodes ?? [];
       if (existing.length > 0) {
-        return redirect(`/app/settings?ct_ok=zaten`);
+        return json({ success: "Cart Transform zaten kayıtlıydı. Sorun başka bir yerde — checkout'u test edin." });
       }
 
       // Find function
@@ -192,13 +192,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         errors?: Array<{ message: string }>;
       };
       if (fnData.errors?.length) {
-        return redirect(`/app/settings?ct_error=${encodeURIComponent("Fn sorgu: " + fnData.errors.map(e => e.message).join(", "))}`);
+        return json({ error: "Fn sorgu: " + fnData.errors.map((e) => e.message).join(", ") });
       }
       const functions = fnData.data?.shopifyFunctions?.nodes ?? [];
       const cartFn = functions.find((f) => f.apiType === "purchase.cart-transform.run");
       if (!cartFn) {
-        const list = functions.map(f => `${f.title}(${f.apiType})`).join(", ") || "hiç yok";
-        return redirect(`/app/settings?ct_error=${encodeURIComponent("Fonksiyon bulunamadı. Mevcut: " + list)}`);
+        const list = functions.map((f) => `${f.title}(${f.apiType})`).join(", ") || "hiç yok";
+        return json({ error: "Fonksiyon bulunamadı. Mevcut: " + list });
       }
 
       // Register
@@ -213,15 +213,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         errors?: Array<{ message: string }>;
       };
       if (regData.errors?.length) {
-        return redirect(`/app/settings?ct_error=${encodeURIComponent(regData.errors.map(e => e.message).join(", "))}`);
+        return json({ error: regData.errors.map((e) => e.message).join(", ") });
       }
       const regErrors = regData.data?.cartTransformCreate?.userErrors ?? [];
       if (regErrors.length) {
-        return redirect(`/app/settings?ct_error=${encodeURIComponent(regErrors.map(e => e.message).join(", "))}`);
+        return json({ error: regErrors.map((e) => e.message).join(", ") });
       }
-      return redirect(`/app/settings?ct_ok=yeni`);
+      return json({ success: "Cart Transform başarıyla kaydedildi! Şimdi checkout'u test edin." });
     } catch (err) {
-      return redirect(`/app/settings?ct_error=${encodeURIComponent(err instanceof Error ? err.message : String(err))}`);
+      return json({ error: err instanceof Error ? err.message : String(err) });
     }
   }
 

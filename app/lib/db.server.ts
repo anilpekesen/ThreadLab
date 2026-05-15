@@ -8,7 +8,11 @@ function getPool(): pg.Pool {
   if (!pool) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL is not set");
-    pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } });
+    const isLocal = url.includes("localhost") || url.includes("127.0.0.1");
+    pool = new Pool({
+      connectionString: url,
+      ...(isLocal ? {} : { ssl: { rejectUnauthorized: false } }),
+    });
   }
   return pool;
 }
