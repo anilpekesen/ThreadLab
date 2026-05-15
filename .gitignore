@@ -22,7 +22,7 @@ dist/
 # Runtime uploads / local data
 public/uploads/
 uploads/
-data/designs.json
+data/*.json
 
 # Logs
 *.log
