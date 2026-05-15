@@ -30,7 +30,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Auto-register order tracking ScriptTag on order status page
   try {
-    const appUrl = process.env.SHOPIFY_APP_URL ?? "https://threadlab-production.up.railway.app";
+    const appUrl = process.env.SHOPIFY_APP_URL ?? "https://app.printlabapp.com";
     const scriptSrc = `${appUrl}/api/order-tracking-script`;
     const stRes = await admin.graphql(`#graphql
       { scriptTags(first: 10) { nodes { id src displayScope } } }

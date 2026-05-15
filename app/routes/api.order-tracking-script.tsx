@@ -20,7 +20,7 @@ export const loader = async () => {
     var lines = c.line_items || [];
     var tshirt = lines.find(function(li) { return li.requires_shipping !== false; }) || lines[0] || {};
 
-    fetch('https://threadlab-production.up.railway.app/api/pixel-order', {
+    fetch('https://app.printlabapp.com/api/pixel-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

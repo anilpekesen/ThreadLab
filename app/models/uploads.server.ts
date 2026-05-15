@@ -4,6 +4,7 @@ import { createReadStream, existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getUploadsDir } from "~/lib/storage.server";
+import { uploadToR2 } from "~/lib/r2.server";
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const MIME_TYPES: Record<string, string> = {
@@ -19,10 +20,6 @@ const RESPONSE_TYPES: Record<string, string> = {
   webp: "image/webp",
 };
 
-function getUploadDir() {
-  return getUploadsDir();
-}
-
 function sanitizeName(value: FormDataEntryValue | null) {
   const raw = typeof value === "string" ? value : "design";
   return raw.replace(/[^a-z0-9_-]/gi, "") || "design";
@@ -37,6 +34,8 @@ function isUploadedFile(value: FormDataEntryValue | null): value is File {
       "type" in value,
   );
 }
+
+const useR2 = Boolean(process.env.R2_ACCESS_KEY_ID && process.env.R2_PUBLIC_URL);
 
 export async function handleDesignerUpload(request: Request) {
   const contentLength = Number(request.headers.get("content-length") || 0);
@@ -58,11 +57,19 @@ export async function handleDesignerUpload(request: Request) {
     return json({ error: "PNG, JPG or WEBP required" }, { status: 422 });
   }
 
+  const buffer = Buffer.from(await image.arrayBuffer());
+
+  if (useR2) {
+    const side = sanitizeName(form.get("side"));
+    const url = await uploadToR2(buffer, ext, `uploads/${side}`);
+    return json({ url });
+  }
+
+  // Fallback: local disk
   const side = sanitizeName(form.get("side"));
   const filename = `${side}-${randomBytes(12).toString("hex")}.${ext}`;
-  const uploadDir = getUploadDir();
-  await writeFile(path.join(uploadDir, filename), Buffer.from(await image.arrayBuffer()));
-
+  const uploadDir = getUploadsDir();
+  await writeFile(path.join(uploadDir, filename), buffer);
   const baseUrl = process.env.SHOPIFY_APP_URL || new URL(request.url).origin;
   return json({ url: `${baseUrl}/uploads/${filename}` });
 }
@@ -70,7 +77,7 @@ export async function handleDesignerUpload(request: Request) {
 export function serveUploadedFile(filename: string) {
   const safeName = path.basename(filename);
   const ext = safeName.split(".").pop()?.toLowerCase() ?? "";
-  const filePath = path.join(getUploadDir(), safeName);
+  const filePath = path.join(getUploadsDir(), safeName);
   if (!existsSync(filePath) || !RESPONSE_TYPES[ext]) {
     return json({ error: "Not found" }, { status: 404 });
   }
