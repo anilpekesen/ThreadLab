@@ -26,7 +26,7 @@ function DesignObjectCard({ obj }: { obj: DesignObject }) {
       {isText && (
         <div style={{
           flexShrink: 0, width: 48, height: 48, borderRadius: 6,
-          background: obj.fill ?? "#000", border: "1px solid #e5e7eb",
+          background: toHex(obj.fill), border: "1px solid #e5e7eb",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
           <span style={{ color: isDark(obj.fill) ? "#fff" : "#000", fontWeight: 700, fontSize: 18, fontFamily: obj.fontFamily ?? "sans-serif" }}>A</span>
@@ -46,8 +46,8 @@ function DesignObjectCard({ obj }: { obj: DesignObject }) {
             {obj.fill && (
               <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#6b7280" }}>
                 <span>Renk</span>
-                <span style={{ display: "inline-block", width: 14, height: 14, borderRadius: 3, background: obj.fill, border: "1px solid #d1d5db", verticalAlign: "middle" }} />
-                <span style={{ fontFamily: "monospace" }}>{obj.fill}</span>
+                <span style={{ display: "inline-block", width: 14, height: 14, borderRadius: 3, background: toHex(obj.fill), border: "1px solid #d1d5db", verticalAlign: "middle" }} />
+                <span style={{ fontFamily: "monospace" }}>{toHex(obj.fill)}</span>
               </span>
             )}
             {obj.fontWeight && String(obj.fontWeight) !== "normal" && <MetaChip label="Kalınlık" value={String(obj.fontWeight)} />}
@@ -85,9 +85,28 @@ function MetaChip({ label, value }: { label: string; value: string }) {
   );
 }
 
+const CSS_COLORS: Record<string, string> = {
+  black: "#000000", white: "#ffffff", red: "#ff0000", green: "#008000", blue: "#0000ff",
+  yellow: "#ffff00", orange: "#ffa500", purple: "#800080", pink: "#ffc0cb", gray: "#808080",
+  grey: "#808080", cyan: "#00ffff", magenta: "#ff00ff", lime: "#00ff00", navy: "#000080",
+  teal: "#008080", maroon: "#800000", olive: "#808000", silver: "#c0c0c0", brown: "#a52a2a",
+  transparent: "#ffffff",
+};
+
+function toHex(color?: string): string {
+  if (!color) return "#000000";
+  const c = color.trim().toLowerCase();
+  if (c.startsWith("#")) return color.toLowerCase();
+  if (CSS_COLORS[c]) return CSS_COLORS[c];
+  const rgb = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (rgb) {
+    return "#" + [rgb[1], rgb[2], rgb[3]].map((n) => parseInt(n).toString(16).padStart(2, "0")).join("");
+  }
+  return color;
+}
+
 function isDark(color?: string): boolean {
-  if (!color) return true;
-  const hex = color.replace("#", "");
+  const hex = toHex(color).replace("#", "");
   if (hex.length < 6) return true;
   const r = parseInt(hex.slice(0, 2), 16);
   const g = parseInt(hex.slice(2, 4), 16);
@@ -149,6 +168,12 @@ export default function OrderDetail() {
     ? `https://${shopDomain}.myshopify.com/apps/tshirt-designer/my-order?token=${encodeURIComponent(order.designToken)}`
     : null;
 
+  // Fallback URLs: design record → order JOIN data → order own columns
+  const frontPreviewUrl = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
+  const backPreviewUrl = design?.backPreviewUrl || order.designBackPreviewUrl || "";
+  const frontPrintUrl = design?.frontPrintUrl || order.designFrontPrintUrl || order.productionFileUrl || "";
+  const backPrintUrl = design?.backPrintUrl || order.designBackPrintUrl || "";
+
   return (
     <Page
       title={order.orderNumber}
@@ -176,10 +201,10 @@ export default function OrderDetail() {
               <Box padding="400">
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">Ön Yüz</Text>
-                  {design?.frontPreviewUrl ? (
+                  {frontPreviewUrl ? (
                     <div style={{ display: "flex", justifyContent: "center", background: "#f9fafb", borderRadius: 8, padding: 16 }}>
                       <img
-                        src={design.frontPreviewUrl}
+                        src={frontPreviewUrl}
                         alt="Ön tasarım önizlemesi"
                         style={{ maxWidth: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 4 }}
                       />
@@ -189,11 +214,18 @@ export default function OrderDetail() {
                       <Text as="p" tone="subdued" alignment="center">Önizleme yok</Text>
                     </Box>
                   )}
-                  {design?.frontPrintUrl && (
-                    <a href={design.frontPrintUrl} target="_blank" rel="noreferrer" download>
-                      <Button variant="secondary" fullWidth>Ön Baskı Dosyasını İndir</Button>
-                    </a>
-                  )}
+                  <InlineStack gap="300">
+                    {frontPreviewUrl && (
+                      <a href={frontPreviewUrl} target="_blank" rel="noreferrer" download>
+                        <Button variant="plain" size="slim">⬇ Önizlemeyi İndir</Button>
+                      </a>
+                    )}
+                    {frontPrintUrl && (
+                      <a href={frontPrintUrl} target="_blank" rel="noreferrer" download>
+                        <Button variant="secondary" size="slim">⬇ Baskı Dosyası (Yüksek Kalite)</Button>
+                      </a>
+                    )}
+                  </InlineStack>
                   {frontObjects.length > 0 && (
                     <BlockStack gap="300">
                       <Text as="p" variant="bodySm" tone="subdued">Ön yüz öğeleri ({frontObjects.length})</Text>
@@ -212,10 +244,10 @@ export default function OrderDetail() {
               <Box padding="400">
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">Arka Yüz</Text>
-                  {design?.backPreviewUrl ? (
+                  {backPreviewUrl ? (
                     <div style={{ display: "flex", justifyContent: "center", background: "#f9fafb", borderRadius: 8, padding: 16 }}>
                       <img
-                        src={design.backPreviewUrl}
+                        src={backPreviewUrl}
                         alt="Arka tasarım önizlemesi"
                         style={{ maxWidth: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 4 }}
                       />
@@ -225,11 +257,18 @@ export default function OrderDetail() {
                       <Text as="p" tone="subdued" alignment="center">Arka tasarım yok</Text>
                     </Box>
                   )}
-                  {design?.backPrintUrl && (
-                    <a href={design.backPrintUrl} target="_blank" rel="noreferrer" download>
-                      <Button variant="secondary" fullWidth>Arka Baskı Dosyasını İndir</Button>
-                    </a>
-                  )}
+                  <InlineStack gap="300">
+                    {backPreviewUrl && (
+                      <a href={backPreviewUrl} target="_blank" rel="noreferrer" download>
+                        <Button variant="plain" size="slim">⬇ Önizlemeyi İndir</Button>
+                      </a>
+                    )}
+                    {backPrintUrl && (
+                      <a href={backPrintUrl} target="_blank" rel="noreferrer" download>
+                        <Button variant="secondary" size="slim">⬇ Baskı Dosyası (Yüksek Kalite)</Button>
+                      </a>
+                    )}
+                  </InlineStack>
                   {backObjects.length > 0 && (
                     <BlockStack gap="300">
                       <Text as="p" variant="bodySm" tone="subdued">Arka yüz öğeleri ({backObjects.length})</Text>

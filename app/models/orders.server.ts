@@ -127,7 +127,10 @@ export async function getDashboardStats() {
 
 export async function getOrder(id: string): Promise<Order | null> {
   await ensureMigrations();
-  const result = await query<DbRow>("SELECT * FROM orders WHERE id = $1", [id]);
+  const result = await query<DbRow>(
+    `${ORDER_SELECT} WHERE o.id = $1`,
+    [id],
+  );
   if (!result.rows.length) return null;
   return rowToOrder(result.rows[0]);
 }
