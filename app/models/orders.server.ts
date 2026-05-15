@@ -69,10 +69,10 @@ export async function getOrders(status?: string): Promise<Order[]> {
   await ensureMigrations();
   const result = status
     ? await query<DbRow>(
-        "SELECT * FROM orders WHERE production_status = $1 ORDER BY created_at DESC",
+        "SELECT * FROM orders WHERE design_token != '' AND production_status = $1 ORDER BY created_at DESC",
         [status],
       )
-    : await query<DbRow>("SELECT * FROM orders ORDER BY created_at DESC");
+    : await query<DbRow>("SELECT * FROM orders WHERE design_token != '' ORDER BY created_at DESC");
   return result.rows.map(rowToOrder);
 }
 
@@ -82,13 +82,13 @@ export async function getDashboardStats() {
   today.setHours(0, 0, 0, 0);
 
   const [total, todayCount, pending, ready, missingSurcharge] = await Promise.all([
-    query<{ count: string }>("SELECT COUNT(*) FROM orders"),
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE created_at >= $1", [today]),
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE production_status = 'pending'"),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE design_token != ''"),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE design_token != '' AND created_at >= $1", [today]),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE design_token != '' AND production_status = 'pending'"),
     query<{ count: string }>(
-      "SELECT COUNT(*) FROM orders WHERE production_status IN ('ready', 'shipped')",
+      "SELECT COUNT(*) FROM orders WHERE design_token != '' AND production_status IN ('ready', 'shipped')",
     ),
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE missing_surcharge = TRUE"),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE design_token != '' AND missing_surcharge = TRUE"),
   ]);
 
   return {
@@ -179,19 +179,17 @@ export async function syncOrdersFromAdmin(
     ]);
     if (existing.rows.length > 0) continue;
 
-    // Import all orders; prefer ones with design_token but include others too
+    // Only import design orders (must have a design_token somewhere)
     const orderToken = getAttr(so.customAttributes, "design_token");
     const designItems = so.lineItems.nodes.filter(
       (li) => getAttr(li.customAttributes, "design_token") !== undefined,
     );
 
-    const tshirtItem = so.lineItems.nodes.find((li) => li.requiresShipping);
-    const itemsToProcess: LineItem[] =
-      designItems.length > 0
-        ? designItems
-        : tshirtItem
-          ? [tshirtItem]
-          : [so.lineItems.nodes[0]].filter(Boolean);
+    const hasDesignToken = orderToken || designItems.length > 0;
+    if (!hasDesignToken) continue;
+
+    const itemsToProcess: LineItem[] = designItems.length > 0 ? designItems : so.lineItems.nodes.filter((li) => li.requiresShipping).slice(0, 1);
+    if (itemsToProcess.length === 0) continue;
 
     for (const item of itemsToProcess) {
       const token = getAttr(item.customAttributes, "design_token") ?? orderToken ?? "";
