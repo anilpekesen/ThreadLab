@@ -3,11 +3,11 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
 import {
   Page, Card, Badge, Button, InlineStack, Box, Text, BlockStack,
-  Thumbnail, IndexTable, useIndexResourceState, EmptyState,
+  Thumbnail, IndexTable, useIndexResourceState, Banner,
   Grid,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getOrders, updateOrderStatus, getDashboardStats } from "~/models/orders.server";
+import { getOrders, updateOrderStatus, getDashboardStats, syncOrdersFromAdmin } from "~/models/orders.server";
 
 const STATUSES = [
   { label: "Tümü", value: "" },
@@ -42,14 +42,24 @@ const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | 
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const status = url.searchParams.get("status") ?? "";
+
+  // Try Admin API sync — works if Protected Customer Data is approved
+  let syncError: string | null = null;
+  let syncCount = 0;
+  try {
+    syncCount = await syncOrdersFromAdmin(admin);
+  } catch (e) {
+    syncError = e instanceof Error ? e.message : String(e);
+  }
+
   const [orders, stats] = await Promise.all([
     getOrders(status || undefined),
     getDashboardStats(),
   ]);
-  return json({ orders, status, stats, shop: session.shop });
+  return json({ orders, status, stats, shop: session.shop, syncError, syncCount });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -78,7 +88,7 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
 }
 
 export default function Orders() {
-  const { orders, status, stats, shop } = useLoaderData<typeof loader>();
+  const { orders, status, stats, shop, syncError, syncCount } = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
   const fetcher = useFetcher();
 
@@ -193,6 +203,26 @@ export default function Orders() {
   return (
     <Page title="Siparişler">
       <BlockStack gap="400">
+        {syncError && (
+          <Banner tone={syncError.includes("protected") || syncError.includes("approved") ? "warning" : "critical"}
+            title={syncError.includes("protected") || syncError.includes("approved")
+              ? "Sipariş API erişimi için onay gerekiyor"
+              : `Sync hatası: ${syncError}`}>
+            {(syncError.includes("protected") || syncError.includes("approved")) && (
+              <p>
+                Shopify'da sipariş verisi okumak için Partner Dashboard'dan
+                &quot;Protected Customer Data&quot; başvurusu yapılması gerekiyor.{" "}
+                <a href="https://partners.shopify.com" target="_blank" rel="noreferrer">
+                  partners.shopify.com
+                </a>{" "}
+                → DesignKit → API access → Protected customer data access → Request access
+              </p>
+            )}
+          </Banner>
+        )}
+        {!syncError && syncCount > 0 && (
+          <Banner tone="success" title={`${syncCount} yeni sipariş eklendi.`} />
+        )}
         {/* İstatistik kartları */}
         <Grid>
           <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
