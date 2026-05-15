@@ -92,6 +92,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ settings, saved, created });
 };
 
+async function writeSurchargeMetafield(
+  admin: Awaited<ReturnType<typeof authenticate.admin>>["admin"],
+  variantId: string,
+) {
+  const shopRes = await admin.graphql(`#graphql { shop { id } }`);
+  const shopData = await shopRes.json() as { data?: { shop?: { id: string } } };
+  const shopId = shopData.data?.shop?.id;
+  if (!shopId) return;
+  await admin.graphql(
+    `#graphql
+    mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        userErrors { field message }
+      }
+    }`,
+    {
+      variables: {
+        metafields: [{
+          ownerId: shopId,
+          namespace: "printlabapp",
+          key: "surcharge_variant_id",
+          value: variantId,
+          type: "single_line_text_field",
+        }],
+      },
+    },
+  );
+}
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
   const form = await request.formData();
@@ -160,6 +189,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const settings = await getGlobalSettings();
     await saveGlobalSettings({ ...settings, surchargeVariantId: variantId });
+    await writeSurchargeMetafield(admin, variantId).catch(() => {});
     return redirect("/app/settings?created=1");
   }
 
@@ -256,10 +286,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return redirect("/app/settings?saved=1");
   }
 
+  const newVariantId = String(form.get("surchargeVariantId") || "").trim();
   await saveGlobalSettings({
     photoroomApiKey: String(form.get("photoroomApiKey") || "").trim(),
-    surchargeVariantId: String(form.get("surchargeVariantId") || "").trim(),
+    surchargeVariantId: newVariantId,
   });
+  if (newVariantId) await writeSurchargeMetafield(admin, newVariantId).catch(() => {});
   return redirect("/app/settings?saved=1");
 };
 

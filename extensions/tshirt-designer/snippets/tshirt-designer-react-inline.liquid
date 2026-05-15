@@ -20,6 +20,7 @@
   data-double-variant-id="{{ block.settings.double_variant_id }}"
   data-single-price="{{ block.settings.single_price }}"
   data-double-price="{{ block.settings.double_price }}"
+  data-surcharge-variant-id="{{ shop.metafields.printlabapp.surcharge_variant_id.value }}"
   data-product-variants="{{ product.variants | json | escape }}"
   data-option-names="{{ product.options | join: ',' | escape }}"
 >
@@ -95,7 +96,8 @@
           singleVariantId: root.dataset.singleVariantId || '',
           doubleVariantId: root.dataset.doubleVariantId || '',
           singlePrice: Number(root.dataset.singlePrice || 0),
-          doublePrice: Number(root.dataset.doublePrice || 0)
+          doublePrice: Number(root.dataset.doublePrice || 0),
+          surchargeVariantId: root.dataset.surchargeVariantId || ''
         }
       }, '*');
     }
