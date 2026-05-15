@@ -13,7 +13,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   ]);
 
   if (!config) {
-    return json({ error: "Not found" }, { status: 404 });
+    // Even without product-specific config, return global surcharge so Cart Transform works
+    return json({
+      settings: { surchargeVariantId: globalSettings.surchargeVariantId || "" },
+    });
   }
 
   const storefrontSettings = toStorefrontSettings(config.settings);
