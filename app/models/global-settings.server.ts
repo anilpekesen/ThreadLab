@@ -1,4 +1,12 @@
-import { query } from "~/lib/db.server";
+import { query, runMigrations } from "~/lib/db.server";
+
+let migrationsRan = false;
+async function ensureMigrations() {
+  if (!migrationsRan) {
+    await runMigrations();
+    migrationsRan = true;
+  }
+}
 
 export interface GlobalSettings {
   photoroomApiKey: string;
@@ -11,6 +19,7 @@ const DEFAULTS: GlobalSettings = {
 };
 
 export async function getGlobalSettings(): Promise<GlobalSettings> {
+  await ensureMigrations();
   const result = await query<{ config: GlobalSettings }>(
     "SELECT config FROM global_settings WHERE id = 1",
   );
