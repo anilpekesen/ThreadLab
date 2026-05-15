@@ -1,19 +1,25 @@
-// Public JS file injected via ScriptTag into Shopify's order status page.
-// Reads Shopify.checkout global (available on order confirmation page) and
-// posts design order data to our API — no protected customer data approval needed.
+// Injected via ScriptTag into Shopify's order status (thank-you) page.
+// Shopify.checkout.attributes is a plain object {key: value}, NOT an array.
 export const loader = async () => {
   const script = `
 (function() {
   try {
     var c = window.Shopify && window.Shopify.checkout;
     if (!c) return;
-    var attrs = {};
-    (c.attributes || []).forEach(function(a) { attrs[a.key] = a.value; });
-    var token = attrs['design_token'];
+
+    // attributes is a plain object: { design_token: "d_...", _front_preview_url: "..." }
+    var attrs = c.attributes || {};
+    var token = attrs['design_token'] || attrs['_design_token'];
     if (!token) return;
-    var tshirt = (c.line_items || []).find(function(li) {
-      return li.requires_shipping !== false;
-    });
+
+    // Avoid double-firing on page refresh
+    var storageKey = 'dk_order_sent_' + (c.order_id || '');
+    if (window.sessionStorage && sessionStorage.getItem(storageKey)) return;
+    if (window.sessionStorage) sessionStorage.setItem(storageKey, '1');
+
+    var lines = c.line_items || [];
+    var tshirt = lines.find(function(li) { return li.requires_shipping !== false; }) || lines[0] || {};
+
     fetch('https://threadlab-production.up.railway.app/api/pixel-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -23,7 +29,7 @@ export const loader = async () => {
         designToken: token,
         frontPreviewUrl: attrs['_front_preview_url'] || '',
         frontPrintUrl: attrs['_front_print_url'] || '',
-        productName: tshirt ? tshirt.title : ''
+        productName: tshirt.title || ''
       })
     }).catch(function(){});
   } catch(e) {}
@@ -33,7 +39,7 @@ export const loader = async () => {
   return new Response(script, {
     headers: {
       "Content-Type": "application/javascript",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "public, max-age=300",
     },
   });
 };

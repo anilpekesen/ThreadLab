@@ -80,7 +80,6 @@ export async function syncOrdersFromAdmin(
     id: string;
     name: string;
     createdAt: string;
-    customer?: { firstName: string; lastName: string; email: string };
     customAttributes: Attr[];
     lineItems: { nodes: LineItem[] };
   };
@@ -90,7 +89,6 @@ export async function syncOrdersFromAdmin(
       orders(first: 100, sortKey: CREATED_AT, reverse: true) {
         nodes {
           id name createdAt
-          customer { firstName lastName email }
           customAttributes { key value }
           lineItems(first: 20) {
             nodes {
@@ -141,8 +139,8 @@ export async function syncOrdersFromAdmin(
         id: `order_${randomBytes(8).toString("hex")}`,
         shopifyOrderId,
         orderNumber: so.name,
-        customerName: `${so.customer?.firstName ?? ""} ${so.customer?.lastName ?? ""}`.trim() || "Müşteri",
-        customerEmail: so.customer?.email ?? "",
+        customerName: "Müşteri",
+        customerEmail: "",
         productId: item.product?.id.split("/").pop() ?? "",
         productName: item.name ?? "",
         variantId: item.variant?.id.split("/").pop() ?? "",
