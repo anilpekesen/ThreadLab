@@ -280,6 +280,7 @@ function normalizePrintArea(side: Side, area: Partial<PrintAreaConfig> | null | 
     mockupY: Number(area?.mockupY ?? fallback.mockupY),
     mockupWidth: Number(area?.mockupWidth ?? fallback.mockupWidth),
     mockupHeight: Number(area?.mockupHeight ?? fallback.mockupHeight),
+    mockupImageUrl: area?.mockupImageUrl || undefined,
     x: Number(area?.x ?? fallback.x),
     y: Number(area?.y ?? fallback.y),
     width: Number(area?.width ?? fallback.width),
@@ -589,6 +590,20 @@ export default function App() {
       cancelled = true;
     };
   }, [config?.productHandle, config?.productId]);
+
+  // Admin'de seçilen mockup görsellerini frontImage/backImage olarak uygula
+  useEffect(() => {
+    const frontUrl = personalization.printAreas.front.mockupImageUrl;
+    const backUrl = personalization.printAreas.back.mockupImageUrl;
+    if (!frontUrl && !backUrl) return;
+    if (!config) return;
+    setConfig({
+      ...config,
+      frontImage: frontUrl || config.frontImage,
+      backImage: backUrl || config.backImage,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalization.printAreas.front.mockupImageUrl, personalization.printAreas.back.mockupImageUrl]);
 
   useEffect(() => {
     if (personalization.surfaceMode === 'front_only' && activeSide !== 'front') {
@@ -1143,6 +1158,11 @@ export default function App() {
     if (!selectedColor) return;
     const cfg = configRef.current;
     if (!cfg?.variants?.length) return;
+
+    // Admin'de mockup görselleri atandıysa variant'tan otomatik algılama yapma
+    const adminFront = personalization.printAreas.front.mockupImageUrl;
+    const adminBack = personalization.printAreas.back.mockupImageUrl;
+    if (adminFront || adminBack) return;
 
     let newFront = '';
     let newBack = '';

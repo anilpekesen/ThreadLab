@@ -46,6 +46,7 @@ export interface PrintAreaConfig {
   mockupY: number;
   mockupWidth: number;
   mockupHeight: number;
+  mockupImageUrl?: string;
   x: number;
   y: number;
   width: number;
