@@ -120,6 +120,7 @@ export default function Orders() {
         key={o.id}
         selected={selectedResources.includes(o.id)}
         position={index}
+        onClick={() => navigate(`/app/orders/${o.id}`)}
       >
         {/* Önizleme */}
         <IndexTable.Cell>

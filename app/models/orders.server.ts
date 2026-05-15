@@ -53,6 +53,11 @@ export async function getDashboardStats() {
   };
 }
 
+export async function getOrder(id: string): Promise<Order | null> {
+  const orders = readJson<Order[]>("orders.json", []);
+  return orders.find((o) => o.id === id) ?? null;
+}
+
 export async function updateOrderStatus(id: string, status: string) {
   const orders = readJson<Order[]>("orders.json", []);
   const idx = orders.findIndex((o) => o.id === id);
