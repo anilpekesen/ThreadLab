@@ -8,10 +8,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H 144.91.77.39 >> ~/.ssh/known_hosts
+
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 144.91.77.39
-          username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: /var/www/printlabapp/shopify-app/deploy.sh
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@144.91.77.39 \
+            "bash /var/www/printlabapp/shopify-app/deploy.sh"
