@@ -25,6 +25,11 @@ export interface Order {
   missingSurcharge?: boolean;
   createdAt: string;
   updatedAt?: string;
+  // Joined from designs table
+  designFrontPreviewUrl?: string;
+  designBackPreviewUrl?: string;
+  designFrontPrintUrl?: string;
+  designBackPrintUrl?: string;
 }
 
 type DbRow = {
@@ -43,6 +48,10 @@ type DbRow = {
   missing_surcharge: boolean;
   created_at: Date;
   updated_at: Date | null;
+  design_front_preview_url?: string | null;
+  design_back_preview_url?: string | null;
+  design_front_print_url?: string | null;
+  design_back_print_url?: string | null;
 };
 
 function rowToOrder(row: DbRow): Order {
@@ -62,17 +71,33 @@ function rowToOrder(row: DbRow): Order {
     missingSurcharge: row.missing_surcharge,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at?.toISOString(),
+    designFrontPreviewUrl: row.design_front_preview_url || undefined,
+    designBackPreviewUrl: row.design_back_preview_url || undefined,
+    designFrontPrintUrl: row.design_front_print_url || undefined,
+    designBackPrintUrl: row.design_back_print_url || undefined,
   };
 }
+
+const ORDER_SELECT = `
+  SELECT o.id, o.shopify_order_id, o.order_number, o.customer_name, o.customer_email,
+    o.product_id, o.product_name, o.variant_id, o.design_token, o.preview_url,
+    o.production_file_url, o.production_status, o.missing_surcharge, o.created_at, o.updated_at,
+    d.front_preview_url AS design_front_preview_url,
+    d.back_preview_url  AS design_back_preview_url,
+    d.front_print_url   AS design_front_print_url,
+    d.back_print_url    AS design_back_print_url
+  FROM orders o
+  LEFT JOIN designs d ON o.design_token = d.token
+`;
 
 export async function getOrders(status?: string): Promise<Order[]> {
   await ensureMigrations();
   const result = status
     ? await query<DbRow>(
-        "SELECT * FROM orders WHERE design_token != '' AND production_status = $1 ORDER BY created_at DESC",
+        `${ORDER_SELECT} WHERE o.design_token != '' AND o.production_status = $1 ORDER BY o.created_at DESC`,
         [status],
       )
-    : await query<DbRow>("SELECT * FROM orders WHERE design_token != '' ORDER BY created_at DESC");
+    : await query<DbRow>(`${ORDER_SELECT} WHERE o.design_token != '' ORDER BY o.created_at DESC`);
   return result.rows.map(rowToOrder);
 }
 

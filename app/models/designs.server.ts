@@ -30,6 +30,16 @@ export interface DesignObject {
   scaleX?: number;
   scaleY?: number;
   angle?: number;
+  // Text properties
+  fontFamily?: string;
+  fontSize?: number;
+  fill?: string;
+  fontWeight?: string | number;
+  fontStyle?: string;
+  underline?: boolean;
+  textAlign?: string;
+  charSpacing?: number;
+  lineHeight?: number;
 }
 
 type DbRow = {
@@ -93,11 +103,34 @@ export async function saveDesign(record: Omit<DesignRecord, "createdAt">): Promi
 export function extractObjects(designJson: unknown, side: "front" | "back"): DesignObject[] {
   try {
     const json = designJson as Record<string, unknown>;
-    let canvas = json[side] as { objects?: DesignObject[] } | string | undefined;
+    let canvas = json[side] as { objects?: Record<string, unknown>[] } | string | undefined;
     if (typeof canvas === "string") {
-      canvas = JSON.parse(canvas) as { objects?: DesignObject[] };
+      canvas = JSON.parse(canvas) as { objects?: Record<string, unknown>[] };
     }
-    return (canvas as { objects?: DesignObject[] })?.objects?.filter((o) => o.type !== "rect") ?? [];
+    const raw = (canvas as { objects?: Record<string, unknown>[] })?.objects ?? [];
+    return raw
+      .filter((o) => o.type !== "rect")
+      .map((o) => ({
+        type: o.type as string,
+        src: o.src as string | undefined,
+        text: o.text as string | undefined,
+        left: o.left as number | undefined,
+        top: o.top as number | undefined,
+        width: o.width as number | undefined,
+        height: o.height as number | undefined,
+        scaleX: o.scaleX as number | undefined,
+        scaleY: o.scaleY as number | undefined,
+        angle: o.angle as number | undefined,
+        fontFamily: o.fontFamily as string | undefined,
+        fontSize: o.fontSize as number | undefined,
+        fill: o.fill as string | undefined,
+        fontWeight: o.fontWeight as string | number | undefined,
+        fontStyle: o.fontStyle as string | undefined,
+        underline: o.underline as boolean | undefined,
+        textAlign: o.textAlign as string | undefined,
+        charSpacing: o.charSpacing as number | undefined,
+        lineHeight: o.lineHeight as number | undefined,
+      }));
   } catch {
     return [];
   }

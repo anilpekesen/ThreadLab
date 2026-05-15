@@ -7,7 +7,93 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import { getOrder, updateOrderStatus } from "~/models/orders.server";
-import { getDesignByToken, extractObjects } from "~/models/designs.server";
+import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
+
+function DesignObjectCard({ obj }: { obj: DesignObject }) {
+  const isText = obj.type === "i-text" || obj.type === "textbox";
+  const isImage = obj.type === "image";
+
+  return (
+    <div style={{
+      border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 14px",
+      background: "#fafafa", display: "flex", gap: 12, alignItems: "flex-start",
+    }}>
+      {isImage && obj.src && (
+        <div style={{ flexShrink: 0 }}>
+          <Thumbnail source={obj.src} alt="Eklenen görsel" size="medium" />
+        </div>
+      )}
+      {isText && (
+        <div style={{
+          flexShrink: 0, width: 48, height: 48, borderRadius: 6,
+          background: obj.fill ?? "#000", border: "1px solid #e5e7eb",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <span style={{ color: isDark(obj.fill) ? "#fff" : "#000", fontWeight: 700, fontSize: 18, fontFamily: obj.fontFamily ?? "sans-serif" }}>A</span>
+        </div>
+      )}
+      <BlockStack gap="100">
+        <Text as="span" variant="bodySm" fontWeight="semibold">
+          {isImage ? "Görsel" : isText ? "Metin" : obj.type}
+        </Text>
+        {isText && obj.text && (
+          <Text as="p" variant="bodySm">&quot;{obj.text}&quot;</Text>
+        )}
+        {isText && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+            {obj.fontFamily && <MetaChip label="Font" value={obj.fontFamily} />}
+            {obj.fontSize && <MetaChip label="Boyut" value={`${obj.fontSize}px`} />}
+            {obj.fill && (
+              <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#6b7280" }}>
+                <span>Renk</span>
+                <span style={{ display: "inline-block", width: 14, height: 14, borderRadius: 3, background: obj.fill, border: "1px solid #d1d5db", verticalAlign: "middle" }} />
+                <span style={{ fontFamily: "monospace" }}>{obj.fill}</span>
+              </span>
+            )}
+            {obj.fontWeight && String(obj.fontWeight) !== "normal" && <MetaChip label="Kalınlık" value={String(obj.fontWeight)} />}
+            {obj.fontStyle === "italic" && <MetaChip label="Stil" value="italic" />}
+            {obj.underline && <MetaChip label="Alt çizgi" value="var" />}
+            {obj.textAlign && obj.textAlign !== "left" && <MetaChip label="Hizalama" value={obj.textAlign} />}
+          </div>
+        )}
+        {isImage && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+            {obj.width && obj.scaleX && <MetaChip label="Genişlik" value={`${Math.round(obj.width * obj.scaleX)}px`} />}
+            {obj.height && obj.scaleY && <MetaChip label="Yükseklik" value={`${Math.round(obj.height * obj.scaleY)}px`} />}
+            {obj.angle ? <MetaChip label="Açı" value={`${Math.round(obj.angle)}°`} /> : null}
+          </div>
+        )}
+        <Text as="span" variant="bodySm" tone="subdued">
+          Konum: {Math.round(obj.left ?? 0)}, {Math.round(obj.top ?? 0)}
+        </Text>
+        {isImage && obj.src && (
+          <a href={obj.src} target="_blank" rel="noreferrer" download style={{ fontSize: 12, color: "#2c6ecb" }}>
+            Görseli İndir
+          </a>
+        )}
+      </BlockStack>
+    </div>
+  );
+}
+
+function MetaChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span style={{ fontSize: 12, color: "#6b7280" }}>
+      <span style={{ color: "#9ca3af" }}>{label}:</span>{" "}
+      <span style={{ color: "#374151", fontWeight: 500 }}>{value}</span>
+    </span>
+  );
+}
+
+function isDark(color?: string): boolean {
+  if (!color) return true;
+  const hex = color.replace("#", "");
+  if (hex.length < 6) return true;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+}
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Bekliyor",
@@ -59,6 +145,9 @@ export default function OrderDetail() {
 
   const next = NEXT_STATUS[order.productionStatus];
   const shopDomain = "whanotify-dev"; // fallback
+  const customerDesignUrl = order.designToken
+    ? `https://${shopDomain}.myshopify.com/apps/tshirt-designer/my-order?token=${encodeURIComponent(order.designToken)}`
+    : null;
 
   return (
     <Page
@@ -106,24 +195,10 @@ export default function OrderDetail() {
                     </a>
                   )}
                   {frontObjects.length > 0 && (
-                    <BlockStack gap="200">
+                    <BlockStack gap="300">
                       <Text as="p" variant="bodySm" tone="subdued">Ön yüz öğeleri ({frontObjects.length})</Text>
                       {frontObjects.map((obj, i) => (
-                        <InlineStack key={i} gap="200" blockAlign="center">
-                          {obj.src && (
-                            <Thumbnail source={obj.src} alt="Tasarım görseli" size="small" />
-                          )}
-                          <BlockStack gap="050">
-                            <Text as="span" variant="bodySm" fontWeight="semibold">
-                              {obj.type === "image" ? "Görsel" : obj.type === "i-text" || obj.type === "textbox" ? "Metin" : obj.type}
-                            </Text>
-                            {obj.text && <Text as="span" variant="bodySm" tone="subdued">&quot;{obj.text}&quot;</Text>}
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              Konum: {Math.round(obj.left ?? 0)}, {Math.round(obj.top ?? 0)}
-                              {obj.angle ? ` · ${Math.round(obj.angle)}°` : ""}
-                            </Text>
-                          </BlockStack>
-                        </InlineStack>
+                        <DesignObjectCard key={i} obj={obj} />
                       ))}
                     </BlockStack>
                   )}
@@ -156,24 +231,10 @@ export default function OrderDetail() {
                     </a>
                   )}
                   {backObjects.length > 0 && (
-                    <BlockStack gap="200">
+                    <BlockStack gap="300">
                       <Text as="p" variant="bodySm" tone="subdued">Arka yüz öğeleri ({backObjects.length})</Text>
                       {backObjects.map((obj, i) => (
-                        <InlineStack key={i} gap="200" blockAlign="center">
-                          {obj.src && (
-                            <Thumbnail source={obj.src} alt="Tasarım görseli" size="small" />
-                          )}
-                          <BlockStack gap="050">
-                            <Text as="span" variant="bodySm" fontWeight="semibold">
-                              {obj.type === "image" ? "Görsel" : obj.type === "i-text" || obj.type === "textbox" ? "Metin" : obj.type}
-                            </Text>
-                            {obj.text && <Text as="span" variant="bodySm" tone="subdued">&quot;{obj.text}&quot;</Text>}
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              Konum: {Math.round(obj.left ?? 0)}, {Math.round(obj.top ?? 0)}
-                              {obj.angle ? ` · ${Math.round(obj.angle)}°` : ""}
-                            </Text>
-                          </BlockStack>
-                        </InlineStack>
+                        <DesignObjectCard key={i} obj={obj} />
                       ))}
                     </BlockStack>
                   )}
@@ -227,6 +288,34 @@ export default function OrderDetail() {
             </BlockStack>
           </Box>
         </Card>
+
+        {/* Müşteri Linki */}
+        {customerDesignUrl && (
+          <Card>
+            <Box padding="400">
+              <BlockStack gap="300">
+                <Text as="h2" variant="headingMd">Müşteri Tasarım Linki</Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Bu linki müşteriye gönderin — kendi tasarımını görebilir ve indirebilir.
+                </Text>
+                <div style={{ background: "#f9fafb", borderRadius: 8, padding: "10px 14px", wordBreak: "break-all", fontFamily: "monospace", fontSize: 13, color: "#374151" }}>
+                  {customerDesignUrl}
+                </div>
+                <InlineStack gap="300">
+                  <Button
+                    variant="secondary"
+                    onClick={() => navigator.clipboard.writeText(customerDesignUrl)}
+                  >
+                    Linki Kopyala
+                  </Button>
+                  <a href={customerDesignUrl} target="_blank" rel="noreferrer">
+                    <Button variant="plain">Önizle →</Button>
+                  </a>
+                </InlineStack>
+              </BlockStack>
+            </Box>
+          </Card>
+        )}
 
       </BlockStack>
     </Page>

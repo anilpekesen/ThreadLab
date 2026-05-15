@@ -124,8 +124,17 @@ export default function Orders() {
       >
         {/* Önizleme */}
         <IndexTable.Cell>
-          {o.previewUrl ? (
-            <Thumbnail source={o.previewUrl} alt="Tasarım önizlemesi" size="small" />
+          {(o.designFrontPreviewUrl || o.previewUrl) ? (
+            <div style={{ display: "flex", gap: 4 }}>
+              <Thumbnail
+                source={o.designFrontPreviewUrl || o.previewUrl}
+                alt="Ön tasarım"
+                size="small"
+              />
+              {o.designBackPreviewUrl && (
+                <Thumbnail source={o.designBackPreviewUrl} alt="Arka tasarım" size="small" />
+              )}
+            </div>
           ) : (
             <div style={{
               width: 40, height: 40, borderRadius: 6,
@@ -185,10 +194,15 @@ export default function Orders() {
 
         {/* İşlemler */}
         <IndexTable.Cell>
-          <InlineStack gap="200" blockAlign="center">
-            {designUrl && (
-              <a href={designUrl} target="_blank" rel="noreferrer">
-                <Button size="slim" variant="plain">Tasarımı Gör</Button>
+          <InlineStack gap="200" blockAlign="center" wrap>
+            {o.designFrontPrintUrl && (
+              <a href={o.designFrontPrintUrl} target="_blank" rel="noreferrer" download>
+                <Button size="slim" variant="plain">⬇ Ön</Button>
+              </a>
+            )}
+            {o.designBackPrintUrl && (
+              <a href={o.designBackPrintUrl} target="_blank" rel="noreferrer" download>
+                <Button size="slim" variant="plain">⬇ Arka</Button>
               </a>
             )}
             {next ? (
