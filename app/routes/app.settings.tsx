@@ -25,8 +25,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const saved = url.searchParams.get("saved") === "1";
   const created = url.searchParams.get("created") === "1";
-  const ctOk = url.searchParams.get("ct_ok");
-  const ctError = url.searchParams.get("ct_error");
 
   // Auto-register order tracking ScriptTag on order status page
   try {
@@ -91,7 +89,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // silent — registration will be retried on next page load
   }
 
-  return json({ settings, saved, created, ctOk, ctError });
+  return json({ settings, saved, created });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -266,7 +264,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created, ctOk, ctError } = useLoaderData<typeof loader>();
+  const { settings, saved, created } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const fetcher = useFetcher<{ error?: string; success?: string }>();
   const isSaving = navigation.state === "submitting";
@@ -283,76 +281,71 @@ export default function SettingsRoute() {
         {created && <Banner tone="success" title="Baskı Ücreti ürünü oluşturuldu ve kaydedildi." />}
         {fetcher.data?.error && <Banner tone="critical" title={`Hata: ${fetcher.data.error}`} />}
         {fetcher.data?.success && <Banner tone="success" title={fetcher.data.success} />}
-        {ctOk === "yeni" && <Banner tone="success" title="Cart Transform başarıyla kaydedildi! Şimdi checkout'u test edin." />}
-        {ctOk === "zaten" && <Banner tone="info" title="Cart Transform zaten kayıtlıydı. Sorun başka bir yerde — checkout'u test edin." />}
-        {ctError && <Banner tone="critical" title={`Cart Transform hatası: ${ctError}`} />}
+
+        {/* Baskı Ek Ücreti — fetcher forms are standalone, NOT inside the outer Form */}
+        <Card>
+          <Box padding="400">
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">Baskı Ek Ücreti</Text>
+              <Text as="p" tone="subdued">
+                Shopify, sepet fiyatlarını yalnızca gerçek ürün variant'larıyla kabul eder.
+                Baskı boyutuna göre ek ücret eklemek için ₺1 fiyatlı bir "Baskı Ücreti" ürünü gerekir.
+                Tasarımın tutarı kadar adet eklenerek ücret yansıtılır (₺40 baskı = 40 adet × ₺1).
+              </Text>
+
+              {settings.surchargeVariantId ? (
+                <InlineStack gap="200" blockAlign="center">
+                  <Badge tone="success">Aktif</Badge>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Variant ID: {settings.surchargeVariantId}
+                  </Text>
+                </InlineStack>
+              ) : (
+                <Banner tone="warning" title="Ek ücret variant'ı ayarlanmamış">
+                  <p>Sepete eklenen tasarım baskı ücretleri Shopify&apos;a yansıtılamıyor.
+                     Aşağıdaki butona tıklayarak otomatik oluşturun ya da aşağıya variant ID&apos;nizi girin.</p>
+                </Banner>
+              )}
+
+              <InlineStack gap="200" wrap>
+                <fetcher.Form method="post">
+                  <input type="hidden" name="intent" value="createSurchargeProduct" />
+                  <Button
+                    variant={settings.surchargeVariantId ? "plain" : "primary"}
+                    submit
+                    loading={isCreating}
+                  >
+                    {settings.surchargeVariantId ? "Yeniden oluştur" : "Otomatik oluştur"}
+                  </Button>
+                </fetcher.Form>
+                {settings.surchargeVariantId && (
+                  <fetcher.Form method="post">
+                    <input type="hidden" name="intent" value="fixSurchargeVariant" />
+                    <Button variant="secondary" submit loading={isCreating}>
+                      Stok sınırını kaldır (satışa devam et)
+                    </Button>
+                  </fetcher.Form>
+                )}
+              </InlineStack>
+            </BlockStack>
+          </Box>
+        </Card>
+
+        {/* Outer Form — only text inputs + save button, no nested fetcher forms */}
         <Form method="post">
           <BlockStack gap="400">
 
-            {/* Surcharge / Ek ücret */}
             <Card>
               <Box padding="400">
-                <BlockStack gap="400">
-                  <Text as="h2" variant="headingMd">Baskı Ek Ücreti</Text>
-                  <Text as="p" tone="subdued">
-                    Shopify, sepet fiyatlarını yalnızca gerçek ürün variant'larıyla kabul eder.
-                    Baskı boyutuna göre ek ücret eklemek için ₺1 fiyatlı bir "Baskı Ücreti" ürünü gerekir.
-                    Tasarımın tutarı kadar adet eklenerek ücret yansıtılır (₺40 baskı = 40 adet × ₺1).
-                  </Text>
-
-                  {settings.surchargeVariantId ? (
-                    <InlineStack gap="200" blockAlign="center">
-                      <Badge tone="success">Aktif</Badge>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Variant ID: {settings.surchargeVariantId}
-                      </Text>
-                    </InlineStack>
-                  ) : (
-                    <Banner tone="warning" title="Ek ücret variant'ı ayarlanmamış">
-                      <p>Sepete eklenen tasarım baskı ücretleri Shopify'a yansıtılamıyor.
-                         Aşağıdaki butona tıklayarak otomatik oluşturun ya da mevcut variant ID'nizi girin.</p>
-                    </Banner>
-                  )}
-
-                  <InlineStack gap="200" wrap>
-                    <fetcher.Form method="post">
-                      <input type="hidden" name="intent" value="createSurchargeProduct" />
-                      <Button
-                        variant={settings.surchargeVariantId ? "plain" : "primary"}
-                        submit
-                        loading={isCreating}
-                      >
-                        {settings.surchargeVariantId ? "Yeniden oluştur" : "Otomatik oluştur"}
-                      </Button>
-                    </fetcher.Form>
-                    {settings.surchargeVariantId && (
-                      <fetcher.Form method="post">
-                        <input type="hidden" name="intent" value="fixSurchargeVariant" />
-                        <Button variant="secondary" submit loading={isCreating}>
-                          Stok sınırını kaldır (satışa devam et)
-                        </Button>
-                      </fetcher.Form>
-                    )}
-                    <fetcher.Form method="post">
-                      <input type="hidden" name="intent" value="registerCartTransform" />
-                      <Button variant="secondary" submit loading={isCreating}>
-                        Cart Transform'u kaydet
-                      </Button>
-                    </fetcher.Form>
-                  </InlineStack>
-
-                  <Divider />
-
-                  <TextField
-                    label="Variant ID (manuel giriş)"
-                    name="surchargeVariantId"
-                    value={surchargeVariantId}
-                    onChange={setSurchargeVariantId}
-                    autoComplete="off"
-                    helpText="Shopify'da mevcut ₺1 fiyatlı bir variant varsa buraya ID'sini girebilirsiniz."
-                    placeholder="12345678901234"
-                  />
-                </BlockStack>
+                <TextField
+                  label="Variant ID (manuel giriş)"
+                  name="surchargeVariantId"
+                  value={surchargeVariantId}
+                  onChange={setSurchargeVariantId}
+                  autoComplete="off"
+                  helpText="Shopify'da mevcut ₺1 fiyatlı bir variant varsa buraya ID'sini girebilirsiniz."
+                  placeholder="12345678901234"
+                />
               </Box>
             </Card>
 
@@ -399,7 +392,7 @@ export default function SettingsRoute() {
                   </Collapsible>
 
                   <Text as="p" tone="subdued">
-                    Müşteri görsel yükleyince "Arka planı temizleyelim mi?" sorusu çıkar.
+                    Müşteri görsel yükleyince &quot;Arka planı temizleyelim mi?&quot; sorusu çıkar.
                     API key yalnızca sunucu tarafında kullanılır.
                   </Text>
 
