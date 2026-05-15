@@ -8,7 +8,7 @@ type = "web_pixel"
 runtime_context = "strict"
 
 [extensions.customer_privacy]
-analytics = "enabled"
-preferences = "disabled"
-marketing = "disabled"
+analytics = true
+preferences = false
+marketing = false
 sale_of_data = "disabled"
