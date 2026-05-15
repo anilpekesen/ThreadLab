@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import {
   Page, Card, Badge, Button, InlineStack, Box, Text, BlockStack,
   Thumbnail, IndexTable, useIndexResourceState, Banner,
@@ -17,6 +17,10 @@ const STATUSES = [
   { label: "Hazır", value: "ready" },
   { label: "Gönderildi", value: "shipped" },
 ];
+
+// Orders page only shows design orders (those with a print surcharge).
+// All records here were created because they had a design_token or a non-shipping
+// surcharge line item — so the list is already filtered to "baskı içeren siparişler".
 
 const NEXT_STATUS: Record<string, string> = {
   pending: "preparing",
@@ -46,13 +50,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const status = url.searchParams.get("status") ?? "";
 
-  // Try Admin API sync — works if Protected Customer Data is approved
+  // Sync from Admin API only on explicit refresh (not on every status filter click)
+  const forceSync = url.searchParams.get("sync") === "1";
   let syncError: string | null = null;
   let syncCount = 0;
-  try {
-    syncCount = await syncOrdersFromAdmin(admin);
-  } catch (e) {
-    syncError = e instanceof Error ? e.message : String(e);
+  if (!status || forceSync) {
+    try {
+      syncCount = await syncOrdersFromAdmin(admin);
+    } catch (e) {
+      syncError = e instanceof Error ? e.message : String(e);
+    }
   }
 
   const [orders, stats] = await Promise.all([
@@ -89,7 +96,7 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
 
 export default function Orders() {
   const { orders, status, stats, shop, syncError, syncCount } = useLoaderData<typeof loader>();
-  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const fetcher = useFetcher();
 
   const resourceName = { singular: "sipariş", plural: "sipariş" };
@@ -201,7 +208,13 @@ export default function Orders() {
   });
 
   return (
-    <Page title="Siparişler">
+    <Page
+      title="Baskılı Siparişler"
+      primaryAction={{
+        content: "Yenile",
+        onAction: () => navigate("/app/orders?sync=1"),
+      }}
+    >
       <BlockStack gap="400">
         {syncError && (
           <Banner tone={syncError.includes("protected") || syncError.includes("approved") ? "warning" : "critical"}
@@ -249,18 +262,14 @@ export default function Orders() {
           <Box padding="400" borderBlockEndWidth="025" borderColor="border">
             <InlineStack gap="200" wrap>
               {STATUSES.map((s) => (
-                <a
+                <Button
                   key={s.value}
-                  href={`/app/orders${s.value ? `?status=${s.value}` : ""}`}
-                  style={{ textDecoration: "none" }}
+                  pressed={status === s.value || (!status && s.value === "")}
+                  size="slim"
+                  onClick={() => navigate(`/app/orders${s.value ? `?status=${s.value}` : ""}`)}
                 >
-                  <Button
-                    pressed={status === s.value || (!status && s.value === "")}
-                    size="slim"
-                  >
-                    {s.label}
-                  </Button>
-                </a>
+                  {s.label}
+                </Button>
               ))}
             </InlineStack>
           </Box>

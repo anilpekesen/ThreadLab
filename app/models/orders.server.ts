@@ -121,17 +121,22 @@ export async function syncOrdersFromAdmin(
     const shopifyOrderId = so.id.split("/").pop() ?? so.id;
     if (orders.some((o) => o.shopifyOrderId === shopifyOrderId)) continue;
 
+    const orderToken = getAttr(so.customAttributes, "design_token");
+    const tshirtItem = so.lineItems.nodes.find((li) => li.requiresShipping);
+    const hasSurcharge = so.lineItems.nodes.some((li) => !li.requiresShipping);
+
+    // Only process orders that have a print surcharge (non-shipping line item)
+    // OR have a design_token in cart attributes — these are the custom design orders.
+    if (!hasSurcharge && !orderToken) continue;
+
     const designItems = so.lineItems.nodes.filter((li) =>
       getAttr(li.customAttributes, "design_token") !== undefined
     );
-    const orderToken = getAttr(so.customAttributes, "design_token");
-    const tshirtItem = so.lineItems.nodes.find((li) => li.requiresShipping);
 
     const itemsToProcess: LineItem[] =
       designItems.length > 0 ? designItems
-      : orderToken ? (tshirtItem ? [tshirtItem] : [so.lineItems.nodes[0]].filter(Boolean))
       : tshirtItem ? [tshirtItem]
-      : [];
+      : [so.lineItems.nodes[0]].filter(Boolean);
 
     for (const item of itemsToProcess) {
       const token = getAttr(item.customAttributes, "design_token") ?? orderToken ?? "";
