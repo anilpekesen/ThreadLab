@@ -179,13 +179,11 @@ export async function syncOrdersFromAdmin(
     ]);
     if (existing.rows.length > 0) continue;
 
-    // design_token can be at order level (cart attribute) or line item level
+    // Import all orders; prefer ones with design_token but include others too
     const orderToken = getAttr(so.customAttributes, "design_token");
     const designItems = so.lineItems.nodes.filter(
       (li) => getAttr(li.customAttributes, "design_token") !== undefined,
     );
-    const hasDesignToken = Boolean(orderToken) || designItems.length > 0;
-    if (!hasDesignToken) continue;
 
     const tshirtItem = so.lineItems.nodes.find((li) => li.requiresShipping);
     const itemsToProcess: LineItem[] =
