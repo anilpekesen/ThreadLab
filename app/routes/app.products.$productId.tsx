@@ -55,6 +55,7 @@ type AreaState = {
   mockupY: string;
   mockupWidth: string;
   mockupHeight: string;
+  mockupImageUrl: string;
   x: string;
   y: string;
   width: string;
@@ -122,6 +123,7 @@ function parseAreaRows(form: FormData, surfaceMode: ProductConfig["surfaceMode"]
       mockupY: normalized.mockupY,
       mockupWidth: normalized.mockupWidth,
       mockupHeight: normalized.mockupHeight,
+      mockupImageUrl: String(form.get(`${side}AreaMockupImageUrl`) || ""),
       x: normalized.x,
       y: normalized.y,
       width: normalized.width,
@@ -155,6 +157,7 @@ function toAreaState(areas: PrintAreaRecord[], side: "front" | "back"): AreaStat
     mockupY: String(area?.mockupY ?? 0),
     mockupWidth: String(area?.mockupWidth ?? PREVIEW_WIDTH),
     mockupHeight: String(area?.mockupHeight ?? PREVIEW_HEIGHT),
+    mockupImageUrl: area?.mockupImageUrl ?? "",
     x: String(area?.x ?? 0),
     y: String(area?.y ?? 0),
     width: String(area?.width ?? 0),
@@ -227,6 +230,7 @@ function normalizeAreaState(area: AreaState): AreaState {
     mockupY: String(normalized.mockupY),
     mockupWidth: String(normalized.mockupWidth),
     mockupHeight: String(normalized.mockupHeight),
+    mockupImageUrl: area.mockupImageUrl ?? "",
     x: String(normalized.x),
     y: String(normalized.y),
     width: String(normalized.width),
@@ -384,7 +388,21 @@ function PrintAreaEditor({
   imageUrl?: string | null;
   imageOptions?: string[];
 }) {
-  const [activeImage, setActiveImage] = useState<string | null | undefined>(imageUrl);
+  // Kayıtlı mockupImageUrl varsa onu kullan, yoksa prop'tan gelen default'u kullan
+  const savedImage = area.mockupImageUrl || null;
+  const [activeImage, setActiveImage] = useState<string | null>(savedImage || imageUrl || null);
+
+  // area.mockupImageUrl dışarıdan değişirse senkronize et
+  const prevSaved = useRef(savedImage);
+  if (savedImage !== prevSaved.current) {
+    prevSaved.current = savedImage;
+    if (savedImage) setActiveImage(savedImage);
+  }
+
+  function selectImage(url: string) {
+    setActiveImage(url);
+    onChange({ ...area, mockupImageUrl: url });
+  }
   const [activeTarget, setActiveTarget] = useState<"mockup" | "print">("print");
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<
@@ -535,13 +553,13 @@ function PrintAreaEditor({
             </Button>
           </InlineStack>
 
-          {imageOptions.length > 1 && (
+          {imageOptions.length > 0 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
               {imageOptions.map((url, i) => (
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setActiveImage(url)}
+                  onClick={() => selectImage(url)}
                   style={{
                     width: 48,
                     height: 48,
@@ -1070,6 +1088,7 @@ export default function ProductSettingsRoute() {
                   <input type="hidden" name="frontAreaMockupY" value={frontArea.mockupY} />
                   <input type="hidden" name="frontAreaMockupWidth" value={frontArea.mockupWidth} />
                   <input type="hidden" name="frontAreaMockupHeight" value={frontArea.mockupHeight} />
+                  <input type="hidden" name="frontAreaMockupImageUrl" value={frontArea.mockupImageUrl} />
                   <input type="hidden" name="frontAreaX" value={frontArea.x} />
                   <input type="hidden" name="frontAreaY" value={frontArea.y} />
                   <input type="hidden" name="frontAreaWidth" value={frontArea.width} />
@@ -1084,7 +1103,7 @@ export default function ProductSettingsRoute() {
                     title="On yuz"
                     area={frontArea}
                     onChange={(nextArea) => setFrontArea(nextArea)}
-                    imageUrl={designerFrontImage}
+                    imageUrl={frontArea.mockupImageUrl || designerFrontImage}
                     imageOptions={product.images}
                   />
 
@@ -1096,6 +1115,7 @@ export default function ProductSettingsRoute() {
                       <input type="hidden" name="backAreaMockupY" value={backArea.mockupY} />
                       <input type="hidden" name="backAreaMockupWidth" value={backArea.mockupWidth} />
                       <input type="hidden" name="backAreaMockupHeight" value={backArea.mockupHeight} />
+                      <input type="hidden" name="backAreaMockupImageUrl" value={backArea.mockupImageUrl} />
                       <input type="hidden" name="backAreaX" value={backArea.x} />
                       <input type="hidden" name="backAreaY" value={backArea.y} />
                       <input type="hidden" name="backAreaWidth" value={backArea.width} />
@@ -1110,7 +1130,7 @@ export default function ProductSettingsRoute() {
                         title="Arka yuz"
                         area={backArea}
                         onChange={(nextArea) => setBackArea(nextArea)}
-                        imageUrl={designerBackImage}
+                        imageUrl={backArea.mockupImageUrl || designerBackImage}
                         imageOptions={product.images}
                       />
                     </>

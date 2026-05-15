@@ -58,6 +58,7 @@ export interface PrintAreaRecord {
   mockupY: number;
   mockupWidth: number;
   mockupHeight: number;
+  mockupImageUrl?: string;
   x: number;
   y: number;
   width: number;
@@ -127,6 +128,7 @@ export async function readPrintAreas(): Promise<PrintAreaRecord[]> {
   const result = await query<{
     id: string; product_id: string; name: string; side: "front" | "back";
     mockup_x: string; mockup_y: string; mockup_width: string; mockup_height: string;
+    mockup_image_url: string;
     x: string; y: string; width: string; height: string;
     real_width_mm: number; real_height_mm: number;
     safe_margin: string; bleed_margin: string; dpi: number; updated_at: string;
@@ -140,6 +142,7 @@ export async function readPrintAreas(): Promise<PrintAreaRecord[]> {
     mockupY: Number(r.mockup_y ?? 0),
     mockupWidth: Number(r.mockup_width ?? 480),
     mockupHeight: Number(r.mockup_height ?? 580),
+    mockupImageUrl: r.mockup_image_url || undefined,
     x: Number(r.x),
     y: Number(r.y),
     width: Number(r.width),
@@ -627,10 +630,10 @@ export async function saveProductPrintAreas(productId: string, areas: PrintAreaR
   for (const a of areas) {
     await query(
       `INSERT INTO product_print_areas
-         (id, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())`,
-      [a.id, productId, a.side, a.name, a.mockupX, a.mockupY, a.mockupWidth, a.mockupHeight, a.x, a.y, a.width, a.height,
-       a.realWidthMm, a.realHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
+         (id, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, mockup_image_url, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now())`,
+      [a.id, productId, a.side, a.name, a.mockupX, a.mockupY, a.mockupWidth, a.mockupHeight, a.mockupImageUrl ?? "",
+       a.x, a.y, a.width, a.height, a.realWidthMm, a.realHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
     );
   }
 }

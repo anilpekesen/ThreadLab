@@ -66,6 +66,10 @@ export async function runMigrations() {
       ADD COLUMN IF NOT EXISTS mockup_height NUMERIC NOT NULL DEFAULT 580
   `);
   await query(`
+    ALTER TABLE product_print_areas
+      ADD COLUMN IF NOT EXISTS mockup_image_url TEXT NOT NULL DEFAULT ''
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS global_settings (
       id         INTEGER PRIMARY KEY DEFAULT 1,
       config     JSONB NOT NULL DEFAULT '{}',
