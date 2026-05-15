@@ -72,4 +72,35 @@ export async function runMigrations() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS designs (
+      token            TEXT PRIMARY KEY,
+      product_id       TEXT,
+      design_json      JSONB,
+      front_preview_url TEXT NOT NULL DEFAULT '',
+      back_preview_url  TEXT NOT NULL DEFAULT '',
+      front_print_url   TEXT NOT NULL DEFAULT '',
+      back_print_url    TEXT NOT NULL DEFAULT '',
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id                  TEXT PRIMARY KEY,
+      shopify_order_id    TEXT UNIQUE NOT NULL,
+      order_number        TEXT NOT NULL DEFAULT '',
+      customer_name       TEXT NOT NULL DEFAULT 'Müşteri',
+      customer_email      TEXT NOT NULL DEFAULT '',
+      product_id          TEXT NOT NULL DEFAULT '',
+      product_name        TEXT NOT NULL DEFAULT '',
+      variant_id          TEXT NOT NULL DEFAULT '',
+      design_token        TEXT NOT NULL DEFAULT '',
+      preview_url         TEXT NOT NULL DEFAULT '',
+      production_file_url TEXT NOT NULL DEFAULT '',
+      production_status   TEXT NOT NULL DEFAULT 'pending',
+      missing_surcharge   BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at          TIMESTAMPTZ
+    )
+  `);
 }

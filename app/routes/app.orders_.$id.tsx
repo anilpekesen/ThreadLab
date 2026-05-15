@@ -37,7 +37,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const order = await getOrder(params.id ?? "");
   if (!order) throw new Response("Sipariş bulunamadı", { status: 404 });
 
-  const design = order.designToken ? getDesignByToken(order.designToken) : null;
+  const design = order.designToken ? await getDesignByToken(order.designToken) : null;
   const frontObjects = design ? extractObjects(design.designJson, "front") : [];
   const backObjects = design ? extractObjects(design.designJson, "back") : [];
 

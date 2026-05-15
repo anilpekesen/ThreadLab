@@ -1,34 +1,6 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-run/node";
 import { randomBytes } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-
-type DesignRecord = {
-  token: string;
-  productId?: string;
-  designJson?: unknown;
-  frontPreviewUrl?: string;
-  backPreviewUrl?: string;
-  frontPrintUrl?: string;
-  backPrintUrl?: string;
-  createdAt: string;
-};
-
-const DATA_DIR = path.join(process.cwd(), "data");
-const DATA_FILE = path.join(DATA_DIR, "designs.json");
-
-async function readDesigns(): Promise<DesignRecord[]> {
-  try {
-    return JSON.parse(await readFile(DATA_FILE, "utf8")) as DesignRecord[];
-  } catch {
-    return [];
-  }
-}
-
-async function writeDesigns(records: DesignRecord[]) {
-  await mkdir(DATA_DIR, { recursive: true });
-  await writeFile(DATA_FILE, JSON.stringify(records, null, 2));
-}
+import { saveDesign } from "~/models/designs.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ ok: true, method: request.method });
@@ -46,7 +18,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const token = `d_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
   const b = body as Record<string, unknown>;
-  const record: DesignRecord = {
+
+  await saveDesign({
     token,
     productId: typeof b.productId === "string" ? b.productId : undefined,
     designJson: "designJson" in b ? b.designJson : undefined,
@@ -54,12 +27,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     backPreviewUrl: typeof b.backPreviewUrl === "string" ? b.backPreviewUrl : undefined,
     frontPrintUrl: typeof b.frontPrintUrl === "string" ? b.frontPrintUrl : undefined,
     backPrintUrl: typeof b.backPrintUrl === "string" ? b.backPrintUrl : undefined,
-    createdAt: new Date().toISOString(),
-  };
-
-  const records = await readDesigns();
-  records.unshift(record);
-  await writeDesigns(records.slice(0, 500));
+  });
 
   return json({ token });
 };

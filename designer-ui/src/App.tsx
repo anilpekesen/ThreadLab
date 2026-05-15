@@ -799,8 +799,8 @@ export default function App() {
   };
 
   const handleAddToCart = async () => {
-    const frontHas = Boolean(frontCanvasRef.current?.canvas?.getObjects().length);
-    const backHas = Boolean(backCanvasRef.current?.canvas?.getObjects().length);
+    const frontHas = Boolean(frontCanvasRef.current?.getCanvas()?.getObjects().length);
+    const backHas = Boolean(backCanvasRef.current?.getCanvas()?.getObjects().length);
     const resolvedSide = frontHas && backHas ? 'double' : backHas ? 'back' : 'front';
     let cartItems: CartItemPayload[];
 

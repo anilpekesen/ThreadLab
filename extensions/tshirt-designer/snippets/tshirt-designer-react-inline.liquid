@@ -155,7 +155,28 @@
             return res.json();
           })
           .then(function() {
-            window.location.href = '/cart';
+            // Save design_token + image URLs to cart attributes so they survive
+            // Cart Transform line item expansion and are readable from the order record.
+            var cartAttrs = {};
+            if (e.data.designToken) cartAttrs['design_token'] = e.data.designToken;
+            if (props['_front_preview_url']) cartAttrs['_front_preview_url'] = props['_front_preview_url'];
+            if (props['_front_print_url']) cartAttrs['_front_print_url'] = props['_front_print_url'];
+            if (props['_back_preview_url']) cartAttrs['_back_preview_url'] = props['_back_preview_url'];
+            if (props['_back_print_url']) cartAttrs['_back_print_url'] = props['_back_print_url'];
+            var hasAttrs = Object.keys(cartAttrs).length > 0;
+            if (hasAttrs) {
+              fetch('/cart/update.js', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ attributes: cartAttrs })
+              }).then(function() {
+                window.location.href = '/cart';
+              }).catch(function() {
+                window.location.href = '/cart';
+              });
+            } else {
+              window.location.href = '/cart';
+            }
           })
           .catch(function() {
             window.alert('Ürün sepete eklenemedi. Lütfen tekrar deneyin.');

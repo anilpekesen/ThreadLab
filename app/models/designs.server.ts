@@ -1,6 +1,12 @@
-import { readFileSync } from "fs";
-import { join } from "path";
-import { getDataDir } from "~/lib/storage.server";
+import { query, runMigrations } from "~/lib/db.server";
+
+let migrationsRan = false;
+async function ensureMigrations() {
+  if (!migrationsRan) {
+    await runMigrations();
+    migrationsRan = true;
+  }
+}
 
 export interface DesignRecord {
   token: string;
@@ -26,21 +32,72 @@ export interface DesignObject {
   angle?: number;
 }
 
-export function getDesignByToken(token: string): DesignRecord | null {
-  try {
-    const raw = readFileSync(join(getDataDir(), "designs.json"), "utf8");
-    const records = JSON.parse(raw) as DesignRecord[];
-    return records.find((r) => r.token === token) ?? null;
-  } catch {
-    return null;
-  }
+type DbRow = {
+  token: string;
+  product_id: string | null;
+  design_json: unknown;
+  front_preview_url: string;
+  back_preview_url: string;
+  front_print_url: string;
+  back_print_url: string;
+  created_at: Date;
+};
+
+function rowToRecord(row: DbRow): DesignRecord {
+  return {
+    token: row.token,
+    productId: row.product_id ?? undefined,
+    designJson: row.design_json ?? undefined,
+    frontPreviewUrl: row.front_preview_url || undefined,
+    backPreviewUrl: row.back_preview_url || undefined,
+    frontPrintUrl: row.front_print_url || undefined,
+    backPrintUrl: row.back_print_url || undefined,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+export async function getDesignByToken(token: string): Promise<DesignRecord | null> {
+  await ensureMigrations();
+  const result = await query<DbRow>(
+    "SELECT * FROM designs WHERE token = $1",
+    [token],
+  );
+  if (!result.rows.length) return null;
+  return rowToRecord(result.rows[0]);
+}
+
+export async function saveDesign(record: Omit<DesignRecord, "createdAt">): Promise<void> {
+  await ensureMigrations();
+  await query(
+    `INSERT INTO designs (token, product_id, design_json, front_preview_url, back_preview_url, front_print_url, back_print_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (token) DO UPDATE SET
+       product_id = EXCLUDED.product_id,
+       design_json = EXCLUDED.design_json,
+       front_preview_url = EXCLUDED.front_preview_url,
+       back_preview_url = EXCLUDED.back_preview_url,
+       front_print_url = EXCLUDED.front_print_url,
+       back_print_url = EXCLUDED.back_print_url`,
+    [
+      record.token,
+      record.productId ?? null,
+      record.designJson ? JSON.stringify(record.designJson) : null,
+      record.frontPreviewUrl ?? "",
+      record.backPreviewUrl ?? "",
+      record.frontPrintUrl ?? "",
+      record.backPrintUrl ?? "",
+    ],
+  );
 }
 
 export function extractObjects(designJson: unknown, side: "front" | "back"): DesignObject[] {
   try {
     const json = designJson as Record<string, unknown>;
-    const canvas = json[side] as { objects?: DesignObject[] } | undefined;
-    return canvas?.objects?.filter((o) => o.type !== "rect") ?? [];
+    let canvas = json[side] as { objects?: DesignObject[] } | string | undefined;
+    if (typeof canvas === "string") {
+      canvas = JSON.parse(canvas) as { objects?: DesignObject[] };
+    }
+    return (canvas as { objects?: DesignObject[] })?.objects?.filter((o) => o.type !== "rect") ?? [];
   } catch {
     return [];
   }

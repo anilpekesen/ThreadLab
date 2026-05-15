@@ -1,20 +1,12 @@
-import { join } from "path";
-import { readFileSync, writeFileSync } from "fs";
 import { randomBytes } from "crypto";
-import { getDataDir } from "~/lib/storage.server";
+import { query, runMigrations } from "~/lib/db.server";
 
-const DATA_DIR = getDataDir();
-
-function readJson<T>(file: string, fallback: T): T {
-  try {
-    return JSON.parse(readFileSync(join(DATA_DIR, file), "utf8")) as T;
-  } catch {
-    return fallback;
+let migrationsRan = false;
+async function ensureMigrations() {
+  if (!migrationsRan) {
+    await runMigrations();
+    migrationsRan = true;
   }
-}
-
-function writeJson(file: string, value: unknown) {
-  writeFileSync(join(DATA_DIR, file), JSON.stringify(value, null, 2));
 }
 
 export interface Order {
@@ -35,44 +27,101 @@ export interface Order {
   updatedAt?: string;
 }
 
+type DbRow = {
+  id: string;
+  shopify_order_id: string;
+  order_number: string;
+  customer_name: string;
+  customer_email: string;
+  product_id: string;
+  product_name: string;
+  variant_id: string;
+  design_token: string;
+  preview_url: string;
+  production_file_url: string;
+  production_status: string;
+  missing_surcharge: boolean;
+  created_at: Date;
+  updated_at: Date | null;
+};
+
+function rowToOrder(row: DbRow): Order {
+  return {
+    id: row.id,
+    shopifyOrderId: row.shopify_order_id,
+    orderNumber: row.order_number,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email,
+    productId: row.product_id,
+    productName: row.product_name,
+    variantId: row.variant_id,
+    designToken: row.design_token,
+    previewUrl: row.preview_url,
+    productionFileUrl: row.production_file_url,
+    productionStatus: row.production_status,
+    missingSurcharge: row.missing_surcharge,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at?.toISOString(),
+  };
+}
+
 export async function getOrders(status?: string): Promise<Order[]> {
-  const orders = readJson<Order[]>("orders.json", []);
-  const filtered = status ? orders.filter((o) => o.productionStatus === status) : orders;
-  return [...filtered].reverse();
+  await ensureMigrations();
+  const result = status
+    ? await query<DbRow>(
+        "SELECT * FROM orders WHERE production_status = $1 ORDER BY created_at DESC",
+        [status],
+      )
+    : await query<DbRow>("SELECT * FROM orders ORDER BY created_at DESC");
+  return result.rows.map(rowToOrder);
 }
 
 export async function getDashboardStats() {
-  const orders = readJson<Order[]>("orders.json", []);
-  const today = new Date().toDateString();
+  await ensureMigrations();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const [total, todayCount, pending, ready, missingSurcharge] = await Promise.all([
+    query<{ count: string }>("SELECT COUNT(*) FROM orders"),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE created_at >= $1", [today]),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE production_status = 'pending'"),
+    query<{ count: string }>(
+      "SELECT COUNT(*) FROM orders WHERE production_status IN ('ready', 'shipped')",
+    ),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE missing_surcharge = TRUE"),
+  ]);
+
   return {
-    total: orders.length,
-    today: orders.filter((o) => new Date(o.createdAt).toDateString() === today).length,
-    pendingProduction: orders.filter((o) => o.productionStatus === "pending").length,
-    ready: orders.filter((o) => o.productionStatus === "ready").length,
-    missingSurcharge: orders.filter((o) => o.missingSurcharge).length,
+    total: Number(total.rows[0].count),
+    today: Number(todayCount.rows[0].count),
+    pendingProduction: Number(pending.rows[0].count),
+    ready: Number(ready.rows[0].count),
+    missingSurcharge: Number(missingSurcharge.rows[0].count),
   };
 }
 
 export async function getOrder(id: string): Promise<Order | null> {
-  const orders = readJson<Order[]>("orders.json", []);
-  return orders.find((o) => o.id === id) ?? null;
+  await ensureMigrations();
+  const result = await query<DbRow>("SELECT * FROM orders WHERE id = $1", [id]);
+  if (!result.rows.length) return null;
+  return rowToOrder(result.rows[0]);
 }
 
-export async function updateOrderStatus(id: string, status: string) {
-  const orders = readJson<Order[]>("orders.json", []);
-  const idx = orders.findIndex((o) => o.id === id);
-  if (idx === -1) throw new Error("Order not found");
-  orders[idx].productionStatus = status;
-  orders[idx].updatedAt = new Date().toISOString();
-  writeJson("orders.json", orders);
-  return orders[idx];
+export async function updateOrderStatus(id: string, status: string): Promise<Order> {
+  await ensureMigrations();
+  const result = await query<DbRow>(
+    "UPDATE orders SET production_status = $1, updated_at = now() WHERE id = $2 RETURNING *",
+    [status, id],
+  );
+  if (!result.rows.length) throw new Error("Order not found");
+  return rowToOrder(result.rows[0]);
 }
 
-// Sync orders from Shopify Admin API — requires Protected Customer Data approval.
-// Returns number of new orders added.
 export async function syncOrdersFromAdmin(
-  admin: { graphql: (query: string) => Promise<{ json: () => Promise<unknown> }> }
+  admin: { graphql: (query: string) => Promise<{ json: () => Promise<unknown> }> },
 ): Promise<number> {
+  await ensureMigrations();
+
   type Attr = { key: string; value: string };
   type LineItem = {
     name: string;
@@ -118,59 +167,67 @@ export async function syncOrdersFromAdmin(
   }
 
   const shopifyOrders = data.data?.orders?.nodes ?? [];
-  const orders = readJson<Order[]>("orders.json", []);
   const getAttr = (attrs: Attr[], key: string) => attrs.find((a) => a.key === key)?.value;
   let added = 0;
 
   for (const so of shopifyOrders) {
     const shopifyOrderId = so.id.split("/").pop() ?? so.id;
-    if (orders.some((o) => o.shopifyOrderId === shopifyOrderId)) continue;
 
+    // Skip already imported orders
+    const existing = await query("SELECT id FROM orders WHERE shopify_order_id = $1", [
+      shopifyOrderId,
+    ]);
+    if (existing.rows.length > 0) continue;
+
+    // design_token can be at order level (cart attribute) or line item level
     const orderToken = getAttr(so.customAttributes, "design_token");
-
-    const designItems = so.lineItems.nodes.filter((li) =>
-      getAttr(li.customAttributes, "design_token") !== undefined
+    const designItems = so.lineItems.nodes.filter(
+      (li) => getAttr(li.customAttributes, "design_token") !== undefined,
     );
-
-    // Sadece design_token içeren siparişleri al
     const hasDesignToken = Boolean(orderToken) || designItems.length > 0;
     if (!hasDesignToken) continue;
 
     const tshirtItem = so.lineItems.nodes.find((li) => li.requiresShipping);
     const itemsToProcess: LineItem[] =
-      designItems.length > 0 ? designItems
-      : tshirtItem ? [tshirtItem]
-      : [so.lineItems.nodes[0]].filter(Boolean);
+      designItems.length > 0
+        ? designItems
+        : tshirtItem
+          ? [tshirtItem]
+          : [so.lineItems.nodes[0]].filter(Boolean);
 
     for (const item of itemsToProcess) {
       const token = getAttr(item.customAttributes, "design_token") ?? orderToken ?? "";
-      orders.push({
-        id: `order_${randomBytes(8).toString("hex")}`,
-        shopifyOrderId,
-        orderNumber: so.name,
-        customerName: "Müşteri",
-        customerEmail: "",
-        productId: item.product?.id.split("/").pop() ?? "",
-        productName: item.name ?? "",
-        variantId: item.variant?.id.split("/").pop() ?? "",
-        designToken: token,
-        previewUrl: getAttr(item.customAttributes, "_front_preview_url") ?? getAttr(so.customAttributes, "_front_preview_url") ?? "",
-        productionFileUrl: getAttr(item.customAttributes, "_front_print_url") ?? getAttr(so.customAttributes, "_front_print_url") ?? "",
-        productionStatus: "pending",
-        missingSurcharge: false,
-        createdAt: so.createdAt,
-      });
+      const id = `order_${randomBytes(8).toString("hex")}`;
+      await query(
+        `INSERT INTO orders (id, shopify_order_id, order_number, product_id, product_name,
+          variant_id, design_token, preview_url, production_file_url, production_status,
+          missing_surcharge, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',FALSE,$10)
+         ON CONFLICT (shopify_order_id) DO NOTHING`,
+        [
+          id,
+          shopifyOrderId,
+          so.name,
+          item.product?.id.split("/").pop() ?? "",
+          item.name ?? "",
+          item.variant?.id.split("/").pop() ?? "",
+          token,
+          getAttr(item.customAttributes, "_front_preview_url") ??
+            getAttr(so.customAttributes, "_front_preview_url") ??
+            "",
+          getAttr(item.customAttributes, "_front_print_url") ??
+            getAttr(so.customAttributes, "_front_print_url") ??
+            "",
+          new Date(so.createdAt),
+        ],
+      );
       added++;
     }
   }
 
-  if (added > 0) writeJson("orders.json", orders);
   return added;
 }
 
-// Called from the public /api/pixel-order endpoint, triggered by the Web Pixel
-// extension on checkout_completed. Cart Transform strips line item properties,
-// so we rely on cart attributes (saved via /cart/update.js) passed through the pixel.
 export async function createOrderFromPixel(data: {
   orderId?: string;
   orderNumber?: string;
@@ -180,30 +237,27 @@ export async function createOrderFromPixel(data: {
   productName?: string;
   variantId?: string;
   productId?: string;
-}) {
+}): Promise<void> {
   if (!data.designToken || !data.orderId) return;
+  await ensureMigrations();
 
-  const orders = readJson<Order[]>("orders.json", []);
-
-  // De-duplicate by Shopify order ID
-  if (orders.some((o) => o.shopifyOrderId === data.orderId)) return;
-
-  orders.push({
-    id: `order_${randomBytes(8).toString("hex")}`,
-    shopifyOrderId: data.orderId,
-    orderNumber: data.orderNumber ?? `#${data.orderId}`,
-    customerName: "Müşteri",
-    customerEmail: "",
-    productId: data.productId ?? "",
-    productName: data.productName ?? "",
-    variantId: data.variantId ?? "",
-    designToken: data.designToken,
-    previewUrl: data.frontPreviewUrl ?? "",
-    productionFileUrl: data.frontPrintUrl ?? "",
-    productionStatus: "pending",
-    missingSurcharge: false,
-    createdAt: new Date().toISOString(),
-  });
-
-  writeJson("orders.json", orders);
+  const id = `order_${randomBytes(8).toString("hex")}`;
+  await query(
+    `INSERT INTO orders (id, shopify_order_id, order_number, product_id, product_name,
+      variant_id, design_token, preview_url, production_file_url, production_status,
+      missing_surcharge)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',FALSE)
+     ON CONFLICT (shopify_order_id) DO NOTHING`,
+    [
+      id,
+      data.orderId,
+      data.orderNumber ?? `#${data.orderId}`,
+      data.productId ?? "",
+      data.productName ?? "",
+      data.variantId ?? "",
+      data.designToken,
+      data.frontPreviewUrl ?? "",
+      data.frontPrintUrl ?? "",
+    ],
+  );
 }
