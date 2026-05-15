@@ -28,6 +28,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const ctOk = url.searchParams.get("ct_ok");
   const ctError = url.searchParams.get("ct_error");
 
+  // Auto-register order tracking ScriptTag on order status page
+  try {
+    const appUrl = process.env.SHOPIFY_APP_URL ?? "https://threadlab-production.up.railway.app";
+    const scriptSrc = `${appUrl}/api/order-tracking-script`;
+    const stRes = await admin.graphql(`#graphql
+      { scriptTags(first: 10) { nodes { id src displayScope } } }
+    `);
+    const stData = await stRes.json() as {
+      data?: { scriptTags?: { nodes?: Array<{ id: string; src: string; displayScope: string }> } };
+    };
+    const existing = stData.data?.scriptTags?.nodes ?? [];
+    const alreadyRegistered = existing.some((t) => t.src === scriptSrc);
+    if (!alreadyRegistered) {
+      await admin.graphql(`#graphql
+        mutation {
+          scriptTagCreate(input: {
+            src: "${scriptSrc}"
+            displayScope: ORDER_STATUS
+          }) {
+            scriptTag { id }
+            userErrors { field message }
+          }
+        }
+      `);
+    }
+  } catch (_e) {
+    // silent — will retry on next load
+  }
+
   // Auto-register Cart Transform function if not already registered
   try {
     const res = await admin.graphql(`#graphql
