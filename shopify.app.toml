@@ -1,6 +1,6 @@
 name = "DesignKit"
 client_id = "ffb70fd5e03a3532fb1e47b3a8e9a052"
-application_url = "https://threadlab-production.up.railway.app"
+application_url = "https://app.printlabapp.com"
 embedded = true
 
 [build]
@@ -14,11 +14,11 @@ scopes = "read_products,write_products,read_orders,write_app_proxy,write_cart_tr
 
 [auth]
 redirect_urls = [
-  "https://threadlab-production.up.railway.app/auth/callback",
-  "https://threadlab-production.up.railway.app/auth/callback/offline"
+  "https://app.printlabapp.com/auth/callback",
+  "https://app.printlabapp.com/auth/callback/offline"
 ]
 
 [app_proxy]
-url = "https://threadlab-production.up.railway.app/proxy"
+url = "https://app.printlabapp.com/proxy"
 prefix = "apps"
 subpath = "tshirt-designer"
