@@ -485,6 +485,7 @@ export default function App() {
   const frontCanvasRef = useRef<CanvasAreaHandle>(null);
   const backCanvasRef = useRef<CanvasAreaHandle>(null);
   const configRef = useRef(config);
+  const personalizationRef = useRef<PersonalizationConfig>(defaultPersonalization());
   const restoredCanvasRef = useRef<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<Tab>(null);
@@ -560,7 +561,16 @@ export default function App() {
     const handleMessage = (event: MessageEvent) => {
       const payload = event.data;
       if (!payload || payload.type !== 'DESIGNER_INIT' || !payload.config) return;
-      applyConfig(payload.config as DesignerConfig, setConfig);
+      const cfg = payload.config as DesignerConfig;
+      // Personalization zaten yüklüyse mockupImageUrl'i Liquid'in URL'inin üzerine yaz
+      const p = personalizationRef.current;
+      const frontMockup = p?.printAreas.front.mockupImageUrl;
+      const backMockup = p?.printAreas.back.mockupImageUrl;
+      applyConfig({
+        ...cfg,
+        frontImage: frontMockup || cfg.frontImage,
+        backImage: backMockup || cfg.backImage,
+      }, setConfig);
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
@@ -1153,6 +1163,7 @@ export default function App() {
   }, [colorOptions, selectedColor]);
 
   useEffect(() => { configRef.current = config; }, [config]);
+  useEffect(() => { personalizationRef.current = personalization; }, [personalization]);
 
   useEffect(() => {
     if (!selectedColor) return;
