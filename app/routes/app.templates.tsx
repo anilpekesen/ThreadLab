@@ -1,4 +1,7 @@
-import { unstable_parseMultipartFormData, unstable_createMemoryUploadHandler } from "@remix-run/node";
+import {
+  unstable_parseMultipartFormData,
+  unstable_createMemoryUploadHandler,
+} from "@remix-run/node";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigation } from "@remix-run/react";
@@ -6,15 +9,18 @@ import {
   Page, Layout, Card, Box, Text, BlockStack, InlineStack, Button,
   Badge, Banner, Divider, EmptyState, TextField, Select, Thumbnail,
 } from "@shopify/polaris";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { authenticate } from "~/shopify.server";
 import {
   getShopTemplates,
   addShopTemplate,
   deleteShopTemplate,
   updateShopTemplate,
+  checkTemplateQuota,
   type ShopTemplate,
 } from "~/models/shop-templates.server";
+import { getShopPlan } from "~/models/bg-removal-usage.server";
+import { PLANS } from "~/lib/plans";
 
 const CATEGORIES = [
   { label: "Özel", value: "custom" },
@@ -29,22 +35,27 @@ const CATEGORIES = [
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
-  const templates = await getShopTemplates(shop);
+  const [templates, quota, planKey] = await Promise.all([
+    getShopTemplates(shop),
+    checkTemplateQuota(shop),
+    getShopPlan(shop),
+  ]);
   const url = new URL(request.url);
   const saved = url.searchParams.get("saved") === "1";
-  return json({ shop, templates, saved });
+  return json({ shop, templates, quota, planKey, planName: planKey, saved });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  // Clone before authenticate so multipart body stays readable
+  const cloned = request.clone();
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  const contentType = request.headers.get("content-type") ?? "";
+  const contentType = cloned.headers.get("content-type") ?? "";
 
-  // Multipart upload
   if (contentType.includes("multipart/form-data")) {
     const uploadHandler = unstable_createMemoryUploadHandler({ maxPartSize: 8 * 1024 * 1024 });
-    const form = await unstable_parseMultipartFormData(request, uploadHandler);
+    const form = await unstable_parseMultipartFormData(cloned, uploadHandler);
     const intent = String(form.get("intent") || "");
 
     if (intent === "upload") {
@@ -56,8 +67,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return json({ error: "Görsel seçilmedi" }, { status: 400 });
       }
 
+      const quota = await checkTemplateQuota(shop);
+      if (!quota.allowed) {
+        return json(
+          { error: `Planınızın şablon limiti doldu (${quota.count}/${quota.quota}). Plan yükseltmek için Abonelik sayfasını ziyaret edin.` },
+          { status: 429 },
+        );
+      }
+
       try {
-        await addShopTemplate(shop, name, category, file, request.url);
+        await addShopTemplate(shop, name, category, file, cloned.url);
       } catch (err) {
         return json({ error: err instanceof Error ? err.message : "Yükleme başarısız" }, { status: 500 });
       }
@@ -66,8 +85,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  // JSON / urlencoded actions
-  const form = await request.formData();
+  // urlencoded / JSON actions
+  const form = await cloned.formData().catch(() => new FormData());
   const intent = String(form.get("intent") || "");
 
   if (intent === "delete") {
@@ -87,6 +106,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return json({ error: "Bilinmeyen işlem" }, { status: 400 });
 };
 
+// ─── Template card ────────────────────────────────────────────────
 function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
   const fetcher = useFetcher<{ ok?: boolean }>();
   const [editing, setEditing] = useState(false);
@@ -100,11 +120,7 @@ function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
       <Box padding="300">
         <BlockStack gap="300">
           <InlineStack gap="300" blockAlign="start">
-            <Thumbnail
-              source={tpl.imageUrl}
-              alt={tpl.name}
-              size="large"
-            />
+            <Thumbnail source={tpl.imageUrl} alt={tpl.name} size="large" />
             <BlockStack gap="100">
               <Text as="p" variant="bodyMd" fontWeight="bold">{tpl.name}</Text>
               <Badge>{CATEGORIES.find((c) => c.value === tpl.category)?.label ?? tpl.category}</Badge>
@@ -113,27 +129,15 @@ function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
 
           {editing ? (
             <BlockStack gap="200">
-              <TextField
-                label="İsim"
-                value={name}
-                onChange={setName}
-                autoComplete="off"
-              />
-              <Select
-                label="Kategori"
-                options={CATEGORIES}
-                value={category}
-                onChange={setCategory}
-              />
+              <TextField label="İsim" value={name} onChange={setName} autoComplete="off" />
+              <Select label="Kategori" options={CATEGORIES} value={category} onChange={setCategory} />
               <InlineStack gap="200">
                 <fetcher.Form method="post">
                   <input type="hidden" name="intent" value="rename" />
                   <input type="hidden" name="id" value={tpl.id} />
                   <input type="hidden" name="name" value={name} />
                   <input type="hidden" name="category" value={category} />
-                  <Button submit variant="primary" size="slim" loading={isSaving}>
-                    Kaydet
-                  </Button>
+                  <Button submit variant="primary" size="slim" loading={isSaving}>Kaydet</Button>
                 </fetcher.Form>
                 <Button size="slim" onClick={() => setEditing(false)}>İptal</Button>
               </InlineStack>
@@ -144,9 +148,7 @@ function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
               <fetcher.Form method="post">
                 <input type="hidden" name="intent" value="delete" />
                 <input type="hidden" name="id" value={tpl.id} />
-                <Button submit variant="plain" tone="critical" size="slim" loading={isDeleting}>
-                  Sil
-                </Button>
+                <Button submit variant="plain" tone="critical" size="slim" loading={isDeleting}>Sil</Button>
               </fetcher.Form>
             </InlineStack>
           )}
@@ -156,23 +158,19 @@ function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────
 export default function TemplatesRoute() {
-  const { templates, saved } = useLoaderData<typeof loader>();
+  const { templates, quota, planKey, saved } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isUploading = navigation.state === "submitting";
-  const fileRef = useRef<HTMLInputElement>(null);
+
   const [preview, setPreview] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("custom");
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!name) setName(file.name.replace(/\.[^.]+$/, "").slice(0, 60));
-    const reader = new FileReader();
-    reader.onload = (ev) => setPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
-  };
+  const quotaFull = quota.quota !== -1 && quota.count >= quota.quota;
+  const quotaLabel = quota.quota === -1 ? "Sınırsız" : `${quota.count} / ${quota.quota}`;
 
   return (
     <Page
@@ -182,45 +180,105 @@ export default function TemplatesRoute() {
       <BlockStack gap="500">
         {saved && <Banner tone="success" title="Şablon başarıyla yüklendi." onDismiss={() => {}} />}
 
+        {/* Plan / kota durumu */}
+        <Card>
+          <Box padding="400">
+            <InlineStack align="space-between" blockAlign="center">
+              <BlockStack gap="100">
+                <Text as="p" variant="bodyMd" fontWeight="bold">Şablon kotası</Text>
+                <Text as="p" tone="subdued" variant="bodySm">
+                  Plan: <strong>{planKey}</strong> — kullanılan: <strong>{quotaLabel}</strong>
+                </Text>
+              </BlockStack>
+              {quotaFull ? (
+                <Badge tone="critical">Kota doldu</Badge>
+              ) : (
+                <Badge tone="success">Müsait</Badge>
+              )}
+            </InlineStack>
+          </Box>
+        </Card>
+
         {/* Upload form */}
         <Card>
           <Box padding="400">
             <BlockStack gap="400">
               <Text as="h2" variant="headingMd">Yeni Şablon Ekle</Text>
               <Text as="p" tone="subdued">
-                PNG, JPG, WebP veya SVG formatında görsel yükleyin.
-                Müşteriler bu görselleri tişörtlerine tek tıkla ekleyebilir.
-                Marvel, Disney, Looney Tunes gibi lisanslı karakterler için
-                geçerli lisans sahibi olduğunuzdan emin olun.
+                PNG, JPG, WebP veya SVG yükleyin. Marvel, Disney, Looney Tunes gibi
+                lisanslı karakterler için geçerli lisans sahibi olduğunuzdan emin olun.
               </Text>
 
+              {quotaFull && (
+                <Banner tone="warning" title={`${planKey} planında maksimum ${quota.quota} şablon yükleyebilirsiniz.`}>
+                  <p>Daha fazla şablon eklemek için planınızı yükseltin.</p>
+                </Banner>
+              )}
+
+              {/* Native form — multipart/form-data */}
               <form method="post" encType="multipart/form-data">
                 <input type="hidden" name="intent" value="upload" />
                 <BlockStack gap="300">
-                  <div
-                    onClick={() => fileRef.current?.click()}
-                    className="cursor-pointer rounded-xl border-2 border-dashed border-gray-300 p-6 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-colors"
-                    style={{ cursor: "pointer" }}
-                  >
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      name="image"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                      className="hidden"
-                      onChange={handleFile}
-                    />
-                    {preview ? (
-                      <img
-                        src={preview}
-                        alt="Önizleme"
-                        style={{ maxHeight: 160, maxWidth: "100%", objectFit: "contain", margin: "0 auto" }}
+
+                  {/* File picker — label wraps hidden input (no double-click bug) */}
+                  <div>
+                    <label
+                      htmlFor="tmpl-file-input"
+                      style={{
+                        display: "block",
+                        cursor: quotaFull ? "not-allowed" : "pointer",
+                        borderRadius: 12,
+                        border: "2px dashed #d1d5db",
+                        padding: "24px 16px",
+                        textAlign: "center",
+                        transition: "border-color 0.15s, background 0.15s",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!quotaFull) {
+                          (e.currentTarget as HTMLLabelElement).style.borderColor = "#6366f1";
+                          (e.currentTarget as HTMLLabelElement).style.background = "rgba(99,102,241,0.04)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLLabelElement).style.borderColor = "#d1d5db";
+                        (e.currentTarget as HTMLLabelElement).style.background = "transparent";
+                      }}
+                    >
+                      <input
+                        id="tmpl-file-input"
+                        type="file"
+                        name="image"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        disabled={quotaFull}
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setFileName(file.name);
+                          if (!name) setName(file.name.replace(/\.[^.]+$/, "").slice(0, 60));
+                          const reader = new FileReader();
+                          reader.onload = (ev) => setPreview(ev.target?.result as string);
+                          reader.readAsDataURL(file);
+                        }}
                       />
-                    ) : (
-                      <Text as="p" tone="subdued">
-                        Görsel seçmek için tıklayın (PNG, JPG, WebP, SVG · maks 8 MB)
-                      </Text>
-                    )}
+                      {preview ? (
+                        <BlockStack gap="200">
+                          <img
+                            src={preview}
+                            alt="Önizleme"
+                            style={{ maxHeight: 160, maxWidth: "100%", objectFit: "contain", margin: "0 auto", display: "block" }}
+                          />
+                          <Text as="p" variant="bodySm" tone="subdued">{fileName} — değiştirmek için tekrar tıklayın</Text>
+                        </BlockStack>
+                      ) : (
+                        <BlockStack gap="100">
+                          <Text as="p" variant="bodyMd" fontWeight="medium">
+                            {quotaFull ? "Kota doldu — plan yükseltin" : "Görsel seçmek için tıklayın"}
+                          </Text>
+                          <Text as="p" variant="bodySm" tone="subdued">PNG, JPG, WebP, SVG · maks 8 MB</Text>
+                        </BlockStack>
+                      )}
+                    </label>
                   </div>
 
                   <TextField
@@ -230,6 +288,7 @@ export default function TemplatesRoute() {
                     onChange={setName}
                     autoComplete="off"
                     placeholder="örn. Spider-Man, Bugs Bunny, Çiçek Logo"
+                    disabled={quotaFull}
                   />
 
                   <Select
@@ -238,10 +297,16 @@ export default function TemplatesRoute() {
                     options={CATEGORIES}
                     value={category}
                     onChange={setCategory}
+                    disabled={quotaFull}
                   />
 
                   <InlineStack align="end">
-                    <Button variant="primary" submit loading={isUploading} disabled={!preview}>
+                    <Button
+                      variant="primary"
+                      submit
+                      loading={isUploading}
+                      disabled={!preview || quotaFull}
+                    >
                       Yükle ve Kaydet
                     </Button>
                   </InlineStack>
@@ -255,24 +320,18 @@ export default function TemplatesRoute() {
 
         {/* Template list */}
         <BlockStack gap="300">
-          <Text as="h2" variant="headingMd">
-            Mevcut Şablonlar ({templates.length})
-          </Text>
-
+          <Text as="h2" variant="headingMd">Mevcut Şablonlar ({templates.length})</Text>
           {templates.length === 0 ? (
             <Card>
-              <EmptyState
-                heading="Henüz şablon yok"
-                image=""
-              >
+              <EmptyState heading="Henüz şablon yok" image="">
                 <Text as="p">Yukarıdaki formu kullanarak ilk şablonunuzu ekleyin.</Text>
               </EmptyState>
             </Card>
           ) : (
             <Layout>
-              {templates.map((tpl) => (
+              {(templates as ShopTemplate[]).map((tpl) => (
                 <Layout.Section key={tpl.id} variant="oneThird">
-                  <TemplateCard tpl={tpl as ShopTemplate} />
+                  <TemplateCard tpl={tpl} />
                 </Layout.Section>
               ))}
             </Layout>
