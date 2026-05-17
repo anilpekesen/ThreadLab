@@ -515,9 +515,10 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     fabric.Image.fromURL(url, (img) => {
       if (canvasRef.current !== cv || !hasLiveContext(cv)) return;
       const areaRect = toCanvasRect(printAreaRef.current);
-      const maxW = areaRect.width * 0.78;
-      const maxH = areaRect.height * 0.78;
-      const scale = Math.min(maxW / (img.width ?? 1), maxH / (img.height ?? 1), 1);
+      const maxW = areaRect.width * 0.72;
+      const maxH = areaRect.height * 0.72;
+      // No upper cap of 1 — small SVGs also scale up to fill the target area
+      const scale = Math.min(maxW / (img.width ?? 200), maxH / (img.height ?? 200));
       img.scale(scale);
       img.set({
         left: areaRect.left + areaRect.width / 2,

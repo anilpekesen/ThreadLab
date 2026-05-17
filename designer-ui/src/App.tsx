@@ -507,6 +507,7 @@ export default function App() {
   const [draggedLayerIndex, setDraggedLayerIndex] = useState<number | null>(null);
   const [personalization, setPersonalization] = useState<PersonalizationConfig>(defaultPersonalization);
   const [canvasRevisions, setCanvasRevisions] = useState({ front: 0, back: 0 });
+  const [shopTemplates, setShopTemplates] = useState<import('@/types').ShopTemplate[]>([]);
   const [selectedColor, setSelectedColor] = useState('');
   const [isCartLoading, setIsCartLoading] = useState(false);
   const [noSizeQuantity, setNoSizeQuantity] = useState(1);
@@ -556,6 +557,21 @@ export default function App() {
   useEffect(() => {
     applyConfig(readConfig(), setConfig);
   }, [setConfig]);
+
+  // Mağazanın kendi şablonlarını çek
+  useEffect(() => {
+    const shop = new URLSearchParams(window.location.search).get('shop');
+    if (!shop) return;
+    const appUrl = (window as typeof window & { __DESIGNER_CONFIG__?: { uploadEndpoint?: string } })
+      .__DESIGNER_CONFIG__?.uploadEndpoint?.split('/apps/')[0]
+      ?? window.location.origin;
+    fetch(`${appUrl}/api/shop-templates?shop=${encodeURIComponent(shop)}`)
+      .then((r) => r.json())
+      .then((data: { templates?: import('@/types').ShopTemplate[] }) => {
+        if (Array.isArray(data.templates)) setShopTemplates(data.templates);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -1632,7 +1648,11 @@ export default function App() {
                   )}
 
                   {activeTab === 'templates' && (
-                    <TemplatesPanel onApply={handleApplyTemplate} onAddImage={handleAddImage} />
+                    <TemplatesPanel
+                      onApply={handleApplyTemplate}
+                      onAddImage={handleAddImage}
+                      shopTemplates={shopTemplates}
+                    />
                   )}
 
                   {activeTab === 'saved' && (

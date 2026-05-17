@@ -5,6 +5,7 @@ import {
   CLIPART_CATEGORIES,
   type ClipArtCategory,
 } from '@/data/clipartData';
+import type { ShopTemplate } from '@/types';
 
 interface Template {
   id: string;
@@ -158,9 +159,10 @@ const TEXT_TEMPLATES: Template[] = [
 interface Props {
   onApply: (tpl: Template) => void;
   onAddImage: (url: string) => void;
+  shopTemplates?: ShopTemplate[];
 }
 
-export default function TemplatesPanel({ onApply, onAddImage }: Props) {
+export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = [] }: Props) {
   const [clipartCategory, setClipArtCategory] = useState<ClipArtCategory>('all');
 
   const filteredClipart =
@@ -170,6 +172,38 @@ export default function TemplatesPanel({ onApply, onAddImage }: Props) {
 
   return (
     <div className="space-y-8">
+
+      {/* ── Mağaza Şablonları ── */}
+      {shopTemplates.length > 0 && (
+        <div className="space-y-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-600">Mağaza Şablonları</p>
+            <p className="text-sm font-semibold text-slate-500">Bu mağazaya özel hazır görseller.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-3 md:grid-cols-4 xl:grid-cols-5">
+            {shopTemplates.map((tpl) => (
+              <button
+                key={tpl.id}
+                onClick={() => onAddImage(tpl.imageUrl)}
+                title={tpl.name}
+                className="group flex flex-col items-center gap-1.5 rounded-2xl border-2 border-violet-200 bg-white p-2 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-400 hover:bg-violet-50/40 hover:shadow-md"
+              >
+                <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50 p-1">
+                  <img
+                    src={tpl.imageUrl}
+                    alt={tpl.name}
+                    className="h-full w-full object-contain transition-transform group-hover:scale-110"
+                    draggable={false}
+                    crossOrigin="anonymous"
+                  />
+                </div>
+                <span className="w-full truncate text-[10px] font-bold text-violet-700">{tpl.name}</span>
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-gray-100" />
+        </div>
+      )}
 
       {/* ── Clipart Galerisi ── */}
       <div className="space-y-4">

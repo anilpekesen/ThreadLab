@@ -70,6 +70,13 @@ export interface UploadedImage {
   addedAt: number;
 }
 
+export interface ShopTemplate {
+  id: string;
+  name: string;
+  category: string;
+  imageUrl: string;
+}
+
 export interface SavedDesign {
   id: string;
   name: string;

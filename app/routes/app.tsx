@@ -25,6 +25,7 @@ export default function App() {
           <a href="/app" rel="home">Ana Sayfa</a>
           <a href="/app/orders">Siparişler</a>
           <a href="/app/products">Ürünler</a>
+          <a href="/app/templates">Şablonlar</a>
           <a href="/app/billing">Abonelik</a>
           <a href="/app/settings">Ayarlar</a>
         </NavMenu>

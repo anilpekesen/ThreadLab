@@ -43,6 +43,21 @@ export async function runMigrations() {
     )
   `);
   await query(`
+    CREATE TABLE IF NOT EXISTS shop_templates (
+      id         TEXT PRIMARY KEY,
+      shop       TEXT NOT NULL,
+      name       TEXT NOT NULL,
+      category   TEXT NOT NULL DEFAULT 'custom',
+      image_url  TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS shop_templates_shop
+      ON shop_templates (shop, sort_order)
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS product_settings (
       product_id TEXT PRIMARY KEY,
       config     JSONB NOT NULL,
