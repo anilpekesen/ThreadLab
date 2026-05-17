@@ -3,11 +3,6 @@ import { Link, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
 import { compressImage, generateId } from '@/utils/compress';
 import type { UploadedImage } from '@/types';
-import {
-  CLIPART_ITEMS,
-  CLIPART_CATEGORIES,
-  type ClipArtCategory,
-} from '@/data/clipartData';
 
 interface Props {
   onAddImage: (url: string) => void;
@@ -18,8 +13,7 @@ interface Props {
 export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState('');
-  const [activeSource, setActiveSource] = useState<'upload' | 'qr' | 'ai' | 'templates'>('upload');
-  const [clipartCategory, setClipArtCategory] = useState<ClipArtCategory>('all');
+  const [activeSource, setActiveSource] = useState<'upload' | 'qr' | 'ai'>('upload');
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const { uploadedImages, addUploadedImage, removeUploadedImage, isBgRemoving } = useDesignerStore();
 
@@ -52,10 +46,6 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
     handleFiles(e.dataTransfer.files);
   }, [handleFiles]);
 
-  const filteredClipart =
-    clipartCategory === 'all'
-      ? CLIPART_ITEMS
-      : CLIPART_ITEMS.filter((c) => c.category === clipartCategory);
 
   return (
     <div className="flex flex-col gap-6">
@@ -65,7 +55,6 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
           { id: 'upload' as const, label: 'Yükle' },
           { id: 'qr' as const, label: 'QR Kod' },
           { id: 'ai' as const, label: 'AI Oluştur' },
-          { id: 'templates' as const, label: 'Şablonlar' },
         ].map(({ id, label }) => (
           <button
             key={id}
@@ -234,54 +223,6 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
         </div>
       )}
 
-      {/* Şablonlar tab */}
-      {activeSource === 'templates' && (
-        <div className="flex flex-col gap-4">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-600">Hazır Clipart</p>
-            <p className="text-sm font-semibold text-slate-500">Bir görsele tıklayarak tuvale ekleyin.</p>
-          </div>
-
-          {/* Category filter chips */}
-          <div className="flex flex-wrap gap-2">
-            {CLIPART_CATEGORIES.map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setClipArtCategory(id)}
-                className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
-                  clipartCategory === id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Clipart grid */}
-          <div className="grid grid-cols-3 gap-3 md:grid-cols-4 xl:grid-cols-5">
-            {filteredClipart.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => onAddImage(item.svg)}
-                title={item.name}
-                className="group flex flex-col items-center gap-1.5 rounded-2xl border border-gray-200 bg-white p-2 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-400 hover:bg-blue-50/40 hover:shadow-md"
-              >
-                <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50 p-1">
-                  <img
-                    src={item.svg}
-                    alt={item.name}
-                    className="h-full w-full object-contain transition-transform group-hover:scale-110"
-                    draggable={false}
-                  />
-                </div>
-                <span className="w-full truncate text-[10px] font-bold text-gray-600">{item.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

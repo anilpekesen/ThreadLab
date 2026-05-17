@@ -1632,7 +1632,7 @@ export default function App() {
                   )}
 
                   {activeTab === 'templates' && (
-                    <TemplatesPanel onApply={handleApplyTemplate} />
+                    <TemplatesPanel onApply={handleApplyTemplate} onAddImage={handleAddImage} />
                   )}
 
                   {activeTab === 'saved' && (
