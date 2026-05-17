@@ -881,7 +881,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     allowedTypes: ["PNG", "JPG"],
     minResolution: 1000,
     removeBg: false,
-    photoroomApiKey: "",
     printFormat: "PNG",
     printDpi: 300,
     requireApproval: true,
@@ -912,7 +911,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       backPrintWidthCm: Number(((backArea?.realWidthMm || frontArea?.realWidthMm || 0) / 10)),
       backPrintHeightCm: Number(((backArea?.realHeightMm || frontArea?.realHeightMm || 0) / 10)),
       removeBg: form.get("removeBg") === "true",
-      photoroomApiKey: "",
+
       pricingBands: {
         front: frontBands.bands,
         back: backBands.bands,

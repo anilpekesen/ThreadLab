@@ -6,7 +6,7 @@ import nodePath from "node:path";
 import { handleDesignerUpload } from "~/models/uploads.server";
 import { authenticate } from "~/shopify.server";
 import { findConfigForStorefront, toStorefrontSettings } from "~/models/product-config.server";
-import { handlePhotoroomRemoveBackground } from "~/models/background-removal.server";
+import { handleWaveSpeedRemoveBackground } from "~/models/background-removal.server";
 
 const DATA_DIR = nodePath.join(process.cwd(), "data");
 const DESIGNS_FILE = nodePath.join(DATA_DIR, "designs.json");
@@ -94,7 +94,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  await authenticate.public.appProxy(request);
+  const proxy = await authenticate.public.appProxy(request);
+  const shop = proxy.session?.shop ?? "unknown";
   const path = params["*"] ?? "";
 
   if (path === "upload") {
@@ -102,7 +103,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   if (path === "remove-background") {
-    return handlePhotoroomRemoveBackground(request);
+    return handleWaveSpeedRemoveBackground(request, shop);
   }
 
   // POST /apps/tshirt-designer/designs

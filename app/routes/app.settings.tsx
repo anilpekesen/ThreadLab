@@ -253,6 +253,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  if (intent === "clearWavespeedKey") {
+    const settings = await getGlobalSettings();
+    await saveGlobalSettings({ ...settings, wavespeedApiKey: "" });
+    return redirect("/app/settings?saved=1");
+  }
+
   if (intent === "fixSurchargeVariant") {
     const settings = await getGlobalSettings();
     const variantId = settings.surchargeVariantId;
@@ -287,8 +293,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const newVariantId = String(form.get("surchargeVariantId") || "").trim();
+  const newWavespeedKey = String(form.get("wavespeedApiKey") || "").trim();
+  const currentSettings = await getGlobalSettings();
   await saveGlobalSettings({
-    photoroomApiKey: String(form.get("photoroomApiKey") || "").trim(),
+    wavespeedApiKey: newWavespeedKey || currentSettings.wavespeedApiKey,
     surchargeVariantId: newVariantId,
   });
   if (newVariantId) await writeSurchargeMetafield(admin, newVariantId).catch(() => {});
@@ -302,7 +310,7 @@ export default function SettingsRoute() {
   const isSaving = navigation.state === "submitting";
   const isCreating = fetcher.state === "submitting";
 
-  const [photoroomApiKey, setPhotoroomApiKey] = useState(settings.photoroomApiKey || "");
+  const [wavespeedApiKey, setWavespeedApiKey] = useState("");
   const [surchargeVariantId, setSurchargeVariantId] = useState(settings.surchargeVariantId || "");
   const [showHelp, setShowHelp] = useState(false);
 
@@ -381,33 +389,38 @@ export default function SettingsRoute() {
               </Box>
             </Card>
 
-            {/* Photoroom */}
+            {/* WaveSpeed */}
             <Card>
               <Box padding="400">
                 <BlockStack gap="400">
                   <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingMd">Photoroom Arka Plan Temizleme</Text>
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">WaveSpeed Arka Plan Kaldırma</Text>
+                      <Text as="p" tone="subdued" variant="bodySm">
+                        Piyasanın en uygun fiyatlı AI arka plan kaldırma servisi.
+                        Mağazalara plana göre kota tanımlanır ve her kullanım loglanır.
+                      </Text>
+                    </BlockStack>
                     <Button variant="plain" size="slim" onClick={() => setShowHelp((v) => !v)}>
-                      {showHelp ? "Kapat" : "API key nasıl alınır?"}
+                      {showHelp ? "Kapat" : "Nasıl kurulur?"}
                     </Button>
                   </InlineStack>
 
-                  <Collapsible open={showHelp} id="photoroom-help">
+                  <Collapsible open={showHelp} id="wavespeed-help">
                     <Box background="bg-surface-secondary" padding="400" borderRadius="200" borderColor="border" borderWidth="025">
                       <BlockStack gap="300">
-                        <Text as="h3" variant="headingSm">Photoroom API key nasıl alınır?</Text>
+                        <Text as="h3" variant="headingSm">WaveSpeed API key nasıl alınır?</Text>
                         <BlockStack gap="200">
                           {[
-                            "photoroom.com/api adresine gidin ve ücretsiz bir hesap oluşturun.",
-                            "Giriş yaptıktan sonra sol menüden API & SDK bölümüne tıklayın.",
-                            "\"API Keys\" sekmesinde \"Create new key\" butonuna tıklayın.",
-                            "Oluşturulan anahtarı kopyalayın — sadece bir kez gösterilir, kaydedin.",
+                            "wavespeed.ai adresine gidin ve ücretsiz hesap oluşturun.",
+                            "Dashboard → API Keys bölümüne gidin.",
+                            "\"Create API Key\" butonuna tıklayın ve oluşturulan anahtarı kopyalayın.",
                             "Kopyaladığınız anahtarı aşağıdaki alana yapıştırın ve kaydedin.",
                           ].map((text, i) => (
                             <InlineStack key={i} gap="200" blockAlign="start">
                               <div style={{
                                 width: 22, height: 22, borderRadius: "50%",
-                                background: "#0f766e", color: "white",
+                                background: "#7c3aed", color: "white",
                                 fontSize: 11, fontWeight: 700,
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 flexShrink: 0, marginTop: 1,
@@ -417,30 +430,34 @@ export default function SettingsRoute() {
                           ))}
                         </BlockStack>
                         <Text as="p" tone="subdued" variant="bodySm">
-                          Sandbox key ile aylık 30 görsel ücretsiz işleyebilirsiniz.
+                          Kullanım planınıza göre her mağazaya ayrı kota tanımlanır (Growth: 50/ay, Pro: 500/ay, Business: sınırsız).
                         </Text>
                       </BlockStack>
                     </Box>
                   </Collapsible>
 
-                  <Text as="p" tone="subdued">
-                    Müşteri görsel yükleyince &quot;Arka planı temizleyelim mi?&quot; sorusu çıkar.
-                    API key yalnızca sunucu tarafında kullanılır.
-                  </Text>
+                  {settings.wavespeedApiKey ? (
+                    <InlineStack gap="200" blockAlign="center">
+                      <Badge tone="success">API Key Aktif</Badge>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Yeni bir key girmek için aşağıdaki alana yapıştırın.
+                      </Text>
+                    </InlineStack>
+                  ) : (
+                    <Banner tone="warning" title="WaveSpeed API key girilmemiş">
+                      <p>Arka plan kaldırma özelliği çalışmaz. Lütfen API key ekleyin.</p>
+                    </Banner>
+                  )}
 
                   <TextField
-                    label="Photoroom API key"
-                    name="photoroomApiKey"
-                    value={photoroomApiKey}
-                    onChange={setPhotoroomApiKey}
+                    label={settings.wavespeedApiKey ? "Yeni WaveSpeed API Key (değiştirmek için)" : "WaveSpeed API Key"}
+                    name="wavespeedApiKey"
+                    value={wavespeedApiKey}
+                    onChange={setWavespeedApiKey}
                     autoComplete="off"
                     type="password"
-                    placeholder="sk_pr_..."
-                    helpText={
-                      photoroomApiKey
-                        ? "API key girilmiş."
-                        : "Yukarıdaki 'API key nasıl alınır?' adımlarını takip edin."
-                    }
+                    placeholder="ws_..."
+                    helpText="API key yalnızca sunucu tarafında saklanır, müşteriye iletilmez."
                   />
                 </BlockStack>
               </Box>

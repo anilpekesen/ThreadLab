@@ -26,6 +26,23 @@ export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
 
 export async function runMigrations() {
   await query(`
+    CREATE TABLE IF NOT EXISTS bg_removal_usage (
+      shop        TEXT NOT NULL,
+      month       TEXT NOT NULL,
+      count       INTEGER NOT NULL DEFAULT 0,
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (shop, month)
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS shop_subscriptions (
+      shop        TEXT PRIMARY KEY,
+      plan_key    TEXT NOT NULL DEFAULT 'Pro',
+      active_until TIMESTAMPTZ,
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS product_settings (
       product_id TEXT PRIMARY KEY,
       config     JSONB NOT NULL,

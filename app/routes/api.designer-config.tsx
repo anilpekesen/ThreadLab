@@ -21,12 +21,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const storefrontSettings = toStorefrontSettings(config.settings);
 
-  // Global fallbacks: surchargeVariantId and photoroomApiKey
+  // Global fallbacks: surchargeVariantId and wavespeedApiKey
   const surchargeVariantId =
     config.settings.surchargeVariantId || globalSettings.surchargeVariantId || "";
   const removeBgAvailable = Boolean(
-    config.settings.removeBg &&
-      (config.settings.photoroomApiKey || globalSettings.photoroomApiKey),
+    config.settings.removeBg && globalSettings.wavespeedApiKey,
   );
 
   return json({
