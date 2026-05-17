@@ -592,7 +592,7 @@ export default function App() {
     const handleMessage = (event: MessageEvent) => {
       const payload = event.data;
       if (!payload || payload.type !== 'DESIGNER_INIT' || !payload.config) return;
-      const cfg = payload.config as DesignerConfig;
+      const cfg = payload.config as DesignerConfig & { shop?: string };
       // Personalization zaten yüklüyse mockupImageUrl'i Liquid'in URL'inin üzerine yaz
       const p = personalizationRef.current;
       const frontMockup = p?.printAreas.front.mockupImageUrl;
@@ -602,6 +602,16 @@ export default function App() {
         frontImage: frontMockup || cfg.frontImage,
         backImage: backMockup || cfg.backImage,
       }, setConfig);
+      // Shop domain'i DESIGNER_INIT'ten al ve şablonları çek
+      if (cfg.shop && cfg.shop !== 'null' && cfg.shop !== '') {
+        const appUrl = cfg.uploadEndpoint?.split('/apps/')[0] ?? window.location.origin;
+        fetch(`${appUrl}/api/shop-templates?shop=${encodeURIComponent(cfg.shop)}`)
+          .then((r) => r.json())
+          .then((data: { templates?: import('@/types').ShopTemplate[] }) => {
+            if (Array.isArray(data.templates)) setShopTemplates(data.templates);
+          })
+          .catch(() => {});
+      }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);

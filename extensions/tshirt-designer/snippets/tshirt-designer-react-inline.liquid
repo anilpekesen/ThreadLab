@@ -93,6 +93,7 @@
           currency: root.dataset.currency || 'TRY',
           locale: root.dataset.locale || 'tr-TR',
           uploadEndpoint: '/apps/tshirt-designer/upload',
+          shop: '{{ shop.permanent_domain }}',
           singleVariantId: root.dataset.singleVariantId || '',
           doubleVariantId: root.dataset.doubleVariantId || '',
           singlePrice: Number(root.dataset.singlePrice || 0),
