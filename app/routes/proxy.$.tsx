@@ -35,10 +35,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   if (path === "designer") {
     const url = new URL(request.url);
-    const paramsText = url.searchParams.toString();
+    const iframeParams = new URLSearchParams(url.searchParams);
+    // Pass shop domain so the designer can fetch store-specific templates
+    const proxyShop = (appProxy as { session?: { shop?: string } }).session?.shop;
+    if (proxyShop) iframeParams.set("shop", proxyShop);
     const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
     const designerUrl = new URL("/designer-app/", appUrl);
-    designerUrl.search = paramsText;
+    designerUrl.search = iframeParams.toString();
     const iframeSrc = designerUrl.toString().replace(/&/g, "&amp;");
 
     return appProxy.liquid(

@@ -560,13 +560,14 @@ export default function App() {
 
   // Mağazanın kendi şablonlarını çek
   useEffect(() => {
-    // URL'de ?shop= yoksa mağaza hostname'ini kullan (storefront proxy bağlamı)
+    // proxy.$.tsx injects ?shop= into the iframe URL; hostname fallback only for .myshopify.com domains
+    const hostname = window.location.hostname;
     const shop = new URLSearchParams(window.location.search).get('shop')
-      ?? window.location.hostname;
+      ?? (hostname.endsWith('.myshopify.com') ? hostname : null);
     const appUrl = (window as typeof window & { __DESIGNER_CONFIG__?: { uploadEndpoint?: string } })
       .__DESIGNER_CONFIG__?.uploadEndpoint?.split('/apps/')[0]
       ?? window.location.origin;
-    fetch(`${appUrl}/api/shop-templates?shop=${encodeURIComponent(shop)}`)
+    fetch(`${appUrl}/api/shop-templates?shop=${encodeURIComponent(shop as string)}`)
       .then((r) => r.json())
       .then((data: { templates?: import('@/types').ShopTemplate[] }) => {
         if (Array.isArray(data.templates)) setShopTemplates(data.templates);
