@@ -135,6 +135,16 @@ export async function getOrder(id: string): Promise<Order | null> {
   return rowToOrder(result.rows[0]);
 }
 
+export async function getOrderByShopifyId(shopifyOrderId: string): Promise<Order | null> {
+  await ensureMigrations();
+  const result = await query<DbRow>(
+    `${ORDER_SELECT} WHERE o.shopify_order_id = $1`,
+    [shopifyOrderId],
+  );
+  if (!result.rows.length) return null;
+  return rowToOrder(result.rows[0]);
+}
+
 export async function updateOrderStatus(id: string, status: string): Promise<Order> {
   await ensureMigrations();
   const result = await query<DbRow>(
