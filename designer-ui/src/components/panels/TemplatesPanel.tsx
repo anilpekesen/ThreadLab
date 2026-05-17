@@ -1,10 +1,5 @@
 import { useState } from 'react';
 import { fabric } from 'fabric';
-import {
-  CLIPART_ITEMS,
-  CLIPART_CATEGORIES,
-  type ClipArtCategory,
-} from '@/data/clipartData';
 import type { ShopTemplate } from '@/types';
 
 interface Template {
@@ -12,6 +7,17 @@ interface Template {
   label: string;
   build: (cv: fabric.Canvas) => void;
 }
+
+const SHOP_CATEGORIES = [
+  { value: 'all',       label: 'Tümü' },
+  { value: 'custom',    label: 'Özel' },
+  { value: 'cartoon',   label: 'Çizgi Film' },
+  { value: 'superhero', label: 'Süper Kahraman' },
+  { value: 'sport',     label: 'Spor' },
+  { value: 'nature',    label: 'Doğa' },
+  { value: 'abstract',  label: 'Soyut' },
+  { value: 'text',      label: 'Yazı / Logo' },
+];
 
 const TEXT_TEMPLATES: Template[] = [
   {
@@ -163,93 +169,77 @@ interface Props {
 }
 
 export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = [] }: Props) {
-  const [clipartCategory, setClipArtCategory] = useState<ClipArtCategory>('all');
+  const [activeCategory, setActiveCategory] = useState('all');
 
-  const filteredClipart =
-    clipartCategory === 'all'
-      ? CLIPART_ITEMS
-      : CLIPART_ITEMS.filter((c) => c.category === clipartCategory);
+  // Only show category tabs that have at least one template (plus Tümü)
+  const presentCategories = SHOP_CATEGORIES.filter(
+    (c) => c.value === 'all' || shopTemplates.some((t) => t.category === c.value),
+  );
+
+  const filteredTemplates =
+    activeCategory === 'all'
+      ? shopTemplates
+      : shopTemplates.filter((t) => t.category === activeCategory);
 
   return (
     <div className="space-y-8">
 
       {/* ── Mağaza Şablonları ── */}
-      {shopTemplates.length > 0 && (
-        <div className="space-y-4">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-600">Mağaza Şablonları</p>
-            <p className="text-sm font-semibold text-slate-500">Bu mağazaya özel hazır görseller.</p>
-          </div>
-          <div className="grid grid-cols-3 gap-3 md:grid-cols-4 xl:grid-cols-5">
-            {shopTemplates.map((tpl) => (
-              <button
-                key={tpl.id}
-                onClick={() => onAddImage(tpl.imageUrl)}
-                title={tpl.name}
-                className="group flex flex-col items-center gap-1.5 rounded-2xl border-2 border-violet-200 bg-white p-2 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-400 hover:bg-violet-50/40 hover:shadow-md"
-              >
-                <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50 p-1">
-                  <img
-                    src={tpl.imageUrl}
-                    alt={tpl.name}
-                    className="h-full w-full object-contain transition-transform group-hover:scale-110"
-                    draggable={false}
-                    crossOrigin="anonymous"
-                  />
-                </div>
-                <span className="w-full truncate text-[10px] font-bold text-violet-700">{tpl.name}</span>
-              </button>
-            ))}
-          </div>
-          <div className="border-t border-gray-100" />
-        </div>
-      )}
-
-      {/* ── Clipart Galerisi ── */}
       <div className="space-y-4">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-600">Hazır Clipart</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-600">Mağaza Şablonları</p>
           <p className="text-sm font-semibold text-slate-500">Bir görsele tıklayarak tuvale ekleyin.</p>
         </div>
 
-        {/* Kategori filtreleri */}
-        <div className="flex flex-wrap gap-2">
-          {CLIPART_CATEGORIES.map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => setClipArtCategory(id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
-                clipartCategory === id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Clipart grid */}
-        <div className="grid grid-cols-3 gap-3 md:grid-cols-4 xl:grid-cols-5">
-          {filteredClipart.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onAddImage(item.svg)}
-              title={item.name}
-              className="group flex flex-col items-center gap-1.5 rounded-2xl border border-gray-200 bg-white p-2 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-400 hover:bg-blue-50/40 hover:shadow-md"
-            >
-              <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50 p-1">
-                <img
-                  src={item.svg}
-                  alt={item.name}
-                  className="h-full w-full object-contain transition-transform group-hover:scale-110"
-                  draggable={false}
-                />
+        {shopTemplates.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center">
+            <p className="text-sm font-semibold text-slate-400">Henüz şablon eklenmemiş.</p>
+            <p className="mt-1 text-xs text-slate-400">Mağaza yöneticisi Şablonlar sayfasından görsel yükleyebilir.</p>
+          </div>
+        ) : (
+          <>
+            {/* Category filter tabs */}
+            {presentCategories.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                {presentCategories.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setActiveCategory(value)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+                      activeCategory === value
+                        ? 'bg-violet-600 text-white'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-              <span className="w-full truncate text-[10px] font-bold text-gray-600">{item.name}</span>
-            </button>
-          ))}
-        </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-3 md:grid-cols-4 xl:grid-cols-5">
+              {filteredTemplates.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  onClick={() => onAddImage(tpl.imageUrl)}
+                  title={tpl.name}
+                  className="group flex flex-col items-center gap-1.5 rounded-2xl border-2 border-violet-200 bg-white p-2 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-400 hover:bg-violet-50/40 hover:shadow-md"
+                >
+                  <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50 p-1">
+                    <img
+                      src={tpl.imageUrl}
+                      alt={tpl.name}
+                      className="h-full w-full object-contain transition-transform group-hover:scale-110"
+                      draggable={false}
+                      crossOrigin="anonymous"
+                    />
+                  </div>
+                  <span className="w-full truncate text-[10px] font-bold text-violet-700">{tpl.name}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Ayraç */}

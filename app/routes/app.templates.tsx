@@ -3,13 +3,13 @@ import {
   unstable_createMemoryUploadHandler,
 } from "@remix-run/node";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useNavigation } from "@remix-run/react";
+import { json } from "@remix-run/node";
+import { useLoaderData, useFetcher, useRevalidator } from "@remix-run/react";
 import {
   Page, Layout, Card, Box, Text, BlockStack, InlineStack, Button,
   Badge, Banner, Divider, EmptyState, TextField, Select, Thumbnail,
 } from "@shopify/polaris";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { authenticate } from "~/shopify.server";
 import {
   getShopTemplates,
@@ -81,7 +81,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return json({ error: err instanceof Error ? err.message : "Yükleme başarısız" }, { status: 500 });
       }
 
-      return redirect("/app/templates?saved=1");
+      return json({ ok: true });
     }
   }
 
@@ -160,14 +160,28 @@ function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
 
 // ─── Page ─────────────────────────────────────────────────────────
 export default function TemplatesRoute() {
-  const { templates, quota, planKey, saved } = useLoaderData<typeof loader>();
-  const navigation = useNavigation();
-  const isUploading = navigation.state === "submitting";
+  const { templates, quota, planKey } = useLoaderData<typeof loader>();
+  const { revalidate } = useRevalidator();
+  const uploadFetcher = useFetcher<typeof action>();
+  const isUploading = uploadFetcher.state !== "idle";
+  const uploadData = uploadFetcher.data as { ok?: boolean; error?: string } | undefined;
+  const uploadSuccess = !isUploading && uploadData?.ok === true;
+  const uploadError = !isUploading && uploadData?.error;
 
   const [preview, setPreview] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("custom");
+
+  useEffect(() => {
+    if (uploadSuccess) {
+      setPreview(null);
+      setFileName(null);
+      setName("");
+      setCategory("custom");
+      revalidate();
+    }
+  }, [uploadSuccess]);
 
   const quotaFull = quota.quota !== -1 && quota.count >= quota.quota;
   const quotaLabel = quota.quota === -1 ? "Sınırsız" : `${quota.count} / ${quota.quota}`;
@@ -178,7 +192,8 @@ export default function TemplatesRoute() {
       subtitle="Müşterilerin tasarım ekranında göreceği hazır görseller"
     >
       <BlockStack gap="500">
-        {saved && <Banner tone="success" title="Şablon başarıyla yüklendi." onDismiss={() => {}} />}
+        {uploadSuccess && <Banner tone="success" title="Şablon başarıyla yüklendi." onDismiss={() => {}} />}
+        {uploadError && <Banner tone="critical" title={String(uploadError)} onDismiss={() => {}} />}
 
         {/* Plan / kota durumu */}
         <Card>
@@ -215,8 +230,8 @@ export default function TemplatesRoute() {
                 </Banner>
               )}
 
-              {/* Native form — multipart/form-data */}
-              <form method="post" encType="multipart/form-data">
+              {/* uploadFetcher.Form keeps multipart data and revalidates loader after success */}
+              <uploadFetcher.Form method="post" encType="multipart/form-data">
                 <input type="hidden" name="intent" value="upload" />
                 <BlockStack gap="300">
 
@@ -311,7 +326,7 @@ export default function TemplatesRoute() {
                     </Button>
                   </InlineStack>
                 </BlockStack>
-              </form>
+              </uploadFetcher.Form>
             </BlockStack>
           </Box>
         </Card>

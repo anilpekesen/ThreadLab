@@ -560,8 +560,9 @@ export default function App() {
 
   // Mağazanın kendi şablonlarını çek
   useEffect(() => {
-    const shop = new URLSearchParams(window.location.search).get('shop');
-    if (!shop) return;
+    // URL'de ?shop= yoksa mağaza hostname'ini kullan (storefront proxy bağlamı)
+    const shop = new URLSearchParams(window.location.search).get('shop')
+      ?? window.location.hostname;
     const appUrl = (window as typeof window & { __DESIGNER_CONFIG__?: { uploadEndpoint?: string } })
       .__DESIGNER_CONFIG__?.uploadEndpoint?.split('/apps/')[0]
       ?? window.location.origin;

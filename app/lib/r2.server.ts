@@ -24,7 +24,11 @@ export async function uploadToR2(
       Bucket: BUCKET,
       Key: key,
       Body: buffer,
-      ContentType: ext === "png" ? "image/png" : ext === "jpg" ? "image/jpeg" : "image/webp",
+      ContentType:
+        ext === "png" ? "image/png"
+        : ext === "jpg" ? "image/jpeg"
+        : ext === "svg" ? "image/svg+xml"
+        : "image/webp",
       CacheControl: "public, max-age=31536000, immutable",
     })
   );
