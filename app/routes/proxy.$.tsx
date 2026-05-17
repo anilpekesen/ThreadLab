@@ -36,13 +36,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (path === "designer") {
     const url = new URL(request.url);
     const iframeParams = new URLSearchParams(url.searchParams);
-    // Pass shop domain so the designer can fetch store-specific templates
-    const proxyShop = (appProxy as { session?: { shop?: string } }).session?.shop;
-    if (proxyShop) iframeParams.set("shop", proxyShop);
+    iframeParams.delete("shop"); // will be injected via Liquid below
     const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
     const designerUrl = new URL("/designer-app/", appUrl);
     designerUrl.search = iframeParams.toString();
-    const iframeSrc = designerUrl.toString().replace(/&/g, "&amp;");
+    const base = designerUrl.toString();
+    const sep = base.includes("?") ? "&" : "?";
+    // Liquid injects the real shop domain at render time — always reliable
+    const iframeSrc = (base + sep + "shop={{ shop.permanent_domain }}").replace(/&/g, "&amp;");
 
     return appProxy.liquid(
       `<!doctype html>
