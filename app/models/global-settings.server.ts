@@ -18,18 +18,26 @@ const DEFAULTS: GlobalSettings = {
   surchargeVariantId: "",
 };
 
+// Env var fallback — supports both WAVESPEED_API_KEY and wavespeed naming
+const ENV_WAVESPEED_KEY =
+  process.env.WAVESPEED_API_KEY ||
+  process.env.wavespeed ||
+  "";
+
 export async function getGlobalSettings(): Promise<GlobalSettings> {
   await ensureMigrations();
   const result = await query<{ config: Record<string, unknown> }>(
     "SELECT config FROM global_settings WHERE id = 1",
   );
-  if (!result.rows.length) return { ...DEFAULTS };
+  if (!result.rows.length) {
+    return { ...DEFAULTS, wavespeedApiKey: ENV_WAVESPEED_KEY };
+  }
   const saved = result.rows[0].config as Partial<GlobalSettings & { photoroomApiKey?: string }>;
   return {
     ...DEFAULTS,
     ...saved,
-    // migrate old photoroomApiKey field — keep wavespeedApiKey if set
-    wavespeedApiKey: saved.wavespeedApiKey || "",
+    // DB setting takes priority; fall back to env var
+    wavespeedApiKey: saved.wavespeedApiKey || ENV_WAVESPEED_KEY,
   };
 }
 
