@@ -36,15 +36,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (path === "designer") {
     const url = new URL(request.url);
     const iframeParams = new URLSearchParams(url.searchParams);
-    iframeParams.delete("shop"); // will be injected via Liquid below
+    iframeParams.delete("shop");
     const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
     const designerUrl = new URL("/designer-app/", appUrl);
     designerUrl.search = iframeParams.toString();
-    const base = designerUrl.toString();
-    const sep = base.includes("?") ? "&" : "?";
-    // Liquid injects the real shop domain at render time — always reliable
-    const iframeSrc = (base + sep + "shop={{ shop.permanent_domain }}").replace(/&/g, "&amp;");
+    const iframeSrc = designerUrl.toString().replace(/&/g, "&amp;");
 
+    // Liquid renders {{ shop.permanent_domain }} server-side and postMessages it to the iframe
     return appProxy.liquid(
       `<!doctype html>
 <html lang="tr">
@@ -57,7 +55,19 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 </style>
 </head>
 <body>
-<iframe src="${iframeSrc}" allow="camera; microphone"></iframe>
+<iframe id="designer-frame" src="${iframeSrc}" allow="camera; microphone"></iframe>
+<script>
+  var frame = document.getElementById('designer-frame');
+  var shop = '{{ shop.permanent_domain }}';
+  function sendShop() {
+    if (shop && shop !== 'null' && shop !== '') {
+      frame.contentWindow.postMessage({ type: 'SHOP_INIT', shop: shop }, '*');
+    }
+  }
+  frame.addEventListener('load', sendShop);
+  // Retry after a short delay in case the frame loaded before the listener was attached
+  setTimeout(sendShop, 1500);
+</script>
 </body>
 </html>`,
       { layout: false },

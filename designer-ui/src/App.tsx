@@ -559,19 +559,33 @@ export default function App() {
   }, [setConfig]);
 
   // Mağazanın kendi şablonlarını çek
+  // Shop domain'i proxy.$.tsx'teki Liquid sayfası postMessage ile gönderir
   useEffect(() => {
-    // proxy.$.tsx injects ?shop= via Liquid {{ shop.permanent_domain }}
-    const shop = new URLSearchParams(window.location.search).get('shop');
-    if (!shop) return;
     const appUrl = (window as typeof window & { __DESIGNER_CONFIG__?: { uploadEndpoint?: string } })
       .__DESIGNER_CONFIG__?.uploadEndpoint?.split('/apps/')[0]
       ?? window.location.origin;
-    fetch(`${appUrl}/api/shop-templates?shop=${encodeURIComponent(shop)}`)
-      .then((r) => r.json())
-      .then((data: { templates?: import('@/types').ShopTemplate[] }) => {
-        if (Array.isArray(data.templates)) setShopTemplates(data.templates);
-      })
-      .catch(() => {});
+
+    const fetchTemplates = (shop: string) => {
+      fetch(`${appUrl}/api/shop-templates?shop=${encodeURIComponent(shop)}`)
+        .then((r) => r.json())
+        .then((data: { templates?: import('@/types').ShopTemplate[] }) => {
+          if (Array.isArray(data.templates)) setShopTemplates(data.templates);
+        })
+        .catch(() => {});
+    };
+
+    const handleShopInit = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload || payload.type !== 'SHOP_INIT' || !payload.shop) return;
+      fetchTemplates(String(payload.shop));
+    };
+    window.addEventListener('message', handleShopInit);
+
+    // Fallback: URL param (geliştirme ortamı veya doğrudan erişim)
+    const shopParam = new URLSearchParams(window.location.search).get('shop');
+    if (shopParam && shopParam !== 'null') fetchTemplates(shopParam);
+
+    return () => window.removeEventListener('message', handleShopInit);
   }, []);
 
   useEffect(() => {
