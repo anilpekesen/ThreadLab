@@ -6,6 +6,9 @@ handle = "order-design-viewer"
 uid = "60160851-4263-ab07-055d-32622ecb4e289f7fc65a"
 type = "ui_extension"
 
+[extensions.capabilities]
+network_access = true
+
 [[extensions.targeting]]
 module = "./src/OrderDesignViewer.tsx"
 target = "admin.order-details.block.render"
