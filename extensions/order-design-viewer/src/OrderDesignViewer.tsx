@@ -160,6 +160,19 @@ function SideObjects({ objects, label }: { objects: DesignObject[]; label: strin
   );
 }
 
+const APP_CLIENT_ID = 'ffb70fd5e03a3532fb1e47b3a8e9a052';
+
+function getShopFromExtension(api: ReturnType<typeof useApi>): string {
+  try {
+    const scriptUrl = (api as unknown as { extension?: { scriptUrl?: string } }).extension?.scriptUrl ?? '';
+    if (scriptUrl) {
+      const shop = new URL(scriptUrl).searchParams.get('shop') ?? '';
+      return shop.replace('.myshopify.com', '');
+    }
+  } catch {}
+  return '';
+}
+
 function OrderDesignViewer() {
   const api = useApi(TARGET);
   const { data } = api;
@@ -171,6 +184,7 @@ function OrderDesignViewer() {
   const [loading, setLoading] = useState(true);
 
   const orderId = (data as { selected?: { id: string }[] }).selected?.[0]?.id ?? '';
+  const scriptShopDomain = getShopFromExtension(api);
 
   useEffect(() => {
     if (!orderId || !query) { setLoading(false); return; }
@@ -187,7 +201,7 @@ function OrderDesignViewer() {
     ).then(({ data: result }) => {
       if (!result?.order) { setLoading(false); return; }
 
-      const shopDomain = result.shop?.myshopifyDomain?.replace('.myshopify.com', '') ?? '';
+      const shopDomain = result.shop?.myshopifyDomain?.replace('.myshopify.com', '') || scriptShopDomain;
 
       let attrs = result.order.customAttributes ?? [];
       if (!getAttr(attrs, '_front_preview_url') && !getAttr(attrs, 'design_token')) {
@@ -221,8 +235,8 @@ function OrderDesignViewer() {
         .then((r) => r.json())
         .then((d: ApiResult) => {
           const appOrderId = d.appOrderId ?? '';
-          const appOrderUrl = appOrderId && shopDomain
-            ? `https://admin.shopify.com/store/${shopDomain}/apps/ffb70fd5e03a3532fb1e47b3a8e9a052/app/orders/${appOrderId}`
+          const appOrderUrl = appOrderId
+            ? `https://admin.shopify.com/store/${shopDomain || 'whanotify-dev'}/apps/${APP_CLIENT_ID}/app/orders/${appOrderId}`
             : '';
           setDesign({
             ...baseInfo,
