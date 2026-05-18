@@ -36,7 +36,11 @@ interface DesignObject {
   textAlign?: string | null;
   left?: number | null;
   top?: number | null;
-  hasImage?: boolean;
+  src?: string | null;
+}
+
+function downloadUrl(fileUrl: string, filename: string): string {
+  return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
 }
 
 interface ApiResult {
@@ -223,20 +227,51 @@ function OrderDesignViewer() {
           </>
         )}
 
-        {/* Print download links */}
+        {/* Print file downloads */}
         {(design.frontPrintUrl || design.backPrintUrl) && (
           <>
             <Divider />
-            <InlineStack gap="base">
-              {design.frontPrintUrl && (
-                <Link url={design.frontPrintUrl} external>⬇ Ön Baskı</Link>
-              )}
-              {design.backPrintUrl && (
-                <Link url={design.backPrintUrl} external>⬇ Arka Baskı</Link>
-              )}
-            </InlineStack>
+            <BlockStack gap="extraTight">
+              <Text size="small" tone="subdued">Baskı Dosyaları</Text>
+              <InlineStack gap="base">
+                {design.frontPrintUrl && (
+                  <Link url={downloadUrl(design.frontPrintUrl, 'on-baski.png')} external>
+                    ⬇ Ön Baskı İndir
+                  </Link>
+                )}
+                {design.backPrintUrl && (
+                  <Link url={downloadUrl(design.backPrintUrl, 'arka-baski.png')} external>
+                    ⬇ Arka Baskı İndir
+                  </Link>
+                )}
+              </InlineStack>
+            </BlockStack>
           </>
         )}
+
+        {/* User uploaded images in design */}
+        {(() => {
+          const allImages = [
+            ...design.frontObjects.filter((o) => o.src),
+            ...design.backObjects.filter((o) => o.src),
+          ];
+          if (!allImages.length) return null;
+          return (
+            <>
+              <Divider />
+              <BlockStack gap="extraTight">
+                <Text size="small" tone="subdued">Eklenen Görseller</Text>
+                <InlineStack gap="base">
+                  {allImages.map((o, i) => (
+                    <Link key={i} url={downloadUrl(o.src!, `tasarim-gorsel-${i + 1}.png`)} external>
+                      ⬇ Görsel {i + 1} İndir
+                    </Link>
+                  ))}
+                </InlineStack>
+              </BlockStack>
+            </>
+          );
+        })()}
 
         {design.designToken && (
           <Text size="small" tone="subdued">ID: {design.designToken}</Text>

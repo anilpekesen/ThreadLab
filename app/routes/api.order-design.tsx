@@ -50,7 +50,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         textAlign: o.textAlign ?? null,
         left: o.left != null ? Math.round(o.left) : null,
         top: o.top != null ? Math.round(o.top) : null,
-        hasImage: o.type === "image",
+        src: o.type === "image" ? (o.src ?? null) : null,
       }));
 
   return json(
