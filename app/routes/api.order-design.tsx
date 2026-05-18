@@ -47,10 +47,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         fill: o.fill ?? null,
         fontWeight: o.fontWeight ?? null,
         fontStyle: o.fontStyle ?? null,
+        underline: o.underline ?? null,
         textAlign: o.textAlign ?? null,
         left: o.left != null ? Math.round(o.left) : null,
         top: o.top != null ? Math.round(o.top) : null,
         src: o.type === "image" ? (o.src ?? null) : null,
+        width: o.type === "image" && o.width != null && o.scaleX != null
+          ? Math.round(o.width * o.scaleX) : null,
+        height: o.type === "image" && o.height != null && o.scaleY != null
+          ? Math.round(o.height * o.scaleY) : null,
+        angle: o.angle != null ? Math.round(o.angle) : null,
       }));
 
   return json(

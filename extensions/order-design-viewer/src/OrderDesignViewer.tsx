@@ -33,14 +33,14 @@ interface DesignObject {
   fill?: string | null;
   fontWeight?: string | number | null;
   fontStyle?: string | null;
+  underline?: boolean | null;
   textAlign?: string | null;
   left?: number | null;
   top?: number | null;
   src?: string | null;
-}
-
-function downloadUrl(fileUrl: string, filename: string): string {
-  return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
+  width?: number | null;
+  height?: number | null;
+  angle?: number | null;
 }
 
 interface ApiResult {
@@ -63,6 +63,10 @@ interface DesignInfo {
   backObjects: DesignObject[];
 }
 
+function downloadUrl(fileUrl: string, filename: string): string {
+  return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
+}
+
 function getAttr(attrs: Attribute[], key: string): string {
   return attrs.find((a) => a.key === key)?.value ?? '';
 }
@@ -71,33 +75,82 @@ function extractDesignToken(attrs: Attribute[]): string {
   return getAttr(attrs, 'design_token') || getAttr(attrs, '_front_preview_url') ? getAttr(attrs, 'design_token') : '';
 }
 
-function TextObjects({ objects, label }: { objects: DesignObject[]; label: string }) {
-  const texts = objects.filter((o) => o.text);
-  if (!texts.length) return null;
+function DesignObjectItem({ obj, index }: { obj: DesignObject; index: number }) {
+  const isText = obj.type === 'i-text' || obj.type === 'textbox';
+  const isImage = obj.type === 'image';
+
   return (
-    <BlockStack gap="tight">
-      <Text size="small" tone="subdued">{label} Yüz — Yazılar</Text>
-      {texts.map((o, i) => (
-        <BlockStack key={i} gap="extraTight">
-          <Text fontWeight="bold">"{o.text}"</Text>
-          <InlineStack gap="base">
-            {o.fontFamily && <Text size="small" tone="subdued">Font: {o.fontFamily}</Text>}
-            {o.fontSize && <Text size="small" tone="subdued">Boyut: {o.fontSize}px</Text>}
+    <BlockStack gap="extraTight">
+      <Divider />
+      <BlockStack gap="extraTight">
+        {/* Image object */}
+        {isImage && obj.src && (
+          <InlineStack gap="base" blockAlign="start">
+            <Box maxInlineSize={80}>
+              <Image source={obj.src} alt={`Görsel ${index + 1}`} accessibilityDescription={`Tasarım görseli ${index + 1}`} />
+            </Box>
+            <BlockStack gap="extraTight">
+              <Text fontWeight="bold" size="small">Görsel {index + 1}</Text>
+              {(obj.width || obj.height) && (
+                <Text size="small" tone="subdued">
+                  {obj.width && obj.height ? `${obj.width} × ${obj.height}px` : ''}
+                  {obj.angle ? ` · ${obj.angle}°` : ''}
+                </Text>
+              )}
+              <Text size="small" tone="subdued">Konum: {obj.left ?? 0}, {obj.top ?? 0}</Text>
+              <Link url={downloadUrl(obj.src, `tasarim-gorsel-${index + 1}.png`)} external>
+                ⬇ Görseli İndir
+              </Link>
+            </BlockStack>
           </InlineStack>
-          <InlineStack gap="base">
-            {o.fill && <Text size="small" tone="subdued">Renk: {o.fill}</Text>}
-            {o.fontWeight && String(o.fontWeight) !== 'normal' && (
-              <Text size="small" tone="subdued">Kalınlık: {o.fontWeight}</Text>
+        )}
+
+        {/* Text object */}
+        {isText && (
+          <BlockStack gap="extraTight">
+            {obj.text && (
+              <Text fontWeight="bold">"{obj.text}"</Text>
             )}
-            {o.fontStyle === 'italic' && <Text size="small" tone="subdued">Stil: italic</Text>}
-            {o.textAlign && o.textAlign !== 'left' && (
-              <Text size="small" tone="subdued">Hizalama: {o.textAlign}</Text>
-            )}
-          </InlineStack>
-          {(o.left != null || o.top != null) && (
-            <Text size="small" tone="subdued">Konum: {o.left ?? 0}, {o.top ?? 0}</Text>
-          )}
-        </BlockStack>
+            <InlineStack gap="base" wrap>
+              {obj.fontFamily && (
+                <Text size="small" tone="subdued">Font: {obj.fontFamily}</Text>
+              )}
+              {obj.fontSize && (
+                <Text size="small" tone="subdued">Boyut: {obj.fontSize}px</Text>
+              )}
+              {obj.fill && (
+                <Text size="small" tone="subdued">Renk: {obj.fill}</Text>
+              )}
+            </InlineStack>
+            <InlineStack gap="base" wrap>
+              {obj.fontWeight && String(obj.fontWeight) !== 'normal' && (
+                <Text size="small" tone="subdued">Kalınlık: {obj.fontWeight}</Text>
+              )}
+              {obj.fontStyle === 'italic' && (
+                <Text size="small" tone="subdued">Stil: italic</Text>
+              )}
+              {obj.underline && (
+                <Text size="small" tone="subdued">Alt çizgi: var</Text>
+              )}
+              {obj.textAlign && obj.textAlign !== 'left' && (
+                <Text size="small" tone="subdued">Hizalama: {obj.textAlign}</Text>
+              )}
+            </InlineStack>
+            <Text size="small" tone="subdued">Konum: {obj.left ?? 0}, {obj.top ?? 0}</Text>
+          </BlockStack>
+        )}
+      </BlockStack>
+    </BlockStack>
+  );
+}
+
+function SideObjects({ objects, label }: { objects: DesignObject[]; label: string }) {
+  if (!objects.length) return null;
+  return (
+    <BlockStack gap="extraTight">
+      <Text size="small" tone="subdued">{label} Yüz Öğeleri ({objects.length})</Text>
+      {objects.map((obj, i) => (
+        <DesignObjectItem key={i} obj={obj} index={i} />
       ))}
     </BlockStack>
   );
@@ -129,7 +182,6 @@ function OrderDesignViewer() {
     ).then(({ data: result }) => {
       if (!result?.order) { setLoading(false); return; }
 
-      // Find attrs at order or line-item level
       let attrs = result.order.customAttributes ?? [];
       if (!getAttr(attrs, '_front_preview_url') && !getAttr(attrs, 'design_token')) {
         for (const item of result.order.lineItems?.nodes ?? []) {
@@ -155,7 +207,6 @@ function OrderDesignViewer() {
         backObjects: [],
       };
 
-      // Fetch design text objects from app API
       const numericId = orderId.includes('/') ? orderId.split('/').pop()! : orderId;
       fetch(`${APP_URL}/api/order-design?shopify_order_id=${encodeURIComponent(numericId)}`)
         .then((r) => r.json())
@@ -184,11 +235,14 @@ function OrderDesignViewer() {
 
   if (!design) return null;
 
+  const hasFrontObjects = design.frontObjects.length > 0;
+  const hasBackObjects = design.backObjects.length > 0;
+
   return (
     <AdminBlock title="Baskı Tasarımı">
       <BlockStack gap="base">
 
-        {/* Compact preview images side by side */}
+        {/* Preview images */}
         {(design.frontPreviewUrl || design.backPreviewUrl) && (
           <InlineStack gap="base">
             {design.frontPreviewUrl && (
@@ -218,15 +272,6 @@ function OrderDesignViewer() {
           </InlineStack>
         )}
 
-        {/* Text design objects */}
-        {(design.frontObjects.length > 0 || design.backObjects.length > 0) && (
-          <>
-            <Divider />
-            <TextObjects objects={design.frontObjects} label="Ön" />
-            <TextObjects objects={design.backObjects} label="Arka" />
-          </>
-        )}
-
         {/* Print file downloads */}
         {(design.frontPrintUrl || design.backPrintUrl) && (
           <>
@@ -249,29 +294,15 @@ function OrderDesignViewer() {
           </>
         )}
 
-        {/* User uploaded images in design */}
-        {(() => {
-          const allImages = [
-            ...design.frontObjects.filter((o) => o.src),
-            ...design.backObjects.filter((o) => o.src),
-          ];
-          if (!allImages.length) return null;
-          return (
-            <>
-              <Divider />
-              <BlockStack gap="extraTight">
-                <Text size="small" tone="subdued">Eklenen Görseller</Text>
-                <InlineStack gap="base">
-                  {allImages.map((o, i) => (
-                    <Link key={i} url={downloadUrl(o.src!, `tasarim-gorsel-${i + 1}.png`)} external>
-                      ⬇ Görsel {i + 1} İndir
-                    </Link>
-                  ))}
-                </InlineStack>
-              </BlockStack>
-            </>
-          );
-        })()}
+        {/* Design objects: text + uploaded images */}
+        {(hasFrontObjects || hasBackObjects) && (
+          <>
+            <Divider />
+            <SideObjects objects={design.frontObjects} label="Ön" />
+            {hasFrontObjects && hasBackObjects && <Divider />}
+            <SideObjects objects={design.backObjects} label="Arka" />
+          </>
+        )}
 
         {design.designToken && (
           <Text size="small" tone="subdued">ID: {design.designToken}</Text>
