@@ -25,7 +25,6 @@ interface OrderResult {
   order: {
     customAttributes: Attribute[];
     lineItems: { nodes: { customAttributes: Attribute[] }[] };
-    metafields: { nodes: Metafield[] };
   };
   shop: { myshopifyDomain: string };
 }
@@ -152,23 +151,21 @@ function OrderDesignViewer() {
   useEffect(() => {
     if (!orderId || !query) { setLoading(false); return; }
 
+    // Query 1: basic order attrs + shop (always available, no special scopes)
     query<OrderResult>(
-      `query GetOrderDesign($id: ID!) {
+      `query GetOrderBase($id: ID!) {
         order(id: $id) {
           customAttributes { key value }
           lineItems(first: 10) { nodes { customAttributes { key value } } }
-          metafields(first: 10, namespace: "printlab") { nodes { key value } }
         }
         shop { myshopifyDomain }
       }`,
       { variables: { id: orderId } },
-    ).then(({ data: result }) => {
+    ).then(async ({ data: result }) => {
       if (!result?.order) { setLoading(false); return; }
 
       const shopDomain = result.shop?.myshopifyDomain?.replace('.myshopify.com', '') ?? '';
-      const metafields = result.order.metafields?.nodes ?? [];
 
-      // Prefer metafields (set during sync); fall back to customAttributes
       let attrs = result.order.customAttributes ?? [];
       if (!getAttr(attrs, '_front_preview_url') && !getAttr(attrs, 'design_token')) {
         for (const item of result.order.lineItems?.nodes ?? []) {
@@ -178,6 +175,20 @@ function OrderDesignViewer() {
           }
         }
       }
+
+      // Query 2: metafields (requires read_order_metafields scope — optional, ignore if fails)
+      let metafields: Metafield[] = [];
+      try {
+        const mfResult = await query<{ order: { metafields: { nodes: Metafield[] } } }>(
+          `query GetOrderMetafields($id: ID!) {
+            order(id: $id) {
+              metafields(first: 10, namespace: "printlab") { nodes { key value } }
+            }
+          }`,
+          { variables: { id: orderId } },
+        );
+        metafields = mfResult.data?.order?.metafields?.nodes ?? [];
+      } catch { /* scope not granted yet — continue without metafields */ }
 
       const frontPreviewUrl = getMf(metafields, 'front_preview_url') || getAttr(attrs, '_front_preview_url');
       const backPreviewUrl  = getMf(metafields, 'back_preview_url')  || getAttr(attrs, '_back_preview_url');
@@ -199,7 +210,7 @@ function OrderDesignViewer() {
           const parsed = JSON.parse(designObjectsJson) as { frontObjects?: DesignObject[]; backObjects?: DesignObject[] };
           frontObjects = parsed.frontObjects ?? [];
           backObjects  = parsed.backObjects  ?? [];
-        } catch { /* ignore parse error */ }
+        } catch { /* ignore */ }
       }
 
       setDesign({ frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, appOrderId, appOrderUrl, frontObjects, backObjects });
