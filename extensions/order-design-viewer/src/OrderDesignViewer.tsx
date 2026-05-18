@@ -231,7 +231,7 @@ function OrderDesignViewer() {
       };
 
       const numericId = orderId.includes('/') ? orderId.split('/').pop()! : orderId;
-      fetch(`${APP_URL}/api/order-design?shopify_order_id=${encodeURIComponent(numericId)}`)
+      fetch(`${APP_URL}/api/order-design?shopify_order_id=${encodeURIComponent(numericId)}`, { credentials: 'omit' })
         .then((r) => r.json())
         .then((d: ApiResult) => {
           const appOrderId = d.appOrderId ?? '';

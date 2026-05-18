@@ -2,15 +2,20 @@ import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { getOrderByShopifyId } from "~/models/orders.server";
 import { getDesignByToken, extractObjects } from "~/models/designs.server";
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
+function corsHeaders(request: Request) {
+  const origin = request.headers.get("Origin") ?? "*";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Credentials": "true",
+    "Vary": "Origin",
+  };
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS });
+    return new Response(null, { status: 204, headers: corsHeaders(request) });
   }
 
   const url = new URL(request.url);
@@ -19,12 +24,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shopifyOrderId = raw.includes("/") ? raw.split("/").pop()! : raw;
 
   if (!shopifyOrderId) {
-    return json({ error: "shopify_order_id required" }, { status: 400, headers: CORS });
+    return json({ error: "shopify_order_id required" }, { status: 400, headers: corsHeaders(request) });
   }
 
   const order = await getOrderByShopifyId(shopifyOrderId);
   if (!order) {
-    return json({ found: false }, { status: 200, headers: CORS });
+    return json({ found: false }, { status: 200, headers: corsHeaders(request) });
   }
 
   const frontPreviewUrl = order.designFrontPreviewUrl || order.previewUrl || null;
@@ -74,6 +79,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       frontObjects: toSummary(frontObjects),
       backObjects: toSummary(backObjects),
     },
-    { headers: CORS },
+    { headers: corsHeaders(request) },
   );
 };
