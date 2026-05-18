@@ -58,8 +58,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     try {
       syncCount = await syncOrdersFromAdmin(admin);
     } catch (e) {
+      // Re-throw redirects so Shopify auth flow can handle them
+      if (e instanceof Response && e.status >= 300 && e.status < 400) throw e;
       if (e instanceof Response) {
-        syncError = `HTTP ${e.status}: ${e.statusText || "Shopify API hatası"}`;
+        syncError = `Shopify API hatası (HTTP ${e.status})`;
       } else {
         syncError = e instanceof Error ? e.message : String(e);
       }
