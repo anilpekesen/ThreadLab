@@ -39,20 +39,44 @@ const STATUS_LABELS: Record<string, string> = {
 function OrderDesignViewer() {
   const { data } = useApi(TARGET);
   const [design, setDesign] = useState<DesignData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const orderId = (data as { selected?: { id: string }[] }).selected?.[0]?.id ?? '';
 
   useEffect(() => {
-    if (!orderId) return;
+    if (!orderId) {
+      setLoading(false);
+      return;
+    }
     fetch(`${APP_URL}/api/order-design?shopify_order_id=${encodeURIComponent(orderId)}`)
       .then((r) => r.json())
-      .then((d: DesignData) => setDesign(d))
-      .catch(() => setDesign({ found: false }));
+      .then((d: DesignData) => {
+        setDesign(d);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, [orderId]);
 
-  if (!design || !design.found) return null;
+  // Always render AdminBlock so Shopify doesn't collapse the slot
+  if (loading) {
+    return (
+      <AdminBlock title="Baskı Tasarımı">
+        <Text tone="subdued">Yükleniyor...</Text>
+      </AdminBlock>
+    );
+  }
 
-  const statusLabel = design.productionStatus ? (STATUS_LABELS[design.productionStatus] ?? design.productionStatus) : null;
+  if (!design || !design.found) {
+    return (
+      <AdminBlock title="Baskı Tasarımı">
+        <Text tone="subdued">Bu siparişe ait tasarım bulunamadı.</Text>
+      </AdminBlock>
+    );
+  }
+
+  const statusLabel = design.productionStatus
+    ? (STATUS_LABELS[design.productionStatus] ?? design.productionStatus)
+    : null;
 
   return (
     <AdminBlock title="Baskı Tasarımı">
@@ -66,7 +90,7 @@ function OrderDesignViewer() {
           <InlineStack gap="base">
             {design.frontPreviewUrl && (
               <BlockStack gap="extraTight">
-                <Text size="small" tone="subdued">Ön Yüz Önizleme</Text>
+                <Text size="small" tone="subdued">Ön Yüz</Text>
                 <Image
                   source={design.frontPreviewUrl}
                   alt="Ön yüz önizlemesi"
@@ -76,7 +100,7 @@ function OrderDesignViewer() {
             )}
             {design.backPreviewUrl && (
               <BlockStack gap="extraTight">
-                <Text size="small" tone="subdued">Arka Yüz Önizleme</Text>
+                <Text size="small" tone="subdued">Arka Yüz</Text>
                 <Image
                   source={design.backPreviewUrl}
                   alt="Arka yüz önizlemesi"
@@ -93,12 +117,12 @@ function OrderDesignViewer() {
             <InlineStack gap="base">
               {design.frontPrintUrl && (
                 <Link url={design.frontPrintUrl} external>
-                  ⬇ Ön Baskı Dosyası (Yüksek Kalite)
+                  ⬇ Ön Baskı Dosyası
                 </Link>
               )}
               {design.backPrintUrl && (
                 <Link url={design.backPrintUrl} external>
-                  ⬇ Arka Baskı Dosyası (Yüksek Kalite)
+                  ⬇ Arka Baskı Dosyası
                 </Link>
               )}
             </InlineStack>
