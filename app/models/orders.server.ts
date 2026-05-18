@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { query, runMigrations } from "~/lib/db.server";
+import { getDesignByToken, extractObjects } from "~/models/designs.server";
 
 let migrationsRan = false;
 async function ensureMigrations() {
@@ -155,9 +156,93 @@ export async function updateOrderStatus(id: string, status: string): Promise<Ord
   return rowToOrder(result.rows[0]);
 }
 
-export async function syncOrdersFromAdmin(
-  admin: { graphql: (query: string) => Promise<{ json: () => Promise<unknown> }> },
-): Promise<number> {
+type AdminClient = {
+  graphql: (
+    q: string,
+    opts?: { variables?: Record<string, unknown> },
+  ) => Promise<{ json: () => Promise<unknown> }>;
+};
+
+function summarizeObjects(
+  objs: ReturnType<typeof extractObjects>,
+): object[] {
+  return objs
+    .filter((o) => o.type === "i-text" || o.type === "textbox" || o.type === "image")
+    .map((o) => ({
+      type: o.type,
+      text: o.text ?? null,
+      fontFamily: o.fontFamily ?? null,
+      fontSize: o.fontSize ?? null,
+      fill: o.fill ?? null,
+      fontWeight: o.fontWeight ?? null,
+      fontStyle: o.fontStyle ?? null,
+      underline: o.underline ?? null,
+      textAlign: o.textAlign ?? null,
+      left: o.left != null ? Math.round(o.left) : null,
+      top: o.top != null ? Math.round(o.top) : null,
+      src: o.type === "image" ? (o.src ?? null) : null,
+      width:
+        o.type === "image" && o.width != null && o.scaleX != null
+          ? Math.round(o.width * o.scaleX)
+          : null,
+      height:
+        o.type === "image" && o.height != null && o.scaleY != null
+          ? Math.round(o.height * o.scaleY)
+          : null,
+      angle: o.angle != null ? Math.round(o.angle) : null,
+    }));
+}
+
+async function writeDesignMetafields(
+  admin: AdminClient,
+  shopifyOrderGid: string,
+  appOrderId: string,
+  frontPreviewUrl: string,
+  backPreviewUrl: string,
+  frontPrintUrl: string,
+  backPrintUrl: string,
+  designToken: string,
+): Promise<void> {
+  const design = designToken ? await getDesignByToken(designToken) : null;
+  const frontObjects = design ? summarizeObjects(extractObjects(design.designJson, "front")) : [];
+  const backObjects = design ? summarizeObjects(extractObjects(design.designJson, "back")) : [];
+
+  const base = [
+    { key: "app_order_id", value: appOrderId, type: "single_line_text_field" },
+    { key: "front_preview_url", value: frontPreviewUrl, type: "single_line_text_field" },
+    { key: "back_preview_url", value: backPreviewUrl, type: "single_line_text_field" },
+    { key: "front_print_url", value: frontPrintUrl, type: "single_line_text_field" },
+    { key: "back_print_url", value: backPrintUrl, type: "single_line_text_field" },
+    { key: "design_objects", value: JSON.stringify({ frontObjects, backObjects }), type: "json" },
+  ];
+
+  const metafields = base
+    .filter((m) => m.value && m.value !== "" && m.value !== "{}")
+    .map((m) => ({ ...m, ownerId: shopifyOrderGid, namespace: "printlab" }));
+
+  if (!metafields.length) return;
+
+  try {
+    const res = await admin.graphql(
+      `#graphql
+      mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          userErrors { field message }
+        }
+      }`,
+      { variables: { metafields } },
+    );
+    const data = await res.json() as { data?: { metafieldsSet?: { userErrors?: { message: string }[] } } };
+    const errors = data.data?.metafieldsSet?.userErrors ?? [];
+    if (errors.length) {
+      console.error("metafieldsSet errors:", errors);
+    }
+  } catch (e) {
+    console.error("writeDesignMetafields failed:", e);
+  }
+}
+
+export async function syncOrdersFromAdmin(admin: AdminClient): Promise<number> {
   await ensureMigrations();
 
   type Attr = { key: string; value: string };
@@ -231,6 +316,22 @@ export async function syncOrdersFromAdmin(
 
     for (const item of itemsToProcess) {
       const token = getAttr(item.customAttributes, "design_token") ?? orderToken ?? "";
+      const frontPreviewUrl =
+        getAttr(item.customAttributes, "_front_preview_url") ??
+        getAttr(so.customAttributes, "_front_preview_url") ??
+        "";
+      const backPreviewUrl =
+        getAttr(item.customAttributes, "_back_preview_url") ??
+        getAttr(so.customAttributes, "_back_preview_url") ??
+        "";
+      const frontPrintUrl =
+        getAttr(item.customAttributes, "_front_print_url") ??
+        getAttr(so.customAttributes, "_front_print_url") ??
+        "";
+      const backPrintUrl =
+        getAttr(item.customAttributes, "_back_print_url") ??
+        getAttr(so.customAttributes, "_back_print_url") ??
+        "";
       const id = `order_${randomBytes(8).toString("hex")}`;
       await query(
         `INSERT INTO orders (id, shopify_order_id, order_number, product_id, product_name,
@@ -246,14 +347,20 @@ export async function syncOrdersFromAdmin(
           item.name ?? "",
           item.variant?.id.split("/").pop() ?? "",
           token,
-          getAttr(item.customAttributes, "_front_preview_url") ??
-            getAttr(so.customAttributes, "_front_preview_url") ??
-            "",
-          getAttr(item.customAttributes, "_front_print_url") ??
-            getAttr(so.customAttributes, "_front_print_url") ??
-            "",
+          frontPreviewUrl,
+          frontPrintUrl,
           new Date(so.createdAt),
         ],
+      );
+      await writeDesignMetafields(
+        admin,
+        so.id,
+        id,
+        frontPreviewUrl,
+        backPreviewUrl,
+        frontPrintUrl,
+        backPrintUrl,
+        token,
       );
       added++;
     }

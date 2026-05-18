@@ -14,14 +14,18 @@ import {
 
 const TARGET = 'admin.order-details.block.render';
 const APP_URL = 'https://app.printlabapp.com';
+const APP_CLIENT_ID = 'ffb70fd5e03a3532fb1e47b3a8e9a052';
 
 export default reactExtension(TARGET, () => <OrderDesignViewer />);
 
 interface Attribute { key: string; value: string; }
+interface Metafield { key: string; value: string; }
+
 interface OrderResult {
   order: {
     customAttributes: Attribute[];
     lineItems: { nodes: { customAttributes: Attribute[] }[] };
+    metafields: { nodes: Metafield[] };
   };
   shop: { myshopifyDomain: string };
 }
@@ -44,23 +48,11 @@ interface DesignObject {
   angle?: number | null;
 }
 
-interface ApiResult {
-  found: boolean;
-  appOrderId?: string | null;
-  frontPreviewUrl?: string | null;
-  backPreviewUrl?: string | null;
-  frontPrintUrl?: string | null;
-  backPrintUrl?: string | null;
-  frontObjects?: DesignObject[];
-  backObjects?: DesignObject[];
-}
-
 interface DesignInfo {
   frontPreviewUrl: string;
   backPreviewUrl: string;
   frontPrintUrl: string;
   backPrintUrl: string;
-  designToken: string;
   appOrderId: string;
   appOrderUrl: string;
   frontObjects: DesignObject[];
@@ -75,8 +67,8 @@ function getAttr(attrs: Attribute[], key: string): string {
   return attrs.find((a) => a.key === key)?.value ?? '';
 }
 
-function extractDesignToken(attrs: Attribute[]): string {
-  return getAttr(attrs, 'design_token') || getAttr(attrs, '_front_preview_url') ? getAttr(attrs, 'design_token') : '';
+function getMf(metafields: Metafield[], key: string): string {
+  return metafields.find((m) => m.key === key)?.value ?? '';
 }
 
 function DesignObjectItem({ obj, index }: { obj: DesignObject; index: number }) {
@@ -84,16 +76,15 @@ function DesignObjectItem({ obj, index }: { obj: DesignObject; index: number }) 
   const isImage = obj.type === 'image';
 
   return (
-    <BlockStack gap="extraTight">
+    <BlockStack gap="tight">
       <Divider />
-      <BlockStack gap="extraTight">
-        {/* Image object */}
+      <BlockStack gap="tight">
         {isImage && obj.src && (
           <InlineStack gap="base" blockAlign="start">
             <Box maxInlineSize={80}>
               <Image source={obj.src} alt={`Görsel ${index + 1}`} accessibilityDescription={`Tasarım görseli ${index + 1}`} />
             </Box>
-            <BlockStack gap="extraTight">
+            <BlockStack gap="tight">
               <Text fontWeight="bold" size="small">Görsel {index + 1}</Text>
               {(obj.width || obj.height) && (
                 <Text size="small" tone="subdued">
@@ -108,34 +99,20 @@ function DesignObjectItem({ obj, index }: { obj: DesignObject; index: number }) 
             </BlockStack>
           </InlineStack>
         )}
-
-        {/* Text object */}
         {isText && (
-          <BlockStack gap="extraTight">
-            {obj.text && (
-              <Text fontWeight="bold">"{obj.text}"</Text>
-            )}
-            <InlineStack gap="base" wrap>
-              {obj.fontFamily && (
-                <Text size="small" tone="subdued">Font: {obj.fontFamily}</Text>
-              )}
-              {obj.fontSize && (
-                <Text size="small" tone="subdued">Boyut: {obj.fontSize}px</Text>
-              )}
-              {obj.fill && (
-                <Text size="small" tone="subdued">Renk: {obj.fill}</Text>
-              )}
+          <BlockStack gap="tight">
+            {obj.text && <Text fontWeight="bold">"{obj.text}"</Text>}
+            <InlineStack gap="base">
+              {obj.fontFamily && <Text size="small" tone="subdued">Font: {obj.fontFamily}</Text>}
+              {obj.fontSize && <Text size="small" tone="subdued">Boyut: {obj.fontSize}px</Text>}
+              {obj.fill && <Text size="small" tone="subdued">Renk: {obj.fill}</Text>}
             </InlineStack>
-            <InlineStack gap="base" wrap>
+            <InlineStack gap="base">
               {obj.fontWeight && String(obj.fontWeight) !== 'normal' && (
                 <Text size="small" tone="subdued">Kalınlık: {obj.fontWeight}</Text>
               )}
-              {obj.fontStyle === 'italic' && (
-                <Text size="small" tone="subdued">Stil: italic</Text>
-              )}
-              {obj.underline && (
-                <Text size="small" tone="subdued">Alt çizgi: var</Text>
-              )}
+              {obj.fontStyle === 'italic' && <Text size="small" tone="subdued">Stil: italic</Text>}
+              {obj.underline && <Text size="small" tone="subdued">Alt çizgi: var</Text>}
               {obj.textAlign && obj.textAlign !== 'left' && (
                 <Text size="small" tone="subdued">Hizalama: {obj.textAlign}</Text>
               )}
@@ -151,26 +128,13 @@ function DesignObjectItem({ obj, index }: { obj: DesignObject; index: number }) 
 function SideObjects({ objects, label }: { objects: DesignObject[]; label: string }) {
   if (!objects.length) return null;
   return (
-    <BlockStack gap="extraTight">
+    <BlockStack gap="tight">
       <Text size="small" tone="subdued">{label} Yüz Öğeleri ({objects.length})</Text>
       {objects.map((obj, i) => (
         <DesignObjectItem key={i} obj={obj} index={i} />
       ))}
     </BlockStack>
   );
-}
-
-const APP_CLIENT_ID = 'ffb70fd5e03a3532fb1e47b3a8e9a052';
-
-function getShopFromExtension(api: ReturnType<typeof useApi>): string {
-  try {
-    const scriptUrl = (api as unknown as { extension?: { scriptUrl?: string } }).extension?.scriptUrl ?? '';
-    if (scriptUrl) {
-      const shop = new URL(scriptUrl).searchParams.get('shop') ?? '';
-      return shop.replace('.myshopify.com', '');
-    }
-  } catch {}
-  return '';
 }
 
 function OrderDesignViewer() {
@@ -184,16 +148,16 @@ function OrderDesignViewer() {
   const [loading, setLoading] = useState(true);
 
   const orderId = (data as { selected?: { id: string }[] }).selected?.[0]?.id ?? '';
-  const scriptShopDomain = getShopFromExtension(api);
 
   useEffect(() => {
     if (!orderId || !query) { setLoading(false); return; }
 
     query<OrderResult>(
-      `query GetOrderAndShop($id: ID!) {
+      `query GetOrderDesign($id: ID!) {
         order(id: $id) {
           customAttributes { key value }
           lineItems(first: 10) { nodes { customAttributes { key value } } }
+          metafields(first: 10, namespace: "printlab") { nodes { key value } }
         }
         shop { myshopifyDomain }
       }`,
@@ -201,8 +165,10 @@ function OrderDesignViewer() {
     ).then(({ data: result }) => {
       if (!result?.order) { setLoading(false); return; }
 
-      const shopDomain = result.shop?.myshopifyDomain?.replace('.myshopify.com', '') || scriptShopDomain;
+      const shopDomain = result.shop?.myshopifyDomain?.replace('.myshopify.com', '') ?? '';
+      const metafields = result.order.metafields?.nodes ?? [];
 
+      // Prefer metafields (set during sync); fall back to customAttributes
       let attrs = result.order.customAttributes ?? [];
       if (!getAttr(attrs, '_front_preview_url') && !getAttr(attrs, 'design_token')) {
         for (const item of result.order.lineItems?.nodes ?? []) {
@@ -213,44 +179,31 @@ function OrderDesignViewer() {
         }
       }
 
-      const frontPreviewUrl = getAttr(attrs, '_front_preview_url');
-      const designToken = extractDesignToken(attrs);
+      const frontPreviewUrl = getMf(metafields, 'front_preview_url') || getAttr(attrs, '_front_preview_url');
+      const backPreviewUrl  = getMf(metafields, 'back_preview_url')  || getAttr(attrs, '_back_preview_url');
+      const frontPrintUrl   = getMf(metafields, 'front_print_url')   || getAttr(attrs, '_front_print_url');
+      const backPrintUrl    = getMf(metafields, 'back_print_url')    || getAttr(attrs, '_back_print_url');
+      const appOrderId      = getMf(metafields, 'app_order_id');
 
-      if (!frontPreviewUrl && !designToken) { setLoading(false); return; }
+      if (!frontPreviewUrl && !appOrderId) { setLoading(false); return; }
 
-      const baseInfo: DesignInfo = {
-        frontPreviewUrl,
-        backPreviewUrl: getAttr(attrs, '_back_preview_url'),
-        frontPrintUrl: getAttr(attrs, '_front_print_url'),
-        backPrintUrl: getAttr(attrs, '_back_print_url'),
-        designToken,
-        appOrderId: '',
-        appOrderUrl: '',
-        frontObjects: [],
-        backObjects: [],
-      };
+      const appOrderUrl = appOrderId && shopDomain
+        ? `https://admin.shopify.com/store/${shopDomain}/apps/${APP_CLIENT_ID}/app/orders/${appOrderId}`
+        : '';
 
-      const numericId = orderId.includes('/') ? orderId.split('/').pop()! : orderId;
-      fetch(`${APP_URL}/api/order-design?shopify_order_id=${encodeURIComponent(numericId)}`, { credentials: 'omit' })
-        .then((r) => r.json())
-        .then((d: ApiResult) => {
-          const appOrderId = d.appOrderId ?? '';
-          const appOrderUrl = appOrderId
-            ? `https://admin.shopify.com/store/${shopDomain || 'whanotify-dev'}/apps/${APP_CLIENT_ID}/app/orders/${appOrderId}`
-            : '';
-          setDesign({
-            ...baseInfo,
-            appOrderId,
-            appOrderUrl,
-            frontObjects: d.frontObjects ?? [],
-            backObjects: d.backObjects ?? [],
-          });
-          setLoading(false);
-        })
-        .catch(() => {
-          setDesign(baseInfo);
-          setLoading(false);
-        });
+      let frontObjects: DesignObject[] = [];
+      let backObjects: DesignObject[] = [];
+      const designObjectsJson = getMf(metafields, 'design_objects');
+      if (designObjectsJson) {
+        try {
+          const parsed = JSON.parse(designObjectsJson) as { frontObjects?: DesignObject[]; backObjects?: DesignObject[] };
+          frontObjects = parsed.frontObjects ?? [];
+          backObjects  = parsed.backObjects  ?? [];
+        } catch { /* ignore parse error */ }
+      }
+
+      setDesign({ frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, appOrderId, appOrderUrl, frontObjects, backObjects });
+      setLoading(false);
     }).catch(() => setLoading(false));
   }, [orderId]);
 
@@ -265,7 +218,7 @@ function OrderDesignViewer() {
   if (!design) return null;
 
   const hasFrontObjects = design.frontObjects.length > 0;
-  const hasBackObjects = design.backObjects.length > 0;
+  const hasBackObjects  = design.backObjects.length > 0;
 
   return (
     <AdminBlock title="Baskı Tasarımı">
@@ -275,26 +228,18 @@ function OrderDesignViewer() {
         {(design.frontPreviewUrl || design.backPreviewUrl) && (
           <InlineStack gap="base">
             {design.frontPreviewUrl && (
-              <BlockStack gap="extraTight">
+              <BlockStack gap="tight">
                 <Text size="small" tone="subdued">Ön Yüz</Text>
                 <Box maxInlineSize={140}>
-                  <Image
-                    source={design.frontPreviewUrl}
-                    alt="Ön yüz önizlemesi"
-                    accessibilityDescription="Ön yüz tasarımı"
-                  />
+                  <Image source={design.frontPreviewUrl} alt="Ön yüz önizlemesi" accessibilityDescription="Ön yüz tasarımı" />
                 </Box>
               </BlockStack>
             )}
             {design.backPreviewUrl && (
-              <BlockStack gap="extraTight">
+              <BlockStack gap="tight">
                 <Text size="small" tone="subdued">Arka Yüz</Text>
                 <Box maxInlineSize={140}>
-                  <Image
-                    source={design.backPreviewUrl}
-                    alt="Arka yüz önizlemesi"
-                    accessibilityDescription="Arka yüz tasarımı"
-                  />
+                  <Image source={design.backPreviewUrl} alt="Arka yüz önizlemesi" accessibilityDescription="Arka yüz tasarımı" />
                 </Box>
               </BlockStack>
             )}
@@ -305,25 +250,21 @@ function OrderDesignViewer() {
         {(design.frontPrintUrl || design.backPrintUrl) && (
           <>
             <Divider />
-            <BlockStack gap="extraTight">
+            <BlockStack gap="tight">
               <Text size="small" tone="subdued">Baskı Dosyaları</Text>
               <InlineStack gap="base">
                 {design.frontPrintUrl && (
-                  <Link url={downloadUrl(design.frontPrintUrl, 'on-baski.png')} external>
-                    ⬇ Ön Baskı İndir
-                  </Link>
+                  <Link url={downloadUrl(design.frontPrintUrl, 'on-baski.png')} external>⬇ Ön Baskı İndir</Link>
                 )}
                 {design.backPrintUrl && (
-                  <Link url={downloadUrl(design.backPrintUrl, 'arka-baski.png')} external>
-                    ⬇ Arka Baskı İndir
-                  </Link>
+                  <Link url={downloadUrl(design.backPrintUrl, 'arka-baski.png')} external>⬇ Arka Baskı İndir</Link>
                 )}
               </InlineStack>
             </BlockStack>
           </>
         )}
 
-        {/* Design objects: text + uploaded images */}
+        {/* Design objects */}
         {(hasFrontObjects || hasBackObjects) && (
           <>
             <Divider />
@@ -333,12 +274,11 @@ function OrderDesignViewer() {
           </>
         )}
 
+        {/* Link to app order detail */}
         {design.appOrderUrl && (
           <>
             <Divider />
-            <Link url={design.appOrderUrl} external>
-              Sipariş detay sayfasını aç →
-            </Link>
+            <Link url={design.appOrderUrl} external>Sipariş detay sayfasını aç →</Link>
           </>
         )}
 
