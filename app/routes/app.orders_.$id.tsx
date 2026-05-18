@@ -1,6 +1,12 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
+
+const APP_URL = "https://app.printlabapp.com";
+
+function dlUrl(fileUrl: string, filename: string): string {
+  return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
+}
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
   Box, Divider, Grid, Thumbnail, Banner,
@@ -67,7 +73,7 @@ function DesignObjectCard({ obj }: { obj: DesignObject }) {
           Konum: {Math.round(obj.left ?? 0)}, {Math.round(obj.top ?? 0)}
         </Text>
         {isImage && obj.src && (
-          <a href={obj.src} target="_blank" rel="noreferrer" download style={{ fontSize: 12, color: "#2c6ecb" }}>
+          <a href={dlUrl(obj.src, "tasarim-gorsel.png")} download style={{ fontSize: 12, color: "#2c6ecb" }}>
             Görseli İndir
           </a>
         )}
@@ -138,7 +144,7 @@ const NEXT_STATUS: Record<string, string> = {
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const order = await getOrder(params.id ?? "");
   if (!order) throw new Response("Sipariş bulunamadı", { status: 404 });
 
@@ -146,7 +152,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const frontObjects = design ? extractObjects(design.designJson, "front") : [];
   const backObjects = design ? extractObjects(design.designJson, "back") : [];
 
-  return json({ order, design, frontObjects, backObjects });
+  return json({ order, design, frontObjects, backObjects, shop: session.shop });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -158,12 +164,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function OrderDetail() {
-  const { order, design, frontObjects, backObjects } = useLoaderData<typeof loader>();
+  const { order, design, frontObjects, backObjects, shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
 
   const next = NEXT_STATUS[order.productionStatus];
-  const shopDomain = "whanotify-dev"; // fallback
+  const shopDomain = shop.replace(".myshopify.com", "");
   const customerDesignUrl = order.designToken
     ? `https://${shopDomain}.myshopify.com/apps/tshirt-designer/my-order?token=${encodeURIComponent(order.designToken)}`
     : null;
@@ -216,12 +222,12 @@ export default function OrderDetail() {
                   )}
                   <InlineStack gap="300">
                     {frontPreviewUrl && (
-                      <a href={frontPreviewUrl} target="_blank" rel="noreferrer" download>
+                      <a href={dlUrl(frontPreviewUrl, "on-onizleme.png")} download>
                         <Button variant="plain" size="slim">⬇ Önizlemeyi İndir</Button>
                       </a>
                     )}
                     {frontPrintUrl && (
-                      <a href={frontPrintUrl} target="_blank" rel="noreferrer" download>
+                      <a href={dlUrl(frontPrintUrl, "on-baski.png")} download>
                         <Button variant="secondary" size="slim">⬇ Baskı Dosyası (Yüksek Kalite)</Button>
                       </a>
                     )}
@@ -259,12 +265,12 @@ export default function OrderDetail() {
                   )}
                   <InlineStack gap="300">
                     {backPreviewUrl && (
-                      <a href={backPreviewUrl} target="_blank" rel="noreferrer" download>
+                      <a href={dlUrl(backPreviewUrl, "arka-onizleme.png")} download>
                         <Button variant="plain" size="slim">⬇ Önizlemeyi İndir</Button>
                       </a>
                     )}
                     {backPrintUrl && (
-                      <a href={backPrintUrl} target="_blank" rel="noreferrer" download>
+                      <a href={dlUrl(backPrintUrl, "arka-baski.png")} download>
                         <Button variant="secondary" size="slim">⬇ Baskı Dosyası (Yüksek Kalite)</Button>
                       </a>
                     )}
