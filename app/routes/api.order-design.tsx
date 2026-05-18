@@ -1,5 +1,6 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { getOrderByShopifyId } from "~/models/orders.server";
+import { getDesignByToken, extractObjects } from "~/models/designs.server";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +32,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const frontPrintUrl = order.designFrontPrintUrl || order.productionFileUrl || null;
   const backPrintUrl = order.designBackPrintUrl || null;
 
+  const design = order.designToken ? await getDesignByToken(order.designToken) : null;
+  const frontObjects = design ? extractObjects(design.designJson, "front") : [];
+  const backObjects = design ? extractObjects(design.designJson, "back") : [];
+
+  const toSummary = (objs: ReturnType<typeof extractObjects>) =>
+    objs
+      .filter((o) => o.type === "i-text" || o.type === "textbox" || o.type === "image")
+      .map((o) => ({
+        type: o.type,
+        text: o.text ?? null,
+        fontFamily: o.fontFamily ?? null,
+        fontSize: o.fontSize ?? null,
+        fill: o.fill ?? null,
+        hasImage: o.type === "image",
+      }));
+
   return json(
     {
       found: true,
@@ -42,6 +59,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       backPreviewUrl,
       frontPrintUrl,
       backPrintUrl,
+      frontObjects: toSummary(frontObjects),
+      backObjects: toSummary(backObjects),
     },
     { headers: CORS },
   );
