@@ -62,6 +62,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json(
     {
       found: true,
+      appOrderId: order.id,
       orderNumber: order.orderNumber,
       productName: order.productName,
       designToken: order.designToken,

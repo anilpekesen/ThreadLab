@@ -23,6 +23,7 @@ interface OrderResult {
     customAttributes: Attribute[];
     lineItems: { nodes: { customAttributes: Attribute[] }[] };
   };
+  shop: { myshopifyDomain: string };
 }
 
 interface DesignObject {
@@ -45,6 +46,7 @@ interface DesignObject {
 
 interface ApiResult {
   found: boolean;
+  appOrderId?: string | null;
   frontPreviewUrl?: string | null;
   backPreviewUrl?: string | null;
   frontPrintUrl?: string | null;
@@ -59,6 +61,8 @@ interface DesignInfo {
   frontPrintUrl: string;
   backPrintUrl: string;
   designToken: string;
+  appOrderId: string;
+  appOrderUrl: string;
   frontObjects: DesignObject[];
   backObjects: DesignObject[];
 }
@@ -172,15 +176,18 @@ function OrderDesignViewer() {
     if (!orderId || !query) { setLoading(false); return; }
 
     query<OrderResult>(
-      `query GetOrder($id: ID!) {
+      `query GetOrderAndShop($id: ID!) {
         order(id: $id) {
           customAttributes { key value }
           lineItems(first: 10) { nodes { customAttributes { key value } } }
         }
+        shop { myshopifyDomain }
       }`,
       { variables: { id: orderId } },
     ).then(({ data: result }) => {
       if (!result?.order) { setLoading(false); return; }
+
+      const shopDomain = result.shop?.myshopifyDomain?.replace('.myshopify.com', '') ?? '';
 
       let attrs = result.order.customAttributes ?? [];
       if (!getAttr(attrs, '_front_preview_url') && !getAttr(attrs, 'design_token')) {
@@ -203,6 +210,8 @@ function OrderDesignViewer() {
         frontPrintUrl: getAttr(attrs, '_front_print_url'),
         backPrintUrl: getAttr(attrs, '_back_print_url'),
         designToken,
+        appOrderId: '',
+        appOrderUrl: '',
         frontObjects: [],
         backObjects: [],
       };
@@ -211,8 +220,14 @@ function OrderDesignViewer() {
       fetch(`${APP_URL}/api/order-design?shopify_order_id=${encodeURIComponent(numericId)}`)
         .then((r) => r.json())
         .then((d: ApiResult) => {
+          const appOrderId = d.appOrderId ?? '';
+          const appOrderUrl = appOrderId && shopDomain
+            ? `https://admin.shopify.com/store/${shopDomain}/apps/ffb70fd5e03a3532fb1e47b3a8e9a052/app/orders/${appOrderId}`
+            : '';
           setDesign({
             ...baseInfo,
+            appOrderId,
+            appOrderUrl,
             frontObjects: d.frontObjects ?? [],
             backObjects: d.backObjects ?? [],
           });
@@ -304,8 +319,13 @@ function OrderDesignViewer() {
           </>
         )}
 
-        {design.designToken && (
-          <Text size="small" tone="subdued">ID: {design.designToken}</Text>
+        {design.appOrderUrl && (
+          <>
+            <Divider />
+            <Link url={design.appOrderUrl} external>
+              Sipariş detay sayfasını aç →
+            </Link>
+          </>
         )}
 
       </BlockStack>
