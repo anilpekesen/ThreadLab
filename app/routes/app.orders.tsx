@@ -58,7 +58,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     try {
       syncCount = await syncOrdersFromAdmin(admin);
     } catch (e) {
-      syncError = e instanceof Error ? e.message : String(e);
+      if (e instanceof Response) {
+        syncError = `HTTP ${e.status}: ${e.statusText || "Shopify API hatası"}`;
+      } else {
+        syncError = e instanceof Error ? e.message : String(e);
+      }
     }
   }
 

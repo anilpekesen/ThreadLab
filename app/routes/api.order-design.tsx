@@ -45,6 +45,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         fontFamily: o.fontFamily ?? null,
         fontSize: o.fontSize ?? null,
         fill: o.fill ?? null,
+        fontWeight: o.fontWeight ?? null,
+        fontStyle: o.fontStyle ?? null,
+        textAlign: o.textAlign ?? null,
+        left: o.left != null ? Math.round(o.left) : null,
+        top: o.top != null ? Math.round(o.top) : null,
         hasImage: o.type === "image",
       }));
 

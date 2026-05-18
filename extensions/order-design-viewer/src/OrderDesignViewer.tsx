@@ -31,6 +31,11 @@ interface DesignObject {
   fontFamily?: string | null;
   fontSize?: number | null;
   fill?: string | null;
+  fontWeight?: string | number | null;
+  fontStyle?: string | null;
+  textAlign?: string | null;
+  left?: number | null;
+  top?: number | null;
   hasImage?: boolean;
 }
 
@@ -66,18 +71,29 @@ function TextObjects({ objects, label }: { objects: DesignObject[]; label: strin
   const texts = objects.filter((o) => o.text);
   if (!texts.length) return null;
   return (
-    <BlockStack gap="extraTight">
-      <Text size="small" tone="subdued">{label} Yazılar</Text>
+    <BlockStack gap="tight">
+      <Text size="small" tone="subdued">{label} Yüz — Yazılar</Text>
       {texts.map((o, i) => (
-        <InlineStack key={i} gap="tight" blockAlignment="center">
-          <Text size="small">"{o.text}"</Text>
-          {o.fontFamily && (
-            <Text size="small" tone="subdued">· {o.fontFamily}{o.fontSize ? ` ${o.fontSize}px` : ''}</Text>
+        <BlockStack key={i} gap="extraTight">
+          <Text fontWeight="bold">"{o.text}"</Text>
+          <InlineStack gap="base">
+            {o.fontFamily && <Text size="small" tone="subdued">Font: {o.fontFamily}</Text>}
+            {o.fontSize && <Text size="small" tone="subdued">Boyut: {o.fontSize}px</Text>}
+          </InlineStack>
+          <InlineStack gap="base">
+            {o.fill && <Text size="small" tone="subdued">Renk: {o.fill}</Text>}
+            {o.fontWeight && String(o.fontWeight) !== 'normal' && (
+              <Text size="small" tone="subdued">Kalınlık: {o.fontWeight}</Text>
+            )}
+            {o.fontStyle === 'italic' && <Text size="small" tone="subdued">Stil: italic</Text>}
+            {o.textAlign && o.textAlign !== 'left' && (
+              <Text size="small" tone="subdued">Hizalama: {o.textAlign}</Text>
+            )}
+          </InlineStack>
+          {(o.left != null || o.top != null) && (
+            <Text size="small" tone="subdued">Konum: {o.left ?? 0}, {o.top ?? 0}</Text>
           )}
-          {o.fill && (
-            <Text size="small" tone="subdued">· {o.fill}</Text>
-          )}
-        </InlineStack>
+        </BlockStack>
       ))}
     </BlockStack>
   );
