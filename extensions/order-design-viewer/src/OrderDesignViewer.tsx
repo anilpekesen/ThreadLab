@@ -12,52 +12,89 @@ import {
 } from '@shopify/ui-extensions-react/admin';
 
 const TARGET = 'admin.order-details.block.render';
-const APP_URL = 'https://app.printlabapp.com';
 
 export default reactExtension(TARGET, () => <OrderDesignViewer />);
 
-interface DesignData {
-  found: boolean;
-  orderNumber?: string;
-  productName?: string;
-  designToken?: string;
-  productionStatus?: string;
-  frontPreviewUrl?: string | null;
-  backPreviewUrl?: string | null;
-  frontPrintUrl?: string | null;
-  backPrintUrl?: string | null;
+interface Attribute { key: string; value: string; }
+interface OrderResult {
+  order: {
+    customAttributes: Attribute[];
+    lineItems: { nodes: { customAttributes: Attribute[] }[] };
+  };
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Bekliyor',
-  preparing: 'Hazırlanıyor',
-  printed: 'Basıldı',
-  ready: 'Hazır',
-  shipped: 'Gönderildi',
-};
+interface DesignInfo {
+  frontPreviewUrl: string;
+  backPreviewUrl: string;
+  frontPrintUrl: string;
+  backPrintUrl: string;
+  designToken: string;
+}
+
+function getAttr(attrs: Attribute[], key: string): string {
+  return attrs.find((a) => a.key === key)?.value ?? '';
+}
+
+function extractDesign(attrs: Attribute[]): DesignInfo | null {
+  const frontPreviewUrl = getAttr(attrs, '_front_preview_url');
+  const designToken = getAttr(attrs, 'design_token');
+  if (!frontPreviewUrl && !designToken) return null;
+  return {
+    frontPreviewUrl,
+    backPreviewUrl: getAttr(attrs, '_back_preview_url'),
+    frontPrintUrl: getAttr(attrs, '_front_print_url'),
+    backPrintUrl: getAttr(attrs, '_back_print_url'),
+    designToken,
+  };
+}
 
 function OrderDesignViewer() {
-  const { data } = useApi(TARGET);
-  const [design, setDesign] = useState<DesignData | null>(null);
+  const api = useApi(TARGET);
+  const { data } = api;
+  const query = (api as unknown as { query: <T>(q: string, opts?: { variables?: Record<string, unknown> }) => Promise<{ data?: T; errors?: unknown[] }> }).query;
+
+  const [design, setDesign] = useState<DesignInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   const orderId = (data as { selected?: { id: string }[] }).selected?.[0]?.id ?? '';
 
   useEffect(() => {
-    if (!orderId) {
+    if (!orderId || !query) {
       setLoading(false);
       return;
     }
-    fetch(`${APP_URL}/api/order-design?shopify_order_id=${encodeURIComponent(orderId)}`)
-      .then((r) => r.json())
-      .then((d: DesignData) => {
-        setDesign(d);
+
+    query<OrderResult>(
+      `query GetOrderAttrs($id: ID!) {
+        order(id: $id) {
+          customAttributes { key value }
+          lineItems(first: 10) {
+            nodes { customAttributes { key value } }
+          }
+        }
+      }`,
+      { variables: { id: orderId } },
+    )
+      .then(({ data: result }) => {
+        if (!result?.order) { setLoading(false); return; }
+
+        // Try order-level attributes first (cart attributes)
+        let info = extractDesign(result.order.customAttributes ?? []);
+
+        // Fall back to first line item that has design data
+        if (!info) {
+          for (const item of result.order.lineItems?.nodes ?? []) {
+            info = extractDesign(item.customAttributes ?? []);
+            if (info) break;
+          }
+        }
+
+        setDesign(info);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, [orderId]);
 
-  // Always render AdminBlock so Shopify doesn't collapse the slot
   if (loading) {
     return (
       <AdminBlock title="Baskı Tasarımı">
@@ -66,25 +103,13 @@ function OrderDesignViewer() {
     );
   }
 
-  if (!design || !design.found) {
-    return (
-      <AdminBlock title="Baskı Tasarımı">
-        <Text tone="subdued">Bu siparişe ait tasarım bulunamadı.</Text>
-      </AdminBlock>
-    );
+  if (!design) {
+    return null;
   }
-
-  const statusLabel = design.productionStatus
-    ? (STATUS_LABELS[design.productionStatus] ?? design.productionStatus)
-    : null;
 
   return (
     <AdminBlock title="Baskı Tasarımı">
       <BlockStack gap="base">
-
-        {statusLabel && (
-          <Text size="small" tone="subdued">Durum: {statusLabel}</Text>
-        )}
 
         {(design.frontPreviewUrl || design.backPreviewUrl) && (
           <InlineStack gap="base">
