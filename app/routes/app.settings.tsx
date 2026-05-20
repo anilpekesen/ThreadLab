@@ -56,6 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   // Auto-register Cart Transform function; re-register if function ID changed after deploy
+  let cartTransformStatus = "unknown";
   try {
     const res = await admin.graphql(`#graphql
       {
@@ -76,28 +77,39 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       f.apiType === "cart_transform" || f.apiType === "purchase.cart-transform.run"
     );
 
-    if (cartFn) {
+    if (!cartFn) {
+      cartTransformStatus = "function_not_found";
+    } else {
       const alreadyRegistered = transforms.some((t) => t.functionId === cartFn.id);
-      if (!alreadyRegistered) {
-        // Delete stale registrations pointing to old function IDs
+      if (alreadyRegistered) {
+        cartTransformStatus = "ok";
+      } else {
+        cartTransformStatus = "stale_re_registering";
         for (const t of transforms) {
           await admin.graphql(`#graphql
             mutation { cartTransformDelete(id: "${t.id}") { userErrors { field message } } }
           `);
         }
-        await admin.graphql(`#graphql
+        const regRes = await admin.graphql(`#graphql
           mutation { cartTransformCreate(functionId: "${cartFn.id}") {
             cartTransform { id }
             userErrors { field message }
           }}
         `);
+        const regData = await regRes.json() as {
+          data?: { cartTransformCreate?: { cartTransform?: { id: string }; userErrors?: Array<{ message: string }> } };
+        };
+        const regErrors = regData.data?.cartTransformCreate?.userErrors ?? [];
+        cartTransformStatus = regErrors.length
+          ? `error: ${regErrors.map((e) => e.message).join(", ")}`
+          : "re_registered_ok";
       }
     }
   } catch (_e) {
-    // silent — registration will be retried on next page load
+    cartTransformStatus = "error";
   }
 
-  return json({ settings, saved, created });
+  return json({ settings, saved, created, cartTransformStatus });
 };
 
 async function writeSurchargeMetafield(
@@ -320,7 +332,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created } = useLoaderData<typeof loader>();
+  const { settings, saved, created, cartTransformStatus } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const fetcher = useFetcher<{ error?: string; success?: string }>();
   const isSaving = navigation.state === "submitting";
@@ -337,6 +349,22 @@ export default function SettingsRoute() {
         {created && <Banner tone="success" title="Baskı Ücreti ürünü oluşturuldu ve kaydedildi." />}
         {fetcher.data?.error && <Banner tone="critical" title={`Hata: ${fetcher.data.error}`} />}
         {fetcher.data?.success && <Banner tone="success" title={fetcher.data.success} />}
+
+        {cartTransformStatus === "ok" && (
+          <Banner tone="success" title="Cart Transform: Aktif ✓" />
+        )}
+        {cartTransformStatus === "re_registered_ok" && (
+          <Banner tone="success" title="Cart Transform: Eski kayıt silindi, yeniden kaydedildi ✓" />
+        )}
+        {cartTransformStatus === "stale_re_registering" && (
+          <Banner tone="warning" title="Cart Transform: Eski kayıt temizleniyor..." />
+        )}
+        {cartTransformStatus === "function_not_found" && (
+          <Banner tone="critical" title="Cart Transform: Fonksiyon bulunamadı — npx shopify app deploy çalıştır" />
+        )}
+        {(cartTransformStatus === "error" || cartTransformStatus?.startsWith("error:")) && (
+          <Banner tone="critical" title={`Cart Transform Hatası: ${cartTransformStatus}`} />
+        )}
 
         {/* Baskı Ek Ücreti — fetcher forms are standalone, NOT inside the outer Form */}
         <Card>
