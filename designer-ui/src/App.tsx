@@ -511,6 +511,14 @@ export default function App() {
   const [selectedColor, setSelectedColor] = useState('');
   const [isCartLoading, setIsCartLoading] = useState(false);
   const [noSizeQuantity, setNoSizeQuantity] = useState(1);
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'info' } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((message: string, type: 'error' | 'warning' | 'info' = 'error') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, type });
+    toastTimerRef.current = setTimeout(() => setToast(null), 4000);
+  }, []);
 
   const getCanvasHandle = useCallback((side: Side) => (
     side === 'front' ? frontCanvasRef.current : backCanvasRef.current
@@ -824,7 +832,7 @@ export default function App() {
 
   const handleRemoveBg = async (dataUrl: string): Promise<string> => {
     if (!personalization.removeBgAvailable) {
-      alert('Photoroom API key ayarlanmamış');
+      showToast('Photoroom API key ayarlanmamış', 'error');
       return '';
     }
     setIsBgRemoving(true);
@@ -840,7 +848,7 @@ export default function App() {
       });
       if (!res.ok) {
         const error = await res.json().catch(() => null) as { error?: string } | null;
-        alert(error?.error || 'Arka plan kaldırma başarısız');
+        showToast(error?.error || 'Arka plan kaldırma başarısız', 'error');
         return '';
       }
       const blob2 = await res.blob();
@@ -881,7 +889,7 @@ export default function App() {
         ?? ''
       );
       if (!variantId) {
-        alert('Bu ürün için varyant bulunamadı. Shopify ürün ayarlarını kontrol edin.');
+        showToast('Bu ürün için varyant bulunamadı. Shopify ürün ayarlarını kontrol edin.', 'error');
         return;
       }
       cartItems = [{ variantId, quantity: noSizeQuantity }];
@@ -894,7 +902,7 @@ export default function App() {
         })
         .filter((item) => item.variantId);
       if (cartItems.length === 0) {
-        alert('Lütfen en az bir beden için adet seçin');
+        showToast('Lütfen en az bir beden için adet seçin', 'warning');
         return;
       }
     }
@@ -985,7 +993,7 @@ export default function App() {
       window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token }, '*');
     } catch (err) {
       console.error('Sepete ekleme hatası:', err);
-      alert('Sepete eklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+      showToast('Sepete eklenirken bir hata oluştu. Lütfen tekrar deneyin.', 'error');
     } finally {
       setIsCartLoading(false);
     }
@@ -1361,6 +1369,25 @@ export default function App() {
 
   return (
     <div className="flex h-full min-h-screen items-stretch justify-center bg-[#eef2f7] text-gray-900">
+
+      {/* Toast notification */}
+      {toast && (
+        <div
+          className={cn(
+            'fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2 flex items-center gap-3 rounded-xl px-5 py-3.5 shadow-xl text-white text-sm font-medium pointer-events-none',
+            'animate-[fadeInUp_0.2s_ease-out]',
+            toast.type === 'error'   && 'bg-red-500',
+            toast.type === 'warning' && 'bg-amber-500',
+            toast.type === 'info'    && 'bg-blue-500',
+          )}
+          style={{ maxWidth: 'calc(100vw - 2rem)' }}
+        >
+          {toast.type === 'error'   && <span className="text-lg leading-none">✕</span>}
+          {toast.type === 'warning' && <span className="text-lg leading-none">⚠</span>}
+          {toast.type === 'info'    && <span className="text-lg leading-none">ℹ</span>}
+          <span>{toast.message}</span>
+        </div>
+      )}
       <div className="flex h-full min-h-0 w-full max-w-none flex-1 flex-col overflow-hidden bg-white shadow-none layout:flex-row layout:justify-center">
         <div className="flex min-h-0 w-full flex-col layout:min-w-0 layout:w-auto layout:flex-[0_1_980px] xl:flex-[0_1_1040px]">
         <div className="flex items-center justify-between border-b border-gray-100 bg-white px-3 py-2.5 md:px-4 md:py-3">
