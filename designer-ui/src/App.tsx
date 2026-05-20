@@ -963,6 +963,7 @@ export default function App() {
     // Cart Transform approach: add surcharge info as properties on each line item.
     // Shopify's Cart Transform Function reads these and adds the surcharge as a
     // child line (customer cannot delete it; removing the parent removes both).
+    console.log('[PrintLab] surchargeVariantId:', personalization.surchargeVariantId || '(BOŞ)');
     if (personalization.surchargeVariantId) {
       const surchargeGid = `gid://shopify/ProductVariant/${personalization.surchargeVariantId}`;
       const frontUnitAmt = pricingSummary.front.hasContent ? pricingSummary.front.surchargeUnitAmount : 0;
