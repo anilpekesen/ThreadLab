@@ -13,7 +13,7 @@ interface Props {
 export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState('');
-  const [activeSource, setActiveSource] = useState<'upload' | 'qr' | 'ai'>('upload');
+  const [activeSource, setActiveSource] = useState<'upload' | 'qr'>('upload');
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const { uploadedImages, addUploadedImage, removeUploadedImage, isBgRemoving } = useDesignerStore();
 
@@ -65,7 +65,6 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
         {[
           { id: 'upload' as const, label: 'Yükle' },
           { id: 'qr' as const, label: 'QR Kod' },
-          { id: 'ai' as const, label: 'AI Oluştur' },
         ].map(({ id, label }) => (
           <button
             key={id}
@@ -224,13 +223,6 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
       {activeSource === 'qr' && (
         <div className="flex flex-col items-center gap-3 rounded-[24px] border-2 border-dashed border-gray-200 px-6 py-12 text-center text-gray-400">
           <p className="text-sm font-bold">QR Kod üreteci yakında</p>
-        </div>
-      )}
-
-      {/* AI Oluştur tab — placeholder */}
-      {activeSource === 'ai' && (
-        <div className="flex flex-col items-center gap-3 rounded-[24px] border-2 border-dashed border-gray-200 px-6 py-12 text-center text-gray-400">
-          <p className="text-sm font-bold">AI görsel üreteci yakında</p>
         </div>
       )}
 
