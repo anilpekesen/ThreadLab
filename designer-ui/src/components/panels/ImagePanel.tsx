@@ -19,25 +19,36 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
 
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files) return;
-    let firstDataUrl = '';
+    let firstUrl = '';
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) continue;
       const dataUrl = await compressImage(file, 1800);
+      // Upload to server so canvas JSON stores an HTTPS URL, not a data URL
+      let serverUrl: string | undefined;
+      try {
+        const blob = await fetch(dataUrl).then((r) => r.blob());
+        const form = new FormData();
+        form.append('image', blob, 'user-upload.png');
+        form.append('side', 'user-upload');
+        const res = await fetch('/apps/tshirt-designer/upload', { method: 'POST', body: form });
+        if (res.ok) serverUrl = ((await res.json()) as { url?: string }).url;
+      } catch { /* fallback: canvas will use data URL */ }
       const img: UploadedImage = {
         id: generateId(),
         dataUrl,
+        serverUrl,
         name: file.name.replace(/\.[^.]+$/, '').slice(0, 40),
         addedAt: Date.now(),
       };
       addUploadedImage(img);
-      if (!firstDataUrl) firstDataUrl = dataUrl;
+      if (!firstUrl) firstUrl = serverUrl ?? dataUrl;
     }
     if (fileRef.current) fileRef.current.value = '';
-    if (!firstDataUrl) return;
+    if (!firstUrl) return;
     if (canRemoveBg) {
-      setPendingUrl(firstDataUrl);
+      setPendingUrl(firstUrl);
     } else {
-      onAddImage(firstDataUrl);
+      onAddImage(firstUrl);
     }
   }, [addUploadedImage, onAddImage, canRemoveBg]);
 
@@ -171,13 +182,13 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {uploadedImages.map((img) => (
                   <div key={img.id} className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100">
-                    <button className="block aspect-square w-full" onClick={() => onAddImage(img.dataUrl)}>
+                    <button className="block aspect-square w-full" onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)}>
                       <img src={img.dataUrl} alt={img.name} className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]" />
                     </button>
                     <div className="absolute inset-x-0 bottom-0 flex gap-1 bg-gradient-to-t from-black/70 p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
                       <button
                         className="flex-1 rounded-lg bg-blue-500 px-2 py-1 text-[10px] font-bold text-white transition-colors hover:bg-blue-600"
-                        onClick={() => onAddImage(img.dataUrl)}
+                        onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)}
                       >
                         Ekle
                       </button>

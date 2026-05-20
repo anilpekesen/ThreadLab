@@ -66,6 +66,7 @@ export interface PersonalizationConfig {
 export interface UploadedImage {
   id: string;
   dataUrl: string;
+  serverUrl?: string;
   name: string;
   addedAt: number;
 }

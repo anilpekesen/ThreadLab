@@ -4,10 +4,13 @@ import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
 
 const APP_URL = "https://app.printlabapp.com";
 
-function dlUrl(fileUrl: string, _filename: string): string {
-  // data: URLs are already inline — proxy would explode the query string (414)
+function dlUrl(fileUrl: string, filename: string): string {
   if (fileUrl.startsWith("data:")) return fileUrl;
-  return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(_filename)}`;
+  return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
+}
+
+function imageDownloadUrl(orderId: string, side: "front" | "back", imgIndex: number): string {
+  return `${APP_URL}/api/design-image?order_id=${encodeURIComponent(orderId)}&side=${side}&index=${imgIndex}`;
 }
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
@@ -17,7 +20,7 @@ import { authenticate } from "~/shopify.server";
 import { getOrder, updateOrderStatus } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
 
-function DesignObjectCard({ obj }: { obj: DesignObject }) {
+function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHref?: string }) {
   const isText = obj.type === "i-text" || obj.type === "textbox";
   const isImage = obj.type === "image";
 
@@ -76,10 +79,9 @@ function DesignObjectCard({ obj }: { obj: DesignObject }) {
         </Text>
         {isImage && obj.src && (
           <a
-            href={dlUrl(obj.src, "tasarim-gorsel.png")}
-            {...(obj.src.startsWith("data:")
-              ? { download: "tasarim-gorsel.png" }
-              : { target: "_blank", rel: "noopener noreferrer" })}
+            href={downloadHref ?? dlUrl(obj.src, "tasarim-gorsel.png")}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{ fontSize: 12, color: "#2c6ecb" }}
           >
             Görseli İndir
@@ -243,9 +245,15 @@ export default function OrderDetail() {
                   {frontObjects.length > 0 && (
                     <BlockStack gap="300">
                       <Text as="p" variant="bodySm" tone="subdued">Ön yüz öğeleri ({frontObjects.length})</Text>
-                      {frontObjects.map((obj, i) => (
-                        <DesignObjectCard key={i} obj={obj} />
-                      ))}
+                      {(() => {
+                        let imgIdx = 0;
+                        return frontObjects.map((obj, i) => {
+                          const isImg = obj.type === "image" && obj.src;
+                          const href = isImg ? imageDownloadUrl(order.id, "front", imgIdx) : undefined;
+                          if (isImg) imgIdx++;
+                          return <DesignObjectCard key={i} obj={obj} downloadHref={href} />;
+                        });
+                      })()}
                     </BlockStack>
                   )}
                 </BlockStack>
@@ -286,9 +294,15 @@ export default function OrderDetail() {
                   {backObjects.length > 0 && (
                     <BlockStack gap="300">
                       <Text as="p" variant="bodySm" tone="subdued">Arka yüz öğeleri ({backObjects.length})</Text>
-                      {backObjects.map((obj, i) => (
-                        <DesignObjectCard key={i} obj={obj} />
-                      ))}
+                      {(() => {
+                        let imgIdx = 0;
+                        return backObjects.map((obj, i) => {
+                          const isImg = obj.type === "image" && obj.src;
+                          const href = isImg ? imageDownloadUrl(order.id, "back", imgIdx) : undefined;
+                          if (isImg) imgIdx++;
+                          return <DesignObjectCard key={i} obj={obj} downloadHref={href} />;
+                        });
+                      })()}
                     </BlockStack>
                   )}
                 </BlockStack>
