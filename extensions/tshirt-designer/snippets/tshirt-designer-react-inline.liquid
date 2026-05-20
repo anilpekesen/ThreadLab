@@ -135,21 +135,25 @@
         }
         if (!items.length) return;
 
+        var cartBody = {
+          items: items.map(function(item) {
+            return {
+              id: item.variantId,
+              quantity: item.quantity || 1,
+              properties: Object.assign({}, props, item.properties || {}, item.size ? { 'Beden': item.size } : {})
+            };
+          })
+        };
+        var hasSurcharge = cartBody.items.some(function(i) { return i.properties && i.properties['_surcharge_variant_gid']; });
+        console.log('[PrintLab] sepete ekleniyor — surcharge gid var mı:', hasSurcharge, '| items:', JSON.stringify(cartBody.items.map(function(i){ return { id: i.id, qty: i.quantity, surchargeGid: i.properties['_surcharge_variant_gid'] || '(yok)', surchargeQtyFront: i.properties['_surcharge_qty_front'] || 0 }; })));
+
         fetch('/cart/add.js', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
-          body: JSON.stringify({
-            items: items.map(function(item) {
-              return {
-                id: item.variantId,
-                quantity: item.quantity || 1,
-                properties: Object.assign({}, props, item.properties || {}, item.size ? { 'Beden': item.size } : {})
-              };
-            })
-          })
+          body: JSON.stringify(cartBody)
         })
           .then(function(res) {
             if (!res.ok) throw new Error('cart_add_failed');
