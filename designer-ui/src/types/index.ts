@@ -25,6 +25,7 @@ export interface DesignerConfig {
   currency: string;
   locale: string;
   uploadEndpoint: string;
+  shop: string;
   singleVariantId: string;
   doubleVariantId: string;
   singlePrice: number;

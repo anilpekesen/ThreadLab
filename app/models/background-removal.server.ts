@@ -1,5 +1,4 @@
 import { json } from "@remix-run/node";
-import { findConfigForStorefront } from "~/models/product-config.server";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
 
@@ -79,21 +78,15 @@ export async function handleWaveSpeedRemoveBackground(
 
   const form = await request.formData();
   const file = form.get("image_file");
-  const productId = String(form.get("productId") || "");
-  const handle = String(form.get("handle") || "");
 
   if (!(file instanceof File)) {
     return json({ error: "image_file is required" }, { status: 400 });
   }
 
-  const [config, globalSettings] = await Promise.all([
-    findConfigForStorefront(productId, handle),
-    getGlobalSettings(),
-  ]);
+  const globalSettings = await getGlobalSettings();
+  const apiKey = (process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
 
-  const apiKey = globalSettings.wavespeedApiKey?.trim();
-
-  if (!config?.settings?.removeBg || !apiKey) {
+  if (!apiKey) {
     return json({ error: "WaveSpeed API key is not configured" }, { status: 400 });
   }
 

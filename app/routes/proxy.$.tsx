@@ -38,6 +38,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const url = new URL(request.url);
     const iframeParams = new URLSearchParams(url.searchParams);
     iframeParams.delete("shop");
+    const shopDomain = appProxy.session?.shop ?? url.searchParams.get("shop") ?? "";
+    if (shopDomain) iframeParams.set("shop", shopDomain);
     const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
     const designerUrl = new URL("/designer-app/", appUrl);
     designerUrl.search = iframeParams.toString();

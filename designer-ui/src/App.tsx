@@ -200,6 +200,7 @@ function readConfig(): DesignerConfig {
     currency: p.get('currency') ?? 'TRY',
     locale: p.get('locale') ?? 'tr-TR',
     uploadEndpoint: p.get('upload') ?? '/apps/tshirt-designer/upload',
+    shop: p.get('shop') ?? '',
     singleVariantId: p.get('singleVariantId') ?? '',
     doubleVariantId: p.get('doubleVariantId') ?? '',
     singlePrice: Number(p.get('singlePrice') ?? 0),
@@ -634,6 +635,7 @@ export default function App() {
     const params = new URLSearchParams();
     if (config?.productHandle) params.set('handle', config.productHandle);
     if (config?.productId) params.set('productId', config.productId);
+    if (config?.shop) params.set('shop', config.shop);
     fetch(`/api/designer-config?${params.toString()}`, {
       headers: { Accept: 'application/json' },
     })

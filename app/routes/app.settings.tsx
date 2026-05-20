@@ -281,12 +281,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  if (intent === "clearWavespeedKey") {
-    const settings = await getGlobalSettings();
-    await saveGlobalSettings({ ...settings, wavespeedApiKey: "" });
-    return redirect("/app/settings?saved=1");
-  }
-
   if (intent === "fixSurchargeVariant") {
     const settings = await getGlobalSettings();
     const variantId = settings.surchargeVariantId;
@@ -321,10 +315,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const newVariantId = String(form.get("surchargeVariantId") || "").trim();
-  const newWavespeedKey = String(form.get("wavespeedApiKey") || "").trim();
   const currentSettings = await getGlobalSettings();
   await saveGlobalSettings({
-    wavespeedApiKey: newWavespeedKey || currentSettings.wavespeedApiKey,
+    wavespeedApiKey: currentSettings.wavespeedApiKey,
     surchargeVariantId: newVariantId,
   });
   if (newVariantId) await writeSurchargeMetafield(admin, newVariantId).catch(() => {});
@@ -338,7 +331,6 @@ export default function SettingsRoute() {
   const isSaving = navigation.state === "submitting";
   const isCreating = fetcher.state === "submitting";
 
-  const [wavespeedApiKey, setWavespeedApiKey] = useState("");
   const [surchargeVariantId, setSurchargeVariantId] = useState(settings.surchargeVariantId || "");
   const [showHelp, setShowHelp] = useState(false);
 
@@ -436,73 +428,18 @@ export default function SettingsRoute() {
             {/* WaveSpeed */}
             <Card>
               <Box padding="400">
-                <BlockStack gap="400">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <BlockStack gap="100">
-                      <Text as="h2" variant="headingMd">WaveSpeed Arka Plan Kaldırma</Text>
-                      <Text as="p" tone="subdued" variant="bodySm">
-                        Piyasanın en uygun fiyatlı AI arka plan kaldırma servisi.
-                        Mağazalara plana göre kota tanımlanır ve her kullanım loglanır.
-                      </Text>
-                    </BlockStack>
-                    <Button variant="plain" size="slim" onClick={() => setShowHelp((v) => !v)}>
-                      {showHelp ? "Kapat" : "Nasıl kurulur?"}
-                    </Button>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">WaveSpeed Arka Plan Kaldırma</Text>
+                  <Text as="p" tone="subdued" variant="bodySm">
+                    AI arka plan kaldırma servisi. Mağazalara plana göre kota tanımlanır;
+                    Growth: 50/ay · Pro: 500/ay · Business: sınırsız.
+                  </Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    <Badge tone="success">Aktif</Badge>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      API key sunucu ortam değişkeninde yapılandırılmış.
+                    </Text>
                   </InlineStack>
-
-                  <Collapsible open={showHelp} id="wavespeed-help">
-                    <Box background="bg-surface-secondary" padding="400" borderRadius="200" borderColor="border" borderWidth="025">
-                      <BlockStack gap="300">
-                        <Text as="h3" variant="headingSm">WaveSpeed API key nasıl alınır?</Text>
-                        <BlockStack gap="200">
-                          {[
-                            "wavespeed.ai adresine gidin ve ücretsiz hesap oluşturun.",
-                            "Dashboard → API Keys bölümüne gidin.",
-                            "\"Create API Key\" butonuna tıklayın ve oluşturulan anahtarı kopyalayın.",
-                            "Kopyaladığınız anahtarı aşağıdaki alana yapıştırın ve kaydedin.",
-                          ].map((text, i) => (
-                            <InlineStack key={i} gap="200" blockAlign="start">
-                              <div style={{
-                                width: 22, height: 22, borderRadius: "50%",
-                                background: "#7c3aed", color: "white",
-                                fontSize: 11, fontWeight: 700,
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                flexShrink: 0, marginTop: 1,
-                              }}>{i + 1}</div>
-                              <Text as="p" variant="bodySm">{text}</Text>
-                            </InlineStack>
-                          ))}
-                        </BlockStack>
-                        <Text as="p" tone="subdued" variant="bodySm">
-                          Kullanım planınıza göre her mağazaya ayrı kota tanımlanır (Growth: 50/ay, Pro: 500/ay, Business: sınırsız).
-                        </Text>
-                      </BlockStack>
-                    </Box>
-                  </Collapsible>
-
-                  {settings.wavespeedApiKey ? (
-                    <InlineStack gap="200" blockAlign="center">
-                      <Badge tone="success">API Key Aktif</Badge>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Yeni bir key girmek için aşağıdaki alana yapıştırın.
-                      </Text>
-                    </InlineStack>
-                  ) : (
-                    <Banner tone="warning" title="WaveSpeed API key girilmemiş">
-                      <p>Arka plan kaldırma özelliği çalışmaz. Lütfen API key ekleyin.</p>
-                    </Banner>
-                  )}
-
-                  <TextField
-                    label={settings.wavespeedApiKey ? "Yeni WaveSpeed API Key (değiştirmek için)" : "WaveSpeed API Key"}
-                    name="wavespeedApiKey"
-                    value={wavespeedApiKey}
-                    onChange={setWavespeedApiKey}
-                    autoComplete="off"
-                    type="password"
-                    placeholder="ws_..."
-                    helpText="API key yalnızca sunucu tarafında saklanır, müşteriye iletilmez."
-                  />
                 </BlockStack>
               </Box>
             </Card>
