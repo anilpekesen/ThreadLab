@@ -93,9 +93,22 @@ function DesignObjectItem({ obj, index }: { obj: DesignObject; index: number }) 
                 </Text>
               )}
               <Text size="small" tone="subdued">Konum: {obj.left ?? 0}, {obj.top ?? 0}</Text>
-              <Link url={downloadUrl(obj.src, `tasarim-gorsel-${index + 1}.png`)} external>
-                ⬇ Görseli İndir
-              </Link>
+              {obj.src.startsWith('data:') ? (
+                <Link onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = obj.src!;
+                  a.download = `tasarim-gorsel-${index + 1}.png`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                }}>
+                  ⬇ Görseli İndir
+                </Link>
+              ) : (
+                <Link url={downloadUrl(obj.src, `tasarim-gorsel-${index + 1}.png`)} external>
+                  ⬇ Görseli İndir
+                </Link>
+              )}
             </BlockStack>
           </InlineStack>
         )}

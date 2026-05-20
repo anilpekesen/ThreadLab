@@ -77,9 +77,9 @@ function DesignObjectCard({ obj }: { obj: DesignObject }) {
         {isImage && obj.src && (
           <a
             href={dlUrl(obj.src, "tasarim-gorsel.png")}
-            target="_blank"
-            rel="noopener noreferrer"
-            {...(obj.src.startsWith("data:") ? { download: "tasarim-gorsel.png" } : {})}
+            {...(obj.src.startsWith("data:")
+              ? { download: "tasarim-gorsel.png" }
+              : { target: "_blank", rel: "noopener noreferrer" })}
             style={{ fontSize: 12, color: "#2c6ecb" }}
           >
             Görseli İndir
