@@ -910,7 +910,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       frontPrintHeightCm: Number((frontArea?.realHeightMm || 0) / 10),
       backPrintWidthCm: Number(((backArea?.realWidthMm || frontArea?.realWidthMm || 0) / 10)),
       backPrintHeightCm: Number(((backArea?.realHeightMm || frontArea?.realHeightMm || 0) / 10)),
-      removeBg: form.get("removeBg") === "true",
+      removeBg: true,
 
       pricingBands: {
         front: frontBands.bands,
@@ -935,7 +935,6 @@ export default function ProductSettingsRoute() {
   const [isActive, setIsActive] = useState(config.isActive);
   const [productType, setProductType] = useState<ProductConfig["productType"]>(config.productType);
   const [surfaceMode, setSurfaceMode] = useState<ProductConfig["surfaceMode"]>(config.surfaceMode);
-  const [removeBg, setRemoveBg] = useState(Boolean(config.removeBg));
   const [surchargeVariantId, setSurchargeVariantId] = useState(config.surchargeVariantId || "");
   const [frontBands, setFrontBands] = useState<BandState[]>(toBandState(config, "front"));
   const [backBands, setBackBands] = useState<BandState[]>(toBandState(config, "back"));
@@ -1038,30 +1037,6 @@ export default function ProductSettingsRoute() {
                       onChange={(value) => setSurfaceMode(value as ProductConfig["surfaceMode"])}
                     />
                   </InlineGrid>
-                </BlockStack>
-              </Box>
-            </Card>
-
-            <Card>
-              <Box padding="400">
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingMd">Arka plan temizleme</Text>
-                    <Button variant="plain" size="slim" url="/app/settings">
-                      API key ayarları →
-                    </Button>
-                  </InlineStack>
-                  <Text as="p" tone="subdued">
-                    Bu ürün için müşteri görsel yükleyince "Arka planı temizleyelim mi?" sorusu çıksın mı?
-                    Photoroom API key'i Ayarlar sayfasından girebilirsiniz.
-                  </Text>
-                  <Checkbox
-                    label="Photoroom ile arka plan temizlemeyi aktif et"
-                    name="removeBg"
-                    value="true"
-                    checked={removeBg}
-                    onChange={setRemoveBg}
-                  />
                 </BlockStack>
               </Box>
             </Card>
