@@ -55,7 +55,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // silent — will retry on next load
   }
 
-  // Auto-register Cart Transform function if not already registered
+  // Auto-register Cart Transform function; re-register if function ID changed after deploy
   try {
     const res = await admin.graphql(`#graphql
       {
@@ -72,11 +72,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const transforms = data.data?.cartTransforms?.nodes ?? [];
     const functions = data.data?.shopifyFunctions?.nodes ?? [];
 
-    if (transforms.length === 0) {
-      const cartFn = functions.find((f) =>
-        f.apiType === "cart_transform" || f.apiType === "purchase.cart-transform.run"
-      );
-      if (cartFn) {
+    const cartFn = functions.find((f) =>
+      f.apiType === "cart_transform" || f.apiType === "purchase.cart-transform.run"
+    );
+
+    if (cartFn) {
+      const alreadyRegistered = transforms.some((t) => t.functionId === cartFn.id);
+      if (!alreadyRegistered) {
+        // Delete stale registrations pointing to old function IDs
+        for (const t of transforms) {
+          await admin.graphql(`#graphql
+            mutation { cartTransformDelete(id: "${t.id}") { userErrors { field message } } }
+          `);
+        }
         await admin.graphql(`#graphql
           mutation { cartTransformCreate(functionId: "${cartFn.id}") {
             cartTransform { id }
@@ -207,9 +215,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return json({ error: "GraphQL: " + existingData.errors.map((e) => e.message).join(", ") });
       }
       const existing = existingData.data?.cartTransforms?.nodes ?? [];
-      if (existing.length > 0) {
-        return json({ success: "Cart Transform zaten kayıtlıydı. Sorun başka bir yerde — checkout'u test edin." });
-      }
 
       // Find function
       const fnRes = await admin.graphql(`#graphql
@@ -229,7 +234,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return json({ error: "Fonksiyon bulunamadı. Mevcut: " + list });
       }
 
-      // Register
+      // Already registered with the current function ID — nothing to do
+      if (existing.some((t) => t.functionId === cartFn.id)) {
+        return json({ success: "Cart Transform zaten kayıtlıydı (güncel). Sorun başka bir yerde — checkout'u test edin." });
+      }
+
+      // Delete stale registrations and re-register
+      for (const t of existing) {
+        await admin.graphql(`#graphql
+          mutation { cartTransformDelete(id: "${t.id}") { userErrors { field message } } }
+        `);
+      }
+
       const regRes = await admin.graphql(`#graphql
         mutation { cartTransformCreate(functionId: "${cartFn.id}") {
           cartTransform { id }

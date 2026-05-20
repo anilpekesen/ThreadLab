@@ -959,13 +959,7 @@ export default function ProductSettingsRoute() {
     return v?.image || product.images[1] || product.images[0] || product.featuredImage || "";
   })();
 
-  const variantOptions = [
-    { label: "Secilmedi", value: "" },
-    ...product.variants.map((variant) => ({
-      label: `${variant.title} - ${variant.price}`,
-      value: variant.id,
-    })),
-  ];
+
 
   useEffect(() => {
     if (!hasMounted.current) {
@@ -1146,13 +1140,14 @@ export default function ProductSettingsRoute() {
                     Tasarimin fiziksel olcusune gore ek ucretleri burada yonet. Ornek olarak 10x15, 21x29, 29x42
                     gibi esikler tanimlayabilirsin; bu degerler tamamen degistirilebilir.
                   </Text>
-                  <Select
-                    label="Ek ucret varyanti (1 birim fiyatli)"
-                    helpText="Shopify'da 1 TL/birim fiyatli bir varyant olusturun. Sistem ek ucreti bu varyantin adediyle odemektirir. Bos birakılırsa ek ucret sepete ayri kalem olarak eklenmez."
-                    options={variantOptions}
+                  <TextField
+                    label="Ek ucret varyanti ID (1 birim fiyatli)"
+                    helpText="Bos birakılırsa Ayarlar sayfasindaki global deger kullanilir. Doldurulursa bu urun icin gecersiz kilar."
                     value={surchargeVariantId}
                     onChange={setSurchargeVariantId}
                     name="surchargeVariantId"
+                    autoComplete="off"
+                    placeholder="(global ayar kullanilir)"
                   />
 
                   <input type="hidden" name="frontBandCount" value={String(frontBands.length)} />
