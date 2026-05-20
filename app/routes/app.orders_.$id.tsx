@@ -73,7 +73,7 @@ function DesignObjectCard({ obj }: { obj: DesignObject }) {
           Konum: {Math.round(obj.left ?? 0)}, {Math.round(obj.top ?? 0)}
         </Text>
         {isImage && obj.src && (
-          <a href={dlUrl(obj.src, "tasarim-gorsel.png")} download style={{ fontSize: 12, color: "#2c6ecb" }}>
+          <a href={dlUrl(obj.src, "tasarim-gorsel.png")} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#2c6ecb" }}>
             Görseli İndir
           </a>
         )}
