@@ -180,7 +180,8 @@ function summarizeObjects(
       textAlign: o.textAlign ?? null,
       left: o.left != null ? Math.round(o.left) : null,
       top: o.top != null ? Math.round(o.top) : null,
-      src: o.type === "image" ? (o.src ?? null) : null,
+      // Skip data URLs — they're huge and would blow up metafields / download URLs
+      src: o.type === "image" && o.src && !o.src.startsWith("data:") ? o.src : null,
       width:
         o.type === "image" && o.width != null && o.scaleX != null
           ? Math.round(o.width * o.scaleX)

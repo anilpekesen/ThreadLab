@@ -56,7 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         textAlign: o.textAlign ?? null,
         left: o.left != null ? Math.round(o.left) : null,
         top: o.top != null ? Math.round(o.top) : null,
-        src: o.type === "image" ? (o.src ?? null) : null,
+        src: o.type === "image" && o.src && !o.src.startsWith("data:") ? o.src : null,
         width: o.type === "image" && o.width != null && o.scaleX != null
           ? Math.round(o.width * o.scaleX) : null,
         height: o.type === "image" && o.height != null && o.scaleY != null

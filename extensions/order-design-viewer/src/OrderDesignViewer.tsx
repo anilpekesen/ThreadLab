@@ -59,6 +59,7 @@ interface DesignInfo {
 }
 
 function downloadUrl(fileUrl: string, filename: string): string {
+  if (fileUrl.startsWith("data:")) return fileUrl;
   return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
 }
 

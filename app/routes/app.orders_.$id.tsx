@@ -4,8 +4,10 @@ import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
 
 const APP_URL = "https://app.printlabapp.com";
 
-function dlUrl(fileUrl: string, filename: string): string {
-  return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
+function dlUrl(fileUrl: string, _filename: string): string {
+  // data: URLs are already inline — proxy would explode the query string (414)
+  if (fileUrl.startsWith("data:")) return fileUrl;
+  return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(_filename)}`;
 }
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
