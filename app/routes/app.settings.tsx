@@ -178,10 +178,81 @@ async function writeSurchargeMetafield(
   );
 }
 
+const EMAIL_SNIPPET_MARKER = "dk-design-link";
+const EMAIL_SNIPPET = `
+<!-- dk-design-link START -->
+{% for line_item in line_items %}
+  {% assign dk_token = "" %}
+  {% for prop in line_item.properties %}
+    {% if prop.first == "design_token" and prop.last != "" %}
+      {% assign dk_token = prop.last %}
+    {% endif %}
+  {% endfor %}
+  {% if dk_token != "" %}
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+    <tr>
+      <td style="padding:16px;background:#f0f4ff;border-radius:8px;border:1px solid #c7d7fc;font-family:Helvetica,Arial,sans-serif">
+        <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#374151">&#127912; Tasarim Onizlemeniz</p>
+        <p style="margin:0 0 12px;font-size:13px;color:#6b7280">Kendi tasariminizi gormek ve indirmek icin asagidaki linke tiklayin:</p>
+        <a href="{{ shop.url }}/apps/tshirt-designer/my-order?token={{ dk_token }}"
+           style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#ffffff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none">
+          Tasarimi Goruntule
+        </a>
+      </td>
+    </tr>
+  </table>
+  {% endif %}
+{% endfor %}
+<!-- dk-design-link END -->
+`.trim();
+
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const form = await request.formData();
   const intent = form.get("intent");
+
+  if (intent === "injectEmailTemplate") {
+    const shop = session.shop;
+    const accessToken = session.accessToken ?? "";
+    try {
+      const listRes = await fetch(`https://${shop}/admin/api/2024-01/notifications.json`, {
+        headers: { "X-Shopify-Access-Token": accessToken },
+      });
+      if (!listRes.ok) throw new Error(`Notifications fetch failed: ${listRes.status}`);
+      const listData = await listRes.json() as { notifications?: Array<{ id: number; template_name: string; body_html: string }> };
+      const notification = (listData.notifications ?? []).find(
+        (n) => n.template_name === "order_confirmation",
+      );
+      if (!notification) throw new Error("Order confirmation template bulunamadı");
+
+      if (notification.body_html.includes(EMAIL_SNIPPET_MARKER)) {
+        return json({ success: "Tasarım linki zaten e-posta şablonuna eklenmiş ✓" });
+      }
+
+      const updatedHtml = notification.body_html.includes("</body>")
+        ? notification.body_html.replace("</body>", `${EMAIL_SNIPPET}\n</body>`)
+        : notification.body_html + "\n" + EMAIL_SNIPPET;
+
+      const updateRes = await fetch(
+        `https://${shop}/admin/api/2024-01/notifications/${notification.id}.json`,
+        {
+          method: "PUT",
+          headers: {
+            "X-Shopify-Access-Token": accessToken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ notification: { id: notification.id, body_html: updatedHtml } }),
+        },
+      );
+      if (!updateRes.ok) {
+        const err = await updateRes.text();
+        throw new Error(`Template güncellenemedi: ${err.slice(0, 200)}`);
+      }
+      return json({ success: "Tasarım linki sipariş onay e-postasına başarıyla eklendi ✓" });
+    } catch (err) {
+      return json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  }
 
   if (intent === "createSurchargeProduct") {
     const response = await admin.graphql(`
@@ -365,6 +436,7 @@ export default function SettingsRoute() {
   const { settings, saved, created, cartTransformStatus } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const fetcher = useFetcher<{ error?: string; success?: string }>();
+  const emailFetcher = useFetcher<{ error?: string; success?: string }>();
   const isSaving = navigation.state === "submitting";
   const isCreating = fetcher.state === "submitting";
 
@@ -459,6 +531,35 @@ export default function SettingsRoute() {
                   helpText="Shopify'da mevcut ₺1 fiyatlı bir variant varsa buraya ID'sini girebilirsiniz."
                   placeholder="12345678901234"
                 />
+              </Box>
+            </Card>
+
+            {/* Sipariş E-postası */}
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">Sipariş Onay E-postası</Text>
+                  <Text as="p" tone="subdued" variant="bodySm">
+                    Müşteriye gönderilen sipariş onay e-postasına otomatik olarak tasarım önizleme linki ekler.
+                    Butona bir kez tıklamanız yeterli — tüm gelecek siparişlerde otomatik çalışır.
+                  </Text>
+                  {emailFetcher.data?.error && (
+                    <Banner tone="critical" title={`Hata: ${emailFetcher.data.error}`} />
+                  )}
+                  {emailFetcher.data?.success && (
+                    <Banner tone="success" title={emailFetcher.data.success} />
+                  )}
+                  <emailFetcher.Form method="post">
+                    <input type="hidden" name="intent" value="injectEmailTemplate" />
+                    <Button
+                      variant="secondary"
+                      submit
+                      loading={emailFetcher.state === "submitting"}
+                    >
+                      E-postaya Tasarım Linki Ekle
+                    </Button>
+                  </emailFetcher.Form>
+                </BlockStack>
               </Box>
             </Card>
 
