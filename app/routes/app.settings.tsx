@@ -399,8 +399,8 @@ export default function SettingsRoute() {
             <BlockStack gap="400">
               <Text as="h2" variant="headingMd">Baskı Ek Ücreti</Text>
               <Text as="p" tone="subdued">
-                Shopify, sepet fiyatlarını yalnızca gerçek ürün variant'larıyla kabul eder.
-                Baskı boyutuna göre ek ücret eklemek için ₺1 fiyatlı bir "Baskı Ücreti" ürünü gerekir.
+                Shopify, sepet fiyatlarını yalnızca gerçek ürün variant&apos;larıyla kabul eder.
+                Baskı boyutuna göre ek ücret eklemek için ₺1 fiyatlı bir &quot;Baskı Ücreti&quot; ürünü gerekir.
                 Tasarımın tutarı kadar adet eklenerek ücret yansıtılır (₺40 baskı = 40 adet × ₺1).
               </Text>
 
@@ -438,6 +438,41 @@ export default function SettingsRoute() {
                   </fetcher.Form>
                 )}
               </InlineStack>
+
+              {/* App Embed aktivasyon talimatı */}
+              <BlockStack gap="300">
+                <Text as="p" variant="bodyMd" fontWeight="bold">
+                  Baskı Ücreti Koruma — Tema App Embed Aktivasyonu
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Baskı ücreti hesaplamasının çalışması için temanızda &quot;Baskı Ücreti Koruma&quot; App Embed&apos;ini
+                  aktif etmeniz gerekir. Aşağıdaki adımları takip edin:
+                </Text>
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodySm">
+                    <strong>1.</strong> Shopify Admin → <strong>Online Mağaza → Temalar</strong> sayfasına gidin.
+                  </Text>
+                  <Text as="p" variant="bodySm">
+                    <strong>2.</strong> Aktif temanızda <strong>&quot;Özelleştir&quot;</strong> butonuna tıklayın.
+                  </Text>
+                  <Text as="p" variant="bodySm">
+                    <strong>3.</strong> Tema editöründe sol üstteki <strong>App Embeds</strong> ikonuna (aşağıdaki ekran görüntüsünde işaretli) tıklayın.
+                  </Text>
+                  <Text as="p" variant="bodySm">
+                    <strong>4.</strong> Listede <strong>&quot;Baskı Ücreti Koruma — DesignKit&quot;</strong> satırını bulun ve toggle&apos;ı <strong>açık (mavi)</strong> konuma getirin.
+                  </Text>
+                  <Text as="p" variant="bodySm">
+                    <strong>5.</strong> Sağ üstten <strong>Kaydet</strong>&apos;e tıklayın.
+                  </Text>
+                </BlockStack>
+                <div style={{ maxWidth: 320, borderRadius: 8, overflow: "hidden", border: "1px solid #e1e3e5", marginTop: 4 }}>
+                  <img
+                    src="/baski-ucreti-koruma-embed.png"
+                    alt="Baskı Ücreti Koruma App Embed aktivasyonu"
+                    style={{ width: "100%", display: "block" }}
+                  />
+                </div>
+              </BlockStack>
             </BlockStack>
           </Box>
         </Card>
