@@ -65,7 +65,7 @@ export async function getAnalytics(shop: string) {
     bgThisMonth: bgUsed,
     bgAllTime: Number(bgTotal.rows[0].count),
     bgQuota: quota,
-    bgPercent: quota === -1 ? 0 : quota === 0 ? 100 : Math.round((bgUsed / quota) * 100),
+    bgPercent: quota <= 0 ? 0 : Math.round((bgUsed / quota) * 100),
     designsTotal: Number(designsAll.rows[0].count),
     designsThisMonth: Number(designsMonth.rows[0].count),
     planKey,

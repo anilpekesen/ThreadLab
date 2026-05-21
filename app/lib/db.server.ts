@@ -107,6 +107,24 @@ export async function runMigrations() {
       ADD COLUMN IF NOT EXISTS mockup_image_url TEXT NOT NULL DEFAULT ''
   `);
   await query(`
+    CREATE TABLE IF NOT EXISTS product_categories (
+      id                     TEXT PRIMARY KEY,
+      shop                   TEXT NOT NULL,
+      name                   TEXT NOT NULL,
+      product_type           TEXT NOT NULL DEFAULT 'apparel',
+      surface_mode           TEXT NOT NULL DEFAULT 'front_back',
+      shopify_product_id     TEXT,
+      shopify_product_title  TEXT,
+      shopify_product_handle TEXT,
+      created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_product_categories_shop
+      ON product_categories (shop, created_at)
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS global_settings (
       id         INTEGER PRIMARY KEY DEFAULT 1,
       config     JSONB NOT NULL DEFAULT '{}',

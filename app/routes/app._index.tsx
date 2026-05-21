@@ -185,7 +185,7 @@ export default function Index() {
                 <InlineStack align="space-between">
                   <Text as="p" variant="bodySm" tone="subdued">Arka Plan Kaldırma (Bu Ay)</Text>
                   <Text as="p" variant="bodySm">
-                    {analytics.bgThisMonth} / {analytics.bgQuota === -1 ? "∞" : analytics.bgQuota === 0 ? "—" : analytics.bgQuota}
+                    {analytics.bgThisMonth} / {analytics.bgQuota}
                   </Text>
                 </InlineStack>
                 {analytics.bgQuota > 0 && (
@@ -195,7 +195,6 @@ export default function Index() {
                     size="small"
                   />
                 )}
-                {analytics.bgQuota === 0 && <Text as="p" variant="bodySm" tone="caution">Bu planda kullanılamaz</Text>}
                 <Text as="p" variant="bodySm" tone="subdued">Toplam: <strong>{analytics.bgAllTime}</strong> kaldırma</Text>
               </BlockStack>
             </Box>

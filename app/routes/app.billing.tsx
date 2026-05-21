@@ -124,7 +124,7 @@ export default function BillingPage() {
                     <InlineStack align="space-between">
                       <Text as="p" variant="bodySm">Arka plan kaldırma (bu ay)</Text>
                       <Text as="p" variant="bodySm">
-                        {analytics.bgThisMonth} / {analytics.bgQuota === -1 ? "Sınırsız" : analytics.bgQuota}
+                        {analytics.bgThisMonth} / {analytics.bgQuota}
                       </Text>
                     </InlineStack>
                     {analytics.bgQuota > 0 && (
@@ -231,7 +231,7 @@ export default function BillingPage() {
                       { label: "Ürün tipi", values: PLAN_ORDER.map((k) => PLANS[k].maxProductTypes === -1 ? "Sınırsız" : String(PLANS[k].maxProductTypes)) },
                       { label: "Sipariş/ay", values: PLAN_ORDER.map((k) => PLANS[k].maxMonthlyOrders === -1 ? "Sınırsız" : String(PLANS[k].maxMonthlyOrders)) },
                       { label: "Arka yüz baskı", values: PLAN_ORDER.map((k) => PLANS[k].allowBackSurface ? "✓" : "—") },
-                      { label: "BG kaldırma/ay", values: PLAN_ORDER.map((k) => PLANS[k].removeBgMonthlyQuota === -1 ? "Sınırsız" : PLANS[k].removeBgMonthlyQuota === 0 ? "—" : String(PLANS[k].removeBgMonthlyQuota)) },
+                      { label: "BG kaldırma/ay", values: PLAN_ORDER.map((k) => String(PLANS[k].removeBgMonthlyQuota)) },
                       { label: "Ücretsiz deneme", values: PLAN_ORDER.map(() => "7 gün") },
                     ].map(({ label, values }) => (
                       <tr key={label} style={{ borderBottom: "1px solid #f4f4f4" }}>

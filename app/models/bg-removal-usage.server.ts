@@ -55,7 +55,7 @@ export async function checkAndIncrementBgRemoval(shop: string): Promise<QuotaChe
   ]);
 
   const quota = PLANS[planKey].removeBgMonthlyQuota;
-  const allowed = quota === -1 || count < quota;
+  const allowed = quota < 0 || count < quota;
 
   if (!allowed) {
     return { allowed: false, count, quota, planKey };
