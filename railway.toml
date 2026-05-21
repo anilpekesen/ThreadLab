@@ -1,5 +1,0 @@
-[build]
-buildCommand = "npm ci --include=dev && npm run build"
-
-[deploy]
-startCommand = "node ./node_modules/.bin/remix-serve ./build/server/index.js"
