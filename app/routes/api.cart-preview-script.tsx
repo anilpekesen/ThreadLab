@@ -2,16 +2,36 @@
 export const loader = async () => {
   const script = `
 (function () {
-  console.log('[dk-cart] script loaded, path:', window.location.pathname);
-  if (window.location.pathname.indexOf('/cart') === -1) {
-    console.log('[dk-cart] not a cart page, exiting');
-    return;
-  }
+  if (window.location.pathname.indexOf('/cart') === -1) return;
 
   var WIDGET_ID = 'dk-cart-previews';
+  var LIGHTBOX_ID = 'dk-lightbox';
 
   function esc(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function openLightbox(src, label) {
+    var existing = document.getElementById(LIGHTBOX_ID);
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = LIGHTBOX_ID;
+    overlay.innerHTML =
+      '<div id="dk-lb-backdrop"></div>' +
+      '<div id="dk-lb-box">' +
+        '<button id="dk-lb-close" aria-label="Kapat">&times;</button>' +
+        '<div id="dk-lb-label">' + esc(label) + '</div>' +
+        '<img id="dk-lb-img" src="' + esc(src) + '" alt="' + esc(label) + '"/>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    function close() { var el = document.getElementById(LIGHTBOX_ID); if (el) el.remove(); }
+    document.getElementById('dk-lb-backdrop').addEventListener('click', close);
+    document.getElementById('dk-lb-close').addEventListener('click', close);
+    document.addEventListener('keydown', function onKey(e) {
+      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); }
+    });
   }
 
   function buildWidget(items) {
@@ -34,7 +54,15 @@ export const loader = async () => {
         '#dk-cart-previews .dk-sides{display:flex;gap:12px;flex-wrap:wrap}',
         '#dk-cart-previews .dk-side{text-align:center}',
         '#dk-cart-previews .dk-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:6px}',
-        '#dk-cart-previews .dk-img{width:180px;height:180px;object-fit:contain;border-radius:8px;border:1px solid #e5e7eb;background:#f9fafb;display:block}',
+        '#dk-cart-previews .dk-img{width:180px;height:180px;object-fit:contain;border-radius:8px;border:1px solid #e5e7eb;background:#f9fafb;display:block;cursor:zoom-in;transition:transform .15s,box-shadow .15s}',
+        '#dk-cart-previews .dk-img:hover{transform:scale(1.04);box-shadow:0 4px 16px rgba(0,0,0,.12)}',
+        '#dk-lightbox{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center}',
+        '#dk-lb-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px)}',
+        '#dk-lb-box{position:relative;z-index:1;background:#fff;border-radius:16px;padding:24px;max-width:90vw;max-height:90vh;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:0 24px 64px rgba(0,0,0,.4)}',
+        '#dk-lb-close{position:absolute;top:10px;right:14px;background:none;border:none;font-size:24px;cursor:pointer;color:#6b7280;line-height:1;padding:4px 8px}',
+        '#dk-lb-close:hover{color:#111}',
+        '#dk-lb-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af}',
+        '#dk-lb-img{max-width:80vw;max-height:75vh;object-fit:contain;border-radius:8px}',
       ].join('');
       document.head.appendChild(style);
     }
@@ -47,12 +75,35 @@ export const loader = async () => {
       var p = item.properties || {};
       var front = p['_front_preview_url'];
       var back  = p['_back_preview_url'];
-      var sides = '';
-      if (front) sides += '<div class="dk-side"><div class="dk-label">Ön Yüz</div><img class="dk-img" src="' + esc(front) + '" loading="lazy"/></div>';
-      if (back)  sides += '<div class="dk-side"><div class="dk-label">Arka Yüz</div><img class="dk-img" src="' + esc(back) + '" loading="lazy"/></div>';
+      var sidesEl = document.createElement('div');
+      sidesEl.className = 'dk-sides';
+
+      [[front, 'Ön Yüz'], [back, 'Arka Yüz']].forEach(function(pair) {
+        var url = pair[0]; var label = pair[1];
+        if (!url) return;
+        var sideDiv = document.createElement('div');
+        sideDiv.className = 'dk-side';
+        var labelDiv = document.createElement('div');
+        labelDiv.className = 'dk-label';
+        labelDiv.textContent = label;
+        var img = document.createElement('img');
+        img.className = 'dk-img';
+        img.src = url;
+        img.loading = 'lazy';
+        img.alt = label;
+        img.addEventListener('click', function() { openLightbox(url, label); });
+        sideDiv.appendChild(labelDiv);
+        sideDiv.appendChild(img);
+        sidesEl.appendChild(sideDiv);
+      });
+
       var div = document.createElement('div');
       div.className = 'dk-item';
-      div.innerHTML = '<div class="dk-item-name">' + esc(item.product_title || item.title) + '</div><div class="dk-sides">' + sides + '</div>';
+      var nameDiv = document.createElement('div');
+      nameDiv.className = 'dk-item-name';
+      nameDiv.textContent = item.product_title || item.title || '';
+      div.appendChild(nameDiv);
+      div.appendChild(sidesEl);
       wrap.appendChild(div);
     });
 
@@ -82,7 +133,6 @@ export const loader = async () => {
     var target = findInsertTarget();
     if (!target) { document.body.appendChild(widget); return; }
 
-    // Insert after the target element
     if (target.nextSibling) {
       target.parentNode.insertBefore(widget, target.nextSibling);
     } else {
@@ -91,20 +141,16 @@ export const loader = async () => {
   }
 
   function run() {
-    console.log('[dk-cart] run() called');
     fetch('/cart.js')
       .then(function(r) { return r.json(); })
       .then(function(cart) {
-        console.log('[dk-cart] cart items:', (cart.items || []).length);
         var widget = buildWidget(cart.items || []);
-        if (!widget) { console.log('[dk-cart] no items with preview URLs'); return; }
+        if (!widget) return;
         insertWidget(widget);
-        console.log('[dk-cart] widget inserted');
       })
-      .catch(function(e) { console.error('[dk-cart] fetch error:', e); });
+      .catch(function() {});
   }
 
-  // Run on load + retry after short delay (for themes that modify DOM after load)
   function init() {
     run();
     setTimeout(run, 800);
