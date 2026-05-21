@@ -4,20 +4,57 @@ import { Outlet, useLoaderData, useRouteError } from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
-import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
+import { AppProvider as PolarisAppProvider, Badge, InlineStack, Text, Button } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import trTranslations from "@shopify/polaris/locales/tr.json";
 import { authenticate } from "~/shopify.server";
+import { getShopSubscription } from "~/models/billing.server";
+import type { PlanKey } from "~/lib/plans";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  return json({ apiKey: process.env.SHOPIFY_API_KEY ?? "" });
+  const { session } = await authenticate.admin(request);
+  const sub = await getShopSubscription(session.shop);
+  return json({
+    apiKey: process.env.SHOPIFY_API_KEY ?? "",
+    planKey: (sub?.plan_key ?? "Pro") as PlanKey,
+    subscriptionStatus: sub?.subscription_status ?? "none",
+  });
 };
 
+const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attention"> = {
+  Business: "success",
+  Pro: "info",
+  Growth: "info",
+  Starter: "attention",
+};
+
+function PlanHeader({ planKey, subscriptionStatus }: { planKey: PlanKey; subscriptionStatus: string }) {
+  const isActive = subscriptionStatus === "active" || subscriptionStatus === "trial";
+  return (
+    <div style={{
+      padding: "7px 20px",
+      background: "#fafbfb",
+      borderBottom: "1px solid #e1e3e5",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+    }}>
+      <InlineStack gap="200" blockAlign="center">
+        <Text as="span" variant="bodySm" tone="subdued">Plan:</Text>
+        <Badge tone={PLAN_BADGE_TONE[planKey] ?? "attention"}>{planKey}</Badge>
+        {!isActive && <Text as="span" variant="bodySm" tone="caution">· Aktif değil</Text>}
+      </InlineStack>
+      {!isActive && (
+        <Button size="slim" url="/app/billing" variant="plain">Plan seç →</Button>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, planKey, subscriptionStatus } = useLoaderData<typeof loader>();
   return (
     <ShopifyAppProvider isEmbeddedApp apiKey={apiKey}>
       <PolarisAppProvider i18n={trTranslations}>
@@ -29,7 +66,8 @@ export default function App() {
           <a href="/app/billing">Abonelik</a>
           <a href="/app/settings">Ayarlar</a>
         </NavMenu>
-        <Outlet />
+        <PlanHeader planKey={planKey} subscriptionStatus={subscriptionStatus} />
+        <Outlet context={{ planKey, subscriptionStatus }} />
       </PolarisAppProvider>
     </ShopifyAppProvider>
   );

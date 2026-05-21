@@ -43,6 +43,11 @@ export async function runMigrations() {
     )
   `);
   await query(`
+    ALTER TABLE shop_subscriptions
+      ADD COLUMN IF NOT EXISTS subscription_status TEXT NOT NULL DEFAULT 'none',
+      ADD COLUMN IF NOT EXISTS shopify_subscription_id TEXT
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS shop_templates (
       id         TEXT PRIMARY KEY,
       shop       TEXT NOT NULL,
