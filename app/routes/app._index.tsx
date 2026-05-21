@@ -1,15 +1,18 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useNavigate } from "@remix-run/react";
+import { useLoaderData, useNavigate, useRevalidator } from "@remix-run/react";
+import { useEffect } from "react";
 import {
   Page, Card, Text, BlockStack, InlineGrid, Box,
-  Badge, DataTable, EmptyState, Button, InlineStack,
-  ProgressBar, Divider,
+  Badge, Button, InlineStack, ProgressBar, Divider,
+  IndexTable, Thumbnail,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import { getOrders, getDashboardStats } from "~/models/orders.server";
 import { getAnalytics } from "~/models/billing.server";
 import { PLANS } from "~/lib/plans";
+
+const AUTO_REFRESH_MS = 30_000;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -28,37 +31,96 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=mainSection`
     : null;
 
-  return json({ stats, recentOrders: orders.slice(0, 10), newAppsSectionUrl, mainSectionUrl, analytics });
+  const shopDomain = session.shop.replace(".myshopify.com", "");
+
+  return json({ stats, recentOrders: orders.slice(0, 10), newAppsSectionUrl, mainSectionUrl, analytics, shopDomain });
 };
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Bekliyor", preparing: "Hazırlanıyor", printed: "Basıldı",
   ready: "Hazır", shipped: "Gönderildi",
 };
-const STATUS_BADGE: Record<string, "info" | "attention" | "success" | "warning" | "new"> = {
+const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | "new"> = {
   pending: "attention", preparing: "info", printed: "info",
   ready: "success", shipped: "success",
 };
-
 const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attention"> = {
   Business: "success", Pro: "info", Growth: "info", Starter: "attention",
 };
 
 export default function Index() {
-  const { stats, recentOrders, newAppsSectionUrl, mainSectionUrl, analytics } = useLoaderData<typeof loader>();
+  const { stats, recentOrders, newAppsSectionUrl, mainSectionUrl, analytics, shopDomain } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const { revalidate } = useRevalidator();
   const plan = PLANS[analytics.planKey];
   const isActive = analytics.subscriptionStatus === "active" || analytics.subscriptionStatus === "trial";
 
-  const rows = recentOrders.map((o) => [
-    o.orderNumber,
-    o.customerName,
-    o.productName,
-    <Badge tone={STATUS_BADGE[o.productionStatus] ?? "new"}>
-      {STATUS_LABELS[o.productionStatus] ?? o.productionStatus}
-    </Badge>,
-    new Date(o.createdAt).toLocaleDateString("tr-TR"),
-  ]);
+  // Otomatik yenileme
+  useEffect(() => {
+    const id = setInterval(revalidate, AUTO_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [revalidate]);
+
+  const rowMarkup = recentOrders.map((o, index) => {
+    const shopifyOrderUrl = o.shopifyOrderId
+      ? `https://admin.shopify.com/store/${shopDomain}/orders/${o.shopifyOrderId}`
+      : null;
+
+    return (
+      <IndexTable.Row
+        id={o.id}
+        key={o.id}
+        position={index}
+        onClick={() => navigate(`/app/orders/${o.id}`)}
+      >
+        <IndexTable.Cell>
+          {(o.designFrontPreviewUrl || o.previewUrl) ? (
+            <div style={{ display: "flex", gap: 4 }}>
+              <Thumbnail source={o.designFrontPreviewUrl || o.previewUrl} alt="Ön" size="small" />
+              {o.designBackPreviewUrl && (
+                <Thumbnail source={o.designBackPreviewUrl} alt="Arka" size="small" />
+              )}
+            </div>
+          ) : (
+            <div style={{ width: 40, height: 40, borderRadius: 6, background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🎨</div>
+          )}
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          {shopifyOrderUrl ? (
+            <a href={shopifyOrderUrl} target="_blank" rel="noreferrer"
+              style={{ fontWeight: 600, color: "#2c6ecb", textDecoration: "none" }}
+              onClick={(e) => e.stopPropagation()}>
+              {o.orderNumber}
+            </a>
+          ) : (
+            <Text as="span" fontWeight="semibold">{o.orderNumber}</Text>
+          )}
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <BlockStack gap="050">
+            <Text as="span" variant="bodySm" fontWeight="semibold">{o.customerName}</Text>
+            {o.customerEmail && <Text as="span" variant="bodySm" tone="subdued">{o.customerEmail}</Text>}
+          </BlockStack>
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <Text as="span" variant="bodySm">{o.productName}</Text>
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <InlineStack gap="150" blockAlign="center">
+            <Badge tone={BADGE_TONE[o.productionStatus] ?? "new"}>
+              {STATUS_LABELS[o.productionStatus] ?? o.productionStatus}
+            </Badge>
+            {o.missingSurcharge && <Badge tone="critical">Ücret eksik</Badge>}
+          </InlineStack>
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <Text as="span" variant="bodySm" tone="subdued">
+            {new Date(o.createdAt).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })}
+          </Text>
+        </IndexTable.Cell>
+      </IndexTable.Row>
+    );
+  });
 
   return (
     <Page title="Genel Bakış">
@@ -71,9 +133,7 @@ export default function Index() {
               <BlockStack gap="100">
                 <InlineStack gap="200" blockAlign="center">
                   <Text as="h2" variant="headingMd">Aktif Plan</Text>
-                  <Badge tone={PLAN_BADGE_TONE[analytics.planKey] ?? "attention"}>
-                    {analytics.planKey}
-                  </Badge>
+                  <Badge tone={PLAN_BADGE_TONE[analytics.planKey] ?? "attention"}>{analytics.planKey}</Badge>
                   {!isActive && <Badge tone="warning">Aktif değil</Badge>}
                 </InlineStack>
                 <Text as="p" tone="subdued" variant="bodySm">
@@ -115,9 +175,7 @@ export default function Index() {
               <BlockStack gap="150">
                 <Text as="p" variant="bodySm" tone="subdued">Toplam Tasarım</Text>
                 <Text as="p" variant="headingXl">{analytics.designsTotal}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Bu ay: <strong>{analytics.designsThisMonth}</strong>
-                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">Bu ay: <strong>{analytics.designsThisMonth}</strong></Text>
               </BlockStack>
             </Box>
           </Card>
@@ -137,12 +195,8 @@ export default function Index() {
                     size="small"
                   />
                 )}
-                {analytics.bgQuota === 0 && (
-                  <Text as="p" variant="bodySm" tone="caution">Bu planda kullanılamaz</Text>
-                )}
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Toplam: <strong>{analytics.bgAllTime}</strong> kaldırma
-                </Text>
+                {analytics.bgQuota === 0 && <Text as="p" variant="bodySm" tone="caution">Bu planda kullanılamaz</Text>}
+                <Text as="p" variant="bodySm" tone="subdued">Toplam: <strong>{analytics.bgAllTime}</strong> kaldırma</Text>
               </BlockStack>
             </Box>
           </Card>
@@ -166,44 +220,48 @@ export default function Index() {
           <Box padding="400">
             <BlockStack gap="300">
               <Text as="h2" variant="headingMd">Tema Kurulumu</Text>
-              <Text as="p" tone="subdued">
-                Tasarım aracını ürün sayfasına eklemek için tema editörünü aç.
-              </Text>
+              <Text as="p" tone="subdued">Tasarım aracını ürün sayfasına eklemek için tema editörünü aç.</Text>
               <InlineStack gap="200">
                 {newAppsSectionUrl && (
-                  <Button url={newAppsSectionUrl} target="_blank" variant="primary">
-                    Apps section olarak ekle
-                  </Button>
+                  <Button url={newAppsSectionUrl} target="_blank" variant="primary">Apps section olarak ekle</Button>
                 )}
                 {mainSectionUrl && (
-                  <Button url={mainSectionUrl} target="_blank">
-                    Ürün bölümüne blok ekle
-                  </Button>
+                  <Button url={mainSectionUrl} target="_blank">Ürün bölümüne blok ekle</Button>
                 )}
               </InlineStack>
             </BlockStack>
           </Box>
         </Card>
 
-        {/* Son siparişler */}
+        {/* Son siparişler — IndexTable */}
         <Card>
           <Box padding="400">
             <InlineStack align="space-between" blockAlign="center">
               <Text as="h2" variant="headingMd">Son Siparişler</Text>
-              <Button onClick={() => navigate("/app/orders")} variant="plain">Tümünü gör</Button>
+              <Button onClick={() => navigate("/app/orders")} variant="plain">Tümünü gör →</Button>
             </InlineStack>
           </Box>
           <Divider />
-          {rows.length === 0 ? (
-            <EmptyState heading="Henüz sipariş yok" image="">
-              <p>Müşteriler tasarım yapınca burada görünecek.</p>
-            </EmptyState>
+          {recentOrders.length === 0 ? (
+            <Box padding="400">
+              <Text as="p" tone="subdued" alignment="center">Henüz sipariş yok.</Text>
+            </Box>
           ) : (
-            <DataTable
-              columnContentTypes={["text", "text", "text", "text", "text"]}
-              headings={["Sipariş", "Müşteri", "Ürün", "Durum", "Tarih"]}
-              rows={rows}
-            />
+            <IndexTable
+              resourceName={{ singular: "sipariş", plural: "sipariş" }}
+              itemCount={recentOrders.length}
+              headings={[
+                { title: "" },
+                { title: "Sipariş" },
+                { title: "Müşteri" },
+                { title: "Ürün" },
+                { title: "Durum" },
+                { title: "Tarih" },
+              ]}
+              selectable={false}
+            >
+              {rowMarkup}
+            </IndexTable>
           )}
         </Card>
 
