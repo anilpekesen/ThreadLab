@@ -59,7 +59,7 @@ function PrintTypeField({
 }
 
 function encodeProductToken(productId: string) {
-  return Buffer.from(productId, "utf8").toString("base64url");
+  return btoa(productId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {

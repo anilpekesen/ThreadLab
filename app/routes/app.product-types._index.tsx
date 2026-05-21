@@ -196,7 +196,7 @@ export default function ProductTypesIndex() {
                         {pt.shopify_product_id && (
                           <Button
                             onClick={() => {
-                              const encoded = Buffer.from(pt.shopify_product_id!, "utf8").toString("base64url");
+                              const encoded = btoa(pt.shopify_product_id!).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
                               navigate(`/app/products/${encoded}`);
                             }}
                             size="slim"
