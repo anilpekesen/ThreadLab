@@ -21,6 +21,7 @@ import { getGlobalSettings, saveGlobalSettings } from "~/models/global-settings.
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
+  const shopDomain = session.shop;
   const settings = await getGlobalSettings();
   const url = new URL(request.url);
   const saved = url.searchParams.get("saved") === "1";
@@ -146,27 +147,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     cartTransformStatus = "error";
   }
 
-  // Check if design link snippet is already in order confirmation email
-  let emailTemplateInjected = false;
-  try {
-    const notifRes = await fetch(
-      `https://${session.shop}/admin/api/2023-10/notifications.json`,
-      { headers: { "X-Shopify-Access-Token": session.accessToken ?? "" } },
-    );
-    if (notifRes.ok) {
-      const notifData = await notifRes.json() as {
-        notifications?: Array<{ template_name: string; body_html: string }>;
-      };
-      const tpl = (notifData.notifications ?? []).find(
-        (n) => n.template_name === "order_confirmation",
-      );
-      emailTemplateInjected = tpl?.body_html.includes(EMAIL_SNIPPET_MARKER) ?? false;
-    }
-  } catch (_e) {
-    // silent
-  }
-
-  return json({ settings, saved, created, cartTransformStatus, emailTemplateInjected });
+  return json({ settings, saved, created, cartTransformStatus, shopDomain });
 };
 
 async function writeSurchargeMetafield(
@@ -198,124 +179,33 @@ async function writeSurchargeMetafield(
   );
 }
 
-const EMAIL_SNIPPET_MARKER = "dk-design-link";
-const EMAIL_SNIPPET = `
-<!-- dk-design-link START -->
-{% for line_item in line_items %}
-  {% assign dk_token = "" %}
-  {% for prop in line_item.properties %}
-    {% if prop.first == "design_token" and prop.last != "" %}
-      {% assign dk_token = prop.last %}
-    {% endif %}
-  {% endfor %}
-  {% if dk_token != "" %}
+const EMAIL_LIQUID_SNIPPET = `{% for line_item in line_items %}
+  {%- assign dk_token = "" -%}
+  {%- for prop in line_item.properties -%}
+    {%- if prop.first == "design_token" and prop.last != "" -%}
+      {%- assign dk_token = prop.last -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {%- if dk_token != "" -%}
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
     <tr>
       <td style="padding:16px;background:#f0f4ff;border-radius:8px;border:1px solid #c7d7fc;font-family:Helvetica,Arial,sans-serif">
-        <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#374151">&#127912; Tasarim Onizlemeniz</p>
-        <p style="margin:0 0 12px;font-size:13px;color:#6b7280">Kendi tasariminizi gormek ve indirmek icin asagidaki linke tiklayin:</p>
+        <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#374151">Tasarim Onizlemeniz</p>
+        <p style="margin:0 0 12px;font-size:13px;color:#6b7280">Tasariminizi gormek icin tiklayin:</p>
         <a href="{{ shop.url }}/apps/tshirt-designer/my-order?token={{ dk_token }}"
-           style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#ffffff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none">
+           style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none">
           Tasarimi Goruntule
         </a>
       </td>
     </tr>
   </table>
-  {% endif %}
-{% endfor %}
-<!-- dk-design-link END -->
-`.trim();
+  {%- endif -%}
+{% endfor %}`;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin } = await authenticate.admin(request);
   const form = await request.formData();
   const intent = form.get("intent");
-
-  if (intent === "removeEmailTemplate") {
-    const shop = session.shop;
-    const accessToken = session.accessToken ?? "";
-    console.log(`[email-tpl] shop=${shop} tokenLen=${accessToken.length}`);
-    try {
-      const listRes = await fetch(`https://${shop}/admin/api/2023-10/notifications.json`, {
-        headers: { "X-Shopify-Access-Token": accessToken },
-      });
-      if (!listRes.ok) {
-        const body = await listRes.text();
-        console.error(`[email-tpl] remove list error ${listRes.status}:`, body.slice(0, 300));
-      }
-      if (!listRes.ok) throw new Error(`Notifications fetch failed: ${listRes.status}`);
-      const listData = await listRes.json() as { notifications?: Array<{ id: number; template_name: string; body_html: string }> };
-      const notification = (listData.notifications ?? []).find(
-        (n) => n.template_name === "order_confirmation",
-      );
-      if (!notification) throw new Error("Order confirmation template bulunamadı");
-      if (!notification.body_html.includes(EMAIL_SNIPPET_MARKER)) {
-        return json({ success: "Tasarım linki zaten şablonda yok." });
-      }
-      const cleaned = notification.body_html
-        .replace(/\n?<!-- dk-design-link START -->[\s\S]*?<!-- dk-design-link END -->\n?/g, "");
-      const updateRes = await fetch(
-        `https://${shop}/admin/api/2023-10/notifications/${notification.id}.json`,
-        {
-          method: "PUT",
-          headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-          body: JSON.stringify({ notification: { id: notification.id, body_html: cleaned } }),
-        },
-      );
-      if (!updateRes.ok) throw new Error(`Template güncellenemedi: ${updateRes.status}`);
-      return json({ success: "Tasarım linki e-posta şablonundan kaldırıldı." });
-    } catch (err) {
-      return json({ error: err instanceof Error ? err.message : String(err) });
-    }
-  }
-
-  if (intent === "injectEmailTemplate") {
-    const shop = session.shop;
-    const accessToken = session.accessToken ?? "";
-    console.log(`[email-tpl] inject shop=${shop} tokenLen=${accessToken.length}`);
-    try {
-      const listRes = await fetch(`https://${shop}/admin/api/2023-10/notifications.json`, {
-        headers: { "X-Shopify-Access-Token": accessToken },
-      });
-      if (!listRes.ok) {
-        const body = await listRes.text();
-        console.error(`[email-tpl] list error ${listRes.status}:`, body.slice(0, 300));
-        throw new Error(`Notifications fetch failed: ${listRes.status} — ${body.slice(0, 150)}`);
-      }
-      const listData = await listRes.json() as { notifications?: Array<{ id: number; template_name: string; body_html: string }> };
-      const notification = (listData.notifications ?? []).find(
-        (n) => n.template_name === "order_confirmation",
-      );
-      if (!notification) throw new Error("Order confirmation template bulunamadı");
-
-      if (notification.body_html.includes(EMAIL_SNIPPET_MARKER)) {
-        return json({ success: "Tasarım linki zaten e-posta şablonuna eklenmiş ✓" });
-      }
-
-      const updatedHtml = notification.body_html.includes("</body>")
-        ? notification.body_html.replace("</body>", `${EMAIL_SNIPPET}\n</body>`)
-        : notification.body_html + "\n" + EMAIL_SNIPPET;
-
-      const updateRes = await fetch(
-        `https://${shop}/admin/api/2023-10/notifications/${notification.id}.json`,
-        {
-          method: "PUT",
-          headers: {
-            "X-Shopify-Access-Token": accessToken,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ notification: { id: notification.id, body_html: updatedHtml } }),
-        },
-      );
-      if (!updateRes.ok) {
-        const err = await updateRes.text();
-        throw new Error(`Template güncellenemedi: ${err.slice(0, 200)}`);
-      }
-      return json({ success: "Tasarım linki sipariş onay e-postasına başarıyla eklendi ✓" });
-    } catch (err) {
-      return json({ error: err instanceof Error ? err.message : String(err) });
-    }
-  }
 
   if (intent === "createSurchargeProduct") {
     const response = await admin.graphql(`
@@ -496,10 +386,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created, cartTransformStatus, emailTemplateInjected } = useLoaderData<typeof loader>();
+  const { settings, saved, created, cartTransformStatus, shopDomain } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const fetcher = useFetcher<{ error?: string; success?: string }>();
-  const emailFetcher = useFetcher<{ error?: string; success?: string }>();
+  const [snippetCopied, setSnippetCopied] = useState(false);
   const isSaving = navigation.state === "submitting";
   const isCreating = fetcher.state === "submitting";
 
@@ -579,46 +469,47 @@ export default function SettingsRoute() {
           </Box>
         </Card>
 
-        {/* Sipariş E-postası — outside outer Form to avoid nested forms */}
+        {/* Sipariş E-postası */}
         <Card>
           <Box padding="400">
-            <BlockStack gap="300">
+            <BlockStack gap="400">
               <Text as="h2" variant="headingMd">Sipariş Onay E-postası</Text>
               <Text as="p" tone="subdued" variant="bodySm">
-                Müşteriye gönderilen sipariş onay e-postasına otomatik olarak tasarım önizleme linki ekler.
-                Butona bir kez tıklamanız yeterli — tüm gelecek siparişlerde otomatik çalışır.
+                Shopify, e-posta şablonu API'sini kaldırdığından otomatik enjeksiyon mümkün değil.
+                Aşağıdaki Liquid kodunu kopyalayıp Shopify bildirim şablonuna yapıştırın.
               </Text>
-              <InlineStack gap="200" blockAlign="center">
-                {emailTemplateInjected ? (
-                  <Badge tone="success">Aktif — Tasarım linki e-postaya eklenmiş ✓</Badge>
-                ) : (
-                  <Badge tone="attention">Pasif — Henüz eklenmemiş</Badge>
-                )}
+              <Banner tone="info" title="Manuel kurulum gerekiyor">
+                <p>
+                  1. Aşağıdaki butona tıklayıp Shopify bildirim ayarlarını açın.<br/>
+                  2. <strong>Order confirmation</strong> şablonunu seçin → <strong>Edit code</strong>.<br/>
+                  3. Liquid kodunu kopyalayıp <code>{'</body>'}</code> etiketinin hemen üstüne yapıştırın.
+                </p>
+              </Banner>
+              <InlineStack gap="200" wrap>
+                <Button
+                  url={`https://${shopDomain}/admin/settings/notifications`}
+                  external
+                  variant="primary"
+                >
+                  Shopify Bildirim Ayarlarını Aç
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    navigator.clipboard.writeText(EMAIL_LIQUID_SNIPPET).then(() => {
+                      setSnippetCopied(true);
+                      setTimeout(() => setSnippetCopied(false), 2500);
+                    });
+                  }}
+                >
+                  {snippetCopied ? "Kopyalandı ✓" : "Liquid Kodunu Kopyala"}
+                </Button>
               </InlineStack>
-              {emailFetcher.data?.error && (
-                <Banner tone="critical" title={`Hata: ${emailFetcher.data.error}`} />
-              )}
-              {emailFetcher.data?.success && (
-                <Banner tone="success" title={emailFetcher.data.success} />
-              )}
-              <InlineStack gap="200">
-                {!emailTemplateInjected && (
-                  <emailFetcher.Form method="post">
-                    <input type="hidden" name="intent" value="injectEmailTemplate" />
-                    <Button variant="primary" submit loading={emailFetcher.state === "submitting"}>
-                      E-postaya Tasarım Linki Ekle
-                    </Button>
-                  </emailFetcher.Form>
-                )}
-                {emailTemplateInjected && (
-                  <emailFetcher.Form method="post">
-                    <input type="hidden" name="intent" value="removeEmailTemplate" />
-                    <Button variant="secondary" submit loading={emailFetcher.state === "submitting"}>
-                      Tasarım Linkini Kaldır
-                    </Button>
-                  </emailFetcher.Form>
-                )}
-              </InlineStack>
+              <div style={{ background: "#f6f6f7", borderRadius: 8, padding: "12px 14px", overflowX: "auto" }}>
+                <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                  {EMAIL_LIQUID_SNIPPET}
+                </pre>
+              </div>
             </BlockStack>
           </Box>
         </Card>
