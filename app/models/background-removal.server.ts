@@ -2,11 +2,8 @@ import { json } from "@remix-run/node";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
 
-// WaveSpeed API — async job pattern
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const WAVESPEED_MODEL = "wavespeed-ai/image-background-remover";
-const POLL_MAX_MS = 120_000;
-const POLL_INTERVAL_MS = 2_000;
 
 interface WaveSpeedJob {
   id: string;
@@ -21,14 +18,14 @@ interface WaveSpeedResponse {
   data: WaveSpeedJob;
 }
 
-async function createJob(apiKey: string, imageBase64: string): Promise<WaveSpeedJob> {
+async function removeBackground(apiKey: string, imageBase64: string): Promise<string> {
   const res = await fetch(`${WAVESPEED_BASE}/${WAVESPEED_MODEL}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ image: imageBase64 }),
+    body: JSON.stringify({ image: imageBase64, enable_sync_mode: true }),
   });
 
   if (!res.ok) {
@@ -36,36 +33,15 @@ async function createJob(apiKey: string, imageBase64: string): Promise<WaveSpeed
     throw new Error(`WaveSpeed request failed (${res.status}): ${detail.slice(0, 400)}`);
   }
 
-  const json = await res.json() as WaveSpeedResponse;
-  if (json.code !== 200) throw new Error(`WaveSpeed error: ${json.message}`);
-  return json.data;
-}
+  const body = await res.json() as WaveSpeedResponse;
+  if (body.code !== 200) throw new Error(`WaveSpeed error: ${body.message}`);
 
-async function pollJob(apiKey: string, jobId: string): Promise<WaveSpeedJob> {
-  const deadline = Date.now() + POLL_MAX_MS;
-
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-
-    const res = await fetch(`${WAVESPEED_BASE}/predictions/${jobId}`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-
-    if (!res.ok) continue;
-
-    const body = await res.json() as WaveSpeedResponse;
-    const job = body.data;
-
-    if (job.status === "completed" || job.status === "failed") return job;
+  const job = body.data;
+  if (job.status === "failed" || !job.outputs?.length) {
+    throw new Error(`WaveSpeed job failed: ${job.error ?? "no output"}`);
   }
 
-  throw new Error("WaveSpeed job timed out after 30 s");
-}
-
-async function fetchOutputImage(url: string): Promise<ArrayBuffer> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Could not download WaveSpeed output (${res.status})`);
-  return res.arrayBuffer();
+  return job.outputs[0];
 }
 
 export async function handleWaveSpeedRemoveBackground(
@@ -90,7 +66,6 @@ export async function handleWaveSpeedRemoveBackground(
     return json({ error: "WaveSpeed API key is not configured" }, { status: 400 });
   }
 
-  // Quota check — deducts from plan
   const quota = await checkAndIncrementBgRemoval(shop);
   if (!quota.allowed) {
     return json(
@@ -104,27 +79,24 @@ export async function handleWaveSpeedRemoveBackground(
     );
   }
 
-  // Convert file to base64 data URL
   const bytes = await file.arrayBuffer();
   const b64 = Buffer.from(bytes).toString("base64");
   const mimeType = file.type || "image/png";
   const imageDataUrl = `data:${mimeType};base64,${b64}`;
 
-  let job = await createJob(apiKey, imageDataUrl);
-
-  // If not already completed, poll
-  if (job.status !== "completed" && job.status !== "failed") {
-    job = await pollJob(apiKey, job.id);
+  let outputUrl: string;
+  try {
+    outputUrl = await removeBackground(apiKey, imageDataUrl);
+  } catch (err) {
+    console.error("[remove-bg]", err);
+    return json({ error: String(err) }, { status: 500 });
   }
 
-  if (job.status === "failed" || !job.outputs?.length) {
-    return json(
-      { error: "WaveSpeed background removal failed", detail: job.error ?? "" },
-      { status: 500 },
-    );
+  const imageRes = await fetch(outputUrl);
+  if (!imageRes.ok) {
+    return json({ error: "Could not download result image" }, { status: 502 });
   }
-
-  const imageBytes = await fetchOutputImage(job.outputs[0]);
+  const imageBytes = await imageRes.arrayBuffer();
 
   return new Response(imageBytes, {
     headers: {
