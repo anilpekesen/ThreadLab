@@ -4,7 +4,7 @@ import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
 
 // WaveSpeed API — async job pattern
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
-const WAVESPEED_MODEL = "wavespeed-ai/bria-rmbg-2.0";
+const WAVESPEED_MODEL = "wavespeed-ai/image-background-remover";
 const POLL_MAX_MS = 30_000;
 const POLL_INTERVAL_MS = 1_200;
 

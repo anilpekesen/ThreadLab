@@ -8,7 +8,7 @@ import { getUploadsDir } from "~/lib/storage.server";
 import { uploadToR2 } from "~/lib/r2.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
-const WAVESPEED_MODEL = "wavespeed-ai/bria-rmbg-2.0";
+const WAVESPEED_MODEL = "wavespeed-ai/image-background-remover";
 const POLL_MAX_MS = 60_000;
 const POLL_INTERVAL_MS = 1_500;
 
