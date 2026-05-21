@@ -67,7 +67,7 @@ export default function App() {
         <NavMenu>
           <a href="/app" rel="home">Ana Sayfa</a>
           <a href="/app/orders">Siparişler</a>
-          <a href="/app/categories">Kategoriler</a>
+          <a href="/app/product-types">Ürün Tipleri</a>
           <a href="/app/templates">Şablonlar</a>
           <a href="/app/billing">Abonelik</a>
           <a href="/app/settings">Ayarlar</a>

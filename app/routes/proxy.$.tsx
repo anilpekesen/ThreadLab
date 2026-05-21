@@ -135,7 +135,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   const proxy = await authenticate.public.appProxy(request);
-  const shop = proxy.session?.shop ?? "unknown";
+  const url = new URL(request.url);
+  const shop = proxy.session?.shop ?? url.searchParams.get("shop") ?? "unknown";
   const path = params["*"] ?? "";
 
   if (path === "upload") {

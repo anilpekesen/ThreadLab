@@ -10,27 +10,31 @@ import { useState } from "react";
 import { authenticate } from "~/shopify.server";
 import { runMigrations } from "~/lib/db.server";
 import {
-  getCategoriesForShop, canCreateCategory, createCategory, deleteCategory,
-} from "~/models/product-categories.server";
+  getProductTypesForShop, canCreateProductType, createProductType, deleteProductType,
+} from "~/models/product-types.server";
 import { PLANS } from "~/lib/plans";
 
-const PRODUCT_TYPE_LABELS: Record<string, string> = {
-  apparel: "T-shirt / Giyim",
-  sweatshirt: "Sweatshirt / Hoodie",
-  bag: "Bez çanta",
-  mug: "Kupa bardak",
-  boxer: "Baksır / Boxer",
-  other: "Diğer",
-};
+const PRINT_TEMPLATE_OPTIONS = [
+  { label: "T-shirt / Giyim", value: "apparel" },
+  { label: "Sweatshirt / Hoodie", value: "sweatshirt" },
+  { label: "Bez çanta", value: "bag" },
+  { label: "Kupa bardak", value: "mug" },
+  { label: "Baksır / Boxer", value: "boxer" },
+  { label: "Diğer", value: "other" },
+];
+
+const PRINT_TEMPLATE_LABELS: Record<string, string> = Object.fromEntries(
+  PRINT_TEMPLATE_OPTIONS.map((o) => [o.value, o.label]),
+);
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   await runMigrations();
-  const [categories, quota] = await Promise.all([
-    getCategoriesForShop(session.shop),
-    canCreateCategory(session.shop),
+  const [productTypes, quota] = await Promise.all([
+    getProductTypesForShop(session.shop),
+    canCreateProductType(session.shop),
   ]);
-  return json({ categories, quota });
+  return json({ productTypes, quota });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -40,27 +44,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = form.get("intent") as string;
 
   if (intent === "create") {
-    const quota = await canCreateCategory(shop);
+    const quota = await canCreateProductType(shop);
     if (!quota.allowed) return json({ error: "Plan limitine ulaştınız" }, { status: 403 });
-    const category = await createCategory(shop, {
-      name: String(form.get("name") || "").trim() || "Yeni Kategori",
+    const pt = await createProductType(shop, {
+      name: String(form.get("name") || "").trim() || "Yeni Ürün Tipi",
       product_type: String(form.get("product_type") || "apparel"),
       surface_mode: (form.get("surface_mode") as "front_only" | "front_back") ?? "front_back",
     });
-    return redirect(`/app/categories/${category.id}`);
+    return redirect(`/app/product-types/${pt.id}`);
   }
 
   if (intent === "delete") {
     const id = form.get("id") as string;
-    await deleteCategory(id, shop);
+    await deleteProductType(id, shop);
     return json({ ok: true });
   }
 
   return json({ ok: true });
 };
 
-export default function CategoriesIndex() {
-  const { categories, quota } = useLoaderData<typeof loader>();
+export default function ProductTypesIndex() {
+  const { productTypes, quota } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const nav = useNavigation();
   const isSubmitting = nav.state === "submitting";
@@ -72,13 +76,12 @@ export default function CategoriesIndex() {
 
   const limitLabel = quota.limit === -1 ? "Sınırsız" : String(quota.limit);
   const usagePercent = quota.limit === -1 ? 0 : Math.round((quota.used / quota.limit) * 100);
-  const planInfo = PLANS[quota.planKey];
 
   return (
     <Page
-      title="Ürün Kategorileri"
+      title="Ürün Tipleri"
       primaryAction={{
-        content: "Yeni Kategori",
+        content: "Yeni Ürün Tipi",
         disabled: !quota.allowed,
         onAction: () => setShowCreate(true),
       }}
@@ -91,7 +94,7 @@ export default function CategoriesIndex() {
             <BlockStack gap="200">
               <InlineStack align="space-between" blockAlign="center">
                 <InlineStack gap="200" blockAlign="center">
-                  <Text as="p" variant="bodySm" tone="subdued">Kategori Kullanımı</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">Ürün Tipi Kullanımı</Text>
                   <Badge>{quota.planKey}</Badge>
                 </InlineStack>
                 <Text as="p" variant="bodySm">
@@ -108,7 +111,7 @@ export default function CategoriesIndex() {
               {!quota.allowed && (
                 <InlineStack gap="200" blockAlign="center">
                   <Text as="p" variant="bodySm" tone="caution">
-                    {quota.planKey} planında maksimum {quota.limit} kategori oluşturabilirsiniz.
+                    {quota.planKey} planında maksimum {quota.limit} ürün tipi oluşturabilirsiniz.
                   </Text>
                   <Button size="slim" onClick={() => navigate("/app/billing")} variant="plain">
                     Plan yükselt →
@@ -119,46 +122,46 @@ export default function CategoriesIndex() {
           </Box>
         </Card>
 
-        {/* Kategori listesi */}
+        {/* Ürün tipi listesi */}
         <Card>
-          {categories.length === 0 ? (
+          {productTypes.length === 0 ? (
             <EmptyState
-              heading="Henüz kategori oluşturmadınız"
-              action={{ content: "Yeni Kategori Oluştur", onAction: () => setShowCreate(true), disabled: !quota.allowed }}
+              heading="Henüz ürün tipi oluşturmadınız"
+              action={{ content: "Yeni Ürün Tipi Oluştur", onAction: () => setShowCreate(true), disabled: !quota.allowed }}
               image=""
             >
-              <p>Her kategori bir Shopify ürününe bağlanır. Paketinize göre {limitLabel} kategori oluşturabilirsiniz.</p>
+              <p>Her ürün tipi bir Shopify ürününe bağlanır. {limitLabel} ürün tipi oluşturabilirsiniz.</p>
             </EmptyState>
           ) : (
             <BlockStack>
-              {categories.map((cat, index) => (
-                <div key={cat.id}>
+              {productTypes.map((pt, index) => (
+                <div key={pt.id}>
                   <Box padding="400">
                     <InlineStack align="space-between" blockAlign="center">
                       <BlockStack gap="100">
                         <InlineStack gap="200" blockAlign="center">
-                          <Text as="p" variant="bodyMd" fontWeight="semibold">{cat.name}</Text>
-                          <Badge>{PRODUCT_TYPE_LABELS[cat.product_type] ?? cat.product_type}</Badge>
-                          <Badge tone={cat.surface_mode === "front_back" ? "info" : "attention"}>
-                            {cat.surface_mode === "front_back" ? "Ön + Arka" : "Sadece Ön"}
+                          <Text as="p" variant="bodyMd" fontWeight="semibold">{pt.name}</Text>
+                          <Badge>{PRINT_TEMPLATE_LABELS[pt.product_type] ?? pt.product_type}</Badge>
+                          <Badge tone={pt.surface_mode === "front_back" ? "info" : "attention"}>
+                            {pt.surface_mode === "front_back" ? "Ön + Arka" : "Sadece Ön"}
                           </Badge>
                         </InlineStack>
-                        {cat.shopify_product_title ? (
+                        {pt.shopify_product_title ? (
                           <Text as="p" variant="bodySm" tone="subdued">
-                            Ürün: <strong>{cat.shopify_product_title}</strong>
+                            Ürün: <strong>{pt.shopify_product_title}</strong>
                           </Text>
                         ) : (
                           <Text as="p" variant="bodySm" tone="caution">Henüz ürün atanmadı</Text>
                         )}
                       </BlockStack>
                       <InlineStack gap="200">
-                        <Button onClick={() => navigate(`/app/categories/${cat.id}`)} variant="primary" size="slim">
+                        <Button onClick={() => navigate(`/app/product-types/${pt.id}`)} variant="primary" size="slim">
                           Düzenle
                         </Button>
-                        {cat.shopify_product_id && (
+                        {pt.shopify_product_id && (
                           <Button
                             onClick={() => {
-                              const encoded = Buffer.from(cat.shopify_product_id!, "utf8").toString("base64url");
+                              const encoded = Buffer.from(pt.shopify_product_id!, "utf8").toString("base64url");
                               navigate(`/app/products/${encoded}`);
                             }}
                             size="slim"
@@ -168,7 +171,7 @@ export default function CategoriesIndex() {
                         )}
                         <Form method="post">
                           <input type="hidden" name="intent" value="delete" />
-                          <input type="hidden" name="id" value={cat.id} />
+                          <input type="hidden" name="id" value={pt.id} />
                           <Button tone="critical" variant="plain" size="slim" submit loading={isSubmitting}>
                             Sil
                           </Button>
@@ -176,7 +179,7 @@ export default function CategoriesIndex() {
                       </InlineStack>
                     </InlineStack>
                   </Box>
-                  {index < categories.length - 1 && <Divider />}
+                  {index < productTypes.length - 1 && <Divider />}
                 </div>
               ))}
             </BlockStack>
@@ -185,47 +188,42 @@ export default function CategoriesIndex() {
 
       </BlockStack>
 
-      {/* Yeni Kategori Modal */}
+      {/* Yeni Ürün Tipi Modal */}
       <Modal
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        title="Yeni Kategori Oluştur"
+        title="Yeni Ürün Tipi Oluştur"
         primaryAction={{
           content: "Oluştur",
           loading: isSubmitting,
           onAction: () => {
-            const form = document.getElementById("create-category-form") as HTMLFormElement;
+            const form = document.getElementById("create-product-type-form") as HTMLFormElement;
             form?.requestSubmit();
           },
         }}
         secondaryActions={[{ content: "İptal", onAction: () => setShowCreate(false) }]}
       >
         <Modal.Section>
-          <Form method="post" id="create-category-form">
+          <Form method="post" id="create-product-type-form">
             <input type="hidden" name="intent" value="create" />
             <BlockStack gap="400">
               <TextField
-                label="Kategori Adı"
+                label="Ürün Tipi Adı"
                 name="name"
                 value={newName}
                 onChange={setNewName}
-                placeholder="örn. Erkek T-Shirt, Sweatshirt Serisi..."
+                placeholder="örn. Tişört, Sweatshirt, Kupa..."
                 autoComplete="off"
+                helpText="Müşterinin göreceği ürün tipi adını yazın."
               />
               <InlineGrid columns={2} gap="400">
                 <Select
-                  label="Ürün Tipi"
+                  label="Baskı Şablonu"
                   name="product_type"
                   value={newType}
                   onChange={setNewType}
-                  options={[
-                    { label: "T-shirt / Giyim", value: "apparel" },
-                    { label: "Sweatshirt / Hoodie", value: "sweatshirt" },
-                    { label: "Bez çanta", value: "bag" },
-                    { label: "Kupa bardak", value: "mug" },
-                    { label: "Baksır / Boxer", value: "boxer" },
-                    { label: "Diğer", value: "other" },
-                  ]}
+                  options={PRINT_TEMPLATE_OPTIONS}
+                  helpText="Varsayılan baskı alanı boyutlarını belirler."
                 />
                 <Select
                   label="Baskı Yüzü"
