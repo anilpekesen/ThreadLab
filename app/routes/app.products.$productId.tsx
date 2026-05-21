@@ -1,13 +1,12 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, useActionData, useLoaderData } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Badge,
   BlockStack,
   Box,
   Button,
   Card,
-  Checkbox,
   InlineGrid,
   InlineStack,
   Page,
@@ -854,13 +853,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const config = await getProductConfig(product);
   const printAreas = await getProductPrintAreas(product.id, config.productType, config.surfaceMode, config);
-  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
-  const appBlockHandle = "tshirt-designer";
-  const themeUrl = apiKey
-    ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=mainSection`
-    : null;
 
-  return json({ product, config, printAreas, themeUrl });
+  return json({ product, config, printAreas });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -901,7 +895,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const normalized = normalizeProductConfig(
     {
-      isActive: form.get("isActive") === "true",
+      isActive: true,
       productTitle: String(form.get("productTitle") || ""),
       productHandle: String(form.get("productHandle") || ""),
       productType: String(form.get("productType") || "apparel") as ProductConfig["productType"],
@@ -928,11 +922,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function ProductSettingsRoute() {
-  const { product, config, printAreas, themeUrl } = useLoaderData<typeof loader>();
+  const { product, config, printAreas } = useLoaderData<typeof loader>();
+  const navigate = useNavigate();
   const actionData = useActionData<typeof action>();
   const hasMounted = useRef(false);
 
-  const [isActive, setIsActive] = useState(config.isActive);
   const [productType, setProductType] = useState<ProductConfig["productType"]>(config.productType);
   const [surfaceMode, setSurfaceMode] = useState<ProductConfig["surfaceMode"]>(config.surfaceMode);
   const [surchargeVariantId, setSurchargeVariantId] = useState(config.surchargeVariantId || "");
@@ -974,22 +968,19 @@ export default function ProductSettingsRoute() {
     <Page
       title={product.title}
       subtitle={product.handle}
-      backAction={{ content: "Urunler", url: "/app/products" }}
-      primaryAction={themeUrl ? { content: "Tema editoru", url: themeUrl, external: true } : undefined}
+      backAction={{ content: "Ürünler", onAction: () => navigate("/app/products") }}
     >
       <BlockStack gap="500">
         <Card>
           <Box padding="400">
             <InlineStack gap="200" align="space-between">
               <BlockStack gap="100">
-                <Text as="h2" variant="headingMd">Urun tipi ayarlari</Text>
+                <Text as="h2" variant="headingMd">Ürün tipi ayarları</Text>
                 <Text as="p" tone="subdued">
-                  Bu urun icin hangi yuzlerde calisacagi, varsayilan yerlesim ve baski sinirlari burada belirlenir.
+                  Bu ürün için hangi yüzlerde çalışacağı, varsayılan yerleşim ve baskı sınırları burada belirlenir.
                 </Text>
               </BlockStack>
-              <Badge tone={isActive ? "success" : "attention"}>
-                {isActive ? "Aktif" : "Pasif"}
-              </Badge>
+              <Badge tone="success">Aktif</Badge>
             </InlineStack>
           </Box>
         </Card>
@@ -1001,14 +992,6 @@ export default function ProductSettingsRoute() {
                 <BlockStack gap="300">
                   <input type="hidden" name="productTitle" value={product.title} />
                   <input type="hidden" name="productHandle" value={product.handle} />
-
-                  <Checkbox
-                    label="Bu urunde tasarim aracini aktif et"
-                    name="isActive"
-                    value="true"
-                    checked={isActive}
-                    onChange={setIsActive}
-                  />
 
                   <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
                     <Select
