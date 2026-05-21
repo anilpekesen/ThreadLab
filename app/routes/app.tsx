@@ -1,10 +1,10 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Outlet, useLoaderData, useRouteError } from "@remix-run/react";
+import { Outlet, useLoaderData, useNavigate, useRouteError } from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
-import { AppProvider as PolarisAppProvider, Badge, InlineStack, Text, Button } from "@shopify/polaris";
+import { AppProvider as PolarisAppProvider, Badge, InlineStack, Text } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import trTranslations from "@shopify/polaris/locales/tr.json";
 import { authenticate } from "~/shopify.server";
@@ -32,6 +32,7 @@ const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attentio
 
 function PlanHeader({ planKey, subscriptionStatus }: { planKey: PlanKey; subscriptionStatus: string }) {
   const isActive = subscriptionStatus === "active" || subscriptionStatus === "trial";
+  const navigate = useNavigate();
   return (
     <div style={{
       padding: "7px 20px",
@@ -47,7 +48,12 @@ function PlanHeader({ planKey, subscriptionStatus }: { planKey: PlanKey; subscri
         {!isActive && <Text as="span" variant="bodySm" tone="caution">· Aktif değil</Text>}
       </InlineStack>
       {!isActive && (
-        <Button size="slim" url="/app/billing" variant="plain">Plan seç →</Button>
+        <button
+          onClick={() => navigate("/app/billing")}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#2271b1", fontSize: 13, fontWeight: 600 }}
+        >
+          Plan seç →
+        </button>
       )}
     </div>
   );

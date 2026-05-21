@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Page, Card, Text, BlockStack, InlineGrid, Box,
   Badge, DataTable, EmptyState, Button, InlineStack,
@@ -46,6 +46,7 @@ const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attentio
 
 export default function Index() {
   const { stats, recentOrders, newAppsSectionUrl, mainSectionUrl, analytics } = useLoaderData<typeof loader>();
+  const navigate = useNavigate();
   const plan = PLANS[analytics.planKey];
   const isActive = analytics.subscriptionStatus === "active" || analytics.subscriptionStatus === "trial";
 
@@ -81,7 +82,7 @@ export default function Index() {
                     : "Planınız aktif değil. Özellikleri kullanmak için plan seçin."}
                 </Text>
               </BlockStack>
-              <Button url="/app/billing" variant={isActive ? "plain" : "primary"}>
+              <Button onClick={() => navigate("/app/billing")} variant={isActive ? "plain" : "primary"}>
                 {isActive ? "Plan Yönet" : "Plan Seç"}
               </Button>
             </InlineStack>
@@ -189,7 +190,7 @@ export default function Index() {
           <Box padding="400">
             <InlineStack align="space-between" blockAlign="center">
               <Text as="h2" variant="headingMd">Son Siparişler</Text>
-              <Button url="/app/orders" variant="plain">Tümünü gör</Button>
+              <Button onClick={() => navigate("/app/orders")} variant="plain">Tümünü gör</Button>
             </InlineStack>
           </Box>
           <Divider />
