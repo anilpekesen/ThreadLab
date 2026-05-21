@@ -13,6 +13,10 @@ api_version = "2026-07"
 topics = ["orders/create"]
 uri = "/webhooks"
 
+[[webhooks.subscriptions]]
+topics = ["orders/fulfilled"]
+uri = "/webhooks"
+
 [access_scopes]
 scopes = "read_products,write_products,read_orders,write_orders,write_app_proxy,write_cart_transforms,write_script_tags"
 

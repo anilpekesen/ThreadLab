@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { authenticate } from "~/shopify.server";
 import { processOrderBgRemoval } from "~/models/auto-bg-removal.server";
+import { getOrderByShopifyId, updateOrderStatus } from "~/models/orders.server";
 
 // Shopify uses both {name, value} (REST) and {key, value} (some contexts)
 type Attr = { name?: string; key?: string; value: string };
@@ -44,10 +45,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     console.log(`[webhook] order=${order.name} topic=${topic} token=${designToken ?? "none"}`);
 
     if (designToken) {
-      // Fire-and-forget — respond immediately, process in background
       processOrderBgRemoval(shop, designToken).catch((err) =>
         console.error(`[webhook] auto-bg failed for order ${order.name}:`, err),
       );
+    }
+  }
+
+  if (topic === "ORDERS_FULFILLED" || topic === "orders/fulfilled") {
+    const order = payload as OrderPayload;
+    const shopifyOrderId = String(order.id ?? "");
+    console.log(`[webhook] fulfilled order=${order.name} shopifyId=${shopifyOrderId}`);
+
+    if (shopifyOrderId) {
+      getOrderByShopifyId(shopifyOrderId)
+        .then((existing) => {
+          if (existing && existing.productionStatus !== "shipped") {
+            return updateOrderStatus(existing.id, "shipped");
+          }
+        })
+        .catch((err) =>
+          console.error(`[webhook] status update failed for order ${order.name}:`, err),
+        );
     }
   }
 
