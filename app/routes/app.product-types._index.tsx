@@ -115,9 +115,9 @@ export default function ProductTypesIndex() {
 
   return (
     <Page
-      title="Ürün Tipleri"
+      title="Baskı Ayarı"
       primaryAction={{
-        content: "Yeni Ürün Tipi",
+        content: "Yeni Ürün Tipi Oluştur",
         disabled: !quota.allowed,
         onAction: () => setShowCreate(true),
       }}
@@ -163,7 +163,7 @@ export default function ProductTypesIndex() {
           {productTypes.length === 0 ? (
             <EmptyState
               heading="Henüz ürün tipi oluşturmadınız"
-              action={{ content: "Yeni Ürün Tipi Oluştur", onAction: () => setShowCreate(true), disabled: !quota.allowed }}
+              action={{ content: "Yeni Ürün Tipi Oluştur", onAction: () => setShowCreate(true), disabled: !quota.allowed  }}
               image=""
             >
               <p>Her ürün tipi bir Shopify ürününe bağlanır. {limitLabel} ürün tipi oluşturabilirsiniz.</p>
