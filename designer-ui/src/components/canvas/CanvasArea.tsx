@@ -332,6 +332,28 @@ function constrainCanvasObjects(cv: fabric.Canvas, areaRect: ReturnType<typeof t
   return changed;
 }
 
+// Proxy R2 images through our server to avoid CORS issues with Fabric.js
+function proxyCrossOriginUrl(url: string): string {
+  if (!url) return url;
+  try {
+    const u = new URL(url, window.location.href);
+    if (u.hostname === 'assets.printlabapp.com') {
+      return `/api/img-proxy?url=${encodeURIComponent(url)}`;
+    }
+  } catch { /* ignore */ }
+  return url;
+}
+
+function proxyJsonUrls(json: string): string {
+  return json.replace(/"src":"(https?:\/\/assets\.printlabapp\.com\/[^"]+)"/g,
+    (_, src) => `"src":"/api/img-proxy?url=${encodeURIComponent(src)}"`);
+}
+
+function unproxyJsonUrls(json: string): string {
+  return json.replace(/"src":"\/api\/img-proxy\?url=([^"]+)"/g,
+    (_, encoded) => `"src":"${decodeURIComponent(encoded)}"`);
+}
+
 const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea, onObjectSelected, onDesignChange }, ref) => {
   const hostEl = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
@@ -512,7 +534,8 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const addImageFromUrl = useCallback((url: string) => {
     const cv = canvasRef.current;
     if (!cv) return;
-    fabric.Image.fromURL(url, (img) => {
+    const loadUrl = proxyCrossOriginUrl(url);
+    fabric.Image.fromURL(loadUrl, (img) => {
       if (canvasRef.current !== cv || !hasLiveContext(cv)) return;
       const areaRect = toCanvasRect(printAreaRef.current);
       const maxW = areaRect.width * 0.72;
@@ -615,14 +638,17 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   }, []);
 
   const saveDesign = useCallback(() => {
-    return canvasRef.current ? JSON.stringify(canvasRef.current.toJSON(['id'])) : '';
+    if (!canvasRef.current) return '';
+    const json = JSON.stringify(canvasRef.current.toJSON(['id']));
+    return unproxyJsonUrls(json);
   }, []);
 
   const loadDesign = useCallback((json: string) => {
     const cv = canvasRef.current;
     if (!cv || !json) return;
     isRestoringRef.current = true;
-    cv.loadFromJSON(json, () => {
+    const proxied = proxyJsonUrls(json);
+    cv.loadFromJSON(proxied, () => {
       normalizeCanvasImages(cv);
       constrainCanvasObjects(cv, toCanvasRect(printAreaRef.current));
       cv.renderAll();

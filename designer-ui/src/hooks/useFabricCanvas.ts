@@ -3,6 +3,29 @@ import { fabric } from 'fabric';
 import type { Side } from '@/types';
 import { useDesignerStore } from '@/store/designerStore';
 
+// Proxy cross-origin R2 images through our server to avoid CORS issues
+function proxyCrossOriginUrl(url: string): string {
+  if (!url) return url;
+  try {
+    const u = new URL(url, window.location.href);
+    if (u.hostname === 'assets.printlabapp.com') {
+      return `/api/img-proxy?url=${encodeURIComponent(url)}`;
+    }
+  } catch { /* ignore */ }
+  return url;
+}
+
+
+function proxyJsonUrls(json: string): string {
+  return json.replace(/"src":"(https?:\/\/assets\.printlabapp\.com\/[^"]+)"/g,
+    (_, src) => `"src":"/api/img-proxy?url=${encodeURIComponent(src)}"`);
+}
+
+function unproxyJsonUrls(json: string): string {
+  return json.replace(/"src":"\/api\/img-proxy\?url=([^"]+)"/g,
+    (_, encoded) => `"src":"${decodeURIComponent(encoded)}"`);
+}
+
 const HISTORY_LIMIT = 50;
 
 export interface FabricCanvasHandle {
@@ -95,7 +118,8 @@ export function useFabricCanvas(
   const addImageFromUrl = useCallback((url: string) => {
     const cv = canvasRef.current;
     if (!cv) return;
-    fabric.Image.fromURL(url, (img) => {
+    const loadUrl = proxyCrossOriginUrl(url);
+    fabric.Image.fromURL(loadUrl, (img) => {
       const maxW = cv.width! * 0.6;
       const maxH = cv.height! * 0.6;
       const scale = Math.min(maxW / img.width!, maxH / img.height!, 1);
@@ -129,14 +153,18 @@ export function useFabricCanvas(
 
   const saveDesign = useCallback(() => {
     if (!canvasRef.current) return '';
-    return JSON.stringify(canvasRef.current.toJSON(['id']));
+    // Unproxy URLs before saving so DB stores original R2 URLs
+    const json = JSON.stringify(canvasRef.current.toJSON(['id']));
+    return unproxyJsonUrls(json);
   }, []);
 
   const loadDesign = useCallback((json: string) => {
     const cv = canvasRef.current;
     if (!cv || !json) return;
     isRestoringRef.current = true;
-    cv.loadFromJSON(json, () => { cv.renderAll(); isRestoringRef.current = false; pushHistory(); });
+    // Proxy R2 URLs so Fabric can load them without CORS issues
+    const proxied = proxyJsonUrls(json);
+    cv.loadFromJSON(proxied, () => { cv.renderAll(); isRestoringRef.current = false; pushHistory(); });
   }, [pushHistory]);
 
   const exportPng = useCallback(() => {
