@@ -6,15 +6,12 @@ import {
   Box,
   Button,
   Card,
-  Collapsible,
   InlineStack,
   Page,
   Text,
   TextField,
   Banner,
   Badge,
-  Divider,
-  Modal,
 } from "@shopify/polaris";
 import { useState } from "react";
 import { authenticate } from "~/shopify.server";
@@ -22,7 +19,6 @@ import { getGlobalSettings, saveGlobalSettings } from "~/models/global-settings.
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const shopDomain = session.shop;
   const settings = await getGlobalSettings();
   const url = new URL(request.url);
   const saved = url.searchParams.get("saved") === "1";
@@ -148,9 +144,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     cartTransformStatus = "error";
   }
 
-  const storeName = shopDomain.replace(".myshopify.com", "");
-  const emailTemplateEditUrl = `https://admin.shopify.com/store/${storeName}/email_templates/order_confirmation/edit`;
-  return json({ settings, saved, created, cartTransformStatus, shopDomain, emailTemplateEditUrl });
+  return json({ settings, saved, created, cartTransformStatus });
 };
 
 async function writeSurchargeMetafield(
@@ -182,26 +176,6 @@ async function writeSurchargeMetafield(
   );
 }
 
-const EMAIL_LIQUID_SNIPPET = `{%- assign dk_token = "" -%}
-{%- for attribute in attributes -%}
-  {%- if attribute.name == "design_token" and attribute.value != blank -%}
-    {%- assign dk_token = attribute.value -%}
-  {%- endif -%}
-{%- endfor -%}
-{%- if dk_token != blank -%}
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
-  <tr>
-    <td style="padding:16px;background:#f0f4ff;border-radius:8px;border:1px solid #c7d7fc;font-family:Helvetica,Arial,sans-serif">
-      <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#374151">Tasarim Onizlemeniz</p>
-      <p style="margin:0 0 12px;font-size:13px;color:#6b7280">Tasariminizi gormek icin tiklayin:</p>
-      <a href="{{ shop.url }}/apps/tshirt-designer/my-order?token={{ dk_token }}"
-         style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none">
-        Tasarimi Goruntule
-      </a>
-    </td>
-  </tr>
-</table>
-{%- endif -%}`;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
@@ -387,16 +361,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created, cartTransformStatus, shopDomain, emailTemplateEditUrl } = useLoaderData<typeof loader>();
+  const { settings, saved, created, cartTransformStatus } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const fetcher = useFetcher<{ error?: string; success?: string }>();
-  const [snippetCopied, setSnippetCopied] = useState(false);
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
   const isSaving = navigation.state === "submitting";
   const isCreating = fetcher.state === "submitting";
 
   const [surchargeVariantId, setSurchargeVariantId] = useState(settings.surchargeVariantId || "");
-  const [showHelp, setShowHelp] = useState(false);
 
   return (
     <Page title="Ayarlar">
@@ -471,103 +442,6 @@ export default function SettingsRoute() {
           </Box>
         </Card>
 
-        {/* Sipariş E-postası */}
-        <Card>
-          <Box padding="400">
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Sipariş Onay E-postası</Text>
-              <Text as="p" tone="subdued" variant="bodySm">
-                Müşteriye gönderilen sipariş onay e-postasına tasarım önizleme linki ekleyin.
-                Kurulum talimatlarını görmek için butona tıklayın.
-              </Text>
-              <InlineStack gap="200">
-                <Button variant="primary" onClick={() => setEmailModalOpen(true)}>
-                  Nasıl Eklenir? Kurulum Talimatları
-                </Button>
-              </InlineStack>
-            </BlockStack>
-          </Box>
-        </Card>
-
-        <Modal
-          open={emailModalOpen}
-          onClose={() => setEmailModalOpen(false)}
-          title="Sipariş E-postasına Tasarım Linki Ekleme"
-          primaryAction={{
-            content: emailTemplateEditUrl ? "E-posta Şablonunu Aç →" : "Kapat",
-            url: emailTemplateEditUrl,
-            external: true,
-          }}
-          secondaryActions={[
-            {
-              content: snippetCopied ? "Kopyalandı ✓" : "Liquid Kodunu Kopyala",
-              onAction: () => {
-                navigator.clipboard.writeText(EMAIL_LIQUID_SNIPPET).then(() => {
-                  setSnippetCopied(true);
-                  setTimeout(() => setSnippetCopied(false), 2500);
-                });
-              },
-            },
-            { content: "Kapat", onAction: () => setEmailModalOpen(false) },
-          ]}
-        >
-          <Modal.Section>
-            <BlockStack gap="400">
-              <Banner tone="info" title="3 adımda kurulum">
-                <p>Aşağıdaki adımları takip edin — sadece bir kez yapmanız yeterli.</p>
-              </Banner>
-
-              {/* Adım 1 */}
-              <BlockStack gap="200">
-                <Text as="p" variant="bodyMd" fontWeight="bold">Adım 1 — E-posta şablonu editörünü açın</Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Yukarıdaki <strong>"E-posta Şablonunu Aç"</strong> butonuna tıklayın.
-                  Shopify&apos;ın sipariş onay e-postası editörü açılacak (aşağıdaki gibi):
-                </Text>
-                <div style={{ border: "1px solid #e1e3e5", borderRadius: 8, overflow: "hidden" }}>
-                  <div style={{ background: "#f6f6f7", padding: "8px 12px", fontSize: 12, fontWeight: 600, borderBottom: "1px solid #e1e3e5", color: "#6d7175" }}>
-                    Shopify → Sipariş onayı Düzenle
-                  </div>
-                  <div style={{ padding: "12px 16px", background: "#fff" }}>
-                    <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 8 }}>E-posta gövdesi (HTML)</div>
-                    <div style={{ background: "#1a1a2e", borderRadius: 6, padding: "10px 14px", fontFamily: "monospace", fontSize: 11, color: "#a8d8ea" }}>
-                      <div style={{ color: "#8be9fd" }}>{"  ...</div>"}</div>
-                      <div style={{ color: "#8be9fd" }}>{"  ...</table>"}</div>
-                      <div style={{ background: "#2d4a2d", padding: "2px 6px", borderRadius: 4, display: "inline-block", color: "#50fa7b", marginTop: 4 }}>
-                        {"  👉 Kodu buraya yapıştırın"}
-                      </div>
-                      <div style={{ color: "#ff79c6", marginTop: 2 }}>{"</body>"}</div>
-                      <div style={{ color: "#ff79c6" }}>{"</html>"}</div>
-                    </div>
-                  </div>
-                </div>
-              </BlockStack>
-
-              {/* Adım 2 */}
-              <BlockStack gap="200">
-                <Text as="p" variant="bodyMd" fontWeight="bold">Adım 2 — Liquid kodunu kopyalayın ve yapıştırın</Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  <strong>"Liquid Kodunu Kopyala"</strong> butonuna tıklayın, ardından editörde en alta gidin.
-                  <code>{"</body>"}</code> etiketini bulun ve hemen <strong>üstüne</strong> yapıştırın.
-                </Text>
-                <div style={{ background: "#f6f6f7", borderRadius: 8, padding: "12px 14px", overflowX: "auto", maxHeight: 200, overflowY: "auto" }}>
-                  <pre style={{ margin: 0, fontSize: 11, lineHeight: 1.6, whiteSpace: "pre", color: "#2c3e50" }}>
-                    {EMAIL_LIQUID_SNIPPET}
-                  </pre>
-                </div>
-              </BlockStack>
-
-              {/* Adım 3 */}
-              <BlockStack gap="200">
-                <Text as="p" variant="bodyMd" fontWeight="bold">Adım 3 — Kaydedin</Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Editörde sağ üstteki <strong>"Kaydet"</strong> butonuna tıklayın. Artık her tasarımlı siparişte
-                  müşteriye otomatik olarak tasarım önizleme linki içeren bir e-posta gönderilecek.
-                </Text>
-              </BlockStack>
-            </BlockStack>
-          </Modal.Section>
-        </Modal>
 
         {/* Outer Form — only text inputs + save button, no nested fetcher forms */}
         <Form method="post">
