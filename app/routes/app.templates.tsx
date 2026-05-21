@@ -4,10 +4,10 @@ import {
 } from "@remix-run/node";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher, useRevalidator } from "@remix-run/react";
+import { useLoaderData, useFetcher, useRevalidator, useNavigate } from "@remix-run/react";
 import {
   Page, Layout, Card, Box, Text, BlockStack, InlineStack, Button,
-  Badge, Banner, Divider, EmptyState, TextField, Select, Thumbnail,
+  Badge, Banner, Divider, EmptyState, TextField, Thumbnail,
 } from "@shopify/polaris";
 import { useState, useEffect } from "react";
 import { authenticate } from "~/shopify.server";
@@ -20,17 +20,8 @@ import {
   type ShopTemplate,
 } from "~/models/shop-templates.server";
 import { getShopPlan } from "~/models/bg-removal-usage.server";
-import { PLANS } from "~/lib/plans";
 
-const CATEGORIES = [
-  { label: "Özel", value: "custom" },
-  { label: "Çizgi Film", value: "cartoon" },
-  { label: "Süper Kahraman", value: "superhero" },
-  { label: "Spor", value: "sport" },
-  { label: "Doğa", value: "nature" },
-  { label: "Soyut", value: "abstract" },
-  { label: "Yazı / Logo", value: "text" },
-];
+const CATEGORY_SUGGESTIONS = ["Çizgi Film", "Süper Kahraman", "Spor", "Doğa", "Soyut", "Yazı / Logo", "Hayvanlar", "Araçlar", "Özel"];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -40,13 +31,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     checkTemplateQuota(shop),
     getShopPlan(shop),
   ]);
-  const url = new URL(request.url);
-  const saved = url.searchParams.get("saved") === "1";
-  return json({ shop, templates, quota, planKey, planName: planKey, saved });
+  return json({ shop, templates, quota, planKey });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  // Clone before authenticate so multipart body stays readable
   const cloned = request.clone();
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
@@ -61,7 +49,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (intent === "upload") {
       const file = form.get("image");
       const name = String(form.get("name") || "Şablon").trim().slice(0, 80);
-      const category = String(form.get("category") || "custom");
+      const category = String(form.get("category") || "").trim().slice(0, 60) || "Genel";
 
       if (!(file instanceof File) || file.size === 0) {
         return json({ error: "Görsel seçilmedi" }, { status: 400 });
@@ -85,7 +73,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  // urlencoded / JSON actions
   const form = await cloned.formData().catch(() => new FormData());
   const intent = String(form.get("intent") || "");
 
@@ -98,13 +85,62 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "rename") {
     const id = String(form.get("id") || "");
     const name = String(form.get("name") || "").trim().slice(0, 80);
-    const category = String(form.get("category") || "custom");
+    const category = String(form.get("category") || "").trim().slice(0, 60) || "Genel";
     if (id) await updateShopTemplate(shop, id, { name, category });
     return json({ ok: true });
   }
 
   return json({ error: "Bilinmeyen işlem" }, { status: 400 });
 };
+
+// ─── Category input ────────────────────────────────────────────────
+function CategoryField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <BlockStack gap="200">
+      <TextField
+        label="Kategori"
+        name="category"
+        value={value}
+        onChange={onChange}
+        autoComplete="off"
+        placeholder="örn. Çizgi Film, Spor, Doğa, Özel"
+        helpText="Dilediğiniz kategori adını yazabilirsiniz."
+        disabled={disabled}
+      />
+      {!disabled && (
+        <InlineStack gap="150" wrap>
+          {CATEGORY_SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onChange(s)}
+              style={{
+                padding: "2px 10px",
+                borderRadius: 20,
+                border: "1px solid #d1d5db",
+                background: value === s ? "#e0e7ff" : "#f9fafb",
+                color: value === s ? "#4f46e5" : "#374151",
+                fontSize: 12,
+                cursor: "pointer",
+                fontWeight: value === s ? 600 : 400,
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </InlineStack>
+      )}
+    </BlockStack>
+  );
+}
 
 // ─── Template card ────────────────────────────────────────────────
 function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
@@ -123,14 +159,14 @@ function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
             <Thumbnail source={tpl.imageUrl} alt={tpl.name} size="large" />
             <BlockStack gap="100">
               <Text as="p" variant="bodyMd" fontWeight="bold">{tpl.name}</Text>
-              <Badge>{CATEGORIES.find((c) => c.value === tpl.category)?.label ?? tpl.category}</Badge>
+              <Badge>{tpl.category}</Badge>
             </BlockStack>
           </InlineStack>
 
           {editing ? (
             <BlockStack gap="200">
               <TextField label="İsim" value={name} onChange={setName} autoComplete="off" />
-              <Select label="Kategori" options={CATEGORIES} value={category} onChange={setCategory} />
+              <CategoryField value={category} onChange={setCategory} />
               <InlineStack gap="200">
                 <fetcher.Form method="post">
                   <input type="hidden" name="intent" value="rename" />
@@ -162,6 +198,7 @@ function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
 export default function TemplatesRoute() {
   const { templates, quota, planKey } = useLoaderData<typeof loader>();
   const { revalidate } = useRevalidator();
+  const navigate = useNavigate();
   const uploadFetcher = useFetcher<typeof action>();
   const isUploading = uploadFetcher.state !== "idle";
   const uploadData = uploadFetcher.data as { ok?: boolean; error?: string } | undefined;
@@ -171,20 +208,21 @@ export default function TemplatesRoute() {
   const [preview, setPreview] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("custom");
+  const [category, setCategory] = useState("");
 
   useEffect(() => {
     if (uploadSuccess) {
       setPreview(null);
       setFileName(null);
       setName("");
-      setCategory("custom");
+      setCategory("");
       revalidate();
     }
   }, [uploadSuccess]);
 
-  const quotaFull = quota.quota !== -1 && quota.count >= quota.quota;
-  const quotaLabel = quota.quota === -1 ? "Sınırsız" : `${quota.count} / ${quota.quota}`;
+  const isStarterBlocked = quota.quota === 0;
+  const quotaFull = isStarterBlocked || (quota.quota !== -1 && quota.count >= quota.quota);
+  const quotaLabel = quota.quota === -1 ? "Sınırsız" : quota.quota === 0 ? "—" : `${quota.count} / ${quota.quota}`;
 
   return (
     <Page
@@ -202,134 +240,138 @@ export default function TemplatesRoute() {
               <BlockStack gap="100">
                 <Text as="p" variant="bodyMd" fontWeight="bold">Şablon kotası</Text>
                 <Text as="p" tone="subdued" variant="bodySm">
-                  Plan: <strong>{planKey}</strong> — kullanılan: <strong>{quotaLabel}</strong>
+                  Plan: <strong>{planKey}</strong>{isStarterBlocked ? "" : ` — kullanılan: ${quotaLabel}`}
                 </Text>
               </BlockStack>
-              {quotaFull ? (
+              {isStarterBlocked ? (
+                <Badge tone="warning">Bu planda mevcut değil</Badge>
+              ) : quotaFull ? (
                 <Badge tone="critical">Kota doldu</Badge>
               ) : (
-                <Badge tone="success">Müsait</Badge>
+                <Badge tone="success">{`${quotaLabel} kullanılıyor`}</Badge>
               )}
             </InlineStack>
           </Box>
         </Card>
 
+        {/* Starter yasağı */}
+        {isStarterBlocked && (
+          <Banner tone="warning" title="Starter planında şablon özelliği bulunmuyor.">
+            <Text as="p">Şablon eklemek için Growth, Pro veya Business planına geçin.</Text>
+            <Box paddingBlockStart="200">
+              <Button variant="primary" onClick={() => navigate("/app/billing")}>Plan Yükselt →</Button>
+            </Box>
+          </Banner>
+        )}
+
         {/* Upload form */}
-        <Card>
-          <Box padding="400">
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Yeni Şablon Ekle</Text>
-              <Text as="p" tone="subdued">
-                PNG, JPG, WebP veya SVG yükleyin. Marvel, Disney, Looney Tunes gibi
-                lisanslı karakterler için geçerli lisans sahibi olduğunuzdan emin olun.
-              </Text>
+        {!isStarterBlocked && (
+          <Card>
+            <Box padding="400">
+              <BlockStack gap="400">
+                <Text as="h2" variant="headingMd">Yeni Şablon Ekle</Text>
+                <Text as="p" tone="subdued">
+                  PNG, JPG, WebP veya SVG yükleyin. Lisanslı karakterler için geçerli lisansınız olduğundan emin olun.
+                </Text>
 
-              {quotaFull && (
-                <Banner tone="warning" title={`${planKey} planında maksimum ${quota.quota} şablon yükleyebilirsiniz.`}>
-                  <p>Daha fazla şablon eklemek için planınızı yükseltin.</p>
-                </Banner>
-              )}
+                {quotaFull && (
+                  <Banner tone="warning" title={`${planKey} planında maksimum ${quota.quota} şablon yükleyebilirsiniz.`}>
+                    <p>Daha fazla şablon için planınızı yükseltin.</p>
+                  </Banner>
+                )}
 
-              {/* uploadFetcher.Form keeps multipart data and revalidates loader after success */}
-              <uploadFetcher.Form method="post" encType="multipart/form-data">
-                <input type="hidden" name="intent" value="upload" />
-                <BlockStack gap="300">
+                <uploadFetcher.Form method="post" encType="multipart/form-data">
+                  <input type="hidden" name="intent" value="upload" />
+                  <BlockStack gap="300">
 
-                  {/* File picker — label wraps hidden input (no double-click bug) */}
-                  <div>
-                    <label
-                      htmlFor="tmpl-file-input"
-                      style={{
-                        display: "block",
-                        cursor: quotaFull ? "not-allowed" : "pointer",
-                        borderRadius: 12,
-                        border: "2px dashed #d1d5db",
-                        padding: "24px 16px",
-                        textAlign: "center",
-                        transition: "border-color 0.15s, background 0.15s",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!quotaFull) {
-                          (e.currentTarget as HTMLLabelElement).style.borderColor = "#6366f1";
-                          (e.currentTarget as HTMLLabelElement).style.background = "rgba(99,102,241,0.04)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLLabelElement).style.borderColor = "#d1d5db";
-                        (e.currentTarget as HTMLLabelElement).style.background = "transparent";
-                      }}
-                    >
-                      <input
-                        id="tmpl-file-input"
-                        type="file"
-                        name="image"
-                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                        disabled={quotaFull}
-                        style={{ display: "none" }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          setFileName(file.name);
-                          if (!name) setName(file.name.replace(/\.[^.]+$/, "").slice(0, 60));
-                          const reader = new FileReader();
-                          reader.onload = (ev) => setPreview(ev.target?.result as string);
-                          reader.readAsDataURL(file);
+                    <div>
+                      <label
+                        htmlFor="tmpl-file-input"
+                        style={{
+                          display: "block",
+                          cursor: quotaFull ? "not-allowed" : "pointer",
+                          borderRadius: 12,
+                          border: "2px dashed #d1d5db",
+                          padding: "24px 16px",
+                          textAlign: "center",
+                          transition: "border-color 0.15s, background 0.15s",
                         }}
-                      />
-                      {preview ? (
-                        <BlockStack gap="200">
-                          <img
-                            src={preview}
-                            alt="Önizleme"
-                            style={{ maxHeight: 160, maxWidth: "100%", objectFit: "contain", margin: "0 auto", display: "block" }}
-                          />
-                          <Text as="p" variant="bodySm" tone="subdued">{fileName} — değiştirmek için tekrar tıklayın</Text>
-                        </BlockStack>
-                      ) : (
-                        <BlockStack gap="100">
-                          <Text as="p" variant="bodyMd" fontWeight="medium">
-                            {quotaFull ? "Kota doldu — plan yükseltin" : "Görsel seçmek için tıklayın"}
-                          </Text>
-                          <Text as="p" variant="bodySm" tone="subdued">PNG, JPG, WebP, SVG · maks 8 MB</Text>
-                        </BlockStack>
-                      )}
-                    </label>
-                  </div>
+                        onMouseEnter={(e) => {
+                          if (!quotaFull) {
+                            (e.currentTarget as HTMLLabelElement).style.borderColor = "#6366f1";
+                            (e.currentTarget as HTMLLabelElement).style.background = "rgba(99,102,241,0.04)";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLLabelElement).style.borderColor = "#d1d5db";
+                          (e.currentTarget as HTMLLabelElement).style.background = "transparent";
+                        }}
+                      >
+                        <input
+                          id="tmpl-file-input"
+                          type="file"
+                          name="image"
+                          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                          disabled={quotaFull}
+                          style={{ display: "none" }}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setFileName(file.name);
+                            if (!name) setName(file.name.replace(/\.[^.]+$/, "").slice(0, 60));
+                            const reader = new FileReader();
+                            reader.onload = (ev) => setPreview(ev.target?.result as string);
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                        {preview ? (
+                          <BlockStack gap="200">
+                            <img
+                              src={preview}
+                              alt="Önizleme"
+                              style={{ maxHeight: 160, maxWidth: "100%", objectFit: "contain", margin: "0 auto", display: "block" }}
+                            />
+                            <Text as="p" variant="bodySm" tone="subdued">{fileName} — değiştirmek için tekrar tıklayın</Text>
+                          </BlockStack>
+                        ) : (
+                          <BlockStack gap="100">
+                            <Text as="p" variant="bodyMd" fontWeight="medium">
+                              {quotaFull ? "Kota doldu — plan yükseltin" : "Görsel seçmek için tıklayın"}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">PNG, JPG, WebP, SVG · maks 8 MB</Text>
+                          </BlockStack>
+                        )}
+                      </label>
+                    </div>
 
-                  <TextField
-                    label="Şablon adı"
-                    name="name"
-                    value={name}
-                    onChange={setName}
-                    autoComplete="off"
-                    placeholder="örn. Spider-Man, Bugs Bunny, Çiçek Logo"
-                    disabled={quotaFull}
-                  />
+                    <TextField
+                      label="Şablon adı"
+                      name="name"
+                      value={name}
+                      onChange={setName}
+                      autoComplete="off"
+                      placeholder="örn. Spider-Man, Bugs Bunny, Çiçek Logo"
+                      disabled={quotaFull}
+                    />
 
-                  <Select
-                    label="Kategori"
-                    name="category"
-                    options={CATEGORIES}
-                    value={category}
-                    onChange={setCategory}
-                    disabled={quotaFull}
-                  />
+                    <CategoryField value={category} onChange={setCategory} disabled={quotaFull} />
 
-                  <InlineStack align="end">
-                    <Button
-                      variant="primary"
-                      submit
-                      loading={isUploading}
-                      disabled={!preview || quotaFull}
-                    >
-                      Yükle ve Kaydet
-                    </Button>
-                  </InlineStack>
-                </BlockStack>
-              </uploadFetcher.Form>
-            </BlockStack>
-          </Box>
-        </Card>
+                    <InlineStack align="end">
+                      <Button
+                        variant="primary"
+                        submit
+                        loading={isUploading}
+                        disabled={!preview || quotaFull}
+                      >
+                        Yükle ve Kaydet
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+                </uploadFetcher.Form>
+              </BlockStack>
+            </Box>
+          </Card>
+        )}
 
         <Divider />
 
@@ -339,7 +381,7 @@ export default function TemplatesRoute() {
           {templates.length === 0 ? (
             <Card>
               <EmptyState heading="Henüz şablon yok" image="">
-                <Text as="p">Yukarıdaki formu kullanarak ilk şablonunuzu ekleyin.</Text>
+                <Text as="p">{isStarterBlocked ? "Şablon eklemek için planınızı yükseltin." : "Yukarıdaki formu kullanarak ilk şablonunuzu ekleyin."}</Text>
               </EmptyState>
             </Card>
           ) : (

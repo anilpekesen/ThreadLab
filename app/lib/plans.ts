@@ -6,7 +6,7 @@ export const PLANS = {
     allowBackSurface: true,
     allowRemoveBg: true,
     removeBgMonthlyQuota: 100,
-    maxShopTemplates: 5,
+    maxShopTemplates: 0,
     features: [
       "1 ürün kategorisi",
       "100 sipariş/ay",

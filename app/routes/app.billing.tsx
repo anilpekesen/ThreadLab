@@ -232,6 +232,7 @@ export default function BillingPage() {
                       { label: "Sipariş/ay", values: PLAN_ORDER.map((k) => PLANS[k].maxMonthlyOrders === -1 ? "Sınırsız" : String(PLANS[k].maxMonthlyOrders)) },
                       { label: "Arka yüz baskı", values: PLAN_ORDER.map((k) => PLANS[k].allowBackSurface ? "✓" : "—") },
                       { label: "BG kaldırma/ay", values: PLAN_ORDER.map((k) => String(PLANS[k].removeBgMonthlyQuota)) },
+                      { label: "Şablon sayısı", values: PLAN_ORDER.map((k) => PLANS[k].maxShopTemplates === -1 ? "Sınırsız" : PLANS[k].maxShopTemplates === 0 ? "—" : String(PLANS[k].maxShopTemplates)) },
                       { label: "Ücretsiz deneme", values: PLAN_ORDER.map(() => "7 gün") },
                     ].map(({ label, values }) => (
                       <tr key={label} style={{ borderBottom: "1px solid #f4f4f4" }}>
