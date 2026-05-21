@@ -839,7 +839,10 @@ export default function App() {
     }
     setIsBgRemoving(true);
     try {
-      const blob = await fetch(dataUrl).then((r) => r.blob());
+      const fetchUrl = dataUrl.startsWith('https://assets.printlabapp.com/')
+        ? `/api/img-proxy?url=${encodeURIComponent(dataUrl)}`
+        : dataUrl;
+      const blob = await fetch(fetchUrl).then((r) => r.blob());
       const form = new FormData();
       form.append('image_file', blob, 'design-image.png');
       form.append('productId', config?.productId || '');
