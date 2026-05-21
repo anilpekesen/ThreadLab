@@ -150,7 +150,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let emailTemplateInjected = false;
   try {
     const notifRes = await fetch(
-      `https://${session.shop}/admin/api/2024-01/notifications.json`,
+      `https://${session.shop}/admin/api/2023-10/notifications.json`,
       { headers: { "X-Shopify-Access-Token": session.accessToken ?? "" } },
     );
     if (notifRes.ok) {
@@ -234,10 +234,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "removeEmailTemplate") {
     const shop = session.shop;
     const accessToken = session.accessToken ?? "";
+    console.log(`[email-tpl] shop=${shop} tokenLen=${accessToken.length}`);
     try {
-      const listRes = await fetch(`https://${shop}/admin/api/2024-01/notifications.json`, {
+      const listRes = await fetch(`https://${shop}/admin/api/2023-10/notifications.json`, {
         headers: { "X-Shopify-Access-Token": accessToken },
       });
+      if (!listRes.ok) {
+        const body = await listRes.text();
+        console.error(`[email-tpl] remove list error ${listRes.status}:`, body.slice(0, 300));
+      }
       if (!listRes.ok) throw new Error(`Notifications fetch failed: ${listRes.status}`);
       const listData = await listRes.json() as { notifications?: Array<{ id: number; template_name: string; body_html: string }> };
       const notification = (listData.notifications ?? []).find(
@@ -250,7 +255,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const cleaned = notification.body_html
         .replace(/\n?<!-- dk-design-link START -->[\s\S]*?<!-- dk-design-link END -->\n?/g, "");
       const updateRes = await fetch(
-        `https://${shop}/admin/api/2024-01/notifications/${notification.id}.json`,
+        `https://${shop}/admin/api/2023-10/notifications/${notification.id}.json`,
         {
           method: "PUT",
           headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
@@ -267,11 +272,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "injectEmailTemplate") {
     const shop = session.shop;
     const accessToken = session.accessToken ?? "";
+    console.log(`[email-tpl] inject shop=${shop} tokenLen=${accessToken.length}`);
     try {
-      const listRes = await fetch(`https://${shop}/admin/api/2024-01/notifications.json`, {
+      const listRes = await fetch(`https://${shop}/admin/api/2023-10/notifications.json`, {
         headers: { "X-Shopify-Access-Token": accessToken },
       });
-      if (!listRes.ok) throw new Error(`Notifications fetch failed: ${listRes.status}`);
+      if (!listRes.ok) {
+        const body = await listRes.text();
+        console.error(`[email-tpl] list error ${listRes.status}:`, body.slice(0, 300));
+        throw new Error(`Notifications fetch failed: ${listRes.status} — ${body.slice(0, 150)}`);
+      }
       const listData = await listRes.json() as { notifications?: Array<{ id: number; template_name: string; body_html: string }> };
       const notification = (listData.notifications ?? []).find(
         (n) => n.template_name === "order_confirmation",
@@ -287,7 +297,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         : notification.body_html + "\n" + EMAIL_SNIPPET;
 
       const updateRes = await fetch(
-        `https://${shop}/admin/api/2024-01/notifications/${notification.id}.json`,
+        `https://${shop}/admin/api/2023-10/notifications/${notification.id}.json`,
         {
           method: "PUT",
           headers: {
