@@ -58,7 +58,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Auto-register cart preview ScriptTag (runs on all pages, filters to /cart in JS)
   try {
     const appUrl = process.env.SHOPIFY_APP_URL ?? "https://app.printlabapp.com";
-    const cartScriptSrc = `${appUrl}/api/cart-preview-script?v=3`;
+    const cartScriptSrc = `${appUrl}/api/cart-preview-script?v=4`;
     const stRes2 = await admin.graphql(`#graphql
       { scriptTags(first: 20) { nodes { id src displayScope } } }
     `);

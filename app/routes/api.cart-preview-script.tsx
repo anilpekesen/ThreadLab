@@ -34,7 +34,7 @@ export const loader = async () => {
         '#dk-cart-previews .dk-sides{display:flex;gap:12px;flex-wrap:wrap}',
         '#dk-cart-previews .dk-side{text-align:center}',
         '#dk-cart-previews .dk-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:6px}',
-        '#dk-cart-previews .dk-img{width:110px;height:110px;object-fit:contain;border-radius:8px;border:1px solid #e5e7eb;background:#f9fafb;display:block}',
+        '#dk-cart-previews .dk-img{width:180px;height:180px;object-fit:contain;border-radius:8px;border:1px solid #e5e7eb;background:#f9fafb;display:block}',
       ].join('');
       document.head.appendChild(style);
     }
