@@ -295,14 +295,13 @@ export function defaultMockupBoundsForType(productType: string) {
 }
 
 export function normalizeProductType(input: string): ProductType {
-  const value = String(input || "").toLowerCase().trim();
-  if (value.includes("sweat") || value.includes("hoodie")) return "sweatshirt";
-  if (value === "bag") return "bag";
-  if (value.includes("bag") || value.includes("canta")) return "bag";
+  const value = String(input || "").toLowerCase().trim()
+    .replace(/[ışğüöç]/g, (c) => ({ ı: "i", ş: "s", ğ: "g", ü: "u", ö: "o", ç: "c" }[c] ?? c));
+  if (value.includes("sweat") || value.includes("hoodie") || value.includes("kazak") || value.includes("hırka")) return "sweatshirt";
+  if (value.includes("bag") || value.includes("canta") || value.includes("bez")) return "bag";
   if (value === "mug" || value.includes("kupa") || value.includes("bardak") || value.includes("cup")) return "mug";
-  if (value.includes("boxer") || value.includes("baksir") || value.includes("boxer short")) return "boxer";
-  if (value === "other" || value.includes("diger") || value.includes("other")) return "other";
-  if (value === "sweatshirt") return "sweatshirt";
+  if (value.includes("boxer") || value.includes("baksir") || value.includes("sort")) return "boxer";
+  if (value.includes("diger") || value.includes("other") || value.includes("aksesuar") || value.includes("poster")) return "other";
   return "apparel";
 }
 

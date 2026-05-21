@@ -14,18 +14,55 @@ import {
 } from "~/models/product-types.server";
 import { PLANS } from "~/lib/plans";
 
-const PRINT_TEMPLATE_OPTIONS = [
-  { label: "T-shirt / Giyim", value: "apparel" },
-  { label: "Sweatshirt / Hoodie", value: "sweatshirt" },
-  { label: "Bez çanta", value: "bag" },
-  { label: "Kupa bardak", value: "mug" },
-  { label: "Baksır / Boxer", value: "boxer" },
-  { label: "Diğer", value: "other" },
-];
+const TYPE_SUGGESTIONS = ["Tişört", "Sweatshirt", "Hoodie", "Polo", "Bez Çanta", "Kupa", "Boxer", "Şort", "Diğer"];
 
-const PRINT_TEMPLATE_LABELS: Record<string, string> = Object.fromEntries(
-  PRINT_TEMPLATE_OPTIONS.map((o) => [o.value, o.label]),
-);
+function PrintTypeField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <BlockStack gap="200">
+      <TextField
+        label="Ürün Tipi Adı"
+        name="name"
+        value={value}
+        onChange={onChange}
+        autoComplete="off"
+        placeholder="örn. Tişört, Sweatshirt, Kupa..."
+        helpText="İstediğiniz ismi yazabilirsiniz."
+        disabled={disabled}
+      />
+      {!disabled && (
+        <InlineStack gap="150" wrap>
+          {TYPE_SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onChange(s)}
+              style={{
+                padding: "2px 10px",
+                borderRadius: 20,
+                border: "1px solid #d1d5db",
+                background: value === s ? "#e0e7ff" : "#f9fafb",
+                color: value === s ? "#4f46e5" : "#374151",
+                fontSize: 12,
+                cursor: "pointer",
+                fontWeight: value === s ? 600 : 400,
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </InlineStack>
+      )}
+    </BlockStack>
+  );
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -48,7 +85,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!quota.allowed) return json({ error: "Plan limitine ulaştınız" }, { status: 403 });
     const pt = await createProductType(shop, {
       name: String(form.get("name") || "").trim() || "Yeni Ürün Tipi",
-      product_type: String(form.get("product_type") || "apparel"),
+      product_type: String(form.get("name") || "apparel"),
       surface_mode: (form.get("surface_mode") as "front_only" | "front_back") ?? "front_back",
     });
     return redirect(`/app/product-types/${pt.id}`);
@@ -71,7 +108,6 @@ export default function ProductTypesIndex() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState("apparel");
   const [newSurface, setNewSurface] = useState("front_back");
 
   const limitLabel = quota.limit === -1 ? "Sınırsız" : String(quota.limit);
@@ -141,7 +177,6 @@ export default function ProductTypesIndex() {
                       <BlockStack gap="100">
                         <InlineStack gap="200" blockAlign="center">
                           <Text as="p" variant="bodyMd" fontWeight="semibold">{pt.name}</Text>
-                          <Badge>{PRINT_TEMPLATE_LABELS[pt.product_type] ?? pt.product_type}</Badge>
                           <Badge tone={pt.surface_mode === "front_back" ? "info" : "attention"}>
                             {pt.surface_mode === "front_back" ? "Ön + Arka" : "Sadece Ön"}
                           </Badge>
@@ -207,35 +242,17 @@ export default function ProductTypesIndex() {
           <Form method="post" id="create-product-type-form">
             <input type="hidden" name="intent" value="create" />
             <BlockStack gap="400">
-              <TextField
-                label="Ürün Tipi Adı"
-                name="name"
-                value={newName}
-                onChange={setNewName}
-                placeholder="örn. Tişört, Sweatshirt, Kupa..."
-                autoComplete="off"
-                helpText="Müşterinin göreceği ürün tipi adını yazın."
+              <PrintTypeField value={newName} onChange={setNewName} />
+              <Select
+                label="Baskı Yüzü"
+                name="surface_mode"
+                value={newSurface}
+                onChange={setNewSurface}
+                options={[
+                  { label: "Ön + Arka Yüz", value: "front_back" },
+                  { label: "Sadece Ön Yüz", value: "front_only" },
+                ]}
               />
-              <InlineGrid columns={2} gap="400">
-                <Select
-                  label="Baskı Şablonu"
-                  name="product_type"
-                  value={newType}
-                  onChange={setNewType}
-                  options={PRINT_TEMPLATE_OPTIONS}
-                  helpText="Varsayılan baskı alanı boyutlarını belirler."
-                />
-                <Select
-                  label="Baskı Yüzü"
-                  name="surface_mode"
-                  value={newSurface}
-                  onChange={setNewSurface}
-                  options={[
-                    { label: "Ön + Arka Yüz", value: "front_back" },
-                    { label: "Sadece Ön Yüz", value: "front_only" },
-                  ]}
-                />
-              </InlineGrid>
             </BlockStack>
           </Form>
         </Modal.Section>

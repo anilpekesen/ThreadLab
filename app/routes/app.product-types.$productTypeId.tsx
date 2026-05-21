@@ -10,16 +10,53 @@ import { useState } from "react";
 import { authenticate } from "~/shopify.server";
 import { getProductTypeById, updateProductType } from "~/models/product-types.server";
 import { fetchShopifyProducts, saveProductConfig, buildDefaultConfig, normalizeProductConfig } from "~/models/product-config.server";
-import type { ProductType, SurfaceMode } from "~/models/product-config.server";
+import type { SurfaceMode } from "~/models/product-config.server";
+import { normalizeProductType } from "~/models/product-config.server";
 
-const PRINT_TEMPLATE_OPTIONS = [
-  { label: "T-shirt / Giyim", value: "apparel" },
-  { label: "Sweatshirt / Hoodie", value: "sweatshirt" },
-  { label: "Bez çanta", value: "bag" },
-  { label: "Kupa bardak", value: "mug" },
-  { label: "Baksır / Boxer", value: "boxer" },
-  { label: "Diğer", value: "other" },
-];
+const TYPE_SUGGESTIONS = ["Tişört", "Sweatshirt", "Hoodie", "Polo", "Bez Çanta", "Kupa", "Boxer", "Şort", "Diğer"];
+
+function PrintTypeField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <BlockStack gap="200">
+      <TextField
+        label="Ürün Tipi Adı"
+        name="name"
+        value={value}
+        onChange={onChange}
+        autoComplete="off"
+        placeholder="örn. Tişört, Sweatshirt, Kupa..."
+        helpText="İstediğiniz ismi yazabilirsiniz."
+      />
+      <InlineStack gap="150" wrap>
+        {TYPE_SUGGESTIONS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => onChange(s)}
+            style={{
+              padding: "2px 10px",
+              borderRadius: 20,
+              border: "1px solid #d1d5db",
+              background: value === s ? "#e0e7ff" : "#f9fafb",
+              color: value === s ? "#4f46e5" : "#374151",
+              fontSize: 12,
+              cursor: "pointer",
+              fontWeight: value === s ? 600 : 400,
+            }}
+          >
+            {s}
+          </button>
+        ))}
+      </InlineStack>
+    </BlockStack>
+  );
+}
 
 function encodeProductToken(productId: string) {
   return Buffer.from(productId, "utf8").toString("base64url");
@@ -41,16 +78,17 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const productTypeId = params.productTypeId!;
   const form = await request.formData();
   const intent = form.get("intent") as string;
 
   if (intent === "update") {
+    const name = String(form.get("name") || "").trim() || undefined;
     await updateProductType(productTypeId, shop, {
-      name: String(form.get("name") || "").trim() || undefined,
-      product_type: String(form.get("product_type") || "") || undefined,
+      name,
+      product_type: name,
       surface_mode: (form.get("surface_mode") as "front_only" | "front_back") || undefined,
     });
     return json({ saved: true });
@@ -60,7 +98,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const productId = form.get("productId") as string;
     const productTitle = form.get("productTitle") as string;
     const productHandle = form.get("productHandle") as string;
-    const productType = (form.get("product_type") as ProductType) || "apparel";
+    const typeName = form.get("type_name") as string;
     const surfaceMode = (form.get("surface_mode") as SurfaceMode) || "front_back";
 
     await updateProductType(productTypeId, shop, {
@@ -72,6 +110,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // Activate product in designer — does NOT touch pricingBands or surchargeVariantId
     const productStub = { id: productId, title: productTitle, handle: productHandle, productType: "", status: "", images: [], variants: [] };
     const defaultCfg = buildDefaultConfig(productStub);
+    const productType = normalizeProductType(typeName);
     const cfg = normalizeProductConfig({ isActive: true, productType, surfaceMode, productTitle, productHandle }, defaultCfg);
     await saveProductConfig(productId, cfg);
 
@@ -97,7 +136,6 @@ export default function ProductTypeDetail() {
   const isSaving = nav.state === "submitting";
 
   const [name, setName] = useState(productType.name);
-  const [printTemplate, setPrintTemplate] = useState(productType.product_type);
   const [surfaceMode, setSurfaceMode] = useState<"front_only" | "front_back">(productType.surface_mode);
   const [search, setSearch] = useState(q);
   const [showSearch, setShowSearch] = useState(false);
@@ -116,38 +154,17 @@ export default function ProductTypeDetail() {
               <input type="hidden" name="intent" value="update" />
               <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">Ürün Tipi Ayarları</Text>
-                <TextField
-                  label="Ürün Tipi Adı"
-                  name="name"
-                  value={name}
-                  onChange={setName}
-                  autoComplete="off"
-                  helpText="Müşterinin göreceği isim (örn. Tişört, Sweatshirt, Kupa)"
+                <PrintTypeField value={name} onChange={setName} />
+                <Select
+                  label="Baskı Yüzü"
+                  name="surface_mode"
+                  value={surfaceMode}
+                  onChange={(v) => setSurfaceMode(v as "front_only" | "front_back")}
+                  options={[
+                    { label: "Ön + Arka Yüz", value: "front_back" },
+                    { label: "Sadece Ön Yüz", value: "front_only" },
+                  ]}
                 />
-                <InlineStack gap="400">
-                  <div style={{ flex: 1 }}>
-                    <Select
-                      label="Baskı Şablonu"
-                      name="product_type"
-                      value={printTemplate}
-                      onChange={(v) => setPrintTemplate(v)}
-                      options={PRINT_TEMPLATE_OPTIONS}
-                      helpText="Varsayılan baskı alanı boyutlarını belirler."
-                    />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <Select
-                      label="Baskı Yüzü"
-                      name="surface_mode"
-                      value={surfaceMode}
-                      onChange={(v) => setSurfaceMode(v as "front_only" | "front_back")}
-                      options={[
-                        { label: "Ön + Arka Yüz", value: "front_back" },
-                        { label: "Sadece Ön Yüz", value: "front_only" },
-                      ]}
-                    />
-                  </div>
-                </InlineStack>
                 <InlineStack align="end">
                   <Button submit variant="primary" loading={isSaving}>Kaydet</Button>
                 </InlineStack>
@@ -216,9 +233,7 @@ export default function ProductTypeDetail() {
                           onChange={setSearch}
                           placeholder="Ürün adı veya handle ile ara..."
                           autoComplete="off"
-                          connectedRight={
-                            <Button submit>Ara</Button>
-                          }
+                          connectedRight={<Button submit>Ara</Button>}
                         />
                       </div>
                     </InlineStack>
@@ -247,7 +262,7 @@ export default function ProductTypeDetail() {
                             <input type="hidden" name="productId" value={product.id} />
                             <input type="hidden" name="productTitle" value={product.title} />
                             <input type="hidden" name="productHandle" value={product.handle} />
-                            <input type="hidden" name="product_type" value={printTemplate} />
+                            <input type="hidden" name="type_name" value={name} />
                             <input type="hidden" name="surface_mode" value={surfaceMode} />
                             <Button submit variant="primary" size="slim" loading={isSaving}>Seç</Button>
                           </Form>
