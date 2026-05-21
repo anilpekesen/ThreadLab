@@ -35,16 +35,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
-  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
-  const appBlockHandle = "tshirt-designer";
   const products = await fetchShopifyProducts(admin, q);
 
   const rows = await Promise.all(products.map(async (product) => {
     const config = await getProductConfig(product);
-    const themeUrl = apiKey
-      ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=mainSection`
-      : null;
-
     return {
       id: product.id,
       title: product.title,
@@ -53,7 +47,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       productType: config.productType,
       surfaceMode: config.surfaceMode,
       editUrl: `/app/products/${encodeProductToken(product.id)}`,
-      themeUrl,
     };
   }));
 
@@ -141,13 +134,8 @@ export default function ProductsIndexRoute() {
 
                       <InlineStack gap="200">
                         <Button onClick={() => navigate(row.editUrl)} variant="primary">
-                          Ayarlari ac
+                          Ayarları aç
                         </Button>
-                        {row.themeUrl ? (
-                          <Button onClick={() => window.open(row.themeUrl ?? "", "_blank", "noopener,noreferrer")}>
-                            Tema editoru
-                          </Button>
-                        ) : null}
                       </InlineStack>
                     </BlockStack>
                   </Box>
