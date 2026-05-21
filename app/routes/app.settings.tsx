@@ -182,28 +182,26 @@ async function writeSurchargeMetafield(
   );
 }
 
-const EMAIL_LIQUID_SNIPPET = `{% for line_item in line_items %}
-  {%- assign dk_token = "" -%}
-  {%- for prop in line_item.properties -%}
-    {%- if prop.first == "design_token" and prop.last != "" -%}
-      {%- assign dk_token = prop.last -%}
-    {%- endif -%}
-  {%- endfor -%}
-  {%- if dk_token != "" -%}
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
-    <tr>
-      <td style="padding:16px;background:#f0f4ff;border-radius:8px;border:1px solid #c7d7fc;font-family:Helvetica,Arial,sans-serif">
-        <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#374151">Tasarim Onizlemeniz</p>
-        <p style="margin:0 0 12px;font-size:13px;color:#6b7280">Tasariminizi gormek icin tiklayin:</p>
-        <a href="{{ shop.url }}/apps/tshirt-designer/my-order?token={{ dk_token }}"
-           style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none">
-          Tasarimi Goruntule
-        </a>
-      </td>
-    </tr>
-  </table>
+const EMAIL_LIQUID_SNIPPET = `{%- assign dk_token = "" -%}
+{%- for attribute in attributes -%}
+  {%- if attribute.name == "design_token" and attribute.value != blank -%}
+    {%- assign dk_token = attribute.value -%}
   {%- endif -%}
-{% endfor %}`;
+{%- endfor -%}
+{%- if dk_token != blank -%}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+  <tr>
+    <td style="padding:16px;background:#f0f4ff;border-radius:8px;border:1px solid #c7d7fc;font-family:Helvetica,Arial,sans-serif">
+      <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#374151">Tasarim Onizlemeniz</p>
+      <p style="margin:0 0 12px;font-size:13px;color:#6b7280">Tasariminizi gormek icin tiklayin:</p>
+      <a href="{{ shop.url }}/apps/tshirt-designer/my-order?token={{ dk_token }}"
+         style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none">
+        Tasarimi Goruntule
+      </a>
+    </td>
+  </tr>
+</table>
+{%- endif -%}`;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
