@@ -58,7 +58,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Auto-register cart preview ScriptTag (runs on all pages, filters to /cart in JS)
   try {
     const appUrl = process.env.SHOPIFY_APP_URL ?? "https://app.printlabapp.com";
-    const cartScriptSrc = `${appUrl}/api/cart-preview-script?v=2`;
+    const cartScriptSrc = `${appUrl}/api/cart-preview-script?v=3`;
     const stRes2 = await admin.graphql(`#graphql
       { scriptTags(first: 20) { nodes { id src displayScope } } }
     `);
@@ -89,7 +89,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       `);
     }
   } catch (_e) {
-    // silent — will retry on next load
+    console.error("[settings] cart ScriptTag registration error:", _e);
   }
 
   // Auto-register Cart Transform function; re-register if function ID changed after deploy

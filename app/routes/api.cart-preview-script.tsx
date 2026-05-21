@@ -60,12 +60,12 @@ export const loader = async () => {
   }
 
   function findInsertTarget() {
-    // Try common Shopify cart selectors in order of specificity
+    // Avoid [name="checkout"] — it matches notification/drawer buttons at top of page
     return (
-      document.querySelector('[name="checkout"]') ||
       document.querySelector('cart-items') ||
       document.querySelector('.cart__items') ||
       document.querySelector('.cart-items') ||
+      document.querySelector('cart-footer') ||
       document.querySelector('.cart__footer') ||
       document.querySelector('.cart-footer') ||
       document.querySelector('form[action="/cart"]') ||
@@ -76,19 +76,13 @@ export const loader = async () => {
   }
 
   function insertWidget(widget) {
-    // Remove existing widget if any
     var existing = document.getElementById(WIDGET_ID);
     if (existing) existing.remove();
 
     var target = findInsertTarget();
     if (!target) { document.body.appendChild(widget); return; }
 
-    // For checkout button: insert before it
-    if (target.name === 'checkout' || target.getAttribute('name') === 'checkout') {
-      target.parentNode.insertBefore(widget, target);
-      return;
-    }
-    // For cart-items / .cart__items: insert after
+    // Insert after the target element
     if (target.nextSibling) {
       target.parentNode.insertBefore(widget, target.nextSibling);
     } else {
