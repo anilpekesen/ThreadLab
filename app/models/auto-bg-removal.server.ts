@@ -5,6 +5,7 @@ import { getDesignByToken, saveDesign } from "~/models/designs.server";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
 import { getUploadsDir } from "~/lib/storage.server";
+import { uploadToR2 } from "~/lib/r2.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const WAVESPEED_MODEL = "wavespeed-ai/bria-rmbg-2.0";
@@ -65,6 +66,10 @@ function isProcessableImageUrl(src: string | undefined): boolean {
 }
 
 async function saveProcessedImage(buffer: Buffer, appUrl: string): Promise<string> {
+  const useR2 = Boolean(process.env.R2_ACCESS_KEY_ID && process.env.R2_PUBLIC_URL);
+  if (useR2) {
+    return uploadToR2(buffer, "png", "uploads/auto-bg");
+  }
   const filename = `auto-bg-${randomBytes(10).toString("hex")}.png`;
   const uploadsDir = getUploadsDir();
   await writeFile(path.join(uploadsDir, filename), buffer);
