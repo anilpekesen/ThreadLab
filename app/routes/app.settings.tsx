@@ -58,7 +58,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Auto-register cart preview ScriptTag (runs on all pages, filters to /cart in JS)
   try {
     const appUrl = process.env.SHOPIFY_APP_URL ?? "https://app.printlabapp.com";
-    const cartScriptSrc = `${appUrl}/api/cart-preview-script`;
+    const cartScriptSrc = `${appUrl}/api/cart-preview-script?v=2`;
     const stRes2 = await admin.graphql(`#graphql
       { scriptTags(first: 20) { nodes { id src displayScope } } }
     `);
@@ -66,6 +66,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       data?: { scriptTags?: { nodes?: Array<{ id: string; src: string; displayScope: string }> } };
     };
     const existing2 = stData2.data?.scriptTags?.nodes ?? [];
+    // Delete stale cart-preview ScriptTags (old versions without ?v=2)
+    for (const tag of existing2) {
+      if (tag.src.includes('cart-preview-script') && tag.src !== cartScriptSrc) {
+        await admin.graphql(`#graphql
+          mutation { scriptTagDelete(id: "${tag.id}") { deletedScriptTagId userErrors { message } } }
+        `);
+      }
+    }
     const cartAlreadyRegistered = existing2.some((t) => t.src === cartScriptSrc);
     if (!cartAlreadyRegistered) {
       await admin.graphql(`#graphql

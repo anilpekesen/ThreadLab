@@ -2,7 +2,11 @@
 export const loader = async () => {
   const script = `
 (function () {
-  if (window.location.pathname.indexOf('/cart') === -1) return;
+  console.log('[dk-cart] script loaded, path:', window.location.pathname);
+  if (window.location.pathname.indexOf('/cart') === -1) {
+    console.log('[dk-cart] not a cart page, exiting');
+    return;
+  }
 
   var WIDGET_ID = 'dk-cart-previews';
 
@@ -93,14 +97,17 @@ export const loader = async () => {
   }
 
   function run() {
+    console.log('[dk-cart] run() called');
     fetch('/cart.js')
       .then(function(r) { return r.json(); })
       .then(function(cart) {
+        console.log('[dk-cart] cart items:', (cart.items || []).length);
         var widget = buildWidget(cart.items || []);
-        if (!widget) return;
+        if (!widget) { console.log('[dk-cart] no items with preview URLs'); return; }
         insertWidget(widget);
+        console.log('[dk-cart] widget inserted');
       })
-      .catch(function() {});
+      .catch(function(e) { console.error('[dk-cart] fetch error:', e); });
   }
 
   // Run on load + retry after short delay (for themes that modify DOM after load)
