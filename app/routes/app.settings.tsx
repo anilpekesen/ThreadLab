@@ -20,7 +20,7 @@ import { authenticate } from "~/shopify.server";
 import { getGlobalSettings, saveGlobalSettings } from "~/models/global-settings.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const settings = await getGlobalSettings();
   const url = new URL(request.url);
   const saved = url.searchParams.get("saved") === "1";
@@ -146,7 +146,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     cartTransformStatus = "error";
   }
 
-  return json({ settings, saved, created, cartTransformStatus });
+  // Check if design link snippet is already in order confirmation email
+  let emailTemplateInjected = false;
+  try {
+    const notifRes = await fetch(
+      `https://${session.shop}/admin/api/2024-01/notifications.json`,
+      { headers: { "X-Shopify-Access-Token": session.accessToken ?? "" } },
+    );
+    if (notifRes.ok) {
+      const notifData = await notifRes.json() as {
+        notifications?: Array<{ template_name: string; body_html: string }>;
+      };
+      const tpl = (notifData.notifications ?? []).find(
+        (n) => n.template_name === "order_confirmation",
+      );
+      emailTemplateInjected = tpl?.body_html.includes(EMAIL_SNIPPET_MARKER) ?? false;
+    }
+  } catch (_e) {
+    // silent
+  }
+
+  return json({ settings, saved, created, cartTransformStatus, emailTemplateInjected });
 };
 
 async function writeSurchargeMetafield(
@@ -210,6 +230,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const form = await request.formData();
   const intent = form.get("intent");
+
+  if (intent === "removeEmailTemplate") {
+    const shop = session.shop;
+    const accessToken = session.accessToken ?? "";
+    try {
+      const listRes = await fetch(`https://${shop}/admin/api/2024-01/notifications.json`, {
+        headers: { "X-Shopify-Access-Token": accessToken },
+      });
+      if (!listRes.ok) throw new Error(`Notifications fetch failed: ${listRes.status}`);
+      const listData = await listRes.json() as { notifications?: Array<{ id: number; template_name: string; body_html: string }> };
+      const notification = (listData.notifications ?? []).find(
+        (n) => n.template_name === "order_confirmation",
+      );
+      if (!notification) throw new Error("Order confirmation template bulunamadı");
+      if (!notification.body_html.includes(EMAIL_SNIPPET_MARKER)) {
+        return json({ success: "Tasarım linki zaten şablonda yok." });
+      }
+      const cleaned = notification.body_html
+        .replace(/\n?<!-- dk-design-link START -->[\s\S]*?<!-- dk-design-link END -->\n?/g, "");
+      const updateRes = await fetch(
+        `https://${shop}/admin/api/2024-01/notifications/${notification.id}.json`,
+        {
+          method: "PUT",
+          headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
+          body: JSON.stringify({ notification: { id: notification.id, body_html: cleaned } }),
+        },
+      );
+      if (!updateRes.ok) throw new Error(`Template güncellenemedi: ${updateRes.status}`);
+      return json({ success: "Tasarım linki e-posta şablonundan kaldırıldı." });
+    } catch (err) {
+      return json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  }
 
   if (intent === "injectEmailTemplate") {
     const shop = session.shop;
@@ -433,7 +486,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created, cartTransformStatus } = useLoaderData<typeof loader>();
+  const { settings, saved, created, cartTransformStatus, emailTemplateInjected } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const fetcher = useFetcher<{ error?: string; success?: string }>();
   const emailFetcher = useFetcher<{ error?: string; success?: string }>();
@@ -543,22 +596,37 @@ export default function SettingsRoute() {
                     Müşteriye gönderilen sipariş onay e-postasına otomatik olarak tasarım önizleme linki ekler.
                     Butona bir kez tıklamanız yeterli — tüm gelecek siparişlerde otomatik çalışır.
                   </Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    {emailTemplateInjected ? (
+                      <Badge tone="success">Aktif — Tasarım linki e-postaya eklenmiş ✓</Badge>
+                    ) : (
+                      <Badge tone="attention">Pasif — Henüz eklenmemiş</Badge>
+                    )}
+                  </InlineStack>
                   {emailFetcher.data?.error && (
                     <Banner tone="critical" title={`Hata: ${emailFetcher.data.error}`} />
                   )}
                   {emailFetcher.data?.success && (
                     <Banner tone="success" title={emailFetcher.data.success} />
                   )}
-                  <emailFetcher.Form method="post">
-                    <input type="hidden" name="intent" value="injectEmailTemplate" />
-                    <Button
-                      variant="secondary"
-                      submit
-                      loading={emailFetcher.state === "submitting"}
-                    >
-                      E-postaya Tasarım Linki Ekle
-                    </Button>
-                  </emailFetcher.Form>
+                  <InlineStack gap="200">
+                    {!emailTemplateInjected && (
+                      <emailFetcher.Form method="post">
+                        <input type="hidden" name="intent" value="injectEmailTemplate" />
+                        <Button variant="primary" submit loading={emailFetcher.state === "submitting"}>
+                          E-postaya Tasarım Linki Ekle
+                        </Button>
+                      </emailFetcher.Form>
+                    )}
+                    {emailTemplateInjected && (
+                      <emailFetcher.Form method="post">
+                        <input type="hidden" name="intent" value="removeEmailTemplate" />
+                        <Button variant="secondary" submit loading={emailFetcher.state === "submitting"} tone="critical">
+                          Tasarım Linkini Kaldır
+                        </Button>
+                      </emailFetcher.Form>
+                    )}
+                  </InlineStack>
                 </BlockStack>
               </Box>
             </Card>
