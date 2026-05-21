@@ -178,7 +178,17 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
                     const url = pendingUrl;
                     setPendingUrl(null);
                     const result = await onRemoveBg(url);
-                    onAddImage(result || url);
+                    const finalUrl = result || url;
+                    if (result) {
+                      addUploadedImage({
+                        id: generateId(),
+                        dataUrl: result,
+                        serverUrl: result,
+                        name: 'Temizlenmiş resim',
+                        addedAt: Date.now(),
+                      });
+                    }
+                    onAddImage(finalUrl);
                   }}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-blue-500 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
                 >
@@ -227,8 +237,17 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
                           className="flex items-center justify-center rounded-lg bg-white/20 px-2 py-1 text-white transition-colors hover:bg-white/30 disabled:opacity-40"
                           disabled={isBgRemoving}
                           onClick={async () => {
-                            const result = await onRemoveBg(img.dataUrl);
-                            if (result) onAddImage(result);
+                            const result = await onRemoveBg(img.serverUrl ?? img.dataUrl);
+                            if (result) {
+                              addUploadedImage({
+                                id: generateId(),
+                                dataUrl: result,
+                                serverUrl: result,
+                                name: `${img.name} (temizlenmiş)`,
+                                addedAt: Date.now(),
+                              });
+                              onAddImage(result);
+                            }
                           }}
                           title="Arka planı kaldır"
                         >
