@@ -847,7 +847,8 @@ export default function App() {
       form.append('image_file', blob, 'design-image.png');
       form.append('productId', config?.productId || '');
       form.append('handle', config?.productHandle || '');
-      const res = await fetch('/apps/tshirt-designer/remove-background', {
+      const shopParam = config?.shop ? `?shop=${encodeURIComponent(config.shop)}` : '';
+      const res = await fetch(`/apps/tshirt-designer/remove-background${shopParam}`, {
         method: 'POST',
         body: form,
       });

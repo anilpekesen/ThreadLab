@@ -7,6 +7,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const url = new URL(request.url);
-  const shop = url.searchParams.get("shop") ?? "unknown";
+  const shop = url.searchParams.get("shop");
+  if (!shop) return json({ error: "shop parametresi eksik" }, { status: 400 });
   return handleWaveSpeedRemoveBackground(request, shop);
 };
