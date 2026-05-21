@@ -8,7 +8,7 @@ import { handleDesignerUpload } from "~/models/uploads.server";
 import { authenticate } from "~/shopify.server";
 import { findConfigForStorefront, toStorefrontSettings } from "~/models/product-config.server";
 import { handleWaveSpeedRemoveBackground } from "~/models/background-removal.server";
-import { getDesignByToken, extractObjects } from "~/models/designs.server";
+import { getDesignByToken, saveDesign, extractObjects } from "~/models/designs.server";
 
 const DATA_DIR = nodePath.join(process.cwd(), "data");
 const DESIGNS_FILE = nodePath.join(DATA_DIR, "designs.json");
@@ -199,6 +199,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const records = await readDesigns();
     records.unshift(record);
     await writeDesigns(records.slice(0, 500));
+
+    // Also persist to DB so webhook auto-bg processing can find the design
+    const b = body as Record<string, unknown>;
+    const designJson = (b.front || b.back) ? { front: b.front, back: b.back } : body;
+    saveDesign({
+      token,
+      productId: typeof b.productId === "string" ? b.productId : undefined,
+      designJson,
+      frontPreviewUrl: typeof b.frontPreviewUrl === "string" ? b.frontPreviewUrl : undefined,
+      backPreviewUrl: typeof b.backPreviewUrl === "string" ? b.backPreviewUrl : undefined,
+      frontPrintUrl: typeof b.frontPrintUrl === "string" ? b.frontPrintUrl : undefined,
+      backPrintUrl: typeof b.backPrintUrl === "string" ? b.backPrintUrl : undefined,
+    }).catch((err) => console.error("[designs] DB save failed:", err));
+
     return json({ token });
   }
 
