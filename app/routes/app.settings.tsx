@@ -569,6 +569,50 @@ export default function SettingsRoute() {
           </Box>
         </Card>
 
+        {/* Sipariş E-postası — outside outer Form to avoid nested forms */}
+        <Card>
+          <Box padding="400">
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">Sipariş Onay E-postası</Text>
+              <Text as="p" tone="subdued" variant="bodySm">
+                Müşteriye gönderilen sipariş onay e-postasına otomatik olarak tasarım önizleme linki ekler.
+                Butona bir kez tıklamanız yeterli — tüm gelecek siparişlerde otomatik çalışır.
+              </Text>
+              <InlineStack gap="200" blockAlign="center">
+                {emailTemplateInjected ? (
+                  <Badge tone="success">Aktif — Tasarım linki e-postaya eklenmiş ✓</Badge>
+                ) : (
+                  <Badge tone="attention">Pasif — Henüz eklenmemiş</Badge>
+                )}
+              </InlineStack>
+              {emailFetcher.data?.error && (
+                <Banner tone="critical" title={`Hata: ${emailFetcher.data.error}`} />
+              )}
+              {emailFetcher.data?.success && (
+                <Banner tone="success" title={emailFetcher.data.success} />
+              )}
+              <InlineStack gap="200">
+                {!emailTemplateInjected && (
+                  <emailFetcher.Form method="post">
+                    <input type="hidden" name="intent" value="injectEmailTemplate" />
+                    <Button variant="primary" submit loading={emailFetcher.state === "submitting"}>
+                      E-postaya Tasarım Linki Ekle
+                    </Button>
+                  </emailFetcher.Form>
+                )}
+                {emailTemplateInjected && (
+                  <emailFetcher.Form method="post">
+                    <input type="hidden" name="intent" value="removeEmailTemplate" />
+                    <Button variant="secondary" submit loading={emailFetcher.state === "submitting"}>
+                      Tasarım Linkini Kaldır
+                    </Button>
+                  </emailFetcher.Form>
+                )}
+              </InlineStack>
+            </BlockStack>
+          </Box>
+        </Card>
+
         {/* Outer Form — only text inputs + save button, no nested fetcher forms */}
         <Form method="post">
           <BlockStack gap="400">
@@ -584,50 +628,6 @@ export default function SettingsRoute() {
                   helpText="Shopify'da mevcut ₺1 fiyatlı bir variant varsa buraya ID'sini girebilirsiniz."
                   placeholder="12345678901234"
                 />
-              </Box>
-            </Card>
-
-            {/* Sipariş E-postası */}
-            <Card>
-              <Box padding="400">
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Sipariş Onay E-postası</Text>
-                  <Text as="p" tone="subdued" variant="bodySm">
-                    Müşteriye gönderilen sipariş onay e-postasına otomatik olarak tasarım önizleme linki ekler.
-                    Butona bir kez tıklamanız yeterli — tüm gelecek siparişlerde otomatik çalışır.
-                  </Text>
-                  <InlineStack gap="200" blockAlign="center">
-                    {emailTemplateInjected ? (
-                      <Badge tone="success">Aktif — Tasarım linki e-postaya eklenmiş ✓</Badge>
-                    ) : (
-                      <Badge tone="attention">Pasif — Henüz eklenmemiş</Badge>
-                    )}
-                  </InlineStack>
-                  {emailFetcher.data?.error && (
-                    <Banner tone="critical" title={`Hata: ${emailFetcher.data.error}`} />
-                  )}
-                  {emailFetcher.data?.success && (
-                    <Banner tone="success" title={emailFetcher.data.success} />
-                  )}
-                  <InlineStack gap="200">
-                    {!emailTemplateInjected && (
-                      <emailFetcher.Form method="post">
-                        <input type="hidden" name="intent" value="injectEmailTemplate" />
-                        <Button variant="primary" submit loading={emailFetcher.state === "submitting"}>
-                          E-postaya Tasarım Linki Ekle
-                        </Button>
-                      </emailFetcher.Form>
-                    )}
-                    {emailTemplateInjected && (
-                      <emailFetcher.Form method="post">
-                        <input type="hidden" name="intent" value="removeEmailTemplate" />
-                        <Button variant="secondary" submit loading={emailFetcher.state === "submitting"} tone="critical">
-                          Tasarım Linkini Kaldır
-                        </Button>
-                      </emailFetcher.Form>
-                    )}
-                  </InlineStack>
-                </BlockStack>
               </Box>
             </Card>
 
