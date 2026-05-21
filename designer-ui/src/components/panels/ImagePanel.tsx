@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Link, Sparkles, Trash2, Upload } from 'lucide-react';
+import { Link, Loader2, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
 import { compressImage, generateId } from '@/utils/compress';
 import type { UploadedImage } from '@/types';
@@ -15,6 +15,8 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
   const [imageUrl, setImageUrl] = useState('');
   const [activeSource, setActiveSource] = useState<'upload' | 'qr'>('upload');
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+  const [urlLoading, setUrlLoading] = useState(false);
+  const [urlError, setUrlError] = useState('');
   const { uploadedImages, addUploadedImage, removeUploadedImage, isBgRemoving } = useDesignerStore();
 
   const handleFiles = useCallback(async (files: FileList | null) => {
@@ -57,6 +59,35 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
     handleFiles(e.dataTransfer.files);
   }, [handleFiles]);
 
+
+  const handleAddFromUrl = useCallback(async () => {
+    const value = imageUrl.trim();
+    if (!value) return;
+    setUrlLoading(true);
+    setUrlError('');
+    try {
+      const res = await fetch('/apps/tshirt-designer/fetch-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: value }),
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        setUrlError(data.error ?? 'Resim yüklenemedi');
+        return;
+      }
+      setImageUrl('');
+      if (canRemoveBg) {
+        setPendingUrl(data.url);
+      } else {
+        onAddImage(data.url);
+      }
+    } catch {
+      setUrlError('Bağlantı hatası, tekrar deneyin');
+    } finally {
+      setUrlLoading(false);
+    }
+  }, [imageUrl, canRemoveBg, onAddImage]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -105,28 +136,28 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Link className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="Veya görsel URL yapıştırın..."
-                className="w-full rounded-2xl border border-transparent bg-gray-50 py-3.5 pl-11 pr-4 text-sm outline-none transition-all focus:border-blue-400 focus:bg-white"
-              />
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Link className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={imageUrl}
+                  onChange={(e) => { setImageUrl(e.target.value); setUrlError(''); }}
+                  onKeyDown={async (e) => { if (e.key === 'Enter') await handleAddFromUrl(); }}
+                  placeholder="Veya görsel URL yapıştırın..."
+                  className="w-full rounded-2xl border border-transparent bg-gray-50 py-3.5 pl-11 pr-4 text-sm outline-none transition-all focus:border-blue-400 focus:bg-white"
+                />
+              </div>
+              <button
+                disabled={urlLoading}
+                onClick={handleAddFromUrl}
+                className="flex items-center gap-1.5 rounded-2xl bg-gray-100 px-6 py-3.5 font-bold text-gray-400 transition-colors hover:bg-gray-200 disabled:opacity-50"
+              >
+                {urlLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ekle'}
+              </button>
             </div>
-            <button
-              onClick={() => {
-                const value = imageUrl.trim();
-                if (!value) return;
-                onAddImage(value);
-                setImageUrl('');
-              }}
-              className="rounded-2xl bg-gray-100 px-6 py-3.5 font-bold text-gray-400 transition-colors hover:bg-gray-200"
-            >
-              Ekle
-            </button>
+            {urlError && <p className="px-1 text-xs text-red-500">{urlError}</p>}
           </div>
 
           {pendingUrl && canRemoveBg && (

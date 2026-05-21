@@ -3,6 +3,7 @@ import { json } from "@remix-run/node";
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import nodePath from "node:path";
+import { getUploadsDir } from "~/lib/storage.server";
 import { handleDesignerUpload } from "~/models/uploads.server";
 import { authenticate } from "~/shopify.server";
 import { findConfigForStorefront, toStorefrontSettings } from "~/models/product-config.server";
@@ -28,6 +29,42 @@ async function readDesigns(): Promise<DesignRecord[]> {
 async function writeDesigns(records: DesignRecord[]) {
   await mkdir(DATA_DIR, { recursive: true });
   await writeFile(DESIGNS_FILE, JSON.stringify(records, null, 2));
+}
+
+const ALLOWED_IMAGE_MIME: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+async function handleFetchUrl(request: Request) {
+  const body = await request.json().catch(() => null) as { url?: string } | null;
+  const imageUrl = body?.url?.trim();
+  if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
+    return json({ error: "Geçersiz URL" }, { status: 400 });
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(imageUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PrintLab/1.0)" },
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    return json({ error: "URL'den resim indirilemedi" }, { status: 422 });
+  }
+  if (!res.ok) return json({ error: `Sunucu yanıtı: ${res.status}` }, { status: 422 });
+
+  const contentType = (res.headers.get("content-type") || "").split(";")[0].trim();
+  const ext = ALLOWED_IMAGE_MIME[contentType];
+  if (!ext) return json({ error: "Desteklenmeyen resim formatı" }, { status: 422 });
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const filename = `url-img-${randomBytes(12).toString("hex")}.${ext}`;
+  await writeFile(nodePath.join(getUploadsDir(), filename), buffer);
+  const appUrl = process.env.SHOPIFY_APP_URL || new URL(request.url).origin;
+  return json({ url: `${appUrl}/uploads/${filename}` });
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -141,6 +178,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   if (path === "upload") {
     return handleDesignerUpload(request);
+  }
+
+  if (path === "fetch-url") {
+    return handleFetchUrl(request);
   }
 
   if (path === "remove-background") {
