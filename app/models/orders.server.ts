@@ -95,7 +95,7 @@ export async function getOrders(shop: string, status?: string): Promise<Order[]>
   await ensureMigrations();
   const result = status
     ? await query<DbRow>(
-        `${ORDER_SELECT} WHERE o.shop = $1 AND o.design_token != '' AND o.production_status = $2 ORDER BY o.created_at DESC`,
+        `${ORDER_SELECT} WHERE o.shop = $1 AND o.design_token != '' AND o.production_status = $2 AND o.production_status != 'cancelled' ORDER BY o.created_at DESC`,
         [shop, status],
       )
     : await query<DbRow>(
@@ -260,6 +260,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     id: string;
     name: string;
     createdAt: string;
+    cancelledAt: string | null;
     customAttributes: Attr[];
     lineItems: { nodes: LineItem[] };
   };
@@ -268,7 +269,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     {
       orders(first: 100, sortKey: CREATED_AT, reverse: true) {
         nodes {
-          id name createdAt
+          id name createdAt cancelledAt
           customAttributes { key value }
           lineItems(first: 20) {
             nodes {
@@ -298,6 +299,15 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
 
   for (const so of shopifyOrders) {
     const shopifyOrderId = so.id.split("/").pop() ?? so.id;
+
+    // If Shopify order is cancelled, mark our record as cancelled too
+    if (so.cancelledAt) {
+      await query(
+        "UPDATE orders SET production_status = 'cancelled', updated_at = now() WHERE shop = $1 AND shopify_order_id = $2 AND production_status NOT IN ('cancelled', 'shipped')",
+        [shop, shopifyOrderId],
+      );
+      continue;
+    }
 
     // Skip already imported orders
     const existing = await query("SELECT id FROM orders WHERE shop = $1 AND shopify_order_id = $2", [
