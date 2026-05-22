@@ -9,8 +9,57 @@ const html = `<!DOCTYPE html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="PrintLab — Custom print design tool for Shopify stores. Let your customers design their own products and receive print-ready files automatically." />
+
+  <!-- Primary SEO -->
   <title>PrintLab — Shopify Print-on-Demand Design App</title>
+  <meta name="description" content="PrintLab lets your customers design their own t-shirts, hoodies and more — directly on your Shopify store. Get print-ready files automatically with every order." />
+  <meta name="keywords" content="shopify print on demand, shopify designer app, custom t-shirt designer, print ready files, shopify apparel app, printlab" />
+  <link rel="canonical" href="https://printlabapp.com/" />
+
+  <!-- Open Graph (Facebook, LinkedIn, WhatsApp) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://printlabapp.com/" />
+  <meta property="og:title" content="PrintLab — Let Customers Design Their Own Products" />
+  <meta property="og:description" content="Add a custom print designer to your Shopify store. Customers design, you print. Print-ready files delivered automatically with every order." />
+  <meta property="og:image" content="https://printlabapp.com/screenshots/ss-dashboard-en.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:site_name" content="PrintLab" />
+  <meta property="og:locale" content="en_US" />
+
+  <!-- Twitter / X Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@printlabapp" />
+  <meta name="twitter:title" content="PrintLab — Let Customers Design Their Own Products" />
+  <meta name="twitter:description" content="Add a custom print designer to your Shopify store. Customers design, you print. Print-ready files delivered automatically with every order." />
+  <meta name="twitter:image" content="https://printlabapp.com/screenshots/ss-dashboard-en.png" />
+
+  <!-- Structured Data (Google Rich Results) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "PrintLab",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Shopify",
+    "url": "https://printlabapp.com",
+    "description": "PrintLab lets your customers design their own t-shirts and apparel directly on your Shopify store. Print-ready files are generated automatically with every order.",
+    "offers": {
+      "@type": "AggregateOffer",
+      "lowPrice": "19.99",
+      "highPrice": "99.99",
+      "priceCurrency": "USD"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "PrintLab",
+      "url": "https://printlabapp.com"
+    }
+  }
+  </script>
+
+  <!-- Favicon (inline SVG) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f46e5'/><text y='22' x='5' font-size='18' font-family='system-ui' font-weight='900' fill='white'>P</text></svg>" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
