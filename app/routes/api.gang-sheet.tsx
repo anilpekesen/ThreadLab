@@ -1,5 +1,4 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { authenticate } from "~/shopify.server";
 import { getOrdersByIds } from "~/models/orders.server";
 import sharp from "sharp";
 
@@ -123,8 +122,6 @@ async function buildGangSheet(
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-
   const url = new URL(request.url);
   const idsParam = url.searchParams.get("ids") ?? "";
   const ids = idsParam.split(",").filter(Boolean);
