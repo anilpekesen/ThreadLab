@@ -21,10 +21,6 @@ uri = "/webhooks"
 topics = ["orders/fulfilled"]
 uri = "/webhooks"
 
-[[webhooks.subscriptions]]
-topics = ["customers/data_request", "customers/redact", "shop/redact"]
-uri = "/webhooks"
-
 [access_scopes]
 scopes = "read_products,write_products,read_orders,write_orders,write_app_proxy,write_cart_transforms,write_script_tags"
 
