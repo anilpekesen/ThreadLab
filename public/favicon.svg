@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+
+  <!-- P letterform -->
+  <path fill-rule="evenodd" fill="white"
+    d="M6 27 L6 6 L15 6 Q25 6 25 14 Q25 22 15 22 L6 22 Z
+       M10 10 L14 10 Q21 10 21 14 Q21 18 14 18 L10 18 Z"/>
+
+  <!-- Sparkle -->
+  <path d="M27 5 L27.7 6.8 L29.5 7.5 L27.7 8.2 L27 10 L26.3 8.2 L24.5 7.5 L26.3 6.8 Z"
+        fill="#a5b4fc"/>
+</svg>

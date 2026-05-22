@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 44" fill="none">
+  <defs>
+    <linearGradient id="iconBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icon background -->
+  <rect x="0" y="2" width="40" height="40" rx="9" fill="url(#iconBg)"/>
+
+  <!-- P letterform (fill-rule evenodd creates the counter cutout) -->
+  <path fill-rule="evenodd" fill="white"
+    d="M8 33 L8 9 L19 9 Q31 9 31 18 Q31 27 19 27 L8 27 Z
+       M12 13 L18 13 Q27 13 27 18 Q27 23 18 23 L12 23 Z"/>
+
+  <!-- 4-point sparkle accent -->
+  <path d="M35 7 L35.9 9.1 L38 10 L35.9 10.9 L35 13 L34.1 10.9 L32 10 L34.1 9.1 Z"
+        fill="#a5b4fc"/>
+
+  <!-- Wordmark: "Print" light + "Lab" bold -->
+  <text x="52" y="29"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
+        font-size="22" letter-spacing="-0.3">
+    <tspan font-weight="300" fill="#0f0f1a">Print</tspan><tspan font-weight="800" fill="#4f46e5">Lab</tspan>
+  </text>
+</svg>

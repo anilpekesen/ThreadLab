@@ -53,13 +53,21 @@ const html = `<!DOCTYPE html>
     "publisher": {
       "@type": "Organization",
       "name": "PrintLab",
-      "url": "https://printlabapp.com"
+      "url": "https://printlabapp.com",
+      "logo": "https://printlabapp.com/logo.svg"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.9",
+      "reviewCount": "12",
+      "bestRating": "5",
+      "worstRating": "1"
     }
   }
   </script>
 
-  <!-- Favicon (inline SVG) -->
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f46e5'/><text y='22' x='5' font-size='18' font-family='system-ui' font-weight='900' fill='white'>P</text></svg>" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.svg" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -73,7 +81,7 @@ const html = `<!DOCTYPE html>
     /* NAV */
     nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 14px 40px; display: flex; align-items: center; justify-content: space-between; background: rgba(10,10,15,.9); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,.06); }
     .logo { font-size: 20px; font-weight: 900; color: #fff; letter-spacing: -0.5px; text-decoration: none; display: flex; align-items: center; gap: 8px; }
-    .logo-icon { width: 32px; height: 32px; background: var(--brand); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .logo-icon { height: 32px; display: flex; align-items: center; }
     .nav-links { display: flex; gap: 4px; align-items: center; }
     .nav-link { color: var(--muted); text-decoration: none; font-size: 14px; padding: 7px 14px; border-radius: 8px; transition: all .15s; }
     .nav-link:hover { color: #fff; background: rgba(255,255,255,.06); }
@@ -198,8 +206,7 @@ const html = `<!DOCTYPE html>
 
   <nav>
     <a href="/" class="logo">
-      <div class="logo-icon">🎨</div>
-      PrintLab
+      <img src="/logo.svg" alt="PrintLab" height="32" style="display:block;" />
     </a>
     <div class="nav-links">
       <a href="#features" class="nav-link">Features</a>
@@ -472,10 +479,7 @@ const html = `<!DOCTYPE html>
   <div class="footer-wrap">
     <footer>
       <div class="footer-left">
-        <div class="logo" style="font-size:17px;">
-          <div class="logo-icon" style="width:26px;height:26px;font-size:13px;">🎨</div>
-          PrintLab
-        </div>
+        <img src="/logo.svg" alt="PrintLab" height="26" style="display:block;filter:brightness(10);" />
         <div class="footer-copy">© 2026 PrintLab. All rights reserved.</div>
       </div>
       <div class="footer-links">
