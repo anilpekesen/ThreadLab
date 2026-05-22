@@ -94,6 +94,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // ── Orders cancelled: mark as cancelled so they disappear from production queue ──
+  if (topic === "ORDERS_CANCELLED" || topic === "orders/cancelled") {
+    const order = payload as OrderPayload;
+    const shopifyOrderId = String(order.id ?? "");
+    console.log(`[webhook] cancelled order=${order.name} shopifyId=${shopifyOrderId}`);
+
+    if (shopifyOrderId) {
+      getOrderByShopifyId(shopifyOrderId)
+        .then((existing) => {
+          if (existing) return updateOrderStatus(existing.id, "cancelled");
+        })
+        .catch((err) =>
+          console.error(`[webhook] cancel status update failed for order ${order.name}:`, err),
+        );
+    }
+  }
+
   // ── Orders fulfilled: update production status ────────────────────
   if (topic === "ORDERS_FULFILLED" || topic === "orders/fulfilled") {
     const order = payload as OrderPayload;
