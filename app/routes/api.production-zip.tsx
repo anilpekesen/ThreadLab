@@ -44,21 +44,31 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   await Promise.all(
     orders.map(async (order) => {
       const folder = sanitize(order.orderNumber || order.id);
-      const frontUrl = order.designFrontPrintUrl || order.productionFileUrl || "";
-      const backUrl = order.designBackPrintUrl || "";
+      const frontPrintUrl = order.designFrontPrintUrl || order.productionFileUrl || "";
+      const backPrintUrl = order.designBackPrintUrl || "";
+      const frontPreviewUrl = order.designFrontPreviewUrl || order.previewUrl || "";
+      const backPreviewUrl = order.designBackPreviewUrl || "";
 
-      const [frontBuf, backBuf] = await Promise.all([
-        fetchBuffer(frontUrl),
-        fetchBuffer(backUrl),
+      const [frontPrintBuf, backPrintBuf, frontPreviewBuf, backPreviewBuf] = await Promise.all([
+        fetchBuffer(frontPrintUrl),
+        fetchBuffer(backPrintUrl),
+        fetchBuffer(frontPreviewUrl),
+        fetchBuffer(backPreviewUrl),
       ]);
 
-      if (frontBuf) {
-        files[`${folder}/on-baski.png`] = new Uint8Array(frontBuf);
+      if (frontPrintBuf) {
+        files[`${folder}/on-baski.png`] = new Uint8Array(frontPrintBuf);
       }
-      if (backBuf) {
-        files[`${folder}/arka-baski.png`] = new Uint8Array(backBuf);
+      if (backPrintBuf) {
+        files[`${folder}/arka-baski.png`] = new Uint8Array(backPrintBuf);
       }
-      if (!frontBuf && !backBuf) {
+      if (frontPreviewBuf) {
+        files[`${folder}/on-onizleme.png`] = new Uint8Array(frontPreviewBuf);
+      }
+      if (backPreviewBuf) {
+        files[`${folder}/arka-onizleme.png`] = new Uint8Array(backPreviewBuf);
+      }
+      if (!frontPrintBuf && !backPrintBuf) {
         const msg = `Sipariş: ${order.orderNumber}\nMüşteri: ${order.customerName}\nÜrün: ${order.productName}\nBaskı dosyası bulunamadı.`;
         files[`${folder}/DOSYA-YOK.txt`] = new TextEncoder().encode(msg);
       }

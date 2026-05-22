@@ -212,12 +212,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       let contentW = origW;
       let contentH = origH;
       try {
+        // ensureAlpha() guarantees alpha channel; explicit transparent background
+        // ensures we always trim transparency regardless of corner pixel colour.
         const { data, info } = await sharp(buf)
-          .trim({ threshold: 15 }) // remove near-transparent edge pixels
+          .ensureAlpha()
+          .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 10 })
           .png()
           .toBuffer({ resolveWithObject: true });
-        // Only accept trim if it actually reduced the image (guards against white/opaque bg)
-        if (info.width > 0 && info.height > 0 && info.width <= origW && info.height <= origH) {
+        // Only use the result if trim actually made the image smaller
+        if (info.width > 0 && info.height > 0 && info.width <= origW && info.height <= origH
+            && (info.width < origW || info.height < origH)) {
           trimmedBuf = data;
           contentW = info.width;
           contentH = info.height;

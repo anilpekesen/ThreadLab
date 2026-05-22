@@ -235,7 +235,7 @@ export default function GangSheet() {
                     <BlockStack gap="200">
                       {printableOrders.map((order) => {
                         const isSelected = selectedIds.includes(order.id);
-                        const previewUrl = order.designFrontPreviewUrl || order.previewUrl || "";
+                        const previewUrl = order.designFrontPrintUrl || order.productionFileUrl || order.designFrontPreviewUrl || order.previewUrl || "";
                         const hasFront = !!(order.designFrontPrintUrl || order.productionFileUrl);
                         const hasBack = !!order.designBackPrintUrl;
 
