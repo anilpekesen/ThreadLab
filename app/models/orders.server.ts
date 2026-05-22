@@ -261,6 +261,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     name: string;
     createdAt: string;
     cancelledAt: string | null;
+    displayFinancialStatus: string | null;
     customAttributes: Attr[];
     lineItems: { nodes: LineItem[] };
   };
@@ -269,7 +270,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     {
       orders(first: 100, sortKey: CREATED_AT, reverse: true) {
         nodes {
-          id name createdAt cancelledAt
+          id name createdAt cancelledAt displayFinancialStatus
           customAttributes { key value }
           lineItems(first: 20) {
             nodes {
@@ -300,8 +301,12 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
   for (const so of shopifyOrders) {
     const shopifyOrderId = so.id.split("/").pop() ?? so.id;
 
-    // If Shopify order is cancelled, mark our record as cancelled too
-    if (so.cancelledAt) {
+    // If Shopify order is cancelled or fully refunded, mark our record as cancelled too
+    const isInactive =
+      so.cancelledAt ||
+      so.displayFinancialStatus === "REFUNDED" ||
+      so.displayFinancialStatus === "VOIDED";
+    if (isInactive) {
       await query(
         "UPDATE orders SET production_status = 'cancelled', updated_at = now() WHERE shop = $1 AND shopify_order_id = $2 AND production_status NOT IN ('cancelled', 'shipped')",
         [shop, shopifyOrderId],
