@@ -457,13 +457,21 @@ async function fulfillSingleShopifyOrder(admin: AdminClient, shopifyOrderId: str
   );
   const foData = await foRes.json() as {
     data?: { order?: { fulfillmentOrders?: { nodes?: Array<{ id: string; status: string }> } } };
+    errors?: Array<{ message: string }>;
   };
 
-  const openFOs = (foData.data?.order?.fulfillmentOrders?.nodes ?? []).filter(
+  if (foData.errors?.length) {
+    throw new Error(`GraphQL errors querying fulfillment orders: ${foData.errors.map(e => e.message).join(", ")}`);
+  }
+
+  const allFOs = foData.data?.order?.fulfillmentOrders?.nodes ?? [];
+  console.log(`[fulfill] Order ${shopifyOrderId} fulfillment orders:`, JSON.stringify(allFOs));
+
+  const openFOs = allFOs.filter(
     (fo) => fo.status === "OPEN" || fo.status === "IN_PROGRESS" || fo.status === "SCHEDULED",
   );
   if (!openFOs.length) {
-    console.log(`[fulfill] No fulfillable fulfillment orders for Shopify order ${shopifyOrderId} — already fulfilled or none found`);
+    console.log(`[fulfill] No fulfillable FOs for ${shopifyOrderId} — statuses: ${allFOs.map(f => f.status).join(", ") || "none"}`);
     return;
   }
 

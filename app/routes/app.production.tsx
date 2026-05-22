@@ -73,9 +73,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const status = form.get("status") as string;
     await bulkUpdateStatus(ids, status);
     if (status === "shipped") {
-      fulfillShopifyOrders(admin, session.shop, ids).catch((err) =>
-        console.error("[fulfill] production bulk-ship error:", err),
-      );
+      try {
+        await fulfillShopifyOrders(admin, session.shop, ids);
+      } catch (err) {
+        console.error("[fulfill] production bulk-ship error:", err);
+      }
     }
   }
 

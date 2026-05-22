@@ -174,9 +174,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const appOrderId = params.id ?? "";
   await updateOrderStatus(appOrderId, status);
   if (status === "shipped" && appOrderId) {
-    fulfillShopifyOrders(admin, session.shop, [appOrderId]).catch((err) =>
-      console.error("[fulfill] order detail ship error:", err),
-    );
+    try {
+      await fulfillShopifyOrders(admin, session.shop, [appOrderId]);
+    } catch (err) {
+      console.error("[fulfill] order detail ship error:", err);
+    }
   }
   return redirect(`/app/orders/${params.id}`);
 };

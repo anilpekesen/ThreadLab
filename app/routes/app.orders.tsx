@@ -84,9 +84,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const status = form.get("status") as string;
   await updateOrderStatus(id, status);
   if (status === "shipped") {
-    fulfillShopifyOrders(admin, session.shop, [id]).catch((err) =>
-      console.error("[fulfill] orders ship error:", err),
-    );
+    try {
+      await fulfillShopifyOrders(admin, session.shop, [id]);
+    } catch (err) {
+      console.error("[fulfill] orders ship error:", err);
+    }
   }
   return json({ ok: true });
 };
