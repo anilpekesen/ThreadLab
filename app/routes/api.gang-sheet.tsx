@@ -1,15 +1,22 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { getOrdersByIds } from "~/models/orders.server";
+import { query } from "~/lib/db.server";
 import sharp from "sharp";
 
-const SHEET_PRESETS: Record<string, { width: number; height: number | null }> = {
-  "a4":      { width: 2480, height: 3508 },
-  "a4l":     { width: 3508, height: 2480 },
-  "a3":      { width: 3508, height: 4961 },
-  "a3l":     { width: 4961, height: 3508 },
-  "dtf60":   { width: 3543, height: null },
-  "dtf100":  { width: 5906, height: null },
+// Preset sheet widths in px, based on physical size at the given DPI
+// dtf60 = 60cm at 150dpi, dtf100 = 100cm at 150dpi, A4/A3 at 300dpi
+const SHEET_PRESETS: Record<string, { width: number; height: number | null; pxPerMm: number }> = {
+  "a4":     { width: 2480, height: 3508, pxPerMm: 300 / 25.4 },
+  "a4l":    { width: 3508, height: 2480, pxPerMm: 300 / 25.4 },
+  "a3":     { width: 3508, height: 4961, pxPerMm: 300 / 25.4 },
+  "a3l":    { width: 4961, height: 3508, pxPerMm: 300 / 25.4 },
+  "dtf60":  { width: 3543, height: null, pxPerMm: 150 / 25.4 },
+  "dtf100": { width: 5906, height: null, pxPerMm: 150 / 25.4 },
 };
+
+// Designer canvas internal resolution (px per mm at source)
+const CANVAS_W_PX = 480 * 2; // exportPng(2) = 2x → 960px
+const CANVAS_H_PX = 580 * 2; // exportPng(2) = 2x → 1160px
 
 async function fetchBuffer(url: string): Promise<Buffer | null> {
   if (!url) return null;
@@ -27,10 +34,27 @@ async function fetchBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
+// Fetch realWidthMm / realHeightMm for a product from DB
+async function getPrintSizeMm(productId: string): Promise<{ w: number; h: number } | null> {
+  if (!productId) return null;
+  try {
+    const result = await query<{ real_width_mm: number; real_height_mm: number }>(
+      "SELECT real_width_mm, real_height_mm FROM product_print_areas WHERE product_id = $1 AND side = 'front' LIMIT 1",
+      [productId],
+    );
+    const row = result.rows[0];
+    if (!row || !row.real_width_mm || !row.real_height_mm) return null;
+    return { w: row.real_width_mm, h: row.real_height_mm };
+  } catch {
+    return null;
+  }
+}
+
 interface GangItem {
   buffer: Buffer;
-  w: number;
-  h: number;
+  // target pixel size on sheet (after scaling to physical size)
+  targetW: number;
+  targetH: number;
 }
 
 interface Placement {
@@ -48,8 +72,12 @@ async function buildGangSheet(
   margin: number,
   transparent: boolean,
 ): Promise<Buffer> {
-  // Sort tallest first for better shelf utilization
-  const sorted = [...items].sort((a, b) => b.h - a.h);
+  const bg = transparent
+    ? { r: 0, g: 0, b: 0, alpha: 0 }
+    : { r: 255, g: 255, b: 255, alpha: 255 };
+
+  // Sort tallest first for better shelf packing
+  const sorted = [...items].sort((a, b) => b.targetH - a.targetH);
 
   const placed: Placement[] = [];
   let curX = margin;
@@ -57,10 +85,10 @@ async function buildGangSheet(
   let shelfH = 0;
 
   for (const item of sorted) {
-    let w = item.w;
-    let h = item.h;
+    let w = item.targetW;
+    let h = item.targetH;
 
-    // Scale down if item wider than sheet
+    // Scale down if wider than the sheet
     const maxW = sheetWidth - 2 * margin;
     if (w > maxW) {
       h = Math.round((h * maxW) / w);
@@ -81,30 +109,17 @@ async function buildGangSheet(
 
   const totalHeight = fixedHeight ?? curY + shelfH + margin;
 
-  const bg = transparent
-    ? { r: 0, g: 0, b: 0, alpha: 0 }
-    : { r: 255, g: 255, b: 255, alpha: 255 };
-
   const compositeOps: sharp.OverlayOptions[] = await Promise.all(
     placed.map(async (p) => {
-      const resized =
-        p.w !== p.buffer.length
-          ? await sharp(p.buffer)
-              .resize(p.w, p.h, {
-                fit: "contain",
-                background: transparent
-                  ? { r: 0, g: 0, b: 0, alpha: 0 }
-                  : { r: 255, g: 255, b: 255, alpha: 255 },
-              })
-              .png()
-              .toBuffer()
-          : p.buffer;
+      const resized = await sharp(p.buffer)
+        .resize(p.w, p.h, {
+          fit: "fill", // exact size: design fills the target print area
+          background: bg,
+        })
+        .png()
+        .toBuffer();
 
-      return {
-        input: resized,
-        left: p.x,
-        top: p.y,
-      } as sharp.OverlayOptions;
+      return { input: resized, left: p.x, top: p.y } as sharp.OverlayOptions;
     }),
   );
 
@@ -140,8 +155,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const sheetConfig = SHEET_PRESETS[preset] ?? SHEET_PRESETS["dtf60"];
+  const pxPerMm = sheetConfig.pxPerMm;
 
-  // Fetch print images
   const items: GangItem[] = [];
 
   await Promise.all(
@@ -154,13 +169,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const buf = await fetchBuffer(printUrl);
       if (!buf) return;
 
-      try {
-        const meta = await sharp(buf).metadata();
-        if (!meta.width || !meta.height) return;
-        items.push({ buffer: buf, w: meta.width, h: meta.height });
-      } catch {
-        // skip corrupt images
+      // Get physical print size from product config
+      const sizeMm = await getPrintSizeMm(order.productId ?? "");
+
+      let targetW: number;
+      let targetH: number;
+
+      if (sizeMm) {
+        // Scale to physical size at sheet DPI
+        targetW = Math.round(sizeMm.w * pxPerMm);
+        targetH = Math.round(sizeMm.h * pxPerMm);
+      } else {
+        // Fallback: use actual image pixels (no scaling)
+        try {
+          const meta = await sharp(buf).metadata();
+          targetW = meta.width ?? CANVAS_W_PX;
+          targetH = meta.height ?? CANVAS_H_PX;
+        } catch {
+          return;
+        }
       }
+
+      items.push({ buffer: buf, targetW, targetH });
     }),
   );
 
