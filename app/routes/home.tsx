@@ -9,8 +9,8 @@ const html = `<!DOCTYPE html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="DesignKit — Custom print design tool for Shopify stores. Let your customers design their own products and receive print-ready files automatically." />
-  <title>DesignKit — Shopify Print-on-Demand Design App</title>
+  <meta name="description" content="PrintLab — Custom print design tool for Shopify stores. Let your customers design their own products and receive print-ready files automatically." />
+  <title>PrintLab — Shopify Print-on-Demand Design App</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -150,7 +150,7 @@ const html = `<!DOCTYPE html>
   <nav>
     <a href="/" class="logo">
       <div class="logo-icon">🎨</div>
-      DesignKit
+      PrintLab
     </a>
     <div class="nav-links">
       <a href="#features" class="nav-link">Features</a>
@@ -169,7 +169,7 @@ const html = `<!DOCTYPE html>
     </div>
     <h1>Let your customers<br/><em>design their own</em><br/>products</h1>
     <p class="hero-sub">
-      DesignKit adds an interactive print designer to your Shopify product pages.
+      PrintLab adds an interactive print designer to your Shopify product pages.
       Customers customize, you get print-ready files. Automatically.
     </p>
     <div class="hero-btns">
@@ -192,7 +192,7 @@ const html = `<!DOCTYPE html>
             <div style="background:rgba(79,70,229,.2);border-radius:4px;padding:3px 10px;font-size:11px;color:#a5b4fc;font-weight:600;">EN</div>
           </div>
         </div>
-        <img src="/screenshots/ss-dashboard-en.png" alt="DesignKit Dashboard" loading="eager" />
+        <img src="/screenshots/ss-dashboard-en.png" alt="PrintLab Dashboard" loading="eager" />
       </div>
     </div>
   </section>
@@ -277,7 +277,7 @@ const html = `<!DOCTYPE html>
     <div class="feature-text">
       <div class="section-label">Automatic Pricing</div>
       <h2 class="feature-title">Print surcharge<br/>added automatically</h2>
-      <p class="feature-desc">DesignKit uses Shopify Cart Transform to calculate print cost and add it to the cart — no manual work needed. Configure once, runs forever.</p>
+      <p class="feature-desc">PrintLab uses Shopify Cart Transform to calculate print cost and add it to the cart — no manual work needed. Configure once, runs forever.</p>
       <ul class="feature-list">
         <li>Shopify Cart Transform Function (no redirect)</li>
         <li>Surcharge based on design size and print area</li>
@@ -374,7 +374,7 @@ const html = `<!DOCTYPE html>
             <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
             <div class="url-bar"><span class="url-text">🔒 app.printlabapp.com/app/billing</span></div>
           </div>
-          <img src="/screenshots/ss-billing.png" alt="DesignKit billing & plans" loading="lazy" style="width:100%;display:block;" />
+          <img src="/screenshots/ss-billing.png" alt="PrintLab billing & plans" loading="lazy" style="width:100%;display:block;" />
         </div>
       </div>
     </div>
@@ -412,7 +412,7 @@ const html = `<!DOCTYPE html>
   <section class="cta-section">
     <div class="cta-box">
       <h2 class="cta-title">Ready to add custom<br/>printing to your store?</h2>
-      <p class="cta-sub">Join Shopify merchants using DesignKit. 7-day free trial on all plans.</p>
+      <p class="cta-sub">Join Shopify merchants using PrintLab. 7-day free trial on all plans.</p>
       <a href="https://apps.shopify.com/designkit-print" class="btn-primary" style="font-size:17px;padding:16px 40px;margin:0 auto;" target="_blank">
         Add to Shopify — Free Trial
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -425,7 +425,7 @@ const html = `<!DOCTYPE html>
       <div class="footer-left">
         <div class="logo" style="font-size:17px;">
           <div class="logo-icon" style="width:26px;height:26px;font-size:13px;">🎨</div>
-          DesignKit
+          PrintLab
         </div>
         <div class="footer-copy">© 2026 PrintLab. All rights reserved.</div>
       </div>
