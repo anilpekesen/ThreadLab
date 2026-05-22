@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { getDesignByToken, saveDesign } from "~/models/designs.server";
 import { getGlobalSettings } from "~/models/global-settings.server";
+import { getShopSettings } from "~/models/shop-settings.server";
 import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
 import { getUploadsDir } from "~/lib/storage.server";
 import { uploadToR2 } from "~/lib/r2.server";
@@ -106,8 +107,11 @@ export async function processOrderBgRemoval(shop: string, designToken: string): 
   const design = await getDesignByToken(shop, designToken);
   if (!design?.designJson) return;
 
-  const globalSettings = await getGlobalSettings();
-  const apiKey = (process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
+  const [globalSettings, shopSettings] = await Promise.all([
+    getGlobalSettings(),
+    getShopSettings(shop),
+  ]);
+  const apiKey = (shopSettings.wavespeedApiKey || process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
   if (!apiKey) {
     console.warn("[auto-bg] No WaveSpeed API key configured — skipping");
     return;

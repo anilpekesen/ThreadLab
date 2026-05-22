@@ -75,7 +75,7 @@ export async function handleWaveSpeedRemoveBackground(
     getShopSettings(shop),
   ]);
 
-  const apiKey = (process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
+  const apiKey = (shopSettings.wavespeedApiKey || process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
   if (!apiKey) {
     return json({ error: "WaveSpeed API key is not configured" }, { status: 400 });
   }

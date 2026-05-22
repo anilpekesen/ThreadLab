@@ -12,11 +12,13 @@ async function ensureMigrations() {
 export interface ShopSettings {
   surchargeVariantId: string;
   customerBgLimit: number;
+  wavespeedApiKey: string;
 }
 
 const DEFAULTS: ShopSettings = {
   surchargeVariantId: "",
   customerBgLimit: 5,
+  wavespeedApiKey: "",
 };
 
 export async function getShopSettings(shop: string): Promise<ShopSettings> {
@@ -43,6 +45,7 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
     customerBgLimit: Number(saved.customerBgLimit) > 0
       ? Number(saved.customerBgLimit)
       : DEFAULTS.customerBgLimit,
+    wavespeedApiKey: saved.wavespeedApiKey ?? DEFAULTS.wavespeedApiKey,
   };
 }
 

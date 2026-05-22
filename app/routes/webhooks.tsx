@@ -5,6 +5,26 @@ import { processOrderBgRemoval } from "~/models/auto-bg-removal.server";
 import { getOrderByShopifyId, updateOrderStatus } from "~/models/orders.server";
 import { resetCustomerBgQuota } from "~/models/customer-bg-quota.server";
 import { getSessionForDesignToken } from "~/models/designs.server";
+import { query } from "~/lib/db.server";
+
+async function deleteShopData(shop: string): Promise<void> {
+  const tables = [
+    "orders",
+    "designs",
+    "product_settings",
+    "product_print_areas",
+    "product_categories",
+    "shop_subscriptions",
+    "shop_settings",
+    "shop_templates",
+    "bg_removal_usage",
+    "customer_bg_quota",
+  ];
+  for (const table of tables) {
+    await query(`DELETE FROM ${table} WHERE shop = $1`, [shop]);
+  }
+  console.log(`[webhook] shop_redact: deleted all data for ${shop}`);
+}
 
 // Shopify uses both {name, value} (REST) and {key, value} (some contexts)
 type Attr = { name?: string; key?: string; value: string };
@@ -65,8 +85,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // ── GDPR: shop/redact ─────────────────────────────────────────────
   if (topic === "SHOP_REDACT" || topic === "shop/redact") {
-    // Shop uninstalled; all shop data can be cleaned up here if needed.
-    console.log(`[webhook] GDPR shop_redact shop=${shop}`);
+    console.log(`[webhook] GDPR shop_redact shop=${shop} — deleting all shop data`);
+    deleteShopData(shop).catch((err) =>
+      console.error(`[webhook] shop_redact data deletion failed for ${shop}:`, err),
+    );
     return json({ ok: true });
   }
 
