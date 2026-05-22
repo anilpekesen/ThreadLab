@@ -25,10 +25,9 @@
     "@shopify/shopify-app-remix": "^4.2.0",
     "@shopify/shopify-app-session-storage-memory": "^6.0.0",
     "@shopify/shopify-app-session-storage-postgresql": "^6.0.0",
-    "@types/archiver": "^7.0.0",
     "@types/pg": "^8.20.0",
     "@types/sharp": "^0.31.1",
-    "archiver": "^8.0.0",
+    "fflate": "^0.8.3",
     "isbot": "^4.4.0",
     "pg": "^8.20.0",
     "react": "^18.2.0",
@@ -45,8 +44,8 @@
     "vite-tsconfig-paths": "^5.1.4"
   },
   "optionalDependencies": {
-    "@img/sharp-linux-x64": "0.34.5",
-    "@img/sharp-libvips-linux-x64": "1.2.4"
+    "@img/sharp-libvips-linux-x64": "1.2.4",
+    "@img/sharp-linux-x64": "0.34.5"
   },
   "trustedDependencies": [
     "@shopify/plugin-cloudflare"

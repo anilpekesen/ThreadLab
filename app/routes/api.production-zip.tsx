@@ -1,8 +1,7 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { authenticate } from "~/shopify.server";
 import { getOrdersByIds } from "~/models/orders.server";
-import archiver from "archiver";
-import { PassThrough } from "stream";
+import { zipSync } from "fflate";
 
 async function fetchBuffer(url: string): Promise<Buffer | null> {
   if (!url) return null;
@@ -40,53 +39,42 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return new Response("no orders found", { status: 404 });
   }
 
-  const archive = archiver("zip", { zlib: { level: 6 } });
-  const passthrough = new PassThrough();
-  archive.pipe(passthrough);
+  const files: Record<string, Uint8Array> = {};
 
-  // Add files to archive
-  const addPromises = orders.map(async (order) => {
-    const folder = sanitize(order.orderNumber || order.id);
-    const frontUrl = order.designFrontPrintUrl || order.productionFileUrl || "";
-    const backUrl = order.designBackPrintUrl || "";
+  await Promise.all(
+    orders.map(async (order) => {
+      const folder = sanitize(order.orderNumber || order.id);
+      const frontUrl = order.designFrontPrintUrl || order.productionFileUrl || "";
+      const backUrl = order.designBackPrintUrl || "";
 
-    const [frontBuf, backBuf] = await Promise.all([
-      fetchBuffer(frontUrl),
-      fetchBuffer(backUrl),
-    ]);
+      const [frontBuf, backBuf] = await Promise.all([
+        fetchBuffer(frontUrl),
+        fetchBuffer(backUrl),
+      ]);
 
-    if (frontBuf) {
-      archive.append(frontBuf, { name: `${folder}/on-baski.png` });
-    }
-    if (backBuf) {
-      archive.append(backBuf, { name: `${folder}/arka-baski.png` });
-    }
-    if (!frontBuf && !backBuf) {
-      archive.append(
-        `Sipariş: ${order.orderNumber}\nMüşteri: ${order.customerName}\nÜrün: ${order.productName}\nBaskı dosyası bulunamadı.`,
-        { name: `${folder}/DOSYA-YOK.txt` },
-      );
-    }
-  });
+      if (frontBuf) {
+        files[`${folder}/on-baski.png`] = new Uint8Array(frontBuf);
+      }
+      if (backBuf) {
+        files[`${folder}/arka-baski.png`] = new Uint8Array(backBuf);
+      }
+      if (!frontBuf && !backBuf) {
+        const msg = `Sipariş: ${order.orderNumber}\nMüşteri: ${order.customerName}\nÜrün: ${order.productName}\nBaskı dosyası bulunamadı.`;
+        files[`${folder}/DOSYA-YOK.txt`] = new TextEncoder().encode(msg);
+      }
+    }),
+  );
 
-  await Promise.all(addPromises);
-  await archive.finalize();
+  const zipBuffer = zipSync(files, { level: 6 });
 
   const date = new Date().toISOString().slice(0, 10);
   const filename = `baski-dosyalari-${date}.zip`;
 
-  const readableStream = new ReadableStream({
-    start(controller) {
-      passthrough.on("data", (chunk: Buffer) => controller.enqueue(chunk));
-      passthrough.on("end", () => controller.close());
-      passthrough.on("error", (err) => controller.error(err));
-    },
-  });
-
-  return new Response(readableStream, {
+  return new Response(zipBuffer, {
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": String(zipBuffer.length),
     },
   });
 };
