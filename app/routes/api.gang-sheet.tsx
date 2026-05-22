@@ -34,6 +34,42 @@ async function fetchBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
+// Extract the raw user-uploaded image URL from design_json (no product mockup)
+async function getCleanPrintUrl(designToken: string, side: "front" | "back"): Promise<string | null> {
+  if (!designToken) return null;
+  try {
+    const result = await query<{ design_json: { front?: string; back?: string } }>(
+      "SELECT design_json FROM designs WHERE token = $1 LIMIT 1",
+      [designToken],
+    );
+    const row = result.rows[0];
+    if (!row?.design_json) return null;
+
+    const sideStr = row.design_json[side];
+    if (!sideStr) return null;
+
+    const canvas = JSON.parse(sideStr) as {
+      objects?: Array<{ type: string; src?: string }>;
+    };
+
+    // Use first image object — backgroundImage (mockup) is a separate top-level key, not in objects[]
+    const imageObj = canvas.objects?.find((o) => o.type === "image" && o.src);
+    if (!imageObj?.src) return null;
+
+    // Unwrap /api/img-proxy?url= to the direct CDN URL
+    const src = imageObj.src;
+    if (src.includes("/api/img-proxy?url=")) {
+      try {
+        const inner = new URL(src).searchParams.get("url");
+        if (inner) return decodeURIComponent(inner);
+      } catch {}
+    }
+    return src;
+  } catch {
+    return null;
+  }
+}
+
 // Fetch realWidthMm / realHeightMm for a product from DB
 async function getPrintSizeMm(productId: string): Promise<{ w: number; h: number } | null> {
   if (!productId) return null;
@@ -161,10 +197,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   await Promise.all(
     orders.map(async (order) => {
-      const printUrl =
+      // Prefer raw image from design_json — never contains the product mockup background.
+      // Fall back to stored print URL (new orders after cleanBg fix, or text-only designs).
+      const cleanUrl = order.designToken
+        ? await getCleanPrintUrl(order.designToken, side)
+        : null;
+      const printUrl = cleanUrl || (
         side === "back"
           ? order.designBackPrintUrl ?? ""
-          : order.designFrontPrintUrl || order.productionFileUrl || "";
+          : order.designFrontPrintUrl || order.productionFileUrl || ""
+      );
 
       const buf = await fetchBuffer(printUrl);
       if (!buf) return;
