@@ -1,4 +1,5 @@
 import { query } from "~/lib/db.server";
+import { getCustomerBgStats } from "~/models/customer-bg-quota.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
 
 export type SubscriptionStatus = "none" | "active" | "cancelled" | "trial";
@@ -43,7 +44,7 @@ export async function getAnalytics(shop: string) {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const monthStart = new Date(currentMonth + "-01");
 
-  const [bgMonth, bgTotal, designsAll, designsMonth, sub] = await Promise.all([
+  const [bgMonth, bgTotal, designsAll, designsMonth, sub, customerBgStats] = await Promise.all([
     query<{ count: string }>(
       "SELECT COALESCE(SUM(count), 0) AS count FROM bg_removal_usage WHERE shop = $1 AND month = $2",
       [shop, currentMonth],
@@ -55,6 +56,7 @@ export async function getAnalytics(shop: string) {
     query<{ count: string }>("SELECT COUNT(*) AS count FROM designs"),
     query<{ count: string }>("SELECT COUNT(*) AS count FROM designs WHERE created_at >= $1", [monthStart]),
     getShopSubscription(shop),
+    getCustomerBgStats(shop),
   ]);
 
   const planKey: PlanKey = (sub?.plan_key ?? "Pro") as PlanKey;
@@ -71,5 +73,7 @@ export async function getAnalytics(shop: string) {
     planKey,
     subscriptionStatus: sub?.subscription_status ?? "none",
     shopifySubscriptionId: sub?.shopify_subscription_id ?? null,
+    customerBgSessionsThisMonth: customerBgStats.uniqueSessionsThisMonth,
+    customerBgAvgPerSession: customerBgStats.avgPerSession,
   };
 }

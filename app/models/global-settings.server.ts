@@ -10,17 +10,15 @@ async function ensureMigrations() {
 
 export interface GlobalSettings {
   wavespeedApiKey: string;
-  surchargeVariantId: string;
-  customerBgLimit: number;
+  // Legacy fields kept for backward-compat reads (migration fallback in shop-settings.server.ts)
+  surchargeVariantId?: string;
+  customerBgLimit?: number;
 }
 
 const DEFAULTS: GlobalSettings = {
   wavespeedApiKey: "",
-  surchargeVariantId: "",
-  customerBgLimit: 5,
 };
 
-// Env var fallback — supports both WAVESPEED_API_KEY and wavespeed naming
 const ENV_WAVESPEED_KEY =
   process.env.WAVESPEED_API_KEY ||
   process.env.wavespeed ||
@@ -34,20 +32,22 @@ export async function getGlobalSettings(): Promise<GlobalSettings> {
   if (!result.rows.length) {
     return { ...DEFAULTS, wavespeedApiKey: ENV_WAVESPEED_KEY };
   }
-  const saved = result.rows[0].config as Partial<GlobalSettings & { photoroomApiKey?: string }>;
+  const saved = result.rows[0].config as Partial<GlobalSettings>;
   return {
     ...DEFAULTS,
     ...saved,
     wavespeedApiKey: saved.wavespeedApiKey || ENV_WAVESPEED_KEY,
-    customerBgLimit: Number(saved.customerBgLimit) > 0 ? Number(saved.customerBgLimit) : DEFAULTS.customerBgLimit,
   };
 }
 
-export async function saveGlobalSettings(settings: GlobalSettings): Promise<void> {
+export async function saveGlobalSettings(settings: Pick<GlobalSettings, "wavespeedApiKey">): Promise<void> {
+  const current = await getGlobalSettings();
+  // Preserve any legacy fields in the JSON blob (surchargeVariantId etc.) so data isn't lost
+  const merged = { ...current, ...settings };
   await query(
     `INSERT INTO global_settings (id, config, updated_at)
      VALUES (1, $1, now())
      ON CONFLICT (id) DO UPDATE SET config = $1, updated_at = now()`,
-    [JSON.stringify(settings)],
+    [JSON.stringify(merged)],
   );
 }

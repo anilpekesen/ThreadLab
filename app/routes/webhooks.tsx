@@ -22,13 +22,11 @@ function getAttr(attrs: Attr[] | undefined, key: string): string | undefined {
 }
 
 function extractDesignToken(payload: OrderPayload): string | undefined {
-  // Order-level attributes
   const fromOrder =
     getAttr(payload.note_attributes, "design_token") ??
     getAttr(payload.attributes, "design_token");
   if (fromOrder) return fromOrder;
 
-  // Line item properties
   for (const item of payload.line_items ?? []) {
     const token =
       getAttr(item.properties, "design_token") ??
@@ -38,9 +36,41 @@ function extractDesignToken(payload: OrderPayload): string | undefined {
   return undefined;
 }
 
+function resetCustomerQuota(shop: string, designToken: string, orderName?: string) {
+  getSessionForDesignToken(designToken)
+    .then((sessionId) => {
+      if (sessionId) return resetCustomerBgQuota(shop, sessionId);
+    })
+    .catch((err) =>
+      console.error(`[webhook] customer bg quota reset failed for order ${orderName}:`, err),
+    );
+}
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, shop, payload } = await authenticate.webhook(request);
 
+  // ── GDPR: customers/data_request ──────────────────────────────────
+  if (topic === "CUSTOMERS_DATA_REQUEST" || topic === "customers/data_request") {
+    // We store session IDs (no PII) tied to shop, no personal data to export.
+    console.log(`[webhook] GDPR data_request shop=${shop}`);
+    return json({ ok: true });
+  }
+
+  // ── GDPR: customers/redact ────────────────────────────────────────
+  if (topic === "CUSTOMERS_REDACT" || topic === "customers/redact") {
+    // No customer PII stored; session IDs are anonymous.
+    console.log(`[webhook] GDPR customers_redact shop=${shop}`);
+    return json({ ok: true });
+  }
+
+  // ── GDPR: shop/redact ─────────────────────────────────────────────
+  if (topic === "SHOP_REDACT" || topic === "shop/redact") {
+    // Shop uninstalled; all shop data can be cleaned up here if needed.
+    console.log(`[webhook] GDPR shop_redact shop=${shop}`);
+    return json({ ok: true });
+  }
+
+  // ── Orders created: trigger auto-bg-removal only ──────────────────
   if (topic === "ORDERS_CREATE" || topic === "orders/create") {
     const order = payload as OrderPayload;
     const designToken = extractDesignToken(order);
@@ -50,17 +80,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       processOrderBgRemoval(shop, designToken).catch((err) =>
         console.error(`[webhook] auto-bg failed for order ${order.name}:`, err),
       );
-      // Reset customer bg quota so they can remove more backgrounds after ordering
-      getSessionForDesignToken(designToken)
-        .then((sessionId) => {
-          if (sessionId) return resetCustomerBgQuota(shop, sessionId);
-        })
-        .catch((err) =>
-          console.error(`[webhook] customer bg quota reset failed for order ${order.name}:`, err),
-        );
     }
   }
 
+  // ── Orders paid: reset customer bg quota (payment confirmed) ─────
+  if (topic === "ORDERS_PAID" || topic === "orders/paid") {
+    const order = payload as OrderPayload;
+    const designToken = extractDesignToken(order);
+    console.log(`[webhook] order=${order.name} topic=${topic} token=${designToken ?? "none"}`);
+
+    if (designToken) {
+      resetCustomerQuota(shop, designToken, order.name);
+    }
+  }
+
+  // ── Orders fulfilled: update production status ────────────────────
   if (topic === "ORDERS_FULFILLED" || topic === "orders/fulfilled") {
     const order = payload as OrderPayload;
     const shopifyOrderId = String(order.id ?? "");

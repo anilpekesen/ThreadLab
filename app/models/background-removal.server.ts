@@ -1,5 +1,6 @@
 import { json } from "@remix-run/node";
 import { getGlobalSettings } from "~/models/global-settings.server";
+import { getShopSettings } from "~/models/shop-settings.server";
 import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
 import { checkAndIncrementCustomerBg } from "~/models/customer-bg-quota.server";
 
@@ -17,6 +18,13 @@ interface WaveSpeedResponse {
   code: number;
   message: string;
   data: WaveSpeedJob;
+}
+
+function detectLang(request: Request): "tr" | "en" {
+  const accept = request.headers.get("Accept-Language") ?? "";
+  if (accept.toLowerCase().startsWith("tr")) return "tr";
+  if (accept.toLowerCase().includes("tr")) return "tr";
+  return "en";
 }
 
 async function removeBackground(apiKey: string, imageBase64: string): Promise<string> {
@@ -54,6 +62,7 @@ export async function handleWaveSpeedRemoveBackground(
     return json({ error: "Method not allowed" }, { status: 405 });
   }
 
+  const lang = detectLang(request);
   const form = await request.formData();
   const file = form.get("image_file");
 
@@ -61,22 +70,30 @@ export async function handleWaveSpeedRemoveBackground(
     return json({ error: "image_file is required" }, { status: 400 });
   }
 
-  const globalSettings = await getGlobalSettings();
-  const apiKey = (process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
+  const [globalSettings, shopSettings] = await Promise.all([
+    getGlobalSettings(),
+    getShopSettings(shop),
+  ]);
 
+  const apiKey = (process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
   if (!apiKey) {
     return json({ error: "WaveSpeed API key is not configured" }, { status: 400 });
   }
 
   // Per-customer session quota check
   const sessionId = options?.sessionId ?? String(form.get("session_id") || "");
+  let quotaRemaining: number | null = null;
+
   if (sessionId) {
-    const limit = options?.customerBgLimit ?? globalSettings.customerBgLimit ?? 5;
+    const limit = options?.customerBgLimit ?? shopSettings.customerBgLimit;
     const customerQuota = await checkAndIncrementCustomerBg(shop, sessionId, limit);
+
     if (!customerQuota.allowed) {
+      const errTr = `Arka plan kaldırma limitinize ulaştınız (${customerQuota.count}/${customerQuota.limit}). Sipariş verdikten sonra limitiniz sıfırlanır.`;
+      const errEn = `You've reached your background removal limit (${customerQuota.count}/${customerQuota.limit}). Your limit will reset after placing an order.`;
       return json(
         {
-          error: `Arka plan kaldırma limitinize ulaştınız (${customerQuota.count}/${customerQuota.limit}). Sipariş verdikten sonra limitiniz sıfırlanır.`,
+          error: lang === "tr" ? errTr : errEn,
           code: "customer_quota_exceeded",
           count: customerQuota.count,
           limit: customerQuota.limit,
@@ -84,13 +101,16 @@ export async function handleWaveSpeedRemoveBackground(
         { status: 429 },
       );
     }
+    quotaRemaining = customerQuota.remaining;
   }
 
   const quota = await checkAndIncrementBgRemoval(shop);
   if (!quota.allowed) {
+    const errTr = "Aylık arka plan kaldırma kotanız doldu";
+    const errEn = "Monthly background removal quota exceeded";
     return json(
       {
-        error: "Aylık arka plan kaldırma kotanız doldu",
+        error: lang === "tr" ? errTr : errEn,
         quota: quota.quota,
         count: quota.count,
         plan: quota.planKey,
@@ -118,10 +138,13 @@ export async function handleWaveSpeedRemoveBackground(
   }
   const imageBytes = await imageRes.arrayBuffer();
 
-  return new Response(imageBytes, {
-    headers: {
-      "Cache-Control": "no-store",
-      "Content-Type": "image/png",
-    },
-  });
+  const headers: Record<string, string> = {
+    "Cache-Control": "no-store",
+    "Content-Type": "image/png",
+  };
+  if (quotaRemaining !== null) {
+    headers["X-BG-Quota-Remaining"] = String(quotaRemaining);
+  }
+
+  return new Response(imageBytes, { headers });
 }

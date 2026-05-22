@@ -204,6 +204,11 @@ export default function Index() {
                   />
                 )}
                 <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.bgTotal")} <strong>{analytics.bgAllTime}</strong> {t("dashboard.bgRemovals")}</Text>
+                {analytics.customerBgSessionsThisMonth > 0 && (
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {analytics.customerBgSessionsThisMonth} {lang === "tr" ? "müşteri" : "customers"} · {lang === "tr" ? "ort." : "avg."} {analytics.customerBgAvgPerSession} {lang === "tr" ? "kullanım/kişi" : "uses/customer"}
+                  </Text>
+                )}
               </BlockStack>
             </Box>
           </Card>

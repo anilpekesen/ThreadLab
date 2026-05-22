@@ -872,6 +872,10 @@ export default function App() {
         showToast(error?.error || 'Arka plan kaldırma başarısız', 'error');
         return '';
       }
+      const remaining = parseInt(res.headers.get('X-BG-Quota-Remaining') ?? '', 10);
+      if (!isNaN(remaining) && remaining <= 2 && remaining > 0) {
+        showToast(`⚠️ ${remaining} background removal use left — resets after your next order`, 'warning');
+      }
       const blob2 = await res.blob();
       const serverUrl = await uploadBlob(blob2, 'user-upload');
       if (serverUrl) return serverUrl;

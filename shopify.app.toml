@@ -14,7 +14,15 @@ topics = ["orders/create"]
 uri = "/webhooks"
 
 [[webhooks.subscriptions]]
+topics = ["orders/paid"]
+uri = "/webhooks"
+
+[[webhooks.subscriptions]]
 topics = ["orders/fulfilled"]
+uri = "/webhooks"
+
+[[webhooks.subscriptions]]
+topics = ["customers/data_request", "customers/redact", "shop/redact"]
 uri = "/webhooks"
 
 [access_scopes]

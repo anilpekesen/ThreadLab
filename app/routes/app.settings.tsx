@@ -18,10 +18,15 @@ import {
 import { useState } from "react";
 import { authenticate } from "~/shopify.server";
 import { getGlobalSettings, saveGlobalSettings } from "~/models/global-settings.server";
+import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const settings = await getGlobalSettings();
+  const [globalSettings, shopSettings] = await Promise.all([
+    getGlobalSettings(),
+    getShopSettings(session.shop),
+  ]);
+  const settings = { ...globalSettings, ...shopSettings };
   const url = new URL(request.url);
   const saved = url.searchParams.get("saved") === "1";
   const created = url.searchParams.get("created") === "1";
@@ -180,7 +185,7 @@ async function writeSurchargeMetafield(
 
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const form = await request.formData();
   const intent = form.get("intent");
 
@@ -245,8 +250,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    const settings = await getGlobalSettings();
-    await saveGlobalSettings({ ...settings, surchargeVariantId: variantId });
+    await saveShopSettings(session.shop, { surchargeVariantId: variantId });
     await writeSurchargeMetafield(admin, variantId).catch(() => {});
     return redirect("/app/settings?created=1");
   }
@@ -320,7 +324,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "fixSurchargeVariant") {
-    const settings = await getGlobalSettings();
+    const settings = await getShopSettings(session.shop);
     const variantId = settings.surchargeVariantId;
     if (!variantId) return json({ error: "Önce variant ID kaydedin" });
     const gid = `gid://shopify/ProductVariant/${variantId}`;
@@ -354,11 +358,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const newVariantId = String(form.get("surchargeVariantId") || "").trim();
   const newBgLimit = parseInt(String(form.get("customerBgLimit") || ""), 10);
-  const currentSettings = await getGlobalSettings();
-  await saveGlobalSettings({
-    wavespeedApiKey: currentSettings.wavespeedApiKey,
+  await saveShopSettings(session.shop, {
     surchargeVariantId: newVariantId,
-    customerBgLimit: newBgLimit > 0 ? newBgLimit : currentSettings.customerBgLimit,
+    ...(newBgLimit > 0 ? { customerBgLimit: newBgLimit } : {}),
   });
   if (newVariantId) await writeSurchargeMetafield(admin, newVariantId).catch(() => {});
   return redirect("/app/settings?saved=1");

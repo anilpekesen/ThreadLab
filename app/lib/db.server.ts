@@ -144,6 +144,13 @@ export async function runMigrations() {
     )
   `);
   await query(`
+    CREATE TABLE IF NOT EXISTS shop_settings (
+      shop       TEXT PRIMARY KEY,
+      config     JSONB NOT NULL DEFAULT '{}',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS customer_bg_quota (
       shop          TEXT NOT NULL,
       session_id    TEXT NOT NULL,

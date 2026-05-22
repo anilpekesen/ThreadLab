@@ -1,21 +1,26 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { findConfigForStorefront, toStorefrontSettings } from "~/models/product-config.server";
 import { getGlobalSettings } from "~/models/global-settings.server";
+import { getShopSettings } from "~/models/shop-settings.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const handle = url.searchParams.get("handle") ?? "";
   const productId = url.searchParams.get("productId") ?? "";
+  const shop = url.searchParams.get("shop") ?? "";
 
-  const [config, globalSettings] = await Promise.all([
+  const [config, globalSettings, shopSettings] = await Promise.all([
     findConfigForStorefront(productId, handle),
     getGlobalSettings(),
+    shop ? getShopSettings(shop) : Promise.resolve(null),
   ]);
 
-  const surchargeVariantId = config?.settings?.surchargeVariantId || globalSettings.surchargeVariantId || "";
+  const surchargeVariantId =
+    config?.settings?.surchargeVariantId ||
+    shopSettings?.surchargeVariantId ||
+    globalSettings.surchargeVariantId ||
+    "";
 
-  // Bg removal is available to all shops as long as the server API key is configured.
-  // Quota enforcement happens server-side when the removal is actually requested.
   const removeBgAvailable = Boolean(
     process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey,
   );
