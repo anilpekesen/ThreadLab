@@ -112,18 +112,25 @@ export default function Production() {
 
   const [downloadState, setDownloadState] = useState<"idle" | "downloading">("idle");
 
-  const handleZipDownload = useCallback(() => {
+  const handleZipDownload = useCallback(async () => {
     const ids = selectedResources.length ? selectedResources : orders.map((o) => o.id);
     if (!ids.length) return;
     setDownloadState("downloading");
-    const url = `/api/production-zip?ids=${ids.join(",")}`;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => setDownloadState("idle"), 3000);
+    try {
+      const res = await fetch(`/api/production-zip?ids=${ids.join(",")}`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `baski-dosyalari-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } finally {
+      setDownloadState("idle");
+    }
   }, [selectedResources, orders]);
 
   const handleGangSheet = useCallback(() => {

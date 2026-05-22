@@ -84,7 +84,7 @@ export default function GangSheet() {
     }
   }, [selectedIds, printableOrders]);
 
-  const handleGenerate = useCallback(() => {
+  const handleGenerate = useCallback(async () => {
     if (!selectedIds.length) return;
     setGenerating(true);
     setError(null);
@@ -95,14 +95,27 @@ export default function GangSheet() {
       bg,
       side,
     });
-    const url = `/api/gang-sheet?${params.toString()}`;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => setGenerating(false), 5000);
+    try {
+      const res = await fetch(`/api/gang-sheet?${params.toString()}`);
+      if (!res.ok) {
+        const text = await res.text();
+        setError(`Hata: ${text}`);
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `gang-sheet-${preset}-${new Date().toISOString().slice(0, 10)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Bilinmeyen hata");
+    } finally {
+      setGenerating(false);
+    }
   }, [selectedIds, preset, margin, bg, side]);
 
   const dims = PRESET_DIMS[preset];
