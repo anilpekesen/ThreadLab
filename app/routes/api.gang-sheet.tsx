@@ -185,6 +185,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const ids = idsParam.split(",").filter(Boolean);
   const preset = url.searchParams.get("preset") ?? "dtf60";
   const margin = Math.max(0, Math.min(200, parseInt(url.searchParams.get("margin") ?? "20", 10)));
+  const columns = Math.max(0, Math.min(10, parseInt(url.searchParams.get("cols") ?? "0", 10)));
   const side = url.searchParams.get("side") === "back" ? "back" : "front";
 
   if (!ids.length) return new Response("ids required", { status: 400 });
@@ -276,6 +277,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
 
   if (!items.length) return new Response("no valid print images found", { status: 404 });
+
+  // If a column count is requested, scale items so they each fit within that column width.
+  // This ensures e.g. "3 columns" → every item is at most (sheetWidth - 4×margin) / 3 px wide.
+  if (columns > 0) {
+    const maxItemW = Math.floor((sheetConfig.width - (columns + 1) * margin) / columns);
+    for (const item of items) {
+      if (item.targetW > maxItemW) {
+        item.targetH = Math.round((item.targetH * maxItemW) / item.targetW);
+        item.targetW = maxItemW;
+      }
+    }
+  }
 
   const pngBuffer = await buildGangSheet(items, sheetConfig.width, sheetConfig.height, margin);
 

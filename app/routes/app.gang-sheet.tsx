@@ -66,6 +66,7 @@ export default function GangSheet() {
   );
   const [preset, setPreset] = useState("dtf60");
   const [margin, setMargin] = useState(20);
+  const [columns, setColumns] = useState("0");
   const [side, setSide] = useState<"front" | "back">("front");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +93,7 @@ export default function GangSheet() {
       ids: selectedIds.join(","),
       preset,
       margin: String(margin),
+      cols: columns,
       side,
       shop,
     });
@@ -116,7 +118,7 @@ export default function GangSheet() {
     } finally {
       setGenerating(false);
     }
-  }, [selectedIds, preset, margin, side]);
+  }, [selectedIds, preset, margin, columns, side]);
 
   const dims = PRESET_DIMS[preset];
   const dimsLabel = dims
@@ -172,6 +174,21 @@ export default function GangSheet() {
                       />
                     </Box>
                   </div>
+
+                  <Select
+                    label="Sütun sayısı (yan yana)"
+                    options={[
+                      { label: "Otomatik (fiziksel boyut)", value: "0" },
+                      { label: "2 sütun", value: "2" },
+                      { label: "3 sütun", value: "3" },
+                      { label: "4 sütun", value: "4" },
+                      { label: "5 sütun", value: "5" },
+                      { label: "6 sütun", value: "6" },
+                    ]}
+                    value={columns}
+                    onChange={setColumns}
+                    helpText={columns === "0" ? "Fiziksel baskı boyutuna göre otomatik" : `Her satırda en az ${columns} tasarım`}
+                  />
 
                   <BlockStack gap="200">
                     <Text as="p" variant="bodySm">{t("gangSheet.side")}</Text>
@@ -299,7 +316,7 @@ export default function GangSheet() {
                     {selectedIds.length} tasarım → Gang Sheet hazır
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {SHEET_PRESETS.find((p) => p.value === preset)?.label} · Şeffaf arka plan · {side === "front" ? "Ön yüz" : "Arka yüz"}
+                    {SHEET_PRESETS.find((p) => p.value === preset)?.label} · {columns !== "0" ? `${columns} sütun` : "Otomatik boyut"} · {side === "front" ? "Ön yüz" : "Arka yüz"}
                   </Text>
                 </BlockStack>
                 <Button
