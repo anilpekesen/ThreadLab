@@ -66,7 +66,6 @@ export default function GangSheet() {
   );
   const [preset, setPreset] = useState("dtf60");
   const [margin, setMargin] = useState(20);
-  const [bg, setBg] = useState<"white" | "transparent">("white");
   const [side, setSide] = useState<"front" | "back">("front");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +92,6 @@ export default function GangSheet() {
       ids: selectedIds.join(","),
       preset,
       margin: String(margin),
-      bg,
       side,
       shop,
     });
@@ -118,7 +116,7 @@ export default function GangSheet() {
     } finally {
       setGenerating(false);
     }
-  }, [selectedIds, preset, margin, bg, side]);
+  }, [selectedIds, preset, margin, side]);
 
   const dims = PRESET_DIMS[preset];
   const dimsLabel = dims
@@ -174,26 +172,6 @@ export default function GangSheet() {
                       />
                     </Box>
                   </div>
-
-                  <BlockStack gap="200">
-                    <Text as="p" variant="bodySm">{t("gangSheet.background")}</Text>
-                    <InlineStack gap="300">
-                      <RadioButton
-                        label={t("gangSheet.bgWhite")}
-                        checked={bg === "white"}
-                        id="bg-white"
-                        name="bg"
-                        onChange={() => setBg("white")}
-                      />
-                      <RadioButton
-                        label={t("gangSheet.bgTransparent")}
-                        checked={bg === "transparent"}
-                        id="bg-transparent"
-                        name="bg"
-                        onChange={() => setBg("transparent")}
-                      />
-                    </InlineStack>
-                  </BlockStack>
 
                   <BlockStack gap="200">
                     <Text as="p" variant="bodySm">{t("gangSheet.side")}</Text>
@@ -321,7 +299,7 @@ export default function GangSheet() {
                     {selectedIds.length} tasarım → Gang Sheet hazır
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {SHEET_PRESETS.find((p) => p.value === preset)?.label} · {bg === "white" ? "Beyaz arka plan" : "Şeffaf"} · {side === "front" ? "Ön yüz" : "Arka yüz"}
+                    {SHEET_PRESETS.find((p) => p.value === preset)?.label} · Şeffaf arka plan · {side === "front" ? "Ön yüz" : "Arka yüz"}
                   </Text>
                 </BlockStack>
                 <Button
