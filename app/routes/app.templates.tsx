@@ -6,6 +6,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useRevalidator, useNavigate } from "@remix-run/react";
 import { useTranslation } from "~/i18n";
+import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Layout, Card, Box, Text, BlockStack, InlineStack, Button,
   Badge, Banner, Divider, EmptyState, TextField, Thumbnail,
@@ -234,6 +235,10 @@ export default function TemplatesRoute() {
       subtitle={t("templates.desc")}
     >
       <BlockStack gap="500">
+        <PageHelper sections={[
+          { titleKey: "helper.templates.1.title", bodyKey: "helper.templates.1.body" },
+          { titleKey: "helper.templates.2.title", bodyKey: "helper.templates.2.body" },
+        ]} />
         {uploadSuccess && <Banner tone="success" title={t("common.success")} onDismiss={() => {}} />}
         {uploadError && <Banner tone="critical" title={String(uploadError)} onDismiss={() => {}} />}
 

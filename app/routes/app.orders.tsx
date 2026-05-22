@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import { useTranslation } from "~/i18n";
+import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Badge, Button, InlineStack, Box, Text, BlockStack,
   Thumbnail, IndexTable, useIndexResourceState, Banner,
@@ -239,6 +240,11 @@ export default function Orders() {
       }}
     >
       <BlockStack gap="400">
+        <PageHelper sections={[
+          { titleKey: "helper.orders.1.title", bodyKey: "helper.orders.1.body" },
+          { titleKey: "helper.orders.2.title", bodyKey: "helper.orders.2.body" },
+          { titleKey: "helper.orders.3.title", bodyKey: "helper.orders.3.body" },
+        ]} />
         {syncError && (
           <Banner tone={syncError.includes("protected") || syncError.includes("approved") ? "warning" : "critical"}
             title={syncError.includes("protected") || syncError.includes("approved")

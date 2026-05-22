@@ -188,6 +188,52 @@ const en = {
   "templates.quotaFull": "Quota full — upgrade your plan",
   "templates.testMode": "Test Mode Active",
 
+  // Helper toggle
+  "helper.show": "How does this page work?",
+  "helper.hide": "Close",
+
+  // Page helpers — Dashboard
+  "helper.dashboard.1.title": "What does this page show?",
+  "helper.dashboard.1.body": "You see a real-time summary of your store's orders: total orders, today's orders, orders pending production, and orders that are ready or shipped. The page auto-refreshes every 30 seconds.",
+  "helper.dashboard.2.title": "What is Missing Surcharge?",
+  "helper.dashboard.2.body": "When a customer designs and adds a product to the cart, the print cost is automatically added to the cart via the 'Print Fee' product. If this product is missing in Shopify or the App Embed is not active, the order arrives without a print fee. If 'Missing Surcharge' is above 0, check the Settings page.",
+  "helper.dashboard.3.title": "When should Theme Setup be done?",
+  "helper.dashboard.3.body": "You need to add the DesignKit design tool to your product pages. The 'Add as apps section' button takes you directly to the right spot in the theme editor. This is done once and may need to be repeated if you change your store theme.",
+
+  // Page helpers — Orders
+  "helper.orders.1.title": "What can you do on this page?",
+  "helper.orders.1.body": "All orders with custom designs are listed here. You can advance orders through stages: Pending → Preparing → Printed → Ready → Shipped. When an order is marked as 'fulfilled' in Shopify, the status automatically moves to 'Shipped'.",
+  "helper.orders.2.title": "What does 'Sync from Shopify' do?",
+  "helper.orders.2.body": "The latest orders are fetched from Shopify every time the page opens. If you notice missing orders, click 'Sync from Shopify' to rescan all orders.",
+  "helper.orders.3.title": "What does the 'Print Fee Missing' warning mean?",
+  "helper.orders.3.body": "This warning means the 'Print Fee' product was not added to that order's cart. Possible causes: App Embed is disabled, Variant ID is not configured, or the Cart Transform function is not registered. Check the Settings page.",
+
+  // Page helpers — Settings
+  "helper.settings.1.title": "Why is the Print Surcharge needed?",
+  "helper.settings.1.body": "Shopify only allows prices to be added to a cart through real product variants. So a '₺1-priced Print Fee' product is created; units equal to the print cost are added to the cart. For example, ₺45 print = 45 units × ₺1. The 'Create automatically' button creates this product in Shopify on your behalf and saves the Variant ID.",
+  "helper.settings.2.title": "When is Variant ID (manual entry) used?",
+  "helper.settings.2.body": "If your store already has a ₺1-priced product variant (left over from a previous setup or created manually), you can enter its ID here — no need to create a new product. To find the Variant ID: Shopify Admin → Products → open the product → click the variant → the /variants/XXXXXXXX number in the browser URL is the Variant ID.",
+  "helper.settings.3.title": "What is the difference between Cart Transform and App Embed?",
+  "helper.settings.3.body": "Cart Transform is a server-side function running on Shopify Functions infrastructure; it adds the product to the cart. App Embed is a JavaScript snippet added to your store theme; it passes design data to the Cart Transform. Both must be active. Cart Transform is registered automatically on this page; App Embed must be manually enabled in the theme editor (see screenshot below).",
+
+  // Page helpers — Billing
+  "helper.billing.1.title": "What is the difference between plans?",
+  "helper.billing.1.body": "Each plan determines the number of orders you can process per month, the number of product types you can define, your background removal quota, and your template limit. When you reach your limit, new orders or designs are rejected — upgrade your plan to increase limits.",
+  "helper.billing.2.title": "How does the free trial work?",
+  "helper.billing.2.body": "Each plan comes with a 7-day free trial. You can use all features during the trial period; billing starts after day 7. If you cancel before the trial ends, you are not charged.",
+
+  // Page helpers — Templates
+  "helper.templates.1.title": "What are templates used for?",
+  "helper.templates.1.body": "Templates are designs or images customers see ready-made when they open the design screen. For example, you can upload your brand logo or ready-made print designs as templates. Customers use these as a starting point for their designs.",
+  "helper.templates.2.title": "Why is there a template count limit?",
+  "helper.templates.2.body": "The number of templates depends on your plan. The Starter plan has no template feature; Growth and above have specific quotas. Upgrade your plan to increase the quota.",
+
+  // Page helpers — Product Types
+  "helper.productTypes.1.title": "What is a product type?",
+  "helper.productTypes.1.body": "A product type is a category of printed products you sell: t-shirt, mug, bag, etc. Each product type has a print area, front/back surface options, and assigned Shopify products. The design screen is configured based on these settings.",
+  "helper.productTypes.2.title": "What does Print Surface selection mean?",
+  "helper.productTypes.2.body": "Front Only: customers can only design the front of the product. Front + Back: separate designs can be made for both front and back. Back surface support is available on Growth and higher plans. Shopify products assigned to this product type inherit this setting.",
+
   // Product types
   "productTypes.title": "Product Types",
   "productTypes.noTypes": "No product types created yet",

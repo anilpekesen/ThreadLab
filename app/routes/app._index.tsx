@@ -3,6 +3,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useNavigate, useRevalidator } from "@remix-run/react";
 import { useEffect } from "react";
 import { useTranslation } from "~/i18n";
+import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Text, BlockStack, InlineGrid, Box,
   Badge, Button, InlineStack, ProgressBar, Divider,
@@ -127,6 +128,11 @@ export default function Index() {
   return (
     <Page title={t("dashboard.title")}>
       <BlockStack gap="500">
+        <PageHelper sections={[
+          { titleKey: "helper.dashboard.1.title", bodyKey: "helper.dashboard.1.body" },
+          { titleKey: "helper.dashboard.2.title", bodyKey: "helper.dashboard.2.body" },
+          { titleKey: "helper.dashboard.3.title", bodyKey: "helper.dashboard.3.body" },
+        ]} />
 
         {/* Plan durumu */}
         <Card>

@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useNavigate, useNavigation } from "@remix-run/react";
 import { useTranslation } from "~/i18n";
+import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Text, BlockStack, Box, Badge, Button,
   InlineStack, Divider, EmptyState, ProgressBar,
@@ -125,6 +126,10 @@ export default function ProductTypesIndex() {
       }}
     >
       <BlockStack gap="500">
+        <PageHelper sections={[
+          { titleKey: "helper.productTypes.1.title", bodyKey: "helper.productTypes.1.body" },
+          { titleKey: "helper.productTypes.2.title", bodyKey: "helper.productTypes.2.body" },
+        ]} />
 
         {/* Plan kullanım */}
         <Card>

@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, Form, useNavigation } from "@remix-run/react";
 import { useTranslation } from "~/i18n";
+import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Layout, Card, Text, BlockStack, Badge, Button, Box,
   InlineStack, InlineGrid, List, Divider, Banner, ProgressBar,
@@ -95,6 +96,10 @@ export default function BillingPage() {
   return (
     <Page title={t("billing.title")}>
       <BlockStack gap="500">
+        <PageHelper sections={[
+          { titleKey: "helper.billing.1.title", bodyKey: "helper.billing.1.body" },
+          { titleKey: "helper.billing.2.title", bodyKey: "helper.billing.2.body" },
+        ]} />
 
         {isTest && (
           <Banner title="Test Modu Aktif" tone="warning">

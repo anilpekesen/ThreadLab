@@ -188,6 +188,52 @@ const tr = {
   "templates.quotaFull": "Kota doldu — plan yükseltin",
   "templates.testMode": "Test Modu Aktif",
 
+  // Helper toggle
+  "helper.show": "Bu sayfa nasıl çalışır?",
+  "helper.hide": "Kapat",
+
+  // Page helpers — Dashboard
+  "helper.dashboard.1.title": "Bu sayfa ne gösteriyor?",
+  "helper.dashboard.1.body": "Mağazanıza ait siparişlerin anlık özetini görürsünüz: toplam sipariş sayısı, bugünkü siparişler, üretimi bekleyen siparişler ve hazır/gönderilen siparişler. Her 30 saniyede bir otomatik güncellenir.",
+  "helper.dashboard.2.title": "Eksik Ek Ücret nedir?",
+  "helper.dashboard.2.body": "Müşteri tasarım yapıp sepete eklediğinde, baskı maliyeti otomatik olarak 'Baskı Ücreti' ürünü üzerinden sepete yansıtılır. Eğer bu ürün Shopify'da eksikse veya App Embed aktif değilse, sipariş baskı ücretinden yoksun gelir. 'Eksik Ek Ücret' sayısı 0'ın üstündeyse Ayarlar sayfasını kontrol edin.",
+  "helper.dashboard.3.title": "Tema Kurulumu ne zaman yapılır?",
+  "helper.dashboard.3.body": "DesignKit tasarım aracını ürün sayfanıza eklemeniz gerekir. 'Apps section olarak ekle' butonu sizi doğru tema editörü konumuna götürür. Bu işlem bir kez yapılır ve mağaza teması değiştiğinde tekrarlanması gerekebilir.",
+
+  // Page helpers — Orders
+  "helper.orders.1.title": "Bu sayfada ne yapabilirsiniz?",
+  "helper.orders.1.body": "Tasarımlı tüm siparişler burada listelenir. Siparişleri Bekliyor → Hazırlanıyor → Basıldı → Hazır → Gönderildi şeklinde aşama aşama ilerletebilirsiniz. Shopify'da sipariş 'fulfilled' olarak işaretlendiğinde durum otomatik olarak 'Gönderildi'ye geçer.",
+  "helper.orders.2.title": "Shopify'dan Senkronize Et ne işe yarar?",
+  "helper.orders.2.body": "Sayfa her açıldığında Shopify'dan en son siparişler çekilir. Aralarında eksik sipariş olduğunu fark ederseniz 'Shopify'dan Senkronize Et' butonuna tıklayın; tüm siparişler yeniden taranır.",
+  "helper.orders.3.title": "Baskı Ücreti Eksik uyarısı ne anlama geliyor?",
+  "helper.orders.3.body": "Bu uyarı, o siparişin sepetine 'Baskı Ücreti' ürününün eklenmediğini gösterir. Olası nedenler: App Embed devre dışı, Variant ID ayarlanmamış veya Cart Transform fonksiyonu kayıtsız. Ayarlar sayfasından durumu kontrol edin.",
+
+  // Page helpers — Settings
+  "helper.settings.1.title": "Baskı Ek Ücreti neden gerekli?",
+  "helper.settings.1.body": "Shopify, sepete yalnızca gerçek ürün variant'ları aracılığıyla fiyat eklenebilmesine izin verir. Bu yüzden '₺1 fiyatlı Baskı Ücreti' adında bir ürün oluşturulur; baskı maliyeti kadar bu üründen sepete eklenir. Örneğin ₺45 baskı = 45 adet × ₺1. 'Otomatik oluştur' butonu bu ürünü Shopify'da sizin adınıza oluşturur ve Variant ID'yi kaydeder.",
+  "helper.settings.2.title": "Variant ID (manuel giriş) ne zaman kullanılır?",
+  "helper.settings.2.body": "Mağazanızda zaten ₺1 fiyatlı bir ürün variant'ı varsa (önceki kurulumdan kalan veya elle oluşturduğunuz) bu alana ID'sini girebilirsiniz; yeni ürün oluşturmaya gerek kalmaz. Variant ID'yi bulmak için: Shopify Admin → Ürünler → ilgili ürün → varyant üzerine tıkla → tarayıcı URL'sindeki /variants/XXXXXXXX sayısını buraya yapıştırın.",
+  "helper.settings.3.title": "Cart Transform ve App Embed arasındaki fark nedir?",
+  "helper.settings.3.body": "Cart Transform, Shopify Functions altyapısında çalışan bir sunucu tarafı fonksiyondur; sepete ürün ekler. App Embed ise mağaza temanıza eklenen bir JavaScript parçasıdır; tasarım verilerini Cart Transform'a iletir. İkisinin de aktif olması gerekir. Cart Transform bu sayfada otomatik kaydedilir; App Embed'i ise tema editöründen manuel açmanız gerekir (aşağıdaki görsele bakın).",
+
+  // Page helpers — Billing
+  "helper.billing.1.title": "Planlar arasındaki fark nedir?",
+  "helper.billing.1.body": "Her plan, aylık işleyebileceğiniz sipariş sayısını, tanımlayabileceğiniz ürün tipi sayısını, arka plan kaldırma kotasını ve şablon limitini belirler. Limitinize ulaştığınızda yeni siparişler veya tasarımlar reddedilir — plan yükselterek limiti artırabilirsiniz.",
+  "helper.billing.2.title": "Ücretsiz deneme nasıl çalışır?",
+  "helper.billing.2.body": "Her plan için 7 günlük ücretsiz deneme hakkı vardır. Deneme süresi içinde tüm özellikleri kullanabilirsiniz; ücretlendirme 7. günden sonra başlar. Deneme süresi dolmadan iptal ederseniz ücret alınmaz.",
+
+  // Page helpers — Templates
+  "helper.templates.1.title": "Şablonlar ne işe yarar?",
+  "helper.templates.1.body": "Şablonlar, müşterilerin tasarım ekranını açtığında hazır olarak göreceği tasarım veya görsellerdir. Örneğin markanızın logosunu ya da hazır baskı tasarımlarını şablon olarak yükleyebilirsiniz. Müşteriler bu şablonları başlangıç noktası olarak kullanır.",
+  "helper.templates.2.title": "Şablon sayısı sınırı neden var?",
+  "helper.templates.2.body": "Şablon sayısı planınıza bağlıdır. Starter planında şablon özelliği yoktur; Growth ve üstü planlarda belirli kotalar geçerlidir. Kotayı aşmak için planınızı yükseltin.",
+
+  // Page helpers — Product Types
+  "helper.productTypes.1.title": "Ürün tipi nedir?",
+  "helper.productTypes.1.body": "Ürün tipi, mağazanızda sattığınız baskılı ürün kategorisidir: tişört, kupa, çanta vb. Her ürün tipine baskı alanı, ön/arka yüz seçeneği ve Shopify ürünleri atanır. Tasarım ekranı bu ayarlara göre yapılandırılır.",
+  "helper.productTypes.2.title": "Baskı Yüzü seçimi ne anlama gelir?",
+  "helper.productTypes.2.body": "Sadece Ön: müşteri yalnızca ürünün ön yüzüne tasarım yapabilir. Ön + Arka: hem ön hem arka yüze ayrı tasarım yapılabilir. Arka yüz desteği Growth ve üzeri planlarda mevcuttur. Ürün tipine atanan Shopify ürünleri bu ayarı devralır.",
+
   // Product types
   "productTypes.title": "Ürün Tipleri",
   "productTypes.noTypes": "Henüz ürün tipi oluşturmadınız",

@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useNavigation, useFetcher } from "@remix-run/react";
 import { useTranslation } from "~/i18n";
+import { PageHelper } from "~/components/PageHelper";
 import {
   BlockStack,
   Box,
@@ -374,6 +375,11 @@ export default function SettingsRoute() {
   return (
     <Page title={t("settings.title")}>
       <BlockStack gap="500">
+        <PageHelper sections={[
+          { titleKey: "helper.settings.1.title", bodyKey: "helper.settings.1.body" },
+          { titleKey: "helper.settings.2.title", bodyKey: "helper.settings.2.body" },
+          { titleKey: "helper.settings.3.title", bodyKey: "helper.settings.3.body" },
+        ]} />
         {saved && <Banner tone="success" title={t("settings.saved")} />}
         {created && <Banner tone="success" title={t("settings.created")} />}
         {fetcher.data?.error && <Banner tone="critical" title={`Hata: ${fetcher.data.error}`} />}
