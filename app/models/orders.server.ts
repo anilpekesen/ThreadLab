@@ -441,6 +441,85 @@ export async function bulkUpdateStatus(ids: string[], status: string): Promise<v
   );
 }
 
+async function fulfillSingleShopifyOrder(admin: AdminClient, shopifyOrderId: string): Promise<void> {
+  const orderGid = `gid://shopify/Order/${shopifyOrderId}`;
+
+  const foRes = await admin.graphql(
+    `#graphql
+    query GetFulfillmentOrders($id: ID!) {
+      order(id: $id) {
+        fulfillmentOrders(first: 10) {
+          nodes { id status }
+        }
+      }
+    }`,
+    { variables: { id: orderGid } },
+  );
+  const foData = await foRes.json() as {
+    data?: { order?: { fulfillmentOrders?: { nodes?: Array<{ id: string; status: string }> } } };
+  };
+
+  const openFOs = (foData.data?.order?.fulfillmentOrders?.nodes ?? []).filter(
+    (fo) => fo.status === "OPEN",
+  );
+  if (!openFOs.length) return;
+
+  const fulfillRes = await admin.graphql(
+    `#graphql
+    mutation FulfillmentCreate($fulfillment: FulfillmentInput!) {
+      fulfillmentCreate(fulfillment: $fulfillment) {
+        fulfillment { id status }
+        userErrors { field message }
+      }
+    }`,
+    {
+      variables: {
+        fulfillment: {
+          lineItemsByFulfillmentOrder: openFOs.map((fo) => ({ fulfillmentOrderId: fo.id })),
+          notifyCustomer: true,
+        },
+      },
+    },
+  );
+  const fulfillData = await fulfillRes.json() as {
+    data?: {
+      fulfillmentCreate?: {
+        fulfillment?: { id: string; status: string };
+        userErrors?: Array<{ field: string; message: string }>;
+      };
+    };
+  };
+
+  const errors = fulfillData.data?.fulfillmentCreate?.userErrors ?? [];
+  if (errors.length) {
+    console.error(`[fulfill] userErrors for order ${shopifyOrderId}:`, errors);
+  } else {
+    console.log(`[fulfill] Shopify order ${shopifyOrderId} fulfilled`);
+  }
+}
+
+export async function fulfillShopifyOrders(
+  admin: AdminClient,
+  shop: string,
+  appOrderIds: string[],
+): Promise<void> {
+  if (!appOrderIds.length) return;
+  await ensureMigrations();
+
+  const result = await query<{ shopify_order_id: string }>(
+    "SELECT shopify_order_id FROM orders WHERE shop = $1 AND id = ANY($2) AND shopify_order_id != ''",
+    [shop, appOrderIds],
+  );
+
+  for (const row of result.rows) {
+    try {
+      await fulfillSingleShopifyOrder(admin, row.shopify_order_id);
+    } catch (err) {
+      console.error(`[fulfill] Failed for Shopify order ${row.shopify_order_id}:`, err);
+    }
+  }
+}
+
 export async function createOrderFromPixel(data: {
   shop: string;
   orderId?: string;

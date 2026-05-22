@@ -9,7 +9,7 @@ import {
   Divider,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getOrders, getTodayOrders, bulkUpdateStatus } from "~/models/orders.server";
+import { getOrders, getTodayOrders, bulkUpdateStatus, fulfillShopifyOrders } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 
 const APP_URL = "https://app.printlabapp.com";
@@ -63,7 +63,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const form = await request.formData();
   const intent = form.get("intent") as string;
   const idsRaw = form.get("ids") as string;
@@ -72,6 +72,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "bulk_status" && ids.length) {
     const status = form.get("status") as string;
     await bulkUpdateStatus(ids, status);
+    if (status === "shipped") {
+      fulfillShopifyOrders(admin, session.shop, ids).catch((err) =>
+        console.error("[fulfill] production bulk-ship error:", err),
+      );
+    }
   }
 
   return json({ ok: true });

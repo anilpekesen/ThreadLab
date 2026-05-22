@@ -36,6 +36,7 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
       customerBgLimit: Number(globalFallback?.customerBgLimit) > 0
         ? Number(globalFallback?.customerBgLimit)
         : DEFAULTS.customerBgLimit,
+      wavespeedApiKey: DEFAULTS.wavespeedApiKey,
     };
   }
 

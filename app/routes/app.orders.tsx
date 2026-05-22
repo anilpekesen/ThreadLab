@@ -9,7 +9,7 @@ import {
   Grid,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getOrders, updateOrderStatus, getDashboardStats, syncOrdersFromAdmin } from "~/models/orders.server";
+import { getOrders, updateOrderStatus, getDashboardStats, syncOrdersFromAdmin, fulfillShopifyOrders } from "~/models/orders.server";
 
 const STATUSES = [
   { labelKey: "status.all" as const, value: "" },
@@ -78,11 +78,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const form = await request.formData();
   const id = form.get("id") as string;
   const status = form.get("status") as string;
   await updateOrderStatus(id, status);
+  if (status === "shipped") {
+    fulfillShopifyOrders(admin, session.shop, [id]).catch((err) =>
+      console.error("[fulfill] orders ship error:", err),
+    );
+  }
   return json({ ok: true });
 };
 
