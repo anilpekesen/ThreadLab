@@ -370,7 +370,7 @@ export default function SettingsRoute() {
   const { settings, saved, created, cartTransformStatus } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const fetcher = useFetcher<{ error?: string; success?: string }>();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const isSaving = navigation.state === "submitting";
   const isCreating = fetcher.state === "submitting";
 
@@ -559,6 +559,63 @@ export default function SettingsRoute() {
             </InlineStack>
           </BlockStack>
         </Form>
+
+        {/* Tema Kurulumu */}
+        <Card>
+          <Box padding="400">
+            <BlockStack gap="400">
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingMd">
+                  {lang === "tr" ? "Tema Kurulumu" : "Theme Setup"}
+                </Text>
+                <Text as="p" tone="subdued" variant="bodySm">
+                  {lang === "tr"
+                    ? "Tasarım aracını ürün sayfasına eklemek için tema editörünü açın ve DesignKit bloğunu ekleyin."
+                    : "Open the theme editor and add the DesignKit block to display the design tool on your product page."}
+                </Text>
+              </BlockStack>
+              <img
+                src="/tema-kurulumu.png"
+                alt="Tema kurulumu - DesignKit block settings"
+                style={{ width: "100%", borderRadius: 8, border: "1px solid #e1e3e5" }}
+              />
+              <BlockStack gap="200">
+                <Text as="p" variant="bodyMd" fontWeight="semibold">
+                  {lang === "tr" ? "Blok ayarları açıklaması:" : "Block settings explained:"}
+                </Text>
+                {[
+                  {
+                    label: lang === "tr" ? "Ön tişört görseli / Arka tişört görseli" : "Front / Back t-shirt image",
+                    desc: lang === "tr" ? "Tasarım önizlemesinde kullanılacak mockup görseli. Her ürün için farklı renk/model yükleyin." : "Mockup image shown in the design preview. Upload per product for different colors/styles.",
+                  },
+                  {
+                    label: lang === "tr" ? "Varsayılan tişört rengi" : "Default shirt color",
+                    desc: lang === "tr" ? "Müşteri seçim yapmadığında gösterilecek renk (hex kodu). Ürünün ana rengiyle eşleştirin." : "Color shown when no selection is made (hex code). Match your product's main color.",
+                  },
+                  {
+                    label: lang === "tr" ? "Tek taraf / Ön+Arka variant ID & fiyat" : "Single / Double-side variant ID & price",
+                    desc: lang === "tr" ? "Artık kullanılmıyor. Fiyat ve variant ayarları Ayarlar sayfasından ve Ürünler'den yönetilir." : "No longer used. Pricing and variant settings are managed from the Settings and Products pages.",
+                    deprecated: true,
+                  },
+                  {
+                    label: lang === "tr" ? "3D model JSON URL / React designer URL" : "3D model JSON URL / React designer URL",
+                    desc: lang === "tr" ? "İleri düzey ayarlar. Boş bırakırsanız varsayılan değerler kullanılır." : "Advanced settings. Leave blank to use defaults.",
+                  },
+                ].map((item) => (
+                  <Box key={item.label} padding="300" background={item.deprecated ? "bg-fill-caution" : "bg-fill-secondary"} borderRadius="200">
+                    <BlockStack gap="100">
+                      <InlineStack gap="200" blockAlign="center">
+                        <Text as="p" variant="bodySm" fontWeight="semibold">{item.label}</Text>
+                        {item.deprecated && <Text as="span" variant="bodySm" tone="caution">{lang === "tr" ? "Artık kullanılmıyor" : "Deprecated"}</Text>}
+                      </InlineStack>
+                      <Text as="p" variant="bodySm" tone="subdued">{item.desc}</Text>
+                    </BlockStack>
+                  </Box>
+                ))}
+              </BlockStack>
+            </BlockStack>
+          </Box>
+        </Card>
       </BlockStack>
     </Page>
   );
