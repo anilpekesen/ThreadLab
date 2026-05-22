@@ -460,9 +460,12 @@ async function fulfillSingleShopifyOrder(admin: AdminClient, shopifyOrderId: str
   };
 
   const openFOs = (foData.data?.order?.fulfillmentOrders?.nodes ?? []).filter(
-    (fo) => fo.status === "OPEN",
+    (fo) => fo.status === "OPEN" || fo.status === "IN_PROGRESS" || fo.status === "SCHEDULED",
   );
-  if (!openFOs.length) return;
+  if (!openFOs.length) {
+    console.log(`[fulfill] No fulfillable fulfillment orders for Shopify order ${shopifyOrderId} — already fulfilled or none found`);
+    return;
+  }
 
   const fulfillRes = await admin.graphql(
     `#graphql
@@ -492,9 +495,11 @@ async function fulfillSingleShopifyOrder(admin: AdminClient, shopifyOrderId: str
 
   const errors = fulfillData.data?.fulfillmentCreate?.userErrors ?? [];
   if (errors.length) {
-    console.error(`[fulfill] userErrors for order ${shopifyOrderId}:`, errors);
+    const msg = errors.map((e) => `${e.field}: ${e.message}`).join("; ");
+    console.error(`[fulfill] userErrors for order ${shopifyOrderId}: ${msg}`);
+    throw new Error(`Shopify fulfillment failed: ${msg}`);
   } else {
-    console.log(`[fulfill] Shopify order ${shopifyOrderId} fulfilled`);
+    console.log(`[fulfill] Shopify order ${shopifyOrderId} fulfilled successfully`);
   }
 }
 

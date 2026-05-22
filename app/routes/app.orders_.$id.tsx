@@ -18,7 +18,7 @@ import {
   Box, Divider, Grid, Thumbnail, Banner,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getOrder, updateOrderStatus } from "~/models/orders.server";
+import { getOrder, updateOrderStatus, fulfillShopifyOrders } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
 
 function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHref?: string }) {
@@ -168,10 +168,16 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const form = await request.formData();
   const status = form.get("status") as string;
-  await updateOrderStatus(params.id ?? "", status);
+  const appOrderId = params.id ?? "";
+  await updateOrderStatus(appOrderId, status);
+  if (status === "shipped" && appOrderId) {
+    fulfillShopifyOrders(admin, session.shop, [appOrderId]).catch((err) =>
+      console.error("[fulfill] order detail ship error:", err),
+    );
+  }
   return redirect(`/app/orders/${params.id}`);
 };
 
