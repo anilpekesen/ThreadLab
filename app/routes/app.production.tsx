@@ -9,7 +9,7 @@ import {
   Divider,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getTodayOrders, bulkUpdateStatus } from "~/models/orders.server";
+import { getOrders, getTodayOrders, bulkUpdateStatus } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 
 const APP_URL = "https://app.printlabapp.com";
@@ -33,12 +33,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const statusFilter = url.searchParams.get("status") ?? "";
+  const todayOnly = url.searchParams.get("today") === "1";
 
-  const statuses = statusFilter
-    ? [statusFilter]
-    : ["pending", "preparing"];
-
-  const orders = await getTodayOrders(statuses);
+  let orders: Order[];
+  if (todayOnly) {
+    const statuses = statusFilter ? [statusFilter] : ["pending", "preparing"];
+    orders = await getTodayOrders(statuses);
+  } else {
+    orders = statusFilter
+      ? await getOrders(statusFilter)
+      : await getOrders("pending").then(async (p) => [
+          ...p,
+          ...(await getOrders("preparing")),
+        ]);
+  }
 
   const withFile = orders.filter(
     (o) => o.designFrontPrintUrl || o.productionFileUrl,
@@ -48,6 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     orders,
     withFile,
     statusFilter,
+    todayOnly,
     shop: session.shop,
   });
 };
@@ -92,7 +101,7 @@ const STATUSES = [
 ];
 
 export default function Production() {
-  const { orders, withFile, statusFilter } = useLoaderData<typeof loader>();
+  const { orders, withFile, statusFilter, todayOnly } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const { t } = useTranslation();
@@ -243,7 +252,7 @@ export default function Production() {
         {/* İstatistikler */}
         <Grid>
           <Grid.Cell columnSpan={{ xs: 6, sm: 2, md: 2, lg: 4, xl: 4 }}>
-            <StatCard label="Bugün toplam sipariş" value={orders.length} />
+            <StatCard label={todayOnly ? "Bugün toplam" : "Toplam sipariş"} value={orders.length} />
           </Grid.Cell>
           <Grid.Cell columnSpan={{ xs: 6, sm: 2, md: 2, lg: 4, xl: 4 }}>
             <StatCard label="Baskı dosyası hazır" value={withFile} tone="success" />
@@ -287,17 +296,26 @@ export default function Production() {
         {/* Filtre + Tablo */}
         <Card padding="0">
           <Box padding="400" borderBlockEndWidth="025" borderColor="border">
-            <InlineStack gap="200" wrap>
-              {STATUSES.map((s) => (
-                <Button
-                  key={s.value}
-                  pressed={statusFilter === s.value || (!statusFilter && s.value === "")}
-                  size="slim"
-                  onClick={() => navigate(`/app/production${s.value ? `?status=${s.value}` : ""}`)}
-                >
-                  {s.label}
-                </Button>
-              ))}
+            <InlineStack gap="200" wrap align="space-between">
+              <InlineStack gap="200" wrap>
+                {STATUSES.map((s) => (
+                  <Button
+                    key={s.value}
+                    pressed={statusFilter === s.value || (!statusFilter && s.value === "")}
+                    size="slim"
+                    onClick={() => navigate(`/app/production${s.value ? `?status=${s.value}` : ""}`)}
+                  >
+                    {s.label}
+                  </Button>
+                ))}
+              </InlineStack>
+              <Button
+                size="slim"
+                pressed={todayOnly}
+                onClick={() => navigate(`/app/production${todayOnly ? "" : "?today=1"}`)}
+              >
+                📅 Sadece Bugün
+              </Button>
             </InlineStack>
           </Box>
 
@@ -305,7 +323,7 @@ export default function Production() {
             <Box padding="800">
               <BlockStack gap="300" inlineAlign="center">
                 <Text as="p" variant="headingMd" alignment="center">
-                  Bugün için bekleyen sipariş yok
+                  Bekleyen sipariş bulunamadı
                 </Text>
                 <Text as="p" tone="subdued" alignment="center">
                   Yeni siparişler geldiğinde burada görünecek.
@@ -337,7 +355,7 @@ export default function Production() {
           <Divider />
         </Box>
         <Text as="p" variant="bodySm" tone="subdued">
-          ZIP İndir: seçilen siparişlerin baskı dosyalarını tek bir ZIP'e paketler. Hiçbir şey seçilmezse tüm bugünkü siparişler dahil edilir.
+          ZIP İndir: seçilen siparişlerin baskı dosyalarını tek bir ZIP'e paketler. Hiçbir şey seçilmezse listelenen tüm siparişler dahil edilir.
         </Text>
       </BlockStack>
     </Page>

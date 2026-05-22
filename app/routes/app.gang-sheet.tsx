@@ -9,7 +9,7 @@ import {
   Grid, Divider, RadioButton,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getOrdersByIds, getTodayOrders } from "~/models/orders.server";
+import { getOrdersByIds, getOrdersWithPrintFiles } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 
 const SHEET_PRESETS = [
@@ -46,7 +46,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (preselectedIds.length) {
     orders = await getOrdersByIds(preselectedIds);
   } else {
-    orders = await getTodayOrders(["pending", "preparing"]);
+    // Show all orders with print files (not just today's)
+    orders = await getOrdersWithPrintFiles();
   }
 
   const printableOrders = orders.filter(hasPrintFile);

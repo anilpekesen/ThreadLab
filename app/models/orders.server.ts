@@ -384,6 +384,25 @@ export async function getTodayOrders(statuses?: string[]): Promise<Order[]> {
   return result.rows.map(rowToOrder);
 }
 
+export async function getOrdersWithPrintFiles(statuses?: string[]): Promise<Order[]> {
+  await ensureMigrations();
+  const statusFilter = statuses && statuses.length > 0
+    ? `AND o.production_status = ANY($1)`
+    : "";
+  const params: unknown[] = statuses && statuses.length > 0 ? [statuses] : [];
+  const result = await query<DbRow>(
+    `${ORDER_SELECT}
+     WHERE o.design_token != ''
+       AND (d.front_print_url IS NOT NULL AND d.front_print_url != ''
+            OR o.production_file_url IS NOT NULL AND o.production_file_url != '')
+       ${statusFilter}
+     ORDER BY o.created_at DESC
+     LIMIT 200`,
+    params,
+  );
+  return result.rows.map(rowToOrder);
+}
+
 export async function getOrdersByIds(ids: string[]): Promise<Order[]> {
   if (!ids.length) return [];
   await ensureMigrations();
