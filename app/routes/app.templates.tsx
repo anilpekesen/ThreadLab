@@ -5,6 +5,7 @@ import {
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useRevalidator, useNavigate } from "@remix-run/react";
+import { useTranslation } from "~/i18n";
 import {
   Page, Layout, Card, Box, Text, BlockStack, InlineStack, Button,
   Badge, Banner, Divider, EmptyState, TextField, Thumbnail,
@@ -103,10 +104,11 @@ function CategoryField({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <BlockStack gap="200">
       <TextField
-        label="Kategori"
+        label={t("productTypes.categoryLabel")}
         name="category"
         value={value}
         onChange={onChange}
@@ -145,6 +147,7 @@ function CategoryField({
 // ─── Template card ────────────────────────────────────────────────
 function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
   const fetcher = useFetcher<{ ok?: boolean }>();
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(tpl.name);
   const [category, setCategory] = useState(tpl.category);
@@ -173,18 +176,18 @@ function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
                   <input type="hidden" name="id" value={tpl.id} />
                   <input type="hidden" name="name" value={name} />
                   <input type="hidden" name="category" value={category} />
-                  <Button submit variant="primary" size="slim" loading={isSaving}>Kaydet</Button>
+                  <Button submit variant="primary" size="slim" loading={isSaving}>{t("common.save")}</Button>
                 </fetcher.Form>
-                <Button size="slim" onClick={() => setEditing(false)}>İptal</Button>
+                <Button size="slim" onClick={() => setEditing(false)}>{t("common.cancel")}</Button>
               </InlineStack>
             </BlockStack>
           ) : (
             <InlineStack gap="200">
-              <Button size="slim" onClick={() => setEditing(true)}>Düzenle</Button>
+              <Button size="slim" onClick={() => setEditing(true)}>{t("common.edit")}</Button>
               <fetcher.Form method="post">
                 <input type="hidden" name="intent" value="delete" />
                 <input type="hidden" name="id" value={tpl.id} />
-                <Button submit variant="plain" tone="critical" size="slim" loading={isDeleting}>Sil</Button>
+                <Button submit variant="plain" tone="critical" size="slim" loading={isDeleting}>{t("common.delete")}</Button>
               </fetcher.Form>
             </InlineStack>
           )}
@@ -199,6 +202,7 @@ export default function TemplatesRoute() {
   const { templates, quota, planKey } = useLoaderData<typeof loader>();
   const { revalidate } = useRevalidator();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const uploadFetcher = useFetcher<typeof action>();
   const isUploading = uploadFetcher.state !== "idle";
   const uploadData = uploadFetcher.data as { ok?: boolean; error?: string } | undefined;
@@ -222,15 +226,15 @@ export default function TemplatesRoute() {
 
   const isStarterBlocked = quota.quota === 0;
   const quotaFull = isStarterBlocked || (quota.quota !== -1 && quota.count >= quota.quota);
-  const quotaLabel = quota.quota === -1 ? "Sınırsız" : quota.quota === 0 ? "—" : `${quota.count} / ${quota.quota}`;
+  const quotaLabel = quota.quota === -1 ? t("common.unlimited") : quota.quota === 0 ? "—" : `${quota.count} / ${quota.quota}`;
 
   return (
     <Page
-      title="Mağaza Şablonları"
-      subtitle="Müşterilerin tasarım ekranında göreceği hazır görseller"
+      title={t("templates.title")}
+      subtitle={t("templates.desc")}
     >
       <BlockStack gap="500">
-        {uploadSuccess && <Banner tone="success" title="Şablon başarıyla yüklendi." onDismiss={() => {}} />}
+        {uploadSuccess && <Banner tone="success" title={t("common.success")} onDismiss={() => {}} />}
         {uploadError && <Banner tone="critical" title={String(uploadError)} onDismiss={() => {}} />}
 
         {/* Plan / kota durumu */}
@@ -256,7 +260,7 @@ export default function TemplatesRoute() {
 
         {/* Starter yasağı */}
         {isStarterBlocked && (
-          <Banner tone="warning" title="Starter planında şablon özelliği bulunmuyor.">
+          <Banner tone="warning" title={t("templates.starterBlocked")}>
             <Text as="p">Şablon eklemek için Growth, Pro veya Business planına geçin.</Text>
             <Box paddingBlockStart="200">
               <Button variant="primary" onClick={() => navigate("/app/billing")}>Plan Yükselt →</Button>
@@ -336,7 +340,7 @@ export default function TemplatesRoute() {
                         ) : (
                           <BlockStack gap="100">
                             <Text as="p" variant="bodyMd" fontWeight="medium">
-                              {quotaFull ? "Kota doldu — plan yükseltin" : "Görsel seçmek için tıklayın"}
+                              {quotaFull ? t("templates.quotaFull") : "Görsel seçmek için tıklayın"}
                             </Text>
                             <Text as="p" variant="bodySm" tone="subdued">PNG, JPG, WebP, SVG · maks 8 MB</Text>
                           </BlockStack>
@@ -380,7 +384,7 @@ export default function TemplatesRoute() {
           <Text as="h2" variant="headingMd">Mevcut Şablonlar ({templates.length})</Text>
           {templates.length === 0 ? (
             <Card>
-              <EmptyState heading="Henüz şablon yok" image="">
+              <EmptyState heading={t("templates.noTemplates")} image="">
                 <Text as="p">{isStarterBlocked ? "Şablon eklemek için planınızı yükseltin." : "Yukarıdaki formu kullanarak ilk şablonunuzu ekleyin."}</Text>
               </EmptyState>
             </Card>

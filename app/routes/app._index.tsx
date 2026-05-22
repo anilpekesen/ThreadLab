@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useNavigate, useRevalidator } from "@remix-run/react";
 import { useEffect } from "react";
+import { useTranslation } from "~/i18n";
 import {
   Page, Card, Text, BlockStack, InlineGrid, Box,
   Badge, Button, InlineStack, ProgressBar, Divider,
@@ -36,9 +37,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ stats, recentOrders: orders.slice(0, 10), newAppsSectionUrl, mainSectionUrl, analytics, shopDomain });
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Bekliyor", preparing: "Hazırlanıyor", printed: "Basıldı",
-  ready: "Hazır", shipped: "Gönderildi",
+const STATUS_KEYS: Record<string, "status.pending" | "status.preparing" | "status.printed" | "status.ready" | "status.shipped"> = {
+  pending: "status.pending", preparing: "status.preparing", printed: "status.printed",
+  ready: "status.ready", shipped: "status.shipped",
 };
 const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | "new"> = {
   pending: "attention", preparing: "info", printed: "info",
@@ -52,6 +53,7 @@ export default function Index() {
   const { stats, recentOrders, newAppsSectionUrl, mainSectionUrl, analytics, shopDomain } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
+  const { t, lang } = useTranslation();
   const plan = PLANS[analytics.planKey];
   const isActive = analytics.subscriptionStatus === "active" || analytics.subscriptionStatus === "trial";
 
@@ -108,14 +110,14 @@ export default function Index() {
         <IndexTable.Cell>
           <InlineStack gap="150" blockAlign="center">
             <Badge tone={BADGE_TONE[o.productionStatus] ?? "new"}>
-              {STATUS_LABELS[o.productionStatus] ?? o.productionStatus}
+              {STATUS_KEYS[o.productionStatus] ? t(STATUS_KEYS[o.productionStatus]) : o.productionStatus}
             </Badge>
-            {o.missingSurcharge && <Badge tone="critical">Ücret eksik</Badge>}
+            {o.missingSurcharge && <Badge tone="critical">{t("dashboard.missingSurchargeWarning")}</Badge>}
           </InlineStack>
         </IndexTable.Cell>
         <IndexTable.Cell>
           <Text as="span" variant="bodySm" tone="subdued">
-            {new Date(o.createdAt).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })}
+            {new Date(o.createdAt).toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", { day: "2-digit", month: "short", year: "numeric" })}
           </Text>
         </IndexTable.Cell>
       </IndexTable.Row>
@@ -123,7 +125,7 @@ export default function Index() {
   });
 
   return (
-    <Page title="Genel Bakış">
+    <Page title={t("dashboard.title")}>
       <BlockStack gap="500">
 
         {/* Plan durumu */}
@@ -132,18 +134,18 @@ export default function Index() {
             <InlineStack align="space-between" blockAlign="center">
               <BlockStack gap="100">
                 <InlineStack gap="200" blockAlign="center">
-                  <Text as="h2" variant="headingMd">Aktif Plan</Text>
+                  <Text as="h2" variant="headingMd">{t("dashboard.activePlan")}</Text>
                   <Badge tone={PLAN_BADGE_TONE[analytics.planKey] ?? "attention"}>{analytics.planKey}</Badge>
-                  {!isActive && <Badge tone="warning">Aktif değil</Badge>}
+                  {!isActive && <Badge tone="warning">{t("common.passive")}</Badge>}
                 </InlineStack>
                 <Text as="p" tone="subdued" variant="bodySm">
                   {isActive
-                    ? `${plan.maxMonthlyOrders === -1 ? "Sınırsız" : plan.maxMonthlyOrders} sipariş/ay · ${plan.maxProductTypes === -1 ? "Sınırsız" : plan.maxProductTypes} ürün tipi`
-                    : "Planınız aktif değil. Özellikleri kullanmak için plan seçin."}
+                    ? `${plan.maxMonthlyOrders === -1 ? t("common.unlimited") : plan.maxMonthlyOrders} ${t("dashboard.ordersPerMonth")} · ${plan.maxProductTypes === -1 ? t("common.unlimited") : plan.maxProductTypes} ${t("dashboard.productTypes")}`
+                    : t("dashboard.planInactive")}
                 </Text>
               </BlockStack>
               <Button onClick={() => navigate("/app/billing")} variant={isActive ? "plain" : "primary"}>
-                {isActive ? "Plan Yönet" : "Plan Seç"}
+                {isActive ? t("dashboard.managePlan") : t("dashboard.choosePlan")}
               </Button>
             </InlineStack>
           </Box>
@@ -152,10 +154,10 @@ export default function Index() {
         {/* Sipariş istatistikleri */}
         <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
           {[
-            { label: "Toplam Sipariş", value: stats.total },
-            { label: "Bugün", value: stats.today },
-            { label: "Bekleyen Üretim", value: stats.pendingProduction },
-            { label: "Hazır / Gönderildi", value: stats.ready },
+            { label: t("dashboard.totalOrders"), value: stats.total },
+            { label: t("dashboard.today"), value: stats.today },
+            { label: t("dashboard.pendingProduction"), value: stats.pendingProduction },
+            { label: t("dashboard.readyShipped"), value: stats.ready },
           ].map(({ label, value }) => (
             <Card key={label}>
               <Box padding="400">
@@ -173,9 +175,9 @@ export default function Index() {
           <Card>
             <Box padding="400">
               <BlockStack gap="150">
-                <Text as="p" variant="bodySm" tone="subdued">Toplam Tasarım</Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.totalDesigns")}</Text>
                 <Text as="p" variant="headingXl">{analytics.designsTotal}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">Bu ay: <strong>{analytics.designsThisMonth}</strong></Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.thisMonth")} <strong>{analytics.designsThisMonth}</strong></Text>
               </BlockStack>
             </Box>
           </Card>
@@ -183,7 +185,7 @@ export default function Index() {
             <Box padding="400">
               <BlockStack gap="150">
                 <InlineStack align="space-between">
-                  <Text as="p" variant="bodySm" tone="subdued">Arka Plan Kaldırma (Bu Ay)</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.bgRemoval")}</Text>
                   <Text as="p" variant="bodySm">
                     {analytics.bgThisMonth} / {analytics.bgQuota}
                   </Text>
@@ -195,19 +197,19 @@ export default function Index() {
                     size="small"
                   />
                 )}
-                <Text as="p" variant="bodySm" tone="subdued">Toplam: <strong>{analytics.bgAllTime}</strong> kaldırma</Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.bgTotal")} <strong>{analytics.bgAllTime}</strong> {t("dashboard.bgRemovals")}</Text>
               </BlockStack>
             </Box>
           </Card>
           <Card>
             <Box padding="400">
               <BlockStack gap="150">
-                <Text as="p" variant="bodySm" tone="subdued">Eksik Ek Ücret</Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.missingSurcharge")}</Text>
                 <Text as="p" variant="headingXl" tone={stats.missingSurcharge > 0 ? "caution" : undefined}>
                   {stats.missingSurcharge}
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {stats.missingSurcharge > 0 ? "Siparişleri kontrol et" : "Tüm siparişler tam"}
+                  {stats.missingSurcharge > 0 ? t("dashboard.checkOrders") : t("dashboard.allOrdersComplete")}
                 </Text>
               </BlockStack>
             </Box>
@@ -218,14 +220,14 @@ export default function Index() {
         <Card>
           <Box padding="400">
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">Tema Kurulumu</Text>
-              <Text as="p" tone="subdued">Tasarım aracını ürün sayfasına eklemek için tema editörünü aç.</Text>
+              <Text as="h2" variant="headingMd">{t("dashboard.themeSetup")}</Text>
+              <Text as="p" tone="subdued">{t("dashboard.themeSetupDesc")}</Text>
               <InlineStack gap="200">
                 {newAppsSectionUrl && (
-                  <Button url={newAppsSectionUrl} target="_blank" variant="primary">Apps section olarak ekle</Button>
+                  <Button url={newAppsSectionUrl} target="_blank" variant="primary">{t("dashboard.addAppsSection")}</Button>
                 )}
                 {mainSectionUrl && (
-                  <Button url={mainSectionUrl} target="_blank">Ürün bölümüne blok ekle</Button>
+                  <Button url={mainSectionUrl} target="_blank">{t("dashboard.addBlock")}</Button>
                 )}
               </InlineStack>
             </BlockStack>
@@ -236,26 +238,26 @@ export default function Index() {
         <Card>
           <Box padding="400">
             <InlineStack align="space-between" blockAlign="center">
-              <Text as="h2" variant="headingMd">Son Siparişler</Text>
-              <Button onClick={() => navigate("/app/orders")} variant="plain">Tümünü gör →</Button>
+              <Text as="h2" variant="headingMd">{t("dashboard.recentOrders")}</Text>
+              <Button onClick={() => navigate("/app/orders")} variant="plain">{t("common.viewAll")}</Button>
             </InlineStack>
           </Box>
           <Divider />
           {recentOrders.length === 0 ? (
             <Box padding="400">
-              <Text as="p" tone="subdued" alignment="center">Henüz sipariş yok.</Text>
+              <Text as="p" tone="subdued" alignment="center">{t("dashboard.noOrders")}</Text>
             </Box>
           ) : (
             <IndexTable
-              resourceName={{ singular: "sipariş", plural: "sipariş" }}
+              resourceName={{ singular: t("common.order"), plural: t("common.orders") }}
               itemCount={recentOrders.length}
               headings={[
                 { title: "" },
-                { title: "Sipariş" },
-                { title: "Müşteri" },
-                { title: "Ürün" },
-                { title: "Durum" },
-                { title: "Tarih" },
+                { title: t("common.order") },
+                { title: t("common.customer") },
+                { title: t("common.product") },
+                { title: t("common.status") },
+                { title: t("common.date") },
               ]}
               selectable={false}
             >

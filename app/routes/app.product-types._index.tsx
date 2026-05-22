@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useNavigate, useNavigation } from "@remix-run/react";
+import { useTranslation } from "~/i18n";
 import {
   Page, Card, Text, BlockStack, Box, Badge, Button,
   InlineStack, Divider, EmptyState, ProgressBar,
@@ -104,20 +105,21 @@ export default function ProductTypesIndex() {
   const { productTypes, quota } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const nav = useNavigation();
+  const { t } = useTranslation();
   const isSubmitting = nav.state === "submitting";
 
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newSurface, setNewSurface] = useState("front_back");
 
-  const limitLabel = quota.limit === -1 ? "Sınırsız" : String(quota.limit);
+  const limitLabel = quota.limit === -1 ? t("common.unlimited") : String(quota.limit);
   const usagePercent = quota.limit === -1 ? 0 : Math.round((quota.used / quota.limit) * 100);
 
   return (
     <Page
       title="Baskı Ayarı"
       primaryAction={{
-        content: "Yeni Ürün Tipi Oluştur",
+        content: t("productTypes.newType"),
         disabled: !quota.allowed,
         onAction: () => setShowCreate(true),
       }}
@@ -162,8 +164,8 @@ export default function ProductTypesIndex() {
         <Card>
           {productTypes.length === 0 ? (
             <EmptyState
-              heading="Henüz ürün tipi oluşturmadınız"
-              action={{ content: "Yeni Ürün Tipi Oluştur", onAction: () => setShowCreate(true), disabled: !quota.allowed  }}
+              heading={t("productTypes.noTypes")}
+              action={{ content: t("productTypes.newType"), onAction: () => setShowCreate(true), disabled: !quota.allowed  }}
               image=""
             >
               <p>Her ürün tipi bir Shopify ürününe bağlanır. {limitLabel} ürün tipi oluşturabilirsiniz.</p>
@@ -178,7 +180,7 @@ export default function ProductTypesIndex() {
                         <InlineStack gap="200" blockAlign="center">
                           <Text as="p" variant="bodyMd" fontWeight="semibold">{pt.name}</Text>
                           <Badge tone={pt.surface_mode === "front_back" ? "info" : "attention"}>
-                            {pt.surface_mode === "front_back" ? "Ön + Arka" : "Sadece Ön"}
+                            {pt.surface_mode === "front_back" ? t("productTypes.frontAndBack") : t("productTypes.frontOnly")}
                           </Badge>
                         </InlineStack>
                         {pt.shopify_product_title ? (
@@ -227,16 +229,16 @@ export default function ProductTypesIndex() {
       <Modal
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        title="Yeni Ürün Tipi Oluştur"
+        title={t("productTypes.newType")}
         primaryAction={{
-          content: "Oluştur",
+          content: t("common.create"),
           loading: isSubmitting,
           onAction: () => {
             const form = document.getElementById("create-product-type-form") as HTMLFormElement;
             form?.requestSubmit();
           },
         }}
-        secondaryActions={[{ content: "İptal", onAction: () => setShowCreate(false) }]}
+        secondaryActions={[{ content: t("common.cancel"), onAction: () => setShowCreate(false) }]}
       >
         <Modal.Section>
           <Form method="post" id="create-product-type-form">
@@ -244,13 +246,13 @@ export default function ProductTypesIndex() {
             <BlockStack gap="400">
               <PrintTypeField value={newName} onChange={setNewName} />
               <Select
-                label="Baskı Yüzü"
+                label={t("productTypes.printSurface")}
                 name="surface_mode"
                 value={newSurface}
                 onChange={setNewSurface}
                 options={[
-                  { label: "Ön + Arka Yüz", value: "front_back" },
-                  { label: "Sadece Ön Yüz", value: "front_only" },
+                  { label: t("productTypes.frontAndBack"), value: "front_back" },
+                  { label: t("productTypes.frontOnly"), value: "front_only" },
                 ]}
               />
             </BlockStack>

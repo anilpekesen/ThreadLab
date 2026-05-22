@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Form, useLoaderData, useNavigate, useNavigation } from "@remix-run/react";
+import { useTranslation } from "~/i18n";
 import {
   Page, Card, Text, BlockStack, Box, Badge, Button,
   InlineStack, TextField, Select, Divider, Thumbnail,
@@ -133,6 +134,7 @@ export default function ProductTypeDetail() {
   const { productType, products, q } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const nav = useNavigation();
+  const { t } = useTranslation();
   const isSaving = nav.state === "submitting";
 
   const [name, setName] = useState(productType.name);
@@ -143,7 +145,7 @@ export default function ProductTypeDetail() {
   return (
     <Page
       title={productType.name}
-      backAction={{ content: "Ürün Tipleri", onAction: () => navigate("/app/product-types") }}
+      backAction={{ content: t("productTypes.title"), onAction: () => navigate("/app/product-types") }}
     >
       <BlockStack gap="500">
 
@@ -156,13 +158,13 @@ export default function ProductTypeDetail() {
                 <Text as="h2" variant="headingMd">Ürün Tipi Ayarları</Text>
                 <PrintTypeField value={name} onChange={setName} />
                 <Select
-                  label="Baskı Yüzü"
+                  label={t("productTypes.printSurface")}
                   name="surface_mode"
                   value={surfaceMode}
                   onChange={(v) => setSurfaceMode(v as "front_only" | "front_back")}
                   options={[
-                    { label: "Ön + Arka Yüz", value: "front_back" },
-                    { label: "Sadece Ön Yüz", value: "front_only" },
+                    { label: t("productTypes.frontAndBack"), value: "front_back" },
+                    { label: t("productTypes.frontOnly"), value: "front_only" },
                   ]}
                 />
                 <InlineStack align="end">
@@ -240,7 +242,7 @@ export default function ProductTypeDetail() {
                   </Form>
 
                   <ResourceList
-                    resourceName={{ singular: "ürün", plural: "ürün" }}
+                    resourceName={{ singular: t("common.product"), plural: t("common.product") }}
                     items={products}
                     renderItem={(product) => (
                       <ResourceItem

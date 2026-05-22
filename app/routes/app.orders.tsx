@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
+import { useTranslation } from "~/i18n";
 import {
   Page, Card, Badge, Button, InlineStack, Box, Text, BlockStack,
   Thumbnail, IndexTable, useIndexResourceState, Banner,
@@ -10,12 +11,12 @@ import { authenticate } from "~/shopify.server";
 import { getOrders, updateOrderStatus, getDashboardStats, syncOrdersFromAdmin } from "~/models/orders.server";
 
 const STATUSES = [
-  { label: "Tümü", value: "" },
-  { label: "Bekliyor", value: "pending" },
-  { label: "Hazırlanıyor", value: "preparing" },
-  { label: "Basıldı", value: "printed" },
-  { label: "Hazır", value: "ready" },
-  { label: "Gönderildi", value: "shipped" },
+  { labelKey: "status.all" as const, value: "" },
+  { labelKey: "status.pending" as const, value: "pending" },
+  { labelKey: "status.preparing" as const, value: "preparing" },
+  { labelKey: "status.printed" as const, value: "printed" },
+  { labelKey: "status.ready" as const, value: "ready" },
+  { labelKey: "status.shipped" as const, value: "shipped" },
 ];
 
 // Orders page only shows design orders (those with a print surcharge).
@@ -29,12 +30,12 @@ const NEXT_STATUS: Record<string, string> = {
   ready: "shipped",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Bekliyor",
-  preparing: "Hazırlanıyor",
-  printed: "Basıldı",
-  ready: "Hazır",
-  shipped: "Gönderildi",
+const STATUS_KEYS: Record<string, "status.pending" | "status.preparing" | "status.printed" | "status.ready" | "status.shipped"> = {
+  pending: "status.pending",
+  preparing: "status.preparing",
+  printed: "status.printed",
+  ready: "status.ready",
+  shipped: "status.shipped",
 };
 
 const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | "new"> = {
@@ -104,8 +105,9 @@ export default function Orders() {
   const { orders, status, stats, shop, syncError, syncCount } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
+  const { t, lang } = useTranslation();
 
-  const resourceName = { singular: "sipariş", plural: "sipariş" };
+  const resourceName = { singular: t("common.order"), plural: t("common.orders") };
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(orders);
 
@@ -134,11 +136,11 @@ export default function Orders() {
             <div style={{ display: "flex", gap: 4 }}>
               <Thumbnail
                 source={o.designFrontPreviewUrl || o.previewUrl}
-                alt="Ön tasarım"
+                alt={t("orders.frontDesign")}
                 size="small"
               />
               {o.designBackPreviewUrl && (
-                <Thumbnail source={o.designBackPreviewUrl} alt="Arka tasarım" size="small" />
+                <Thumbnail source={o.designBackPreviewUrl} alt={t("orders.backDesign")} size="small" />
               )}
             </div>
           ) : (
@@ -181,10 +183,10 @@ export default function Orders() {
         <IndexTable.Cell>
           <InlineStack gap="150" blockAlign="center">
             <Badge tone={BADGE_TONE[o.productionStatus] ?? "new"}>
-              {STATUS_LABELS[o.productionStatus] ?? o.productionStatus}
+              {STATUS_KEYS[o.productionStatus] ? t(STATUS_KEYS[o.productionStatus]) : o.productionStatus}
             </Badge>
             {o.missingSurcharge && (
-              <Badge tone="critical">Baskı ücreti eksik</Badge>
+              <Badge tone="critical">{t("orders.missingSurcharge")}</Badge>
             )}
           </InlineStack>
         </IndexTable.Cell>
@@ -192,7 +194,7 @@ export default function Orders() {
         {/* Tarih */}
         <IndexTable.Cell>
           <Text as="span" variant="bodySm" tone="subdued">
-            {new Date(o.createdAt).toLocaleDateString("tr-TR", {
+            {new Date(o.createdAt).toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", {
               day: "2-digit", month: "short", year: "numeric",
             })}
           </Text>
@@ -216,7 +218,7 @@ export default function Orders() {
                 <input type="hidden" name="id" value={o.id} />
                 <input type="hidden" name="status" value={next} />
                 <Button submit size="slim" variant="secondary">
-                  → {STATUS_LABELS[next]}
+                  → {STATUS_KEYS[next] ? t(STATUS_KEYS[next]) : next}
                 </Button>
               </fetcher.Form>
             ) : (
@@ -230,9 +232,9 @@ export default function Orders() {
 
   return (
     <Page
-      title="Baskılı Siparişler"
+      title={t("orders.printedOrders")}
       primaryAction={{
-        content: "Yenile",
+        content: t("common.refresh"),
         onAction: () => navigate("/app/orders?sync=1"),
       }}
     >
@@ -240,7 +242,7 @@ export default function Orders() {
         {syncError && (
           <Banner tone={syncError.includes("protected") || syncError.includes("approved") ? "warning" : "critical"}
             title={syncError.includes("protected") || syncError.includes("approved")
-              ? "Sipariş API erişimi için onay gerekiyor"
+              ? t("orders.apiAuthRequired")
               : `Sync hatası: ${syncError}`}>
             {(syncError.includes("protected") || syncError.includes("approved")) && (
               <p>
@@ -255,25 +257,25 @@ export default function Orders() {
           </Banner>
         )}
         {!syncError && syncCount > 0 && (
-          <Banner tone="success" title={`${syncCount} yeni sipariş eklendi.`} />
+          <Banner tone="success" title={`${syncCount} ${t("orders.synced")}`} />
         )}
         {/* İstatistik kartları */}
         <Grid>
           <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-            <StatCard label="Toplam Sipariş" value={stats.total} />
+            <StatCard label={t("dashboard.totalOrders")} value={stats.total} />
           </Grid.Cell>
           <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-            <StatCard label="Bugün" value={stats.today} />
+            <StatCard label={t("dashboard.today")} value={stats.today} />
           </Grid.Cell>
           <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-            <StatCard label="Üretim Bekliyor" value={stats.pendingProduction} tone="caution" />
+            <StatCard label={t("dashboard.pendingProduction")} value={stats.pendingProduction} tone="caution" />
           </Grid.Cell>
           <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-            <StatCard label="Hazır / Kargoda" value={stats.ready} tone="success" />
+            <StatCard label={t("dashboard.readyShipped")} value={stats.ready} tone="success" />
           </Grid.Cell>
           {stats.missingSurcharge > 0 && (
             <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-              <StatCard label="Baskı Ücreti Eksik" value={stats.missingSurcharge} tone="critical" />
+              <StatCard label={t("orders.missingBadge")} value={stats.missingSurcharge} tone="critical" />
             </Grid.Cell>
           )}
         </Grid>
@@ -289,7 +291,7 @@ export default function Orders() {
                   size="slim"
                   onClick={() => navigate(`/app/orders${s.value ? `?status=${s.value}` : ""}`)}
                 >
-                  {s.label}
+                  {t(s.labelKey)}
                 </Button>
               ))}
             </InlineStack>
@@ -300,8 +302,8 @@ export default function Orders() {
               <BlockStack gap="300" inlineAlign="center">
                 <Text as="p" variant="headingMd" alignment="center">
                   {status
-                    ? `"${STATUS_LABELS[status]}" durumunda sipariş yok`
-                    : "Henüz hiç baskılı sipariş alınmamış"}
+                    ? `"${STATUS_KEYS[status] ? t(STATUS_KEYS[status]) : status}" durumunda sipariş yok`
+                    : t("orders.noOrders")}
                 </Text>
                 <Text as="p" tone="subdued" alignment="center">
                   Tasarım içeren siparişler checkout tamamlandığında otomatik buraya eklenir.
@@ -316,11 +318,11 @@ export default function Orders() {
               onSelectionChange={handleSelectionChange}
               headings={[
                 { title: "" },
-                { title: "Sipariş" },
-                { title: "Müşteri" },
-                { title: "Ürün" },
-                { title: "Durum" },
-                { title: "Tarih" },
+                { title: t("common.order") },
+                { title: t("common.customer") },
+                { title: t("common.product") },
+                { title: t("common.status") },
+                { title: t("common.date") },
                 { title: "İşlem" },
               ]}
             >

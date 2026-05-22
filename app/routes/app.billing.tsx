@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, Form, useNavigation } from "@remix-run/react";
+import { useTranslation } from "~/i18n";
 import {
   Page, Layout, Card, Text, BlockStack, Badge, Button, Box,
   InlineStack, InlineGrid, List, Divider, Banner, ProgressBar,
@@ -86,12 +87,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function BillingPage() {
   const { analytics, isTest } = useLoaderData<typeof loader>();
   const nav = useNavigation();
+  const { t } = useTranslation();
   const isLoading = nav.state === "submitting";
   const isActive = analytics.subscriptionStatus === "active";
   const isTrial = analytics.subscriptionStatus === "trial";
 
   return (
-    <Page title="Abonelik ve Planlar">
+    <Page title={t("billing.title")}>
       <BlockStack gap="500">
 
         {isTest && (
@@ -195,7 +197,7 @@ export default function BillingPage() {
                             <input type="hidden" name="intent" value="subscribe" />
                             <input type="hidden" name="plan" value={planKey} />
                             <Button fullWidth variant="primary" submit loading={isLoading}>
-                              {isActive ? "Değiştir" : "Seç"} → {planKey}
+                              {isActive ? t("billing.changePlan") : t("billing.choosePlan")} → {planKey}
                             </Button>
                           </Form>
                         )}
@@ -227,13 +229,13 @@ export default function BillingPage() {
                   </thead>
                   <tbody>
                     {[
-                      { label: "Aylık fiyat", values: PLAN_ORDER.map((k) => `$${PLANS[k].price}`) },
-                      { label: "Ürün tipi", values: PLAN_ORDER.map((k) => PLANS[k].maxProductTypes === -1 ? "Sınırsız" : String(PLANS[k].maxProductTypes)) },
-                      { label: "Sipariş/ay", values: PLAN_ORDER.map((k) => PLANS[k].maxMonthlyOrders === -1 ? "Sınırsız" : String(PLANS[k].maxMonthlyOrders)) },
-                      { label: "Arka yüz baskı", values: PLAN_ORDER.map((k) => PLANS[k].allowBackSurface ? "✓" : "—") },
-                      { label: "BG kaldırma/ay", values: PLAN_ORDER.map((k) => String(PLANS[k].removeBgMonthlyQuota)) },
-                      { label: "Şablon sayısı", values: PLAN_ORDER.map((k) => PLANS[k].maxShopTemplates === -1 ? "Sınırsız" : PLANS[k].maxShopTemplates === 0 ? "—" : String(PLANS[k].maxShopTemplates)) },
-                      { label: "Ücretsiz deneme", values: PLAN_ORDER.map(() => "7 gün") },
+                      { label: t("billing.monthlyPrice"), values: PLAN_ORDER.map((k) => `$${PLANS[k].price}`) },
+                      { label: t("billing.productTypes"), values: PLAN_ORDER.map((k) => PLANS[k].maxProductTypes === -1 ? t("billing.unlimited") : String(PLANS[k].maxProductTypes)) },
+                      { label: t("billing.ordersPerMonth"), values: PLAN_ORDER.map((k) => PLANS[k].maxMonthlyOrders === -1 ? t("billing.unlimited") : String(PLANS[k].maxMonthlyOrders)) },
+                      { label: t("billing.backSurface"), values: PLAN_ORDER.map((k) => PLANS[k].allowBackSurface ? "✓" : "—") },
+                      { label: t("billing.bgRemoval"), values: PLAN_ORDER.map((k) => String(PLANS[k].removeBgMonthlyQuota)) },
+                      { label: t("billing.templates"), values: PLAN_ORDER.map((k) => PLANS[k].maxShopTemplates === -1 ? t("billing.unlimited") : PLANS[k].maxShopTemplates === 0 ? "—" : String(PLANS[k].maxShopTemplates)) },
+                      { label: t("billing.freeTrial"), values: PLAN_ORDER.map(() => "7 gün") },
                     ].map(({ label, values }) => (
                       <tr key={label} style={{ borderBottom: "1px solid #f4f4f4" }}>
                         <td style={{ padding: "8px 12px", color: "#6d7175" }}>{label}</td>

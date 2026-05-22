@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
+import { useTranslation } from "~/i18n";
 
 const APP_URL = "https://app.printlabapp.com";
 
@@ -21,6 +22,7 @@ import { getOrder, updateOrderStatus } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
 
 function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHref?: string }) {
+  const { t } = useTranslation();
   const isText = obj.type === "i-text" || obj.type === "textbox";
   const isImage = obj.type === "image";
 
@@ -31,7 +33,7 @@ function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHr
     }}>
       {isImage && obj.src && (
         <div style={{ flexShrink: 0 }}>
-          <Thumbnail source={obj.src} alt="Eklenen görsel" size="medium" />
+          <Thumbnail source={obj.src} alt={t("orderDetail.layerAdded")} size="medium" />
         </div>
       )}
       {isText && (
@@ -45,15 +47,15 @@ function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHr
       )}
       <BlockStack gap="100">
         <Text as="span" variant="bodySm" fontWeight="semibold">
-          {isImage ? "Görsel" : isText ? "Metin" : obj.type}
+          {isImage ? t("orderDetail.layerImage") : isText ? t("orderDetail.layerText") : obj.type}
         </Text>
         {isText && obj.text && (
           <Text as="p" variant="bodySm">&quot;{obj.text}&quot;</Text>
         )}
         {isText && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
-            {obj.fontFamily && <MetaChip label="Font" value={obj.fontFamily} />}
-            {obj.fontSize && <MetaChip label="Boyut" value={`${obj.fontSize}px`} />}
+            {obj.fontFamily && <MetaChip label={t("orderDetail.font")} value={obj.fontFamily} />}
+            {obj.fontSize && <MetaChip label={t("orderDetail.size")} value={`${obj.fontSize}px`} />}
             {obj.fill && (
               <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#6b7280" }}>
                 <span>Renk</span>
@@ -61,17 +63,17 @@ function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHr
                 <span style={{ fontFamily: "monospace" }}>{toHex(obj.fill)}</span>
               </span>
             )}
-            {obj.fontWeight && String(obj.fontWeight) !== "normal" && <MetaChip label="Kalınlık" value={String(obj.fontWeight)} />}
-            {obj.fontStyle === "italic" && <MetaChip label="Stil" value="italic" />}
-            {obj.underline && <MetaChip label="Alt çizgi" value="var" />}
-            {obj.textAlign && obj.textAlign !== "left" && <MetaChip label="Hizalama" value={obj.textAlign} />}
+            {obj.fontWeight && String(obj.fontWeight) !== "normal" && <MetaChip label={t("orderDetail.thickness")} value={String(obj.fontWeight)} />}
+            {obj.fontStyle === "italic" && <MetaChip label={t("orderDetail.style")} value="italic" />}
+            {obj.underline && <MetaChip label={t("orderDetail.underline")} value="var" />}
+            {obj.textAlign && obj.textAlign !== "left" && <MetaChip label={t("orderDetail.alignment")} value={obj.textAlign} />}
           </div>
         )}
         {isImage && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
-            {obj.width && obj.scaleX && <MetaChip label="Genişlik" value={`${Math.round(obj.width * obj.scaleX)}px`} />}
-            {obj.height && obj.scaleY && <MetaChip label="Yükseklik" value={`${Math.round(obj.height * obj.scaleY)}px`} />}
-            {obj.angle ? <MetaChip label="Açı" value={`${Math.round(obj.angle)}°`} /> : null}
+            {obj.width && obj.scaleX && <MetaChip label={t("orderDetail.width")} value={`${Math.round(obj.width * obj.scaleX)}px`} />}
+            {obj.height && obj.scaleY && <MetaChip label={t("orderDetail.height")} value={`${Math.round(obj.height * obj.scaleY)}px`} />}
+            {obj.angle ? <MetaChip label={t("orderDetail.angle")} value={`${Math.round(obj.angle)}°`} /> : null}
           </div>
         )}
         <Text as="span" variant="bodySm" tone="subdued">
@@ -130,12 +132,12 @@ function isDark(color?: string): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 < 128;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Bekliyor",
-  preparing: "Hazırlanıyor",
-  printed: "Basıldı",
-  ready: "Hazır",
-  shipped: "Gönderildi",
+const STATUS_KEYS: Record<string, "status.pending" | "status.preparing" | "status.printed" | "status.ready" | "status.shipped"> = {
+  pending: "status.pending",
+  preparing: "status.preparing",
+  printed: "status.printed",
+  ready: "status.ready",
+  shipped: "status.shipped",
 };
 
 const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning"> = {
@@ -177,6 +179,7 @@ export default function OrderDetail() {
   const { order, design, frontObjects, backObjects, shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
+  const { t, lang } = useTranslation();
 
   const next = NEXT_STATUS[order.productionStatus];
   const shopDomain = shop.replace(".myshopify.com", "");
@@ -193,9 +196,9 @@ export default function OrderDetail() {
   return (
     <Page
       title={order.orderNumber}
-      backAction={{ content: "Siparişler", onAction: () => navigate("/app/orders") }}
+      backAction={{ content: t("orderDetail.backToOrders"), onAction: () => navigate("/app/orders") }}
       primaryAction={next ? {
-        content: `→ ${STATUS_LABELS[next]}`,
+        content: `→ ${STATUS_KEYS[next] ? t(STATUS_KEYS[next]) : next}`,
         onAction: () => {
           const fd = new FormData();
           fd.set("status", next);
@@ -204,7 +207,7 @@ export default function OrderDetail() {
       } : undefined}
       titleMetadata={
         <Badge tone={BADGE_TONE[order.productionStatus] ?? "new"}>
-          {STATUS_LABELS[order.productionStatus] ?? order.productionStatus}
+          {STATUS_KEYS[order.productionStatus] ? t(STATUS_KEYS[order.productionStatus]) : order.productionStatus}
         </Badge>
       }
     >
@@ -335,20 +338,20 @@ export default function OrderDetail() {
               <InlineStack align="space-between">
                 <Text as="span" tone="subdued">Durum</Text>
                 <Badge tone={BADGE_TONE[order.productionStatus] ?? "new"}>
-                  {STATUS_LABELS[order.productionStatus] ?? order.productionStatus}
+                  {STATUS_KEYS[order.productionStatus] ? t(STATUS_KEYS[order.productionStatus]) : order.productionStatus}
                 </Badge>
               </InlineStack>
               <InlineStack align="space-between">
                 <Text as="span" tone="subdued">Tarih</Text>
                 <Text as="span">
-                  {new Date(order.createdAt).toLocaleDateString("tr-TR", {
+                  {new Date(order.createdAt).toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", {
                     day: "2-digit", month: "long", year: "numeric",
                     hour: "2-digit", minute: "2-digit",
                   })}
                 </Text>
               </InlineStack>
               {!design && (
-                <Banner tone="warning" title="Tasarım verisi bulunamadı">
+                <Banner tone="warning" title={t("orderDetail.noDesignData")}>
                   <p>Bu sipariş için tasarım dosyası sunucuda mevcut değil. Tasarım token: {order.designToken || "—"}</p>
                 </Banner>
               )}

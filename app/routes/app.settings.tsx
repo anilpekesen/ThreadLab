@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useNavigation, useFetcher } from "@remix-run/react";
+import { useTranslation } from "~/i18n";
 import {
   BlockStack,
   Box,
@@ -364,30 +365,31 @@ export default function SettingsRoute() {
   const { settings, saved, created, cartTransformStatus } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const fetcher = useFetcher<{ error?: string; success?: string }>();
+  const { t } = useTranslation();
   const isSaving = navigation.state === "submitting";
   const isCreating = fetcher.state === "submitting";
 
   const [surchargeVariantId, setSurchargeVariantId] = useState(settings.surchargeVariantId || "");
 
   return (
-    <Page title="Ayarlar">
+    <Page title={t("settings.title")}>
       <BlockStack gap="500">
-        {saved && <Banner tone="success" title="Ayarlar kaydedildi." />}
-        {created && <Banner tone="success" title="Baskı Ücreti ürünü oluşturuldu ve kaydedildi." />}
+        {saved && <Banner tone="success" title={t("settings.saved")} />}
+        {created && <Banner tone="success" title={t("settings.created")} />}
         {fetcher.data?.error && <Banner tone="critical" title={`Hata: ${fetcher.data.error}`} />}
         {fetcher.data?.success && <Banner tone="success" title={fetcher.data.success} />}
 
         {cartTransformStatus === "ok" && (
-          <Banner tone="success" title="Cart Transform: Aktif ✓" />
+          <Banner tone="success" title={t("settings.cartTransformOk")} />
         )}
         {cartTransformStatus === "re_registered_ok" && (
-          <Banner tone="success" title="Cart Transform: Eski kayıt silindi, yeniden kaydedildi ✓" />
+          <Banner tone="success" title={t("settings.cartTransformReregistered")} />
         )}
         {cartTransformStatus === "stale_re_registering" && (
-          <Banner tone="warning" title="Cart Transform: Eski kayıt temizleniyor..." />
+          <Banner tone="warning" title={t("settings.cartTransformStale")} />
         )}
         {cartTransformStatus === "function_not_found" && (
-          <Banner tone="critical" title="Cart Transform: Fonksiyon bulunamadı — npx shopify app deploy çalıştır" />
+          <Banner tone="critical" title={t("settings.cartTransformNotFound")} />
         )}
         {(cartTransformStatus === "error" || cartTransformStatus?.startsWith("error:")) && (
           <Banner tone="critical" title={`Cart Transform Hatası: ${cartTransformStatus}`} />
@@ -397,7 +399,7 @@ export default function SettingsRoute() {
         <Card>
           <Box padding="400">
             <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Baskı Ek Ücreti</Text>
+              <Text as="h2" variant="headingMd">{t("settings.surchargeTitle")}</Text>
               <Text as="p" tone="subdued">
                 Shopify, sepet fiyatlarını yalnızca gerçek ürün variant&apos;larıyla kabul eder.
                 Baskı boyutuna göre ek ücret eklemek için ₺1 fiyatlı bir &quot;Baskı Ücreti&quot; ürünü gerekir.
@@ -412,9 +414,8 @@ export default function SettingsRoute() {
                   </Text>
                 </InlineStack>
               ) : (
-                <Banner tone="warning" title="Ek ücret variant'ı ayarlanmamış">
-                  <p>Sepete eklenen tasarım baskı ücretleri Shopify&apos;a yansıtılamıyor.
-                     Aşağıdaki butona tıklayarak otomatik oluşturun ya da aşağıya variant ID&apos;nizi girin.</p>
+                <Banner tone="warning" title={t("settings.surchargeWarningTitle")}>
+                  <p>{t("settings.surchargeWarningDesc")}</p>
                 </Banner>
               )}
 
@@ -426,14 +427,14 @@ export default function SettingsRoute() {
                     submit
                     loading={isCreating}
                   >
-                    {settings.surchargeVariantId ? "Yeniden oluştur" : "Otomatik oluştur"}
+                    {settings.surchargeVariantId ? t("settings.reCreate") : t("settings.autoCreate")}
                   </Button>
                 </fetcher.Form>
                 {settings.surchargeVariantId && (
                   <fetcher.Form method="post">
                     <input type="hidden" name="intent" value="fixSurchargeVariant" />
                     <Button variant="secondary" submit loading={isCreating}>
-                      Stok sınırını kaldır (satışa devam et)
+                      {t("settings.removeStockLimit")}
                     </Button>
                   </fetcher.Form>
                 )}
@@ -442,27 +443,26 @@ export default function SettingsRoute() {
               {/* App Embed aktivasyon talimatı */}
               <BlockStack gap="300">
                 <Text as="p" variant="bodyMd" fontWeight="bold">
-                  Baskı Ücreti Koruma — Tema App Embed Aktivasyonu
+                  {t("settings.embedGuideTitle")}
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  Baskı ücreti hesaplamasının çalışması için temanızda &quot;Baskı Ücreti Koruma&quot; App Embed&apos;ini
-                  aktif etmeniz gerekir. Aşağıdaki adımları takip edin:
+                  {t("settings.embedGuideDesc")}
                 </Text>
                 <BlockStack gap="200">
                   <Text as="p" variant="bodySm">
-                    <strong>1.</strong> Shopify Admin → <strong>Online Mağaza → Temalar</strong> sayfasına gidin.
+                    <strong>1.</strong> {t("settings.embedStep1")}
                   </Text>
                   <Text as="p" variant="bodySm">
-                    <strong>2.</strong> Aktif temanızda <strong>&quot;Özelleştir&quot;</strong> butonuna tıklayın.
+                    <strong>2.</strong> {t("settings.embedStep2")}
                   </Text>
                   <Text as="p" variant="bodySm">
-                    <strong>3.</strong> Tema editöründe sol üstteki <strong>App Embeds</strong> ikonuna (aşağıdaki ekran görüntüsünde işaretli) tıklayın.
+                    <strong>3.</strong> {t("settings.embedStep3")}
                   </Text>
                   <Text as="p" variant="bodySm">
-                    <strong>4.</strong> Listede <strong>&quot;Baskı Ücreti Koruma — DesignKit&quot;</strong> satırını bulun ve toggle&apos;ı <strong>açık (mavi)</strong> konuma getirin.
+                    <strong>4.</strong> {t("settings.embedStep4")}
                   </Text>
                   <Text as="p" variant="bodySm">
-                    <strong>5.</strong> Sağ üstten <strong>Kaydet</strong>&apos;e tıklayın.
+                    <strong>5.</strong> {t("settings.embedStep5")}
                   </Text>
                 </BlockStack>
                 <div style={{ maxWidth: 320, borderRadius: 8, overflow: "hidden", border: "1px solid #e1e3e5", marginTop: 4 }}>
@@ -485,7 +485,7 @@ export default function SettingsRoute() {
             <Card>
               <Box padding="400">
                 <TextField
-                  label="Variant ID (manuel giriş)"
+                  label={t("settings.variantIdLabel")}
                   name="surchargeVariantId"
                   value={surchargeVariantId}
                   onChange={setSurchargeVariantId}
@@ -500,7 +500,7 @@ export default function SettingsRoute() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">WaveSpeed Arka Plan Kaldırma</Text>
+                  <Text as="h2" variant="headingMd">{t("settings.wavespeedTitle")}</Text>
                   <Text as="p" tone="subdued" variant="bodySm">
                     AI arka plan kaldırma servisi. Mağazalara plana göre kota tanımlanır;
                     Growth: 50/ay · Pro: 500/ay · Business: sınırsız.
