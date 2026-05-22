@@ -1,6 +1,7 @@
 import { json } from "@remix-run/node";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
+import { checkAndIncrementCustomerBg } from "~/models/customer-bg-quota.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const WAVESPEED_MODEL = "wavespeed-ai/image-background-remover";
@@ -47,6 +48,7 @@ async function removeBackground(apiKey: string, imageBase64: string): Promise<st
 export async function handleWaveSpeedRemoveBackground(
   request: Request,
   shop: string,
+  options?: { sessionId?: string; customerBgLimit?: number },
 ) {
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, { status: 405 });
@@ -64,6 +66,24 @@ export async function handleWaveSpeedRemoveBackground(
 
   if (!apiKey) {
     return json({ error: "WaveSpeed API key is not configured" }, { status: 400 });
+  }
+
+  // Per-customer session quota check
+  const sessionId = options?.sessionId ?? String(form.get("session_id") || "");
+  if (sessionId) {
+    const limit = options?.customerBgLimit ?? globalSettings.customerBgLimit ?? 5;
+    const customerQuota = await checkAndIncrementCustomerBg(shop, sessionId, limit);
+    if (!customerQuota.allowed) {
+      return json(
+        {
+          error: `Arka plan kaldırma limitinize ulaştınız (${customerQuota.count}/${customerQuota.limit}). Sipariş verdikten sonra limitiniz sıfırlanır.`,
+          code: "customer_quota_exceeded",
+          count: customerQuota.count,
+          limit: customerQuota.limit,
+        },
+        { status: 429 },
+      );
+    }
   }
 
   const quota = await checkAndIncrementBgRemoval(shop);

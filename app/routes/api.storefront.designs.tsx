@@ -22,6 +22,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   await saveDesign({
     token,
     productId: typeof b.productId === "string" ? b.productId : undefined,
+    sessionId: typeof b.sessionId === "string" && b.sessionId ? b.sessionId : undefined,
     designJson: "designJson" in b ? b.designJson : undefined,
     frontPreviewUrl: typeof b.frontPreviewUrl === "string" ? b.frontPreviewUrl : undefined,
     backPreviewUrl: typeof b.backPreviewUrl === "string" ? b.backPreviewUrl : undefined,

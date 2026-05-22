@@ -3,6 +3,8 @@ import { json } from "@remix-run/node";
 import { authenticate } from "~/shopify.server";
 import { processOrderBgRemoval } from "~/models/auto-bg-removal.server";
 import { getOrderByShopifyId, updateOrderStatus } from "~/models/orders.server";
+import { resetCustomerBgQuota } from "~/models/customer-bg-quota.server";
+import { getSessionForDesignToken } from "~/models/designs.server";
 
 // Shopify uses both {name, value} (REST) and {key, value} (some contexts)
 type Attr = { name?: string; key?: string; value: string };
@@ -48,6 +50,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       processOrderBgRemoval(shop, designToken).catch((err) =>
         console.error(`[webhook] auto-bg failed for order ${order.name}:`, err),
       );
+      // Reset customer bg quota so they can remove more backgrounds after ordering
+      getSessionForDesignToken(designToken)
+        .then((sessionId) => {
+          if (sessionId) return resetCustomerBgQuota(shop, sessionId);
+        })
+        .catch((err) =>
+          console.error(`[webhook] customer bg quota reset failed for order ${order.name}:`, err),
+        );
     }
   }
 

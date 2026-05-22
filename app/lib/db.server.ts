@@ -144,6 +144,24 @@ export async function runMigrations() {
     )
   `);
   await query(`
+    CREATE TABLE IF NOT EXISTS customer_bg_quota (
+      shop          TEXT NOT NULL,
+      session_id    TEXT NOT NULL,
+      count         INTEGER NOT NULL DEFAULT 0,
+      reset_count   INTEGER NOT NULL DEFAULT 0,
+      last_order_at TIMESTAMPTZ,
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (shop, session_id)
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS customer_bg_quota_shop
+      ON customer_bg_quota (shop, updated_at)
+  `);
+  await query(`
+    ALTER TABLE designs ADD COLUMN IF NOT EXISTS session_id TEXT
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS orders (
       id                  TEXT PRIMARY KEY,
       shopify_order_id    TEXT UNIQUE NOT NULL,

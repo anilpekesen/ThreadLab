@@ -353,10 +353,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const newVariantId = String(form.get("surchargeVariantId") || "").trim();
+  const newBgLimit = parseInt(String(form.get("customerBgLimit") || ""), 10);
   const currentSettings = await getGlobalSettings();
   await saveGlobalSettings({
     wavespeedApiKey: currentSettings.wavespeedApiKey,
     surchargeVariantId: newVariantId,
+    customerBgLimit: newBgLimit > 0 ? newBgLimit : currentSettings.customerBgLimit,
   });
   if (newVariantId) await writeSurchargeMetafield(admin, newVariantId).catch(() => {});
   return redirect("/app/settings?saved=1");
@@ -371,6 +373,7 @@ export default function SettingsRoute() {
   const isCreating = fetcher.state === "submitting";
 
   const [surchargeVariantId, setSurchargeVariantId] = useState(settings.surchargeVariantId || "");
+  const [customerBgLimit, setCustomerBgLimit] = useState(String(settings.customerBgLimit ?? 5));
 
   return (
     <Page title={t("settings.title")}>
@@ -517,6 +520,32 @@ export default function SettingsRoute() {
                       API key sunucu ortam değişkeninde yapılandırılmış.
                     </Text>
                   </InlineStack>
+                </BlockStack>
+              </Box>
+            </Card>
+
+            {/* Müşteri başına bg limit */}
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">Müşteri Başına Arka Plan Kaldırma Limiti</Text>
+                  <Text as="p" tone="subdued" variant="bodySm">
+                    Bir müşteri sipariş vermeden kaç kez arka plan kaldırabilir? Sipariş verdikten sonra limiti sıfırlanır.
+                    Kötüye kullanımı önlemek için bu değeri düşük tutmanızı öneririz (varsayılan: 5).
+                  </Text>
+                  <div style={{ maxWidth: 200 }}>
+                    <TextField
+                      label="Sipariş vermeden maksimum kullanım"
+                      name="customerBgLimit"
+                      type="number"
+                      value={customerBgLimit}
+                      onChange={setCustomerBgLimit}
+                      autoComplete="off"
+                      min="1"
+                      max="100"
+                      suffix="adet"
+                    />
+                  </div>
                 </BlockStack>
               </Box>
             </Card>

@@ -1,4 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+function getBgSessionId(): string {
+  const key = 'dk_bg_session';
+  try {
+    let id = localStorage.getItem(key);
+    if (!id) {
+      id = 'sess_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem(key, id);
+    }
+    return id;
+  } catch {
+    return '';
+  }
+}
 import { fabric } from 'fabric';
 import {
   AlignCenter,
@@ -847,6 +861,7 @@ export default function App() {
       form.append('image_file', blob, 'design-image.png');
       form.append('productId', config?.productId || '');
       form.append('handle', config?.productHandle || '');
+      form.append('session_id', getBgSessionId());
       const shopParam = config?.shop ? `?shop=${encodeURIComponent(config.shop)}` : '';
       const res = await fetch(`/apps/tshirt-designer/remove-background${shopParam}`, {
         method: 'POST',
@@ -934,6 +949,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: config?.productId || config?.productHandle,
+          sessionId: getBgSessionId(),
           designJson: {
             front: frontCanvasRef.current?.saveDesign(),
             back: backCanvasRef.current?.saveDesign(),

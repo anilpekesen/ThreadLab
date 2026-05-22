@@ -11,6 +11,7 @@ async function ensureMigrations() {
 export interface DesignRecord {
   token: string;
   productId?: string;
+  sessionId?: string;
   designJson?: unknown;
   frontPreviewUrl?: string;
   backPreviewUrl?: string;
@@ -79,10 +80,11 @@ export async function getDesignByToken(token: string): Promise<DesignRecord | nu
 export async function saveDesign(record: Omit<DesignRecord, "createdAt">): Promise<void> {
   await ensureMigrations();
   await query(
-    `INSERT INTO designs (token, product_id, design_json, front_preview_url, back_preview_url, front_print_url, back_print_url)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO designs (token, product_id, session_id, design_json, front_preview_url, back_preview_url, front_print_url, back_print_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (token) DO UPDATE SET
        product_id = EXCLUDED.product_id,
+       session_id = COALESCE(EXCLUDED.session_id, designs.session_id),
        design_json = EXCLUDED.design_json,
        front_preview_url = EXCLUDED.front_preview_url,
        back_preview_url = EXCLUDED.back_preview_url,
@@ -91,6 +93,7 @@ export async function saveDesign(record: Omit<DesignRecord, "createdAt">): Promi
     [
       record.token,
       record.productId ?? null,
+      record.sessionId ?? null,
       record.designJson ? JSON.stringify(record.designJson) : null,
       record.frontPreviewUrl ?? "",
       record.backPreviewUrl ?? "",
@@ -98,6 +101,14 @@ export async function saveDesign(record: Omit<DesignRecord, "createdAt">): Promi
       record.backPrintUrl ?? "",
     ],
   );
+}
+
+export async function getSessionForDesignToken(token: string): Promise<string | null> {
+  const result = await query<{ session_id: string | null }>(
+    "SELECT session_id FROM designs WHERE token = $1",
+    [token],
+  );
+  return result.rows[0]?.session_id ?? null;
 }
 
 export function extractObjects(designJson: unknown, side: "front" | "back"): DesignObject[] {

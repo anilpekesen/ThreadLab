@@ -11,11 +11,13 @@ async function ensureMigrations() {
 export interface GlobalSettings {
   wavespeedApiKey: string;
   surchargeVariantId: string;
+  customerBgLimit: number;
 }
 
 const DEFAULTS: GlobalSettings = {
   wavespeedApiKey: "",
   surchargeVariantId: "",
+  customerBgLimit: 5,
 };
 
 // Env var fallback — supports both WAVESPEED_API_KEY and wavespeed naming
@@ -36,8 +38,8 @@ export async function getGlobalSettings(): Promise<GlobalSettings> {
   return {
     ...DEFAULTS,
     ...saved,
-    // DB setting takes priority; fall back to env var
     wavespeedApiKey: saved.wavespeedApiKey || ENV_WAVESPEED_KEY,
+    customerBgLimit: Number(saved.customerBgLimit) > 0 ? Number(saved.customerBgLimit) : DEFAULTS.customerBgLimit,
   };
 }
 
