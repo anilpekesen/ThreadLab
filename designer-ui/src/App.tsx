@@ -937,8 +937,8 @@ export default function App() {
       // Export canvas: 1x preview + 2x print quality
       const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(1) ?? '') : '';
       const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(1) ?? '') : '';
-      const frontPrintDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(2) ?? '') : '';
-      const backPrintDataUrl = backHas ? (backCanvasRef.current?.exportPng(2) ?? '') : '';
+      const frontPrintDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(2, true) ?? '') : '';
+      const backPrintDataUrl = backHas ? (backCanvasRef.current?.exportPng(2, true) ?? '') : '';
 
       // Upload all to server in parallel to get permanent URLs
       const [frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl] = await Promise.all([

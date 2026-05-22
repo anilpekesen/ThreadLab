@@ -26,7 +26,7 @@ export interface CanvasAreaHandle {
   undo: () => void;
   redo: () => void;
   getActiveObject: () => fabric.Object | null;
-  exportPng: (multiplier?: number) => string;
+  exportPng: (multiplier?: number, cleanBg?: boolean) => string;
   loadDesign: (json: string) => void;
   saveDesign: () => string;
   getCanvas: () => fabric.Canvas | null;
@@ -633,8 +633,24 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     });
   }, []);
 
-  const exportPng = useCallback((multiplier = 3) => {
-    return canvasRef.current?.toDataURL({ format: 'png', multiplier }) ?? '';
+  const exportPng = useCallback((multiplier = 3, cleanBg = false) => {
+    const cv = canvasRef.current;
+    if (!cv) return '';
+    if (!cleanBg) {
+      return cv.toDataURL({ format: 'png', multiplier }) ?? '';
+    }
+    // Export without the t-shirt mockup background (artwork-only for print/DTF)
+    const bg = cv.backgroundImage as fabric.Image | undefined;
+    if (bg) {
+      cv.backgroundImage = undefined as unknown as fabric.Image;
+      cv.renderAll();
+    }
+    const dataUrl = cv.toDataURL({ format: 'png', multiplier });
+    if (bg) {
+      cv.backgroundImage = bg;
+      cv.renderAll();
+    }
+    return dataUrl;
   }, []);
 
   const saveDesign = useCallback(() => {
