@@ -370,6 +370,39 @@ export async function syncOrdersFromAdmin(admin: AdminClient): Promise<number> {
   return added;
 }
 
+export async function getTodayOrders(statuses?: string[]): Promise<Order[]> {
+  await ensureMigrations();
+  const filter = statuses && statuses.length > 0
+    ? `AND o.production_status = ANY($2)`
+    : "";
+  const params: unknown[] = [new Date(new Date().setHours(0, 0, 0, 0))];
+  if (statuses && statuses.length > 0) params.push(statuses);
+  const result = await query<DbRow>(
+    `${ORDER_SELECT} WHERE o.design_token != '' AND o.created_at >= $1 ${filter} ORDER BY o.created_at ASC`,
+    params,
+  );
+  return result.rows.map(rowToOrder);
+}
+
+export async function getOrdersByIds(ids: string[]): Promise<Order[]> {
+  if (!ids.length) return [];
+  await ensureMigrations();
+  const result = await query<DbRow>(
+    `${ORDER_SELECT} WHERE o.id = ANY($1)`,
+    [ids],
+  );
+  return result.rows.map(rowToOrder);
+}
+
+export async function bulkUpdateStatus(ids: string[], status: string): Promise<void> {
+  if (!ids.length) return;
+  await ensureMigrations();
+  await query(
+    "UPDATE orders SET production_status = $1, updated_at = now() WHERE id = ANY($2)",
+    [status, ids],
+  );
+}
+
 export async function createOrderFromPixel(data: {
   orderId?: string;
   orderNumber?: string;

@@ -104,6 +104,8 @@ function AppInner() {
         <NavMenu>
           <a href="/app" rel="home">{t("nav.home")}</a>
           <a href="/app/orders">{t("nav.orders")}</a>
+          <a href="/app/production">{t("nav.production")}</a>
+          <a href="/app/gang-sheet">{t("nav.gangSheet")}</a>
           <a href="/app/product-types">{t("nav.productTypes")}</a>
           <a href="/app/templates">{t("nav.templates")}</a>
           <a href="/app/billing">{t("nav.billing")}</a>

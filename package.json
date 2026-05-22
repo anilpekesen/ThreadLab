@@ -25,12 +25,16 @@
     "@shopify/shopify-app-remix": "^4.2.0",
     "@shopify/shopify-app-session-storage-memory": "^6.0.0",
     "@shopify/shopify-app-session-storage-postgresql": "^6.0.0",
+    "@types/archiver": "^7.0.0",
     "@types/pg": "^8.20.0",
+    "@types/sharp": "^0.31.1",
+    "archiver": "^8.0.0",
     "isbot": "^4.4.0",
     "pg": "^8.20.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-reconciler": "^0.29.2"
+    "react-reconciler": "^0.29.2",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@remix-run/dev": "^2.16.1",
