@@ -48,6 +48,9 @@ function PlanHeader({ planKey, subscriptionStatus }: { planKey: PlanKey; subscri
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
+      position: "sticky",
+      top: 0,
+      zIndex: 100,
     }}>
       <InlineStack gap="200" blockAlign="center">
         <Text as="span" variant="bodySm" tone="subdued">{t("planHeader.plan")}</Text>
@@ -64,22 +67,23 @@ function PlanHeader({ planKey, subscriptionStatus }: { planKey: PlanKey; subscri
           </button>
         )}
         {/* Language toggle */}
-        <div style={{ display: "flex", gap: 2, background: "#e9ecef", borderRadius: 6, padding: 2 }}>
+        <div style={{ display: "flex", gap: 2, background: "#e9ecef", borderRadius: 8, padding: 3 }}>
           {(["tr", "en"] as Lang[]).map((l) => (
             <button
               key={l}
               onClick={() => setLang(l)}
               style={{
-                background: lang === l ? "#fff" : "transparent",
+                background: lang === l ? "#4f46e5" : "transparent",
                 border: "none",
-                borderRadius: 4,
+                borderRadius: 6,
                 cursor: "pointer",
-                padding: "2px 8px",
-                fontSize: 12,
-                fontWeight: lang === l ? 700 : 400,
-                color: lang === l ? "#1a1a2e" : "#6b7280",
-                boxShadow: lang === l ? "0 1px 3px rgba(0,0,0,.12)" : "none",
+                padding: "4px 12px",
+                fontSize: 13,
+                fontWeight: 600,
+                color: lang === l ? "#fff" : "#6b7280",
+                boxShadow: lang === l ? "0 1px 4px rgba(79,70,229,.3)" : "none",
                 transition: "all .15s",
+                letterSpacing: "0.03em",
               }}
             >
               {l.toUpperCase()}
