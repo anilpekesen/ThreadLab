@@ -13,7 +13,7 @@ const SHEET_PRESETS: Record<string, { width: number; height: number | null; pxPe
   "dtf100": { width: 5906, height: null, pxPerMm: 150 / 25.4 },
 };
 
-// Designer canvas logical size (px). exportPng(2) → 2× these values.
+// Designer canvas logical size (px)
 const CANVAS_LOGICAL_W = 480;
 const CANVAS_LOGICAL_H = 580;
 
@@ -33,12 +33,19 @@ async function fetchBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
-// Fallback for old designs: extract raw image src from design_json objects[]
-async function getRawImageUrl(
+interface DesignImageInfo {
+  src: string;
+  renderedW: number; // canvas logical px, already accounts for scaleX
+  renderedH: number;
+}
+
+// Extract the raw uploaded image src + its rendered dimensions from the design JSON.
+// renderedW/H are in canvas logical coordinates (480×580 space).
+async function getDesignImageInfo(
   shop: string,
   designToken: string,
   side: "front" | "back",
-): Promise<string | null> {
+): Promise<DesignImageInfo | null> {
   if (!designToken) return null;
   try {
     const result = await query<{ design_json: Record<string, string> }>(
@@ -49,17 +56,31 @@ async function getRawImageUrl(
     if (!row?.design_json) return null;
     const sideStr = row.design_json[side];
     if (!sideStr) return null;
-    const canvas = JSON.parse(sideStr) as { objects?: Array<{ type: string; src?: string }> };
+    const canvas = JSON.parse(sideStr) as {
+      objects?: Array<{
+        type: string;
+        src?: string;
+        width?: number;
+        height?: number;
+        scaleX?: number;
+        scaleY?: number;
+      }>;
+    };
     const imageObj = canvas.objects?.find((o) => o.type === "image" && o.src);
     if (!imageObj?.src) return null;
-    const src = imageObj.src;
+
+    let src = imageObj.src;
     if (src.includes("/api/img-proxy?url=")) {
       try {
         const inner = new URL(src).searchParams.get("url");
-        if (inner) return decodeURIComponent(inner);
+        if (inner) src = decodeURIComponent(inner);
       } catch {}
     }
-    return src;
+
+    const renderedW = Math.max(1, (imageObj.width ?? CANVAS_LOGICAL_W) * (imageObj.scaleX ?? 1));
+    const renderedH = Math.max(1, (imageObj.height ?? CANVAS_LOGICAL_H) * (imageObj.scaleY ?? 1));
+
+    return { src, renderedW, renderedH };
   } catch {
     return null;
   }
@@ -109,7 +130,7 @@ async function buildGangSheet(
   fixedHeight: number | null,
   margin: number,
 ): Promise<Buffer> {
-  const bg = { r: 0, g: 0, b: 0, alpha: 0 }; // always transparent
+  const bg = { r: 0, g: 0, b: 0, alpha: 0 };
 
   const sorted = [...items].sort((a, b) => b.targetH - a.targetH);
 
@@ -177,78 +198,74 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   await Promise.all(
     orders.map(async (order) => {
-      // ── 1. Get the cleanest available buffer ──────────────────────────
-      // Priority:
-      //   a) Stored print URL (clean export without mockup — new designs)
-      //   b) Raw image extracted from design JSON (old designs or image-only)
+      const sizeMm = await getPrintSizeMm(shop, order.productId ?? "", side);
+
+      // ── Priority A: Raw uploaded image from design JSON ──────────────
+      // Uses the original source image at the size the user set on the canvas.
+      // This avoids canvas-render artifacts and gives the cleanest print file.
+      if (order.designToken) {
+        const info = await getDesignImageInfo(shop, order.designToken, side);
+        if (info) {
+          const buf = await fetchBuffer(info.src);
+          if (buf) {
+            let targetW: number;
+            let targetH: number;
+            if (sizeMm) {
+              // Canvas fraction → physical mm → sheet px
+              targetW = Math.max(10, Math.round((info.renderedW / CANVAS_LOGICAL_W) * sizeMm.w * pxPerMm));
+              targetH = Math.max(10, Math.round((info.renderedH / CANVAS_LOGICAL_H) * sizeMm.h * pxPerMm));
+            } else {
+              // No print area configured: use canvas-space px × 2 (matches 2× export)
+              targetW = Math.max(10, Math.round(info.renderedW * 2));
+              targetH = Math.max(10, Math.round(info.renderedH * 2));
+            }
+            items.push({ buffer: buf, targetW, targetH });
+            return;
+          }
+        }
+      }
+
+      // ── Priority B: Stored canvas export + transparent-edge trim ────
+      // Used for text-only designs (no raw image object) or when design JSON
+      // is unavailable. Trims transparent border using explicit background so
+      // the result is tight around the actual content.
       const storedUrl = side === "back"
         ? order.designBackPrintUrl ?? ""
         : (order.designFrontPrintUrl || order.productionFileUrl || "");
 
-      let buf: Buffer | null = await fetchBuffer(storedUrl);
-      let isFullCanvas = !!buf; // full canvas PNG if we got the stored print URL
+      const rawBuf = await fetchBuffer(storedUrl);
+      if (!rawBuf) return;
 
-      if (!buf && order.designToken) {
-        const rawUrl = await getRawImageUrl(shop, order.designToken, side);
-        buf = rawUrl ? await fetchBuffer(rawUrl) : null;
-        isFullCanvas = false;
-      }
-
-      if (!buf) return;
-
-      // ── 2. Detect original canvas dimensions ─────────────────────────
-      let origW = CANVAS_LOGICAL_W * 2; // assume 2x export
+      let origW = CANVAS_LOGICAL_W * 2;
       let origH = CANVAS_LOGICAL_H * 2;
-      if (isFullCanvas) {
-        try {
-          const meta = await sharp(buf).metadata();
-          if (meta.width) origW = meta.width;
-          if (meta.height) origH = meta.height;
-        } catch {}
-      }
+      try {
+        const meta = await sharp(rawBuf).metadata();
+        if (meta.width) origW = meta.width;
+        if (meta.height) origH = meta.height;
+      } catch {}
 
-      // ── 3. Trim transparent borders → tight bounding box ─────────────
-      let trimmedBuf = buf;
+      let trimmedBuf = rawBuf;
       let contentW = origW;
       let contentH = origH;
       try {
-        // ensureAlpha() guarantees alpha channel; explicit transparent background
-        // ensures we always trim transparency regardless of corner pixel colour.
-        const { data, info } = await sharp(buf)
+        const { data, info } = await sharp(rawBuf)
           .ensureAlpha()
           .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 10 })
           .png()
           .toBuffer({ resolveWithObject: true });
-        // Only use the result if trim actually made the image smaller
         if (info.width > 0 && info.height > 0 && info.width <= origW && info.height <= origH
             && (info.width < origW || info.height < origH)) {
           trimmedBuf = data;
           contentW = info.width;
           contentH = info.height;
         }
-      } catch {
-        // trim failed, use original
-      }
+      } catch {}
 
-      // ── 4. Get physical print size ────────────────────────────────────
-      const sizeMm = await getPrintSizeMm(shop, order.productId ?? "", side);
-
-      // ── 5. Calculate target px on sheet ──────────────────────────────
       let targetW: number;
       let targetH: number;
-
-      if (sizeMm && isFullCanvas) {
-        // Map canvas fraction to real physical size at sheet DPI
-        // e.g. content is 400/960 = 41.7% of canvas width → 41.7% of 300mm print area
+      if (sizeMm) {
         targetW = Math.max(10, Math.round((contentW / origW) * sizeMm.w * pxPerMm));
         targetH = Math.max(10, Math.round((contentH / origH) * sizeMm.h * pxPerMm));
-      } else if (sizeMm) {
-        // Raw image: fit inside physical print area, preserve aspect ratio
-        const maxW = Math.round(sizeMm.w * pxPerMm);
-        const maxH = Math.round(sizeMm.h * pxPerMm);
-        const scale = Math.min(maxW / contentW, maxH / contentH, 1);
-        targetW = Math.max(10, Math.round(contentW * scale));
-        targetH = Math.max(10, Math.round(contentH * scale));
       } else {
         targetW = contentW;
         targetH = contentH;
