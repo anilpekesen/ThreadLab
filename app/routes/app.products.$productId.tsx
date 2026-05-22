@@ -853,14 +853,15 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     throw new Response("Product not found", { status: 404 });
   }
 
-  const config = await getProductConfig(product);
-  const printAreas = await getProductPrintAreas(product.id, config.productType, config.surfaceMode, config);
+  const config = await getProductConfig(session.shop, product);
+  const printAreas = await getProductPrintAreas(session.shop, product.id, config.productType, config.surfaceMode, config);
 
   return json({ product, config, printAreas });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
   const productToken = params.productId ?? "";
   const productId = decodeProductToken(productToken);
   const form = await request.formData();
@@ -918,8 +919,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     fallback,
   );
 
-  await saveProductConfig(productId, normalized);
-  await saveProductPrintAreas(productId, printAreas);
+  await saveProductConfig(shop, productId, normalized);
+  await saveProductPrintAreas(shop, productId, printAreas);
   return redirect(`/app/products/${encodeURIComponent(productToken)}?saved=1`);
 };
 

@@ -19,6 +19,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const url = new URL(request.url);
+  const shop = url.searchParams.get("shop") ?? "";
   // Accept either "gid://shopify/Order/12345" or just "12345"
   const raw = url.searchParams.get("shopify_order_id") ?? "";
   const shopifyOrderId = raw.includes("/") ? raw.split("/").pop()! : raw;
@@ -27,7 +28,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json({ error: "shopify_order_id required" }, { status: 400, headers: corsHeaders(request) });
   }
 
-  const order = await getOrderByShopifyId(shopifyOrderId);
+  const order = await getOrderByShopifyId(shop, shopifyOrderId);
   if (!order) {
     return json({ found: false }, { status: 200, headers: corsHeaders(request) });
   }
@@ -37,7 +38,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const frontPrintUrl = order.designFrontPrintUrl || order.productionFileUrl || null;
   const backPrintUrl = order.designBackPrintUrl || null;
 
-  const design = order.designToken ? await getDesignByToken(order.designToken) : null;
+  const design = order.designToken ? await getDesignByToken(shop, order.designToken) : null;
   const frontObjects = design ? extractObjects(design.designJson, "front") : [];
   const backObjects = design ? extractObjects(design.designJson, "back") : [];
 

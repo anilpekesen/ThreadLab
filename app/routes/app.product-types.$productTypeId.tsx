@@ -113,7 +113,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const defaultCfg = buildDefaultConfig(productStub);
     const productType = normalizeProductType(typeName);
     const cfg = normalizeProductConfig({ isActive: true, productType, surfaceMode, productTitle, productHandle }, defaultCfg);
-    await saveProductConfig(productId, cfg);
+    await saveProductConfig(shop, productId, cfg);
 
     return json({ saved: true });
   }

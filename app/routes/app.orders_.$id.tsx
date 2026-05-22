@@ -10,8 +10,8 @@ function dlUrl(fileUrl: string, filename: string): string {
   return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
 }
 
-function imageDownloadUrl(orderId: string, side: "front" | "back", imgIndex: number): string {
-  return `${APP_URL}/api/design-image?order_id=${encodeURIComponent(orderId)}&side=${side}&index=${imgIndex}`;
+function imageDownloadUrl(shop: string, orderId: string, side: "front" | "back", imgIndex: number): string {
+  return `${APP_URL}/api/design-image?order_id=${encodeURIComponent(orderId)}&shop=${encodeURIComponent(shop)}&side=${side}&index=${imgIndex}`;
 }
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
@@ -160,7 +160,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const order = await getOrder(params.id ?? "");
   if (!order) throw new Response("Sipariş bulunamadı", { status: 404 });
 
-  const design = order.designToken ? await getDesignByToken(order.designToken) : null;
+  const design = order.designToken ? await getDesignByToken(session.shop, order.designToken) : null;
   const frontObjects = design ? extractObjects(design.designJson, "front") : [];
   const backObjects = design ? extractObjects(design.designJson, "back") : [];
 
@@ -252,7 +252,7 @@ export default function OrderDetail() {
                         let imgIdx = 0;
                         return frontObjects.map((obj, i) => {
                           const isImg = obj.type === "image" && obj.src;
-                          const href = isImg ? imageDownloadUrl(order.id, "front", imgIdx) : undefined;
+                          const href = isImg ? imageDownloadUrl(shop, order.id, "front", imgIdx) : undefined;
                           if (isImg) imgIdx++;
                           return <DesignObjectCard key={i} obj={obj} downloadHref={href} />;
                         });
@@ -301,7 +301,7 @@ export default function OrderDetail() {
                         let imgIdx = 0;
                         return backObjects.map((obj, i) => {
                           const isImg = obj.type === "image" && obj.src;
-                          const href = isImg ? imageDownloadUrl(order.id, "back", imgIdx) : undefined;
+                          const href = isImg ? imageDownloadUrl(shop, order.id, "back", imgIdx) : undefined;
                           if (isImg) imgIdx++;
                           return <DesignObjectCard key={i} obj={obj} downloadHref={href} />;
                         });

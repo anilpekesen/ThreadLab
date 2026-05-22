@@ -37,7 +37,7 @@ function extractDesignToken(payload: OrderPayload): string | undefined {
 }
 
 function resetCustomerQuota(shop: string, designToken: string, orderName?: string) {
-  getSessionForDesignToken(designToken)
+  getSessionForDesignToken(shop, designToken)
     .then((sessionId) => {
       if (sessionId) return resetCustomerBgQuota(shop, sessionId);
     })
@@ -101,7 +101,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     console.log(`[webhook] cancelled order=${order.name} shopifyId=${shopifyOrderId}`);
 
     if (shopifyOrderId) {
-      getOrderByShopifyId(shopifyOrderId)
+      getOrderByShopifyId(shop, shopifyOrderId)
         .then((existing) => {
           if (existing) return updateOrderStatus(existing.id, "cancelled");
         })
@@ -118,7 +118,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     console.log(`[webhook] fulfilled order=${order.name} shopifyId=${shopifyOrderId}`);
 
     if (shopifyOrderId) {
-      getOrderByShopifyId(shopifyOrderId)
+      getOrderByShopifyId(shop, shopifyOrderId)
         .then((existing) => {
           if (existing && existing.productionStatus !== "shipped") {
             return updateOrderStatus(existing.id, "shipped");

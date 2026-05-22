@@ -67,22 +67,23 @@ function rowToRecord(row: DbRow): DesignRecord {
   };
 }
 
-export async function getDesignByToken(token: string): Promise<DesignRecord | null> {
+export async function getDesignByToken(shop: string, token: string): Promise<DesignRecord | null> {
   await ensureMigrations();
   const result = await query<DbRow>(
-    "SELECT * FROM designs WHERE token = $1",
-    [token],
+    "SELECT * FROM designs WHERE shop = $1 AND token = $2",
+    [shop, token],
   );
   if (!result.rows.length) return null;
   return rowToRecord(result.rows[0]);
 }
 
-export async function saveDesign(record: Omit<DesignRecord, "createdAt">): Promise<void> {
+export async function saveDesign(shop: string, record: Omit<DesignRecord, "createdAt">): Promise<void> {
   await ensureMigrations();
   await query(
-    `INSERT INTO designs (token, product_id, session_id, design_json, front_preview_url, back_preview_url, front_print_url, back_print_url)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO designs (shop, token, product_id, session_id, design_json, front_preview_url, back_preview_url, front_print_url, back_print_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (token) DO UPDATE SET
+       shop = EXCLUDED.shop,
        product_id = EXCLUDED.product_id,
        session_id = COALESCE(EXCLUDED.session_id, designs.session_id),
        design_json = EXCLUDED.design_json,
@@ -91,6 +92,7 @@ export async function saveDesign(record: Omit<DesignRecord, "createdAt">): Promi
        front_print_url = EXCLUDED.front_print_url,
        back_print_url = EXCLUDED.back_print_url`,
     [
+      shop,
       record.token,
       record.productId ?? null,
       record.sessionId ?? null,
@@ -103,10 +105,10 @@ export async function saveDesign(record: Omit<DesignRecord, "createdAt">): Promi
   );
 }
 
-export async function getSessionForDesignToken(token: string): Promise<string | null> {
+export async function getSessionForDesignToken(shop: string, token: string): Promise<string | null> {
   const result = await query<{ session_id: string | null }>(
-    "SELECT session_id FROM designs WHERE token = $1",
-    [token],
+    "SELECT session_id FROM designs WHERE shop = $1 AND token = $2",
+    [shop, token],
   );
   return result.rows[0]?.session_id ?? null;
 }

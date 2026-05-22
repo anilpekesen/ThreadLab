@@ -91,32 +91,31 @@ const ORDER_SELECT = `
   LEFT JOIN designs d ON o.design_token = d.token
 `;
 
-export async function getOrders(status?: string): Promise<Order[]> {
+export async function getOrders(shop: string, status?: string): Promise<Order[]> {
   await ensureMigrations();
   const result = status
     ? await query<DbRow>(
-        `${ORDER_SELECT} WHERE o.design_token != '' AND o.production_status = $1 ORDER BY o.created_at DESC`,
-        [status],
+        `${ORDER_SELECT} WHERE o.shop = $1 AND o.design_token != '' AND o.production_status = $2 ORDER BY o.created_at DESC`,
+        [shop, status],
       )
     : await query<DbRow>(
-        `${ORDER_SELECT} WHERE o.design_token != '' AND o.production_status != 'cancelled' ORDER BY o.created_at DESC`,
+        `${ORDER_SELECT} WHERE o.shop = $1 AND o.design_token != '' AND o.production_status != 'cancelled' ORDER BY o.created_at DESC`,
+        [shop],
       );
   return result.rows.map(rowToOrder);
 }
 
-export async function getDashboardStats() {
+export async function getDashboardStats(shop: string) {
   await ensureMigrations();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const [total, todayCount, pending, ready, missingSurcharge] = await Promise.all([
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE design_token != ''"),
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE design_token != '' AND created_at >= $1", [today]),
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE design_token != '' AND production_status = 'pending'"),
-    query<{ count: string }>(
-      "SELECT COUNT(*) FROM orders WHERE design_token != '' AND production_status IN ('ready', 'shipped')",
-    ),
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE design_token != '' AND missing_surcharge = TRUE"),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != ''", [shop]),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != '' AND created_at >= $2", [shop, today]),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != '' AND production_status = 'pending'", [shop]),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != '' AND production_status IN ('ready', 'shipped')", [shop]),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != '' AND missing_surcharge = TRUE", [shop]),
   ]);
 
   return {
@@ -138,11 +137,11 @@ export async function getOrder(id: string): Promise<Order | null> {
   return rowToOrder(result.rows[0]);
 }
 
-export async function getOrderByShopifyId(shopifyOrderId: string): Promise<Order | null> {
+export async function getOrderByShopifyId(shop: string, shopifyOrderId: string): Promise<Order | null> {
   await ensureMigrations();
   const result = await query<DbRow>(
-    `${ORDER_SELECT} WHERE o.shopify_order_id = $1`,
-    [shopifyOrderId],
+    `${ORDER_SELECT} WHERE o.shop = $1 AND o.shopify_order_id = $2`,
+    [shop, shopifyOrderId],
   );
   if (!result.rows.length) return null;
   return rowToOrder(result.rows[0]);
@@ -198,6 +197,7 @@ function summarizeObjects(
 
 async function writeDesignMetafields(
   admin: AdminClient,
+  shop: string,
   shopifyOrderGid: string,
   appOrderId: string,
   frontPreviewUrl: string,
@@ -206,7 +206,7 @@ async function writeDesignMetafields(
   backPrintUrl: string,
   designToken: string,
 ): Promise<void> {
-  const design = designToken ? await getDesignByToken(designToken) : null;
+  const design = designToken ? await getDesignByToken(shop, designToken) : null;
   const frontObjects = design ? summarizeObjects(extractObjects(design.designJson, "front")) : [];
   const backObjects = design ? summarizeObjects(extractObjects(design.designJson, "back")) : [];
 
@@ -245,7 +245,7 @@ async function writeDesignMetafields(
   }
 }
 
-export async function syncOrdersFromAdmin(admin: AdminClient): Promise<number> {
+export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Promise<number> {
   await ensureMigrations();
 
   type Attr = { key: string; value: string };
@@ -300,8 +300,8 @@ export async function syncOrdersFromAdmin(admin: AdminClient): Promise<number> {
     const shopifyOrderId = so.id.split("/").pop() ?? so.id;
 
     // Skip already imported orders
-    const existing = await query("SELECT id FROM orders WHERE shopify_order_id = $1", [
-      shopifyOrderId,
+    const existing = await query("SELECT id FROM orders WHERE shop = $1 AND shopify_order_id = $2", [
+      shop, shopifyOrderId,
     ]);
     if (existing.rows.length > 0) continue;
 
@@ -337,13 +337,14 @@ export async function syncOrdersFromAdmin(admin: AdminClient): Promise<number> {
         "";
       const id = `order_${randomBytes(8).toString("hex")}`;
       await query(
-        `INSERT INTO orders (id, shopify_order_id, order_number, product_id, product_name,
+        `INSERT INTO orders (id, shop, shopify_order_id, order_number, product_id, product_name,
           variant_id, design_token, preview_url, production_file_url, production_status,
           missing_surcharge, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',FALSE,$10)
-         ON CONFLICT (shopify_order_id) DO NOTHING`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',FALSE,$11)
+         ON CONFLICT (shop, shopify_order_id) DO NOTHING`,
         [
           id,
+          shop,
           shopifyOrderId,
           so.name,
           item.product?.id.split("/").pop() ?? "",
@@ -357,6 +358,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient): Promise<number> {
       );
       await writeDesignMetafields(
         admin,
+        shop,
         so.id,
         id,
         frontPreviewUrl,
@@ -372,29 +374,28 @@ export async function syncOrdersFromAdmin(admin: AdminClient): Promise<number> {
   return added;
 }
 
-export async function getTodayOrders(statuses?: string[]): Promise<Order[]> {
+export async function getTodayOrders(shop: string, statuses?: string[]): Promise<Order[]> {
   await ensureMigrations();
-  const filter = statuses && statuses.length > 0
-    ? `AND o.production_status = ANY($2)`
-    : "";
-  const params: unknown[] = [new Date(new Date().setHours(0, 0, 0, 0))];
+  const today = new Date(new Date().setHours(0, 0, 0, 0));
+  const filter = statuses && statuses.length > 0 ? `AND o.production_status = ANY($3)` : "";
+  const params: unknown[] = [shop, today];
   if (statuses && statuses.length > 0) params.push(statuses);
   const result = await query<DbRow>(
-    `${ORDER_SELECT} WHERE o.design_token != '' AND o.production_status != 'cancelled' AND o.created_at >= $1 ${filter} ORDER BY o.created_at ASC`,
+    `${ORDER_SELECT} WHERE o.shop = $1 AND o.design_token != '' AND o.production_status != 'cancelled' AND o.created_at >= $2 ${filter} ORDER BY o.created_at ASC`,
     params,
   );
   return result.rows.map(rowToOrder);
 }
 
-export async function getOrdersWithPrintFiles(statuses?: string[]): Promise<Order[]> {
+export async function getOrdersWithPrintFiles(shop: string, statuses?: string[]): Promise<Order[]> {
   await ensureMigrations();
-  const statusFilter = statuses && statuses.length > 0
-    ? `AND o.production_status = ANY($1)`
-    : "";
-  const params: unknown[] = statuses && statuses.length > 0 ? [statuses] : [];
+  const statusFilter = statuses && statuses.length > 0 ? `AND o.production_status = ANY($2)` : "";
+  const params: unknown[] = [shop];
+  if (statuses && statuses.length > 0) params.push(statuses);
   const result = await query<DbRow>(
     `${ORDER_SELECT}
-     WHERE o.design_token != ''
+     WHERE o.shop = $1
+       AND o.design_token != ''
        AND o.production_status != 'cancelled'
        AND (d.front_print_url IS NOT NULL AND d.front_print_url != ''
             OR o.production_file_url IS NOT NULL AND o.production_file_url != '')
@@ -406,12 +407,12 @@ export async function getOrdersWithPrintFiles(statuses?: string[]): Promise<Orde
   return result.rows.map(rowToOrder);
 }
 
-export async function getOrdersByIds(ids: string[]): Promise<Order[]> {
+export async function getOrdersByIds(shop: string, ids: string[]): Promise<Order[]> {
   if (!ids.length) return [];
   await ensureMigrations();
   const result = await query<DbRow>(
-    `${ORDER_SELECT} WHERE o.id = ANY($1)`,
-    [ids],
+    `${ORDER_SELECT} WHERE o.shop = $1 AND o.id = ANY($2)`,
+    [shop, ids],
   );
   return result.rows.map(rowToOrder);
 }
@@ -426,6 +427,7 @@ export async function bulkUpdateStatus(ids: string[], status: string): Promise<v
 }
 
 export async function createOrderFromPixel(data: {
+  shop: string;
   orderId?: string;
   orderNumber?: string;
   designToken?: string;
@@ -440,13 +442,14 @@ export async function createOrderFromPixel(data: {
 
   const id = `order_${randomBytes(8).toString("hex")}`;
   await query(
-    `INSERT INTO orders (id, shopify_order_id, order_number, product_id, product_name,
+    `INSERT INTO orders (id, shop, shopify_order_id, order_number, product_id, product_name,
       variant_id, design_token, preview_url, production_file_url, production_status,
       missing_surcharge)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',FALSE)
-     ON CONFLICT (shopify_order_id) DO NOTHING`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',FALSE)
+     ON CONFLICT (shop, shopify_order_id) DO NOTHING`,
     [
       id,
+      data.shop,
       data.orderId,
       data.orderNumber ?? `#${data.orderId}`,
       data.productId ?? "",

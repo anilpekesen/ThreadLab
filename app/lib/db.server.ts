@@ -187,4 +187,41 @@ export async function runMigrations() {
       updated_at          TIMESTAMPTZ
     )
   `);
+
+  // ── Multi-tenant shop isolation ──────────────────────────────────────────
+  // Add shop column to all tenant-scoped tables
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS shop TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE designs ADD COLUMN IF NOT EXISTS shop TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE product_settings ADD COLUMN IF NOT EXISTS shop TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE product_print_areas ADD COLUMN IF NOT EXISTS shop TEXT NOT NULL DEFAULT ''`);
+
+  // Backfill existing rows (single shop, safe to hardcode once)
+  await query(`UPDATE orders SET shop = 'whanotify-dev.myshopify.com' WHERE shop = ''`);
+  await query(`UPDATE designs SET shop = 'whanotify-dev.myshopify.com' WHERE shop = ''`);
+  await query(`UPDATE product_settings SET shop = 'whanotify-dev.myshopify.com' WHERE shop = ''`);
+  await query(`UPDATE product_print_areas SET shop = 'whanotify-dev.myshopify.com' WHERE shop = ''`);
+
+  // Re-key product_settings to (shop, product_id)
+  await query(`ALTER TABLE product_settings DROP CONSTRAINT IF EXISTS product_settings_pkey`);
+  await query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'product_settings_pkey'
+      ) THEN
+        ALTER TABLE product_settings ADD PRIMARY KEY (shop, product_id);
+      END IF;
+    END $$
+  `);
+
+  // Drop old single-column unique on shopify_order_id, add shop-scoped unique
+  await query(`ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_shopify_order_id_key`);
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS orders_shop_shopify_order_id
+      ON orders (shop, shopify_order_id)
+  `);
+
+  // Indexes for shop-scoped queries
+  await query(`CREATE INDEX IF NOT EXISTS orders_shop_idx ON orders (shop, created_at DESC)`);
+  await query(`CREATE INDEX IF NOT EXISTS designs_shop_idx ON designs (shop)`);
+  await query(`CREATE INDEX IF NOT EXISTS product_print_areas_shop_product ON product_print_areas (shop, product_id)`);
 }

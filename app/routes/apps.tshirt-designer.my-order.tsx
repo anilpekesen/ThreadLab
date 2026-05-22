@@ -4,6 +4,7 @@ import { getDesignByToken, extractObjects, type DesignObject } from "~/models/de
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
+  const shop = url.searchParams.get("shop") ?? "";
 
   if (!token) {
     return new Response(errorPage("Geçersiz link", "Tasarım token'ı eksik."), {
@@ -12,7 +13,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  const design = await getDesignByToken(token);
+  const design = await getDesignByToken(shop, token);
   if (!design) {
     return new Response(errorPage("Tasarım bulunamadı", "Bu tasarım artık mevcut değil veya link hatalı."), {
       status: 404,

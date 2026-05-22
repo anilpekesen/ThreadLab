@@ -10,7 +10,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = url.searchParams.get("shop") ?? "";
 
   const [config, globalSettings, shopSettings] = await Promise.all([
-    findConfigForStorefront(productId, handle),
+    findConfigForStorefront(shop, productId, handle),
     getGlobalSettings(),
     shop ? getShopSettings(shop) : Promise.resolve(null),
   ]);

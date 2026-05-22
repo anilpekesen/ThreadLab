@@ -70,6 +70,7 @@ async function handleFetchUrl(request: Request) {
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const appProxy = await authenticate.public.appProxy(request);
   const path = params["*"] ?? "";
+  const shop = appProxy.session?.shop ?? new URL(request.url).searchParams.get("shop") ?? "";
 
   if (path === "designer") {
     const url = new URL(request.url);
@@ -117,7 +118,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (path === "personalization") {
     const handle = new URL(request.url).searchParams.get("handle") ?? "";
     const productId = new URL(request.url).searchParams.get("productId") ?? "";
-    const config = await findConfigForStorefront(productId, handle);
+    const config = await findConfigForStorefront(shop, productId, handle);
     if (!config) {
       return json({ error: "Not found" }, { status: 404 });
     }
@@ -153,7 +154,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
-    const design = await getDesignByToken(token);
+    const design = await getDesignByToken(shop, token);
     if (!design) {
       return new Response(myOrderErrorPage("Tasarım bulunamadı", "Bu tasarım artık mevcut değil veya link hatalı."), {
         status: 404,
@@ -203,7 +204,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // Also persist to DB so webhook auto-bg processing can find the design
     const b = body as Record<string, unknown>;
     const designJson = (b.front || b.back) ? { front: b.front, back: b.back } : body;
-    saveDesign({
+    saveDesign(shop, {
       token,
       productId: typeof b.productId === "string" ? b.productId : undefined,
       designJson,

@@ -58,7 +58,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let syncCount = 0;
   if (!status || forceSync) {
     try {
-      syncCount = await syncOrdersFromAdmin(admin);
+      syncCount = await syncOrdersFromAdmin(admin, session.shop);
     } catch (e) {
       // Re-throw redirects so Shopify auth flow can handle them
       if (e instanceof Response && e.status >= 300 && e.status < 400) throw e;
@@ -71,8 +71,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const [orders, stats] = await Promise.all([
-    getOrders(status || undefined),
-    getDashboardStats(),
+    getOrders(session.shop, status || undefined),
+    getDashboardStats(session.shop),
   ]);
   return json({ orders, status, stats, shop: session.shop, syncError, syncCount });
 };

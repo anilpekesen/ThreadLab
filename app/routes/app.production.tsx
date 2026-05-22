@@ -35,16 +35,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const statusFilter = url.searchParams.get("status") ?? "";
   const todayOnly = url.searchParams.get("today") === "1";
 
+  const shop = session.shop;
   let orders: Order[];
   if (todayOnly) {
     const statuses = statusFilter ? [statusFilter] : ["pending", "preparing"];
-    orders = await getTodayOrders(statuses);
+    orders = await getTodayOrders(shop, statuses);
   } else {
     orders = statusFilter
-      ? await getOrders(statusFilter)
-      : await getOrders("pending").then(async (p) => [
+      ? await getOrders(shop, statusFilter)
+      : await getOrders(shop, "pending").then(async (p) => [
           ...p,
-          ...(await getOrders("preparing")),
+          ...(await getOrders(shop, "preparing")),
         ]);
   }
 
@@ -101,7 +102,7 @@ const STATUSES = [
 ];
 
 export default function Production() {
-  const { orders, withFile, statusFilter, todayOnly } = useLoaderData<typeof loader>();
+  const { orders, withFile, statusFilter, todayOnly, shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const { t } = useTranslation();
@@ -117,7 +118,7 @@ export default function Production() {
     if (!ids.length) return;
     setDownloadState("downloading");
     try {
-      const res = await fetch(`/api/production-zip?ids=${ids.join(",")}`);
+      const res = await fetch(`/api/production-zip?shop=${encodeURIComponent(shop)}&ids=${ids.join(",")}`);
       if (!res.ok) return;
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);

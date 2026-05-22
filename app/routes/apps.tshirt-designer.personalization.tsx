@@ -5,8 +5,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const handle = url.searchParams.get("handle") ?? "";
   const productId = url.searchParams.get("productId") ?? "";
+  const shop = url.searchParams.get("shop") ?? "";
 
-  const config = await findConfigForStorefront(productId, handle);
+  const config = await findConfigForStorefront(shop, productId, handle);
   if (!config) {
     return json({ error: "Not found" }, { status: 404 });
   }

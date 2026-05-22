@@ -19,8 +19,8 @@ const AUTO_REFRESH_MS = 30_000;
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const [stats, orders, analytics] = await Promise.all([
-    getDashboardStats(),
-    getOrders(),
+    getDashboardStats(session.shop),
+    getOrders(session.shop),
     getAnalytics(session.shop),
   ]);
 

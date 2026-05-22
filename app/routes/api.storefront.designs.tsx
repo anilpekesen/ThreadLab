@@ -18,8 +18,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const token = `d_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
   const b = body as Record<string, unknown>;
+  const shop = typeof b.shop === "string" ? b.shop : "";
 
-  await saveDesign({
+  await saveDesign(shop, {
     token,
     productId: typeof b.productId === "string" ? b.productId : undefined,
     sessionId: typeof b.sessionId === "string" && b.sessionId ? b.sessionId : undefined,

@@ -15,6 +15,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   try {
     const body = await request.json() as {
+      shop?: string;
       orderId?: string;
       orderNumber?: string;
       designToken?: string;
@@ -29,7 +30,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ error: "missing design_token" }, { status: 400, headers: CORS });
     }
 
-    await createOrderFromPixel(body);
+    await createOrderFromPixel({ ...body, shop: body.shop ?? "" });
     return json({ ok: true }, { headers: CORS });
   } catch (e) {
     return json({ error: String(e) }, { status: 500, headers: CORS });

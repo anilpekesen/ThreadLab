@@ -24,6 +24,7 @@ function sanitize(name: string): string {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
+  const shop = url.searchParams.get("shop") ?? "";
   const idsParam = url.searchParams.get("ids") ?? "";
   const ids = idsParam.split(",").filter(Boolean);
 
@@ -31,7 +32,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return new Response("ids required", { status: 400 });
   }
 
-  const orders = await getOrdersByIds(ids);
+  const orders = await getOrdersByIds(shop, ids);
   if (!orders.length) {
     return new Response("no orders found", { status: 404 });
   }

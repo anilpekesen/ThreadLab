@@ -35,12 +35,12 @@ async function fetchBuffer(url: string): Promise<Buffer | null> {
 }
 
 // Extract the raw user-uploaded image URL from design_json (no product mockup)
-async function getCleanPrintUrl(designToken: string, side: "front" | "back"): Promise<string | null> {
+async function getCleanPrintUrl(shop: string, designToken: string, side: "front" | "back"): Promise<string | null> {
   if (!designToken) return null;
   try {
     const result = await query<{ design_json: { front?: string; back?: string } }>(
-      "SELECT design_json FROM designs WHERE token = $1 LIMIT 1",
-      [designToken],
+      "SELECT design_json FROM designs WHERE shop = $1 AND token = $2 LIMIT 1",
+      [shop, designToken],
     );
     const row = result.rows[0];
     if (!row?.design_json) return null;
@@ -174,6 +174,7 @@ async function buildGangSheet(
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
+  const shop = url.searchParams.get("shop") ?? "";
   const idsParam = url.searchParams.get("ids") ?? "";
   const ids = idsParam.split(",").filter(Boolean);
   const preset = url.searchParams.get("preset") ?? "dtf60";
@@ -185,7 +186,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return new Response("ids required", { status: 400 });
   }
 
-  const orders = await getOrdersByIds(ids);
+  const orders = await getOrdersByIds(shop, ids);
   if (!orders.length) {
     return new Response("no orders found", { status: 404 });
   }
@@ -200,7 +201,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       // Prefer raw image from design_json — never contains the product mockup background.
       // Fall back to stored print URL (new orders after cleanBg fix, or text-only designs).
       const cleanUrl = order.designToken
-        ? await getCleanPrintUrl(order.designToken, side)
+        ? await getCleanPrintUrl(shop, order.designToken, side)
         : null;
       const printUrl = cleanUrl || (
         side === "back"

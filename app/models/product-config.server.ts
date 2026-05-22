@@ -97,10 +97,11 @@ export function toStorefrontSettings(config: ProductConfig) {
   };
 }
 
-export async function readSettingsMap(): Promise<SettingsMap> {
+export async function readSettingsMap(shop: string): Promise<SettingsMap> {
   await ensureMigrations();
   const result = await query<{ product_id: string; config: ProductConfig }>(
-    "SELECT product_id, config FROM product_settings",
+    "SELECT product_id, config FROM product_settings WHERE shop = $1",
+    [shop],
   );
   const map: SettingsMap = {};
   for (const row of result.rows) {
@@ -109,19 +110,19 @@ export async function readSettingsMap(): Promise<SettingsMap> {
   return map;
 }
 
-export async function writeSettingsMap(settings: SettingsMap): Promise<void> {
+export async function writeSettingsMap(shop: string, settings: SettingsMap): Promise<void> {
   await ensureMigrations();
   for (const [productId, config] of Object.entries(settings)) {
     await query(
-      `INSERT INTO product_settings (product_id, config, updated_at)
-       VALUES ($1, $2, now())
-       ON CONFLICT (product_id) DO UPDATE SET config = $2, updated_at = now()`,
-      [productId, JSON.stringify(config)],
+      `INSERT INTO product_settings (shop, product_id, config, updated_at)
+       VALUES ($1, $2, $3, now())
+       ON CONFLICT (shop, product_id) DO UPDATE SET config = $3, updated_at = now()`,
+      [shop, productId, JSON.stringify(config)],
     );
   }
 }
 
-export async function readPrintAreas(): Promise<PrintAreaRecord[]> {
+export async function readPrintAreas(shop: string): Promise<PrintAreaRecord[]> {
   await ensureMigrations();
   const result = await query<{
     id: string; product_id: string; name: string; side: "front" | "back";
@@ -130,7 +131,7 @@ export async function readPrintAreas(): Promise<PrintAreaRecord[]> {
     x: string; y: string; width: string; height: string;
     real_width_mm: number; real_height_mm: number;
     safe_margin: string; bleed_margin: string; dpi: number; updated_at: string;
-  }>("SELECT * FROM product_print_areas ORDER BY updated_at");
+  }>("SELECT * FROM product_print_areas WHERE shop = $1 ORDER BY updated_at", [shop]);
   return result.rows.map((r) => ({
     id: r.id,
     productId: r.product_id,
@@ -154,20 +155,20 @@ export async function readPrintAreas(): Promise<PrintAreaRecord[]> {
   }));
 }
 
-export async function writePrintAreas(areas: PrintAreaRecord[]): Promise<void> {
+export async function writePrintAreas(shop: string, areas: PrintAreaRecord[]): Promise<void> {
   await ensureMigrations();
   if (areas.length === 0) return;
   for (const a of areas) {
     await query(
       `INSERT INTO product_print_areas
-         (id, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())
+         (id, shop, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now())
        ON CONFLICT (id) DO UPDATE SET
-         product_id=$2, side=$3, name=$4, mockup_x=$5, mockup_y=$6, mockup_width=$7, mockup_height=$8,
-         x=$9, y=$10, width=$11, height=$12,
-         real_width_mm=$13, real_height_mm=$14, safe_margin=$15, bleed_margin=$16, dpi=$17, updated_at=now()`,
-      [a.id, a.productId, a.side, a.name, a.mockupX, a.mockupY, a.mockupWidth, a.mockupHeight, a.x, a.y, a.width, a.height,
-       a.realWidthMm, a.realHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
+         shop=$2, product_id=$3, side=$4, name=$5, mockup_x=$6, mockup_y=$7, mockup_width=$8, mockup_height=$9,
+         x=$10, y=$11, width=$12, height=$13,
+         real_width_mm=$14, real_height_mm=$15, safe_margin=$16, bleed_margin=$17, dpi=$18, updated_at=now()`,
+      [a.id, shop, a.productId, a.side, a.name, a.mockupX, a.mockupY, a.mockupWidth, a.mockupHeight,
+       a.x, a.y, a.width, a.height, a.realWidthMm, a.realHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
     );
   }
 }
@@ -529,28 +530,28 @@ export async function fetchShopifyProductById(
   return mapped;
 }
 
-export async function getProductConfig(product: ShopifyProductSummary): Promise<ProductConfig> {
-  const settings = await readSettingsMap();
+export async function getProductConfig(shop: string, product: ShopifyProductSummary): Promise<ProductConfig> {
+  const settings = await readSettingsMap(shop);
   const fallback = buildDefaultConfig(product);
   const stored = settings[product.id];
   return stored ? normalizeProductConfig(stored, fallback) : fallback;
 }
 
-export async function saveProductConfig(productId: string, config: ProductConfig): Promise<void> {
+export async function saveProductConfig(shop: string, productId: string, config: ProductConfig): Promise<void> {
   await ensureMigrations();
   await query(
-    `INSERT INTO product_settings (product_id, config, updated_at)
-     VALUES ($1, $2, now())
-     ON CONFLICT (product_id) DO UPDATE SET config = $2, updated_at = now()`,
-    [productId, JSON.stringify(config)],
+    `INSERT INTO product_settings (shop, product_id, config, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (shop, product_id) DO UPDATE SET config = $3, updated_at = now()`,
+    [shop, productId, JSON.stringify(config)],
   );
 }
 
-export async function findConfigForStorefront(productId: string, handle: string) {
+export async function findConfigForStorefront(shop: string, productId: string, handle: string) {
   const idKey = String(productId || "").trim();
   const handleKey = String(handle || "").trim();
   if (!idKey && !handleKey) return null;
-  const settings = await readSettingsMap();
+  const settings = await readSettingsMap(shop);
   const entry = Object.entries(settings).find(([storedId, value]) => {
     if (idKey && String(storedId).trim() === idKey) return true;
     return handleKey && String(value?.productHandle || "").trim() === handleKey;
@@ -564,7 +565,7 @@ export async function findConfigForStorefront(productId: string, handle: string)
     productType: String(storedConfig?.productType || "apparel"),
   });
   const config = normalizeProductConfig(storedConfig, fallback);
-  const allAreas = await readPrintAreas();
+  const allAreas = await readPrintAreas(shop);
   const printAreas = allAreas.filter((area) => area.productId === storedProductId);
 
   return {
@@ -575,12 +576,13 @@ export async function findConfigForStorefront(productId: string, handle: string)
 }
 
 export async function getProductPrintAreas(
+  shop: string,
   productId: string,
   productType: string,
   surfaceMode: SurfaceMode,
   config: ProductConfig,
 ): Promise<PrintAreaRecord[]> {
-  const allAreas = await readPrintAreas();
+  const allAreas = await readPrintAreas(shop);
   const overlay = defaultOverlayForType(productType);
   const mockup = defaultMockupBoundsForType(productType);
 
@@ -619,15 +621,15 @@ export async function getProductPrintAreas(
   return result;
 }
 
-export async function saveProductPrintAreas(productId: string, areas: PrintAreaRecord[]): Promise<void> {
+export async function saveProductPrintAreas(shop: string, productId: string, areas: PrintAreaRecord[]): Promise<void> {
   await ensureMigrations();
-  await query("DELETE FROM product_print_areas WHERE product_id = $1", [productId]);
+  await query("DELETE FROM product_print_areas WHERE shop = $1 AND product_id = $2", [shop, productId]);
   for (const a of areas) {
     await query(
       `INSERT INTO product_print_areas
-         (id, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, mockup_image_url, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now())`,
-      [a.id, productId, a.side, a.name, a.mockupX, a.mockupY, a.mockupWidth, a.mockupHeight, a.mockupImageUrl ?? "",
+         (id, shop, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, mockup_image_url, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now())`,
+      [a.id, shop, productId, a.side, a.name, a.mockupX, a.mockupY, a.mockupWidth, a.mockupHeight, a.mockupImageUrl ?? "",
        a.x, a.y, a.width, a.height, a.realWidthMm, a.realHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
     );
   }

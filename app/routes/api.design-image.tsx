@@ -17,6 +17,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const url = new URL(request.url);
   const orderId = url.searchParams.get("order_id") ?? "";
+  const shop = url.searchParams.get("shop") ?? "";
   const side = (url.searchParams.get("side") ?? "front") as "front" | "back";
   const index = parseInt(url.searchParams.get("index") ?? "0", 10);
 
@@ -29,7 +30,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json({ error: "Order not found" }, { status: 404 });
   }
 
-  const design = await getDesignByToken(order.designToken);
+  const design = await getDesignByToken(shop, order.designToken);
   if (!design) {
     return json({ error: "Design not found" }, { status: 404 });
   }

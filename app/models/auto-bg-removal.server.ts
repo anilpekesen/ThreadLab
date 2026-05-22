@@ -103,7 +103,7 @@ function replaceImageSrcs(
 export async function processOrderBgRemoval(shop: string, designToken: string): Promise<void> {
   if (!shop || !designToken) return;
 
-  const design = await getDesignByToken(designToken);
+  const design = await getDesignByToken(shop, designToken);
   if (!design?.designJson) return;
 
   const globalSettings = await getGlobalSettings();
@@ -152,7 +152,7 @@ export async function processOrderBgRemoval(shop: string, designToken: string): 
 
   // Update design JSON with new URLs and save
   const updatedJson = replaceImageSrcs(design.designJson, replacements);
-  await saveDesign({ ...design, designJson: updatedJson });
+  await saveDesign(shop, { ...design, designJson: updatedJson });
   console.log(`[auto-bg] Design ${designToken} updated with ${replacements.size} processed image(s)`);
 }
 

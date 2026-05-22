@@ -40,7 +40,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const products = await fetchShopifyProducts(admin, q);
 
   const rows = await Promise.all(products.map(async (product) => {
-    const config = await getProductConfig(product);
+    const config = await getProductConfig(session.shop, product);
     return {
       id: product.id,
       title: product.title,

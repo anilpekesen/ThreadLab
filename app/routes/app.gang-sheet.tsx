@@ -35,7 +35,8 @@ function hasPrintFile(order: Order): boolean {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
 
   const url = new URL(request.url);
   const idsParam = url.searchParams.get("ids") ?? "";
@@ -44,19 +45,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Load orders with print files
   let orders: Order[];
   if (preselectedIds.length) {
-    orders = await getOrdersByIds(preselectedIds);
+    orders = await getOrdersByIds(shop, preselectedIds);
   } else {
     // Show all orders with print files (not just today's)
-    orders = await getOrdersWithPrintFiles();
+    orders = await getOrdersWithPrintFiles(shop);
   }
 
   const printableOrders = orders.filter(hasPrintFile);
 
-  return json({ printableOrders, preselectedIds });
+  return json({ printableOrders, preselectedIds, shop });
 };
 
 export default function GangSheet() {
-  const { printableOrders, preselectedIds } = useLoaderData<typeof loader>();
+  const { printableOrders, preselectedIds, shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -94,6 +95,7 @@ export default function GangSheet() {
       margin: String(margin),
       bg,
       side,
+      shop,
     });
     try {
       const res = await fetch(`/api/gang-sheet?${params.toString()}`);
