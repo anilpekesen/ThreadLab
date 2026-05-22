@@ -23,7 +23,10 @@ import {
 } from "~/models/shop-templates.server";
 import { getShopPlan } from "~/models/bg-removal-usage.server";
 
-const CATEGORY_SUGGESTIONS = ["Çizgi Film", "Süper Kahraman", "Spor", "Doğa", "Soyut", "Yazı / Logo", "Hayvanlar", "Araçlar", "Özel"];
+const CATEGORY_SUGGESTION_KEYS = [
+  "cat.cartoon", "cat.superhero", "cat.sport", "cat.nature",
+  "cat.abstract", "cat.textLogo", "cat.animals", "cat.vehicles", "cat.custom",
+] as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -114,31 +117,34 @@ function CategoryField({
         value={value}
         onChange={onChange}
         autoComplete="off"
-        placeholder="örn. Çizgi Film, Spor, Doğa, Özel"
-        helpText="Dilediğiniz kategori adını yazabilirsiniz."
+        placeholder={t("templates.namePlaceholder")}
+        helpText={t("productTypes.categoryHelp")}
         disabled={disabled}
       />
       {!disabled && (
         <InlineStack gap="150" wrap>
-          {CATEGORY_SUGGESTIONS.map((s) => (
+          {CATEGORY_SUGGESTION_KEYS.map((key) => {
+            const label = t(key);
+            return (
             <button
-              key={s}
+              key={key}
               type="button"
-              onClick={() => onChange(s)}
+              onClick={() => onChange(label)}
               style={{
                 padding: "2px 10px",
                 borderRadius: 20,
                 border: "1px solid #d1d5db",
-                background: value === s ? "#e0e7ff" : "#f9fafb",
-                color: value === s ? "#4f46e5" : "#374151",
+                background: value === label ? "#e0e7ff" : "#f9fafb",
+                color: value === label ? "#4f46e5" : "#374151",
                 fontSize: 12,
                 cursor: "pointer",
-                fontWeight: value === s ? 600 : 400,
+                fontWeight: value === label ? 600 : 400,
               }}
             >
-              {s}
+              {label}
             </button>
-          ))}
+            );
+          })}
         </InlineStack>
       )}
     </BlockStack>
@@ -169,7 +175,7 @@ function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
 
           {editing ? (
             <BlockStack gap="200">
-              <TextField label="İsim" value={name} onChange={setName} autoComplete="off" />
+              <TextField label={t("templates.nameLabel")} value={name} onChange={setName} autoComplete="off" />
               <CategoryField value={category} onChange={setCategory} />
               <InlineStack gap="200">
                 <fetcher.Form method="post">
@@ -247,17 +253,17 @@ export default function TemplatesRoute() {
           <Box padding="400">
             <InlineStack align="space-between" blockAlign="center">
               <BlockStack gap="100">
-                <Text as="p" variant="bodyMd" fontWeight="bold">Şablon kotası</Text>
+                <Text as="p" variant="bodyMd" fontWeight="bold">{t("templates.upgradeNeeded").split(" ")[0] === "Plan" ? "Şablon Kotası" : "Template Quota"}</Text>
                 <Text as="p" tone="subdued" variant="bodySm">
-                  Plan: <strong>{planKey}</strong>{isStarterBlocked ? "" : ` — kullanılan: ${quotaLabel}`}
+                  {t("templates.usageLabel")} <strong>{planKey}</strong>{isStarterBlocked ? "" : ` — ${t("templates.usageUsed")} ${quotaLabel}`}
                 </Text>
               </BlockStack>
               {isStarterBlocked ? (
-                <Badge tone="warning">Bu planda mevcut değil</Badge>
+                <Badge tone="warning">{t("templates.starterBlocked").split(".")[0]}</Badge>
               ) : quotaFull ? (
-                <Badge tone="critical">Kota doldu</Badge>
+                <Badge tone="critical">{t("templates.quotaFull")}</Badge>
               ) : (
-                <Badge tone="success">{`${quotaLabel} kullanılıyor`}</Badge>
+                <Badge tone="success">{quotaLabel}</Badge>
               )}
             </InlineStack>
           </Box>
@@ -266,9 +272,9 @@ export default function TemplatesRoute() {
         {/* Starter yasağı */}
         {isStarterBlocked && (
           <Banner tone="warning" title={t("templates.starterBlocked")}>
-            <Text as="p">Şablon eklemek için Growth, Pro veya Business planına geçin.</Text>
+            <Text as="p">{t("templates.upgradeToAdd")}</Text>
             <Box paddingBlockStart="200">
-              <Button variant="primary" onClick={() => navigate("/app/billing")}>Plan Yükselt →</Button>
+              <Button variant="primary" onClick={() => navigate("/app/billing")}>{t("templates.upgradeNeeded")} →</Button>
             </Box>
           </Banner>
         )}
@@ -278,14 +284,12 @@ export default function TemplatesRoute() {
           <Card>
             <Box padding="400">
               <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">Yeni Şablon Ekle</Text>
-                <Text as="p" tone="subdued">
-                  PNG, JPG, WebP veya SVG yükleyin. Lisanslı karakterler için geçerli lisansınız olduğundan emin olun.
-                </Text>
+                <Text as="h2" variant="headingMd">{t("templates.addNew")}</Text>
+                <Text as="p" tone="subdued">{t("templates.licenseNote")}</Text>
 
                 {quotaFull && (
-                  <Banner tone="warning" title={`${planKey} planında maksimum ${quota.quota} şablon yükleyebilirsiniz.`}>
-                    <p>Daha fazla şablon için planınızı yükseltin.</p>
+                  <Banner tone="warning" title={`${planKey} ${t("templates.quotaWarning")}`}>
+                    <p>{t("templates.upgradeForMore")}</p>
                   </Banner>
                 )}
 
@@ -340,21 +344,21 @@ export default function TemplatesRoute() {
                               alt="Önizleme"
                               style={{ maxHeight: 160, maxWidth: "100%", objectFit: "contain", margin: "0 auto", display: "block" }}
                             />
-                            <Text as="p" variant="bodySm" tone="subdued">{fileName} — değiştirmek için tekrar tıklayın</Text>
+                            <Text as="p" variant="bodySm" tone="subdued">{fileName} — {t("templates.changeImage")}</Text>
                           </BlockStack>
                         ) : (
                           <BlockStack gap="100">
                             <Text as="p" variant="bodyMd" fontWeight="medium">
-                              {quotaFull ? t("templates.quotaFull") : "Görsel seçmek için tıklayın"}
+                              {quotaFull ? t("templates.quotaFull") : t("templates.imageSelectClick")}
                             </Text>
-                            <Text as="p" variant="bodySm" tone="subdued">PNG, JPG, WebP, SVG · maks 8 MB</Text>
+                            <Text as="p" variant="bodySm" tone="subdued">{t("templates.fileSpec")}</Text>
                           </BlockStack>
                         )}
                       </label>
                     </div>
 
                     <TextField
-                      label="Şablon adı"
+                      label={t("templates.templateNameLabel")}
                       name="name"
                       value={name}
                       onChange={setName}
@@ -372,7 +376,7 @@ export default function TemplatesRoute() {
                         loading={isUploading}
                         disabled={!preview || quotaFull}
                       >
-                        Yükle ve Kaydet
+                        {t("templates.uploadSave")}
                       </Button>
                     </InlineStack>
                   </BlockStack>
@@ -386,11 +390,11 @@ export default function TemplatesRoute() {
 
         {/* Template list */}
         <BlockStack gap="300">
-          <Text as="h2" variant="headingMd">Mevcut Şablonlar ({templates.length})</Text>
+          <Text as="h2" variant="headingMd">{t("templates.existing")} ({templates.length})</Text>
           {templates.length === 0 ? (
             <Card>
               <EmptyState heading={t("templates.noTemplates")} image="">
-                <Text as="p">{isStarterBlocked ? "Şablon eklemek için planınızı yükseltin." : "Yukarıdaki formu kullanarak ilk şablonunuzu ekleyin."}</Text>
+                <Text as="p">{isStarterBlocked ? t("templates.upgradeToAdd") : t("templates.addFirst")}</Text>
               </EmptyState>
             </Card>
           ) : (

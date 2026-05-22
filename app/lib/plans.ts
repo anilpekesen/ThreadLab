@@ -7,12 +7,20 @@ export const PLANS = {
     allowRemoveBg: true,
     removeBgMonthlyQuota: 100,
     maxShopTemplates: 0,
-    features: [
-      "1 ürün kategorisi",
-      "100 sipariş/ay",
-      "Ön + arka yüz baskı",
-      "100 arka plan kaldırma/ay",
-    ],
+    features: {
+      tr: [
+        "1 ürün kategorisi",
+        "100 sipariş/ay",
+        "Ön + arka yüz baskı",
+        "100 arka plan kaldırma/ay",
+      ],
+      en: [
+        "1 product category",
+        "100 orders/month",
+        "Front + back surface print",
+        "100 background removals/month",
+      ],
+    },
   },
   Growth: {
     price: 29.99,
@@ -22,13 +30,22 @@ export const PLANS = {
     allowRemoveBg: true,
     removeBgMonthlyQuota: 500,
     maxShopTemplates: 10,
-    features: [
-      "2 ürün kategorisi",
-      "500 sipariş/ay",
-      "Ön + arka yüz baskı",
-      "500 arka plan kaldırma/ay",
-      "10 özel şablon",
-    ],
+    features: {
+      tr: [
+        "2 ürün kategorisi",
+        "500 sipariş/ay",
+        "Ön + arka yüz baskı",
+        "500 arka plan kaldırma/ay",
+        "10 özel şablon",
+      ],
+      en: [
+        "2 product categories",
+        "500 orders/month",
+        "Front + back surface print",
+        "500 background removals/month",
+        "10 custom templates",
+      ],
+    },
   },
   Pro: {
     price: 49.99,
@@ -38,14 +55,24 @@ export const PLANS = {
     allowRemoveBg: true,
     removeBgMonthlyQuota: 1500,
     maxShopTemplates: 20,
-    features: [
-      "4 ürün kategorisi",
-      "2000 sipariş/ay",
-      "Ön + arka yüz baskı",
-      "1500 arka plan kaldırma/ay",
-      "20 özel şablon",
-      "Öncelikli destek",
-    ],
+    features: {
+      tr: [
+        "4 ürün kategorisi",
+        "2000 sipariş/ay",
+        "Ön + arka yüz baskı",
+        "1500 arka plan kaldırma/ay",
+        "20 özel şablon",
+        "Öncelikli destek",
+      ],
+      en: [
+        "4 product categories",
+        "2000 orders/month",
+        "Front + back surface print",
+        "1500 background removals/month",
+        "20 custom templates",
+        "Priority support",
+      ],
+    },
   },
   Business: {
     price: 99.99,
@@ -55,14 +82,24 @@ export const PLANS = {
     allowRemoveBg: true,
     removeBgMonthlyQuota: 4000,
     maxShopTemplates: -1,
-    features: [
-      "Sınırsız ürün kategorisi",
-      "Sınırsız sipariş",
-      "Ön + arka yüz baskı",
-      "4000 arka plan kaldırma/ay",
-      "Sınırsız özel şablon",
-      "Özel onboarding & destek",
-    ],
+    features: {
+      tr: [
+        "Sınırsız ürün kategorisi",
+        "Sınırsız sipariş",
+        "Ön + arka yüz baskı",
+        "4000 arka plan kaldırma/ay",
+        "Sınırsız özel şablon",
+        "Özel onboarding & destek",
+      ],
+      en: [
+        "Unlimited product categories",
+        "Unlimited orders",
+        "Front + back surface print",
+        "4000 background removals/month",
+        "Unlimited custom templates",
+        "Custom onboarding & support",
+      ],
+    },
   },
 };
 

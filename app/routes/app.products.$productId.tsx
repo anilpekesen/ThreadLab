@@ -16,6 +16,8 @@ import {
 } from "@shopify/polaris";
 import { useEffect, useRef, useState } from "react";
 import { authenticate } from "~/shopify.server";
+import { useTranslation } from "~/i18n";
+import { PageHelper } from "~/components/PageHelper";
 import {
   fetchShopifyProductById,
   getProductConfig,
@@ -924,6 +926,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 export default function ProductSettingsRoute() {
   const { product, config, printAreas } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const actionData = useActionData<typeof action>();
   const hasMounted = useRef(false);
 
@@ -968,19 +971,21 @@ export default function ProductSettingsRoute() {
     <Page
       title={product.title}
       subtitle={product.handle}
-      backAction={{ content: "Ürünler", onAction: () => navigate("/app/products") }}
+      backAction={{ content: t("products.backToProducts"), onAction: () => navigate("/app/products") }}
     >
       <BlockStack gap="500">
+        <PageHelper sections={[
+          { titleKey: "helper.products.1.title", bodyKey: "helper.products.1.body" },
+          { titleKey: "helper.products.2.title", bodyKey: "helper.products.2.body" },
+        ]} />
         <Card>
           <Box padding="400">
             <InlineStack gap="200" align="space-between">
               <BlockStack gap="100">
-                <Text as="h2" variant="headingMd">Ürün tipi ayarları</Text>
-                <Text as="p" tone="subdued">
-                  Bu ürün için hangi yüzlerde çalışacağı, varsayılan yerleşim ve baskı sınırları burada belirlenir.
-                </Text>
+                <Text as="h2" variant="headingMd">{t("products.typeSettings")}</Text>
+                <Text as="p" tone="subdued">{t("products.typeSettingsDesc")}</Text>
               </BlockStack>
-              <Badge tone="success">Aktif</Badge>
+              <Badge tone="success">{t("common.active")}</Badge>
             </InlineStack>
           </Box>
         </Card>

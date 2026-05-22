@@ -88,7 +88,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function BillingPage() {
   const { analytics, isTest } = useLoaderData<typeof loader>();
   const nav = useNavigation();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const isLoading = nav.state === "submitting";
   const isActive = analytics.subscriptionStatus === "active";
   const isTrial = analytics.subscriptionStatus === "trial";
@@ -102,8 +102,8 @@ export default function BillingPage() {
         ]} />
 
         {isTest && (
-          <Banner title="Test Modu Aktif" tone="warning">
-            <Text as="p">Faturalar gerçek kart ücretlendirilmeden test ediliyor. Üretim ortamı için SHOPIFY_BILLING_TEST=false yapın.</Text>
+          <Banner title={t("billing.testMode")} tone="warning">
+            <Text as="p">{t("billing.testModeDesc")}</Text>
           </Banner>
         )}
 
@@ -113,15 +113,15 @@ export default function BillingPage() {
             <BlockStack gap="300">
               <InlineStack align="space-between" blockAlign="start">
                 <BlockStack gap="100">
-                  <Text as="h2" variant="headingMd">Mevcut Abonelik</Text>
+                  <Text as="h2" variant="headingMd">{t("billing.currentSubscription")}</Text>
                   <InlineStack gap="200" blockAlign="center">
                     <Badge tone={PLAN_BADGE[analytics.planKey] ?? "attention"}>{analytics.planKey}</Badge>
-                    {isActive && <Badge tone="success">Aktif</Badge>}
-                    {isTrial && <Badge tone="info">Deneme</Badge>}
-                    {!isActive && !isTrial && <Badge tone="attention">Aktif Değil</Badge>}
+                    {isActive && <Badge tone="success">{t("billing.active")}</Badge>}
+                    {isTrial && <Badge tone="info">{t("billing.trial")}</Badge>}
+                    {!isActive && !isTrial && <Badge tone="attention">{t("billing.inactive")}</Badge>}
                   </InlineStack>
                 </BlockStack>
-                <Text as="p" variant="headingLg">${PLANS[analytics.planKey].price}<Text as="span" variant="bodySm" tone="subdued">/ay</Text></Text>
+                <Text as="p" variant="headingLg">${PLANS[analytics.planKey].price}<Text as="span" variant="bodySm" tone="subdued">{t("billing.perMonth")}</Text></Text>
               </InlineStack>
 
               {analytics.bgQuota !== 0 && (
@@ -129,7 +129,7 @@ export default function BillingPage() {
                   <Divider />
                   <BlockStack gap="100">
                     <InlineStack align="space-between">
-                      <Text as="p" variant="bodySm">Arka plan kaldırma (bu ay)</Text>
+                      <Text as="p" variant="bodySm">{t("billing.bgThisMonth")}</Text>
                       <Text as="p" variant="bodySm">
                         {analytics.bgThisMonth} / {analytics.bgQuota}
                       </Text>
@@ -152,7 +152,7 @@ export default function BillingPage() {
                     <input type="hidden" name="intent" value="cancel" />
                     <input type="hidden" name="subscriptionId" value={analytics.shopifySubscriptionId} />
                     <Button tone="critical" variant="plain" submit loading={isLoading}>
-                      Aboneliği İptal Et
+                      {t("billing.cancelSubscription")}
                     </Button>
                   </Form>
                 </>
@@ -177,26 +177,26 @@ export default function BillingPage() {
                         <BlockStack gap="100">
                           <InlineStack align="space-between" blockAlign="center">
                             <Text as="h3" variant="headingMd">{planKey}</Text>
-                            {isRecommended && !isCurrent && <Badge tone="info">Önerilen</Badge>}
-                            {isCurrent && <Badge tone="success">Aktif</Badge>}
+                            {isRecommended && !isCurrent && <Badge tone="info">{t("billing.recommended")}</Badge>}
+                            {isCurrent && <Badge tone="success">{t("billing.active")}</Badge>}
                           </InlineStack>
                           <InlineStack blockAlign="end" gap="100">
                             <Text as="p" variant="headingXl">${plan.price}</Text>
-                            <Text as="p" variant="bodySm" tone="subdued">/ay</Text>
+                            <Text as="p" variant="bodySm" tone="subdued">{t("billing.perMonth")}</Text>
                           </InlineStack>
-                          <Text as="p" variant="bodySm" tone="subdued">7 gün ücretsiz deneme</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">{t("billing.trialLabel")}</Text>
                         </BlockStack>
 
                         <Divider />
 
                         <List type="bullet">
-                          {plan.features.map((f) => (
+                          {plan.features[lang].map((f) => (
                             <List.Item key={f}>{f}</List.Item>
                           ))}
                         </List>
 
                         {isCurrent ? (
-                          <Button fullWidth disabled>Mevcut Plan</Button>
+                          <Button fullWidth disabled>{t("billing.currentPlanBtn")}</Button>
                         ) : (
                           <Form method="post">
                             <input type="hidden" name="intent" value="subscribe" />
@@ -219,12 +219,12 @@ export default function BillingPage() {
         <Card>
           <Box padding="400">
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">Plan Karşılaştırması</Text>
+              <Text as="h2" variant="headingMd">{t("billing.comparison")}</Text>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid #e4e5e7" }}>
-                      <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600 }}>Özellik</th>
+                      <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600 }}>{t("billing.feature")}</th>
                       {PLAN_ORDER.map((k) => (
                         <th key={k} style={{ textAlign: "center", padding: "8px 12px", fontWeight: 600 }}>
                           {k}{analytics.planKey === k && isActive ? " ✓" : ""}
@@ -240,7 +240,7 @@ export default function BillingPage() {
                       { label: t("billing.backSurface"), values: PLAN_ORDER.map((k) => PLANS[k].allowBackSurface ? "✓" : "—") },
                       { label: t("billing.bgRemoval"), values: PLAN_ORDER.map((k) => String(PLANS[k].removeBgMonthlyQuota)) },
                       { label: t("billing.templates"), values: PLAN_ORDER.map((k) => PLANS[k].maxShopTemplates === -1 ? t("billing.unlimited") : PLANS[k].maxShopTemplates === 0 ? "—" : String(PLANS[k].maxShopTemplates)) },
-                      { label: t("billing.freeTrial"), values: PLAN_ORDER.map(() => "7 gün") },
+                      { label: t("billing.freeTrial"), values: PLAN_ORDER.map(() => t("billing.trialDays")) },
                     ].map(({ label, values }) => (
                       <tr key={label} style={{ borderBottom: "1px solid #f4f4f4" }}>
                         <td style={{ padding: "8px 12px", color: "#6d7175" }}>{label}</td>

@@ -17,6 +17,8 @@ import {
 import { useState } from "react";
 import { authenticate } from "~/shopify.server";
 import { fetchShopifyProducts, getProductConfig } from "~/models/product-config.server";
+import { useTranslation } from "~/i18n";
+import { PageHelper } from "~/components/PageHelper";
 
 const PRODUCT_TYPE_LABELS: Record<string, string> = {
   apparel: "T-shirt / giyim",
@@ -57,28 +59,30 @@ export default function ProductsIndexRoute() {
   const { rows, q } = useLoaderData<typeof loader>();
   const [query, setQuery] = useState(q);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   return (
-    <Page title="Urunler">
+    <Page title={t("products.title")}>
       <BlockStack gap="500">
+        <PageHelper sections={[
+          { titleKey: "helper.products.1.title", bodyKey: "helper.products.1.body" },
+          { titleKey: "helper.products.2.title", bodyKey: "helper.products.2.body" },
+        ]} />
         <Card>
           <Box padding="400">
             <BlockStack gap="300">
-              <Text as="p" tone="subdued">
-                Sinirsiz urun mantigi burada yonetilir. Shopify'daki herhangi bir urunu tasarim urunu yapip
-                urune ozel ayar tanimlayabilirsin. Her urun icin ayarlar ayri kaydedilir.
-              </Text>
+              <Text as="p" tone="subdued">{t("products.desc")}</Text>
               <Form method="get">
                 <InlineStack gap="200" blockAlign="end">
                   <div style={{ minWidth: 280 }}>
                     <TextField
-                      label="Urun ara"
+                      label={t("products.searchPlaceholder")}
                       labelHidden
                       name="q"
                       value={query}
                       onChange={setQuery}
                       autoComplete="off"
-                      placeholder="Tisort, sweatshirt, kupa, canta..."
+                      placeholder={t("productTypes.categoryPlaceholder")}
                     />
                   </div>
                   <Button submit variant="primary">
