@@ -355,14 +355,6 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
 
     for (const item of itemsToProcess) {
       const variantId = item.variant?.id.split("/").pop() ?? "";
-
-      // Skip already-imported variants — only add genuinely new ones
-      const exists = await query(
-        "SELECT 1 FROM orders WHERE shop = $1 AND shopify_order_id = $2 AND variant_id = $3",
-        [shop, shopifyOrderId, variantId],
-      );
-      if (exists.rows.length > 0) continue;
-
       const token = getAttr(item.customAttributes, "design_token") ?? orderToken ?? "";
       const frontPreviewUrl =
         getAttr(item.customAttributes, "_front_preview_url") ??
@@ -380,11 +372,8 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
         getAttr(item.customAttributes, "_back_print_url") ??
         getAttr(so.customAttributes, "_back_print_url") ??
         "";
-      // customer_name/email come from webhook; leave as default on sync-only imports
-      const customerName = "Müşteri";
-      const customerEmail = "";
       const id = `order_${randomBytes(8).toString("hex")}`;
-      await query(
+      const result = await query(
         `INSERT INTO orders (id, shop, shopify_order_id, order_number, product_id, product_name,
           variant_id, variant_title, quantity, design_token, preview_url, production_file_url,
           customer_name, customer_email, production_status, missing_surcharge, created_at)
@@ -403,23 +392,17 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           token,
           frontPreviewUrl,
           frontPrintUrl,
-          customerName,
-          customerEmail,
+          "Müşteri",
+          "",
           new Date(so.createdAt),
         ],
       );
-      await writeDesignMetafields(
-        admin,
-        shop,
-        so.id,
-        id,
-        frontPreviewUrl,
-        backPreviewUrl,
-        frontPrintUrl,
-        backPrintUrl,
-        token,
-      );
-      added++;
+      if (result.rowCount && result.rowCount > 0) {
+        // Fire-and-forget: don't block sync on Shopify metafield writes
+        writeDesignMetafields(admin, shop, so.id, id, frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, token)
+          .catch((e) => console.error("[sync] writeDesignMetafields failed:", e));
+        added++;
+      }
     }
   }
 
