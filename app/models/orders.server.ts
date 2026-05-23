@@ -214,6 +214,13 @@ async function writeDesignMetafields(
   designToken: string,
 ): Promise<void> {
   const design = designToken ? await getDesignByToken(shop, designToken) : null;
+  // Fill in URLs from DB when Shopify custom attributes didn't capture them
+  if (design) {
+    frontPreviewUrl = frontPreviewUrl || design.frontPreviewUrl || '';
+    backPreviewUrl  = backPreviewUrl  || design.backPreviewUrl  || '';
+    frontPrintUrl   = frontPrintUrl   || design.frontPrintUrl   || '';
+    backPrintUrl    = backPrintUrl    || design.backPrintUrl    || '';
+  }
   const frontObjects = design ? summarizeObjects(extractObjects(design.designJson, "front")) : [];
   const backObjects = design ? summarizeObjects(extractObjects(design.designJson, "back")) : [];
 
@@ -416,6 +423,17 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
         writeDesignMetafields(admin, shop, so.id, id, frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, token)
           .catch((e) => console.error("[sync] writeDesignMetafields failed:", e));
         added++;
+      } else if (token) {
+        // Existing row — refresh metafields so app_order_id and print URLs stay current
+        query<{ id: string }>(
+          `SELECT id FROM orders WHERE shop = $1 AND shopify_order_id = $2 AND variant_id = $3 LIMIT 1`,
+          [shop, shopifyOrderId, variantId],
+        ).then((r) => {
+          if (r.rows.length) {
+            writeDesignMetafields(admin, shop, so.id, r.rows[0].id, frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, token)
+              .catch((e) => console.error("[sync] writeDesignMetafields (refresh) failed:", e));
+          }
+        }).catch(() => { /* non-critical */ });
       }
     }
   }
