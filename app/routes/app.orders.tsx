@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import { useState } from "react";
 import { useTranslation } from "~/i18n";
@@ -52,20 +52,25 @@ const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
-  const status = url.searchParams.get("status") ?? "";
-
+  const status = url.searchParams.get("status");
   const forceSync = url.searchParams.get("sync") === "1";
   const resetOrders = url.searchParams.get("reset") === "1";
+
+  // Default to pending tab
+  if (status === null && !forceSync && !resetOrders) {
+    throw redirect("/app/orders?status=pending");
+  }
+
+  const activeStatus = status ?? "pending";
   let syncError: string | null = null;
   let syncCount = 0;
-  if (!status || forceSync || resetOrders) {
+  if (forceSync || resetOrders) {
     try {
       if (resetOrders) {
         await query("DELETE FROM orders WHERE shop = $1", [session.shop]);
       }
       syncCount = await syncOrdersFromAdmin(admin, session.shop);
     } catch (e) {
-      // Re-throw redirects so Shopify auth flow can handle them
       if (e instanceof Response && e.status >= 300 && e.status < 400) throw e;
       if (e instanceof Response) {
         syncError = `Shopify API hatası (HTTP ${e.status})`;
@@ -76,10 +81,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const [orders, stats] = await Promise.all([
-    getOrders(session.shop, status || undefined),
+    getOrders(session.shop, activeStatus || undefined),
     getDashboardStats(session.shop),
   ]);
-  return json({ orders, status, stats, shop: session.shop, syncError, syncCount });
+  return json({ orders, status: activeStatus, stats, shop: session.shop, syncError, syncCount });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {

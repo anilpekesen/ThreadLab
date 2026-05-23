@@ -510,39 +510,42 @@ async function fulfillSingleShopifyOrder(admin: AdminClient, shopifyOrderId: str
     return;
   }
 
-  const fulfillRes = await admin.graphql(
-    `#graphql
-    mutation FulfillmentCreate($fulfillment: FulfillmentInput!) {
-      fulfillmentCreate(fulfillment: $fulfillment) {
-        fulfillment { id status }
-        userErrors { field message }
-      }
-    }`,
-    {
-      variables: {
-        fulfillment: {
-          lineItemsByFulfillmentOrder: openFOs.map((fo) => ({ fulfillmentOrderId: fo.id })),
-          notifyCustomer: true,
+  // Fulfill each FO separately — different fulfillment services/locations cannot be
+  // combined into a single FulfillmentCreate call (Shopify rejects mixed-service batches).
+  for (const fo of openFOs) {
+    const fulfillRes = await admin.graphql(
+      `#graphql
+      mutation FulfillmentCreate($fulfillment: FulfillmentInput!) {
+        fulfillmentCreate(fulfillment: $fulfillment) {
+          fulfillment { id status }
+          userErrors { field message }
+        }
+      }`,
+      {
+        variables: {
+          fulfillment: {
+            lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: fo.id }],
+            notifyCustomer: true,
+          },
         },
       },
-    },
-  );
-  const fulfillData = await fulfillRes.json() as {
-    data?: {
-      fulfillmentCreate?: {
-        fulfillment?: { id: string; status: string };
-        userErrors?: Array<{ field: string; message: string }>;
+    );
+    const fulfillData = await fulfillRes.json() as {
+      data?: {
+        fulfillmentCreate?: {
+          fulfillment?: { id: string; status: string };
+          userErrors?: Array<{ field: string; message: string }>;
+        };
       };
     };
-  };
 
-  const errors = fulfillData.data?.fulfillmentCreate?.userErrors ?? [];
-  if (errors.length) {
-    const msg = errors.map((e) => `${e.field}: ${e.message}`).join("; ");
-    console.error(`[fulfill] userErrors for order ${shopifyOrderId}: ${msg}`);
-    throw new Error(`Shopify fulfillment failed: ${msg}`);
-  } else {
-    console.log(`[fulfill] Shopify order ${shopifyOrderId} fulfilled successfully`);
+    const errors = fulfillData.data?.fulfillmentCreate?.userErrors ?? [];
+    if (errors.length) {
+      const msg = errors.map((e) => `${e.field}: ${e.message}`).join("; ");
+      console.error(`[fulfill] userErrors for FO ${fo.id} (order ${shopifyOrderId}): ${msg}`);
+    } else {
+      console.log(`[fulfill] FO ${fo.id} (order ${shopifyOrderId}) fulfilled successfully`);
+    }
   }
 }
 
