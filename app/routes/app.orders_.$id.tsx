@@ -188,7 +188,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function OrderDetail() {
-  const { order, siblings, design, frontObjects, backObjects, shop } = useLoaderData<typeof loader>();
+  const { order, siblings = [], design, frontObjects = [], backObjects = [], shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const { t, lang } = useTranslation();
