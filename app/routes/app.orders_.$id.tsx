@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useNavigate, useFetcher, Link } from "@remix-run/react";
+import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
 import { useTranslation } from "~/i18n";
 
 const APP_URL = "https://app.printlabapp.com";
@@ -373,11 +373,9 @@ export default function OrderDetail() {
                         {order.variantTitle || "—"} × {order.quantity ?? 1}
                       </span>
                       {siblings.map((s: Order) => (
-                        <Link key={s.id} to={`/app/orders/${s.id}`} style={{ textDecoration: "none" }}>
-                          <span style={{ background: "#f3f4f6", color: "#374151", padding: "3px 10px", borderRadius: 20, fontSize: 13, border: "1px solid #e5e7eb", cursor: "pointer" }}>
-                            {s.variantTitle || "—"} × {s.quantity ?? 1}
-                          </span>
-                        </Link>
+                        <span key={s.id} style={{ background: "#f3f4f6", color: "#374151", padding: "3px 10px", borderRadius: 20, fontSize: 13, border: "1px solid #e5e7eb" }}>
+                          {s.variantTitle || "—"} × {s.quantity ?? 1}
+                        </span>
                       ))}
                     </div>
                   </BlockStack>
