@@ -322,12 +322,6 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
       continue;
     }
 
-    // Skip already imported orders
-    const existing = await query("SELECT id FROM orders WHERE shop = $1 AND shopify_order_id = $2", [
-      shop, shopifyOrderId,
-    ]);
-    if (existing.rows.length > 0) continue;
-
     // Only import design orders (must have a design_token somewhere)
     const orderToken = getAttr(so.customAttributes, "design_token");
     const designItems = so.lineItems.nodes.filter(
@@ -337,7 +331,9 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     const hasDesignToken = orderToken || designItems.length > 0;
     if (!hasDesignToken) continue;
 
-    const itemsToProcess: LineItem[] = designItems.length > 0 ? designItems : so.lineItems.nodes.filter((li) => li.requiresShipping).slice(0, 1);
+    // All shipping items when token is order-level; design-tagged items otherwise.
+    // No slice(0,1) — a single Shopify order can have multiple variants (XS×4, L×9 etc.)
+    const itemsToProcess: LineItem[] = designItems.length > 0 ? designItems : so.lineItems.nodes.filter((li) => li.requiresShipping);
     if (itemsToProcess.length === 0) continue;
 
     for (const item of itemsToProcess) {
@@ -364,7 +360,11 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           variant_id, variant_title, quantity, design_token, preview_url, production_file_url,
           production_status, missing_surcharge, created_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',FALSE,$13)
-         ON CONFLICT (shop, shopify_order_id) DO NOTHING`,
+         ON CONFLICT (shop, shopify_order_id, variant_id) DO UPDATE SET
+           quantity      = EXCLUDED.quantity,
+           variant_title = EXCLUDED.variant_title,
+           product_name  = EXCLUDED.product_name,
+           updated_at    = now()`,
         [
           id,
           shop,
@@ -530,7 +530,7 @@ export async function fulfillShopifyOrders(
   await ensureMigrations();
 
   const result = await query<{ shopify_order_id: string }>(
-    "SELECT shopify_order_id FROM orders WHERE shop = $1 AND id = ANY($2) AND shopify_order_id != ''",
+    "SELECT DISTINCT shopify_order_id FROM orders WHERE shop = $1 AND id = ANY($2) AND shopify_order_id != ''",
     [shop, appOrderIds],
   );
 

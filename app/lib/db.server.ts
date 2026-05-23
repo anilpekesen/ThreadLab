@@ -226,9 +226,12 @@ async function _runMigrationsLocked() {
 
   // Drop old single-column unique on shopify_order_id, add shop-scoped unique
   await query(`ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_shopify_order_id_key`);
+  // Drop old (shop, shopify_order_id) unique — replaced by per-variant unique below
+  await query(`DROP INDEX IF EXISTS orders_shop_shopify_order_id`);
+  // One row per (shop, shopify_order_id, variant_id): supports multi-variant orders
   await query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS orders_shop_shopify_order_id
-      ON orders (shop, shopify_order_id)
+    CREATE UNIQUE INDEX IF NOT EXISTS orders_shop_shopify_order_variant
+      ON orders (shop, shopify_order_id, variant_id)
   `);
 
   // Indexes for shop-scoped queries
