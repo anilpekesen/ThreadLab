@@ -212,13 +212,25 @@ async function _runMigrationsLocked() {
   await query(`UPDATE product_settings SET shop = 'whanotify-dev.myshopify.com' WHERE shop = ''`);
   await query(`UPDATE product_print_areas SET shop = 'whanotify-dev.myshopify.com' WHERE shop = ''`);
 
-  // Re-key product_settings to (shop, product_id)
-  await query(`ALTER TABLE product_settings DROP CONSTRAINT IF EXISTS product_settings_pkey`);
+  // Re-key product_settings to (shop, product_id) — only run if still on old single-col PK
   await query(`
     DO $$ BEGIN
-      IF NOT EXISTS (
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'product_settings_pkey'
+          AND contype = 'p'
+          AND array_length(conkey, 1) = 1
+      ) THEN
+        ALTER TABLE product_settings DROP CONSTRAINT product_settings_pkey;
+        -- Deduplicate before adding composite PK
+        DELETE FROM product_settings a USING product_settings b
+          WHERE a.ctid < b.ctid AND a.shop = b.shop AND a.product_id = b.product_id;
+        ALTER TABLE product_settings ADD PRIMARY KEY (shop, product_id);
+      ELSIF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'product_settings_pkey'
       ) THEN
+        DELETE FROM product_settings a USING product_settings b
+          WHERE a.ctid < b.ctid AND a.shop = b.shop AND a.product_id = b.product_id;
         ALTER TABLE product_settings ADD PRIMARY KEY (shop, product_id);
       END IF;
     END $$

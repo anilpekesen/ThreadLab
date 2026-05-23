@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import { useState } from "react";
 import { useTranslation } from "~/i18n";
@@ -55,11 +55,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const status = url.searchParams.get("status");
   const forceSync = url.searchParams.get("sync") === "1";
   const resetOrders = url.searchParams.get("reset") === "1";
-
-  // Default to pending tab
-  if (status === null && !forceSync && !resetOrders) {
-    throw redirect("/app/orders?status=pending");
-  }
 
   const activeStatus = status ?? "pending";
   let syncError: string | null = null;
