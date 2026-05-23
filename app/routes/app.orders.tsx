@@ -1,12 +1,13 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
+import { useState } from "react";
 import { useTranslation } from "~/i18n";
 import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Badge, Button, InlineStack, Box, Text, BlockStack,
   Thumbnail, IndexTable, useIndexResourceState, Banner,
-  Grid,
+  Grid, Modal,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import { getOrders, updateOrderStatus, getDashboardStats, syncOrdersFromAdmin, fulfillShopifyOrders } from "~/models/orders.server";
@@ -118,6 +119,7 @@ export default function Orders() {
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const { t, lang } = useTranslation();
+  const [resetModalOpen, setResetModalOpen] = useState(false);
 
   const resourceName = { singular: t("common.order"), plural: t("common.orders") };
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
@@ -262,13 +264,34 @@ export default function Orders() {
       secondaryActions={[{
         content: "Temizle ve Yeniden Senkronize Et",
         destructive: true,
-        onAction: () => {
-          if (window.confirm("Tüm siparişler silinip Shopify'dan yeniden çekilecek. Emin misin?")) {
-            navigate("/app/orders?reset=1");
-          }
-        },
+        onAction: () => setResetModalOpen(true),
       }]}
     >
+      <Modal
+        open={resetModalOpen}
+        onClose={() => setResetModalOpen(false)}
+        title="Siparişleri sıfırla"
+        primaryAction={{
+          content: "Evet, sil ve yeniden çek",
+          destructive: true,
+          onAction: () => { setResetModalOpen(false); navigate("/app/orders?reset=1"); },
+        }}
+        secondaryActions={[{
+          content: "Vazgeç",
+          onAction: () => setResetModalOpen(false),
+        }]}
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            <Text as="p">
+              Bu mağazadaki tüm siparişler veritabanından silinecek ve Shopify'dan yeniden çekilecek.
+            </Text>
+            <Text as="p" tone="subdued">
+              Üretim durumları (Hazırlanıyor, Baskıda vb.) sıfırlanır. Gönderilmiş siparişler Shopify'daki durumuna göre tekrar "Gönderildi" olarak gelecektir.
+            </Text>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
       <BlockStack gap="400">
         <PageHelper sections={[
           { titleKey: "helper.orders.1.title", bodyKey: "helper.orders.1.body" },

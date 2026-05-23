@@ -270,6 +270,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     createdAt: string;
     cancelledAt: string | null;
     displayFinancialStatus: string | null;
+    displayFulfillmentStatus: string | null;
     customAttributes: Attr[];
     lineItems: { nodes: LineItem[] };
   };
@@ -278,7 +279,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     {
       orders(first: 100, sortKey: CREATED_AT, reverse: true) {
         nodes {
-          id name createdAt cancelledAt displayFinancialStatus
+          id name createdAt cancelledAt displayFinancialStatus displayFulfillmentStatus
           customAttributes { key value }
           lineItems(first: 20) {
             nodes {
@@ -372,13 +373,16 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
         getAttr(item.customAttributes, "_back_print_url") ??
         getAttr(so.customAttributes, "_back_print_url") ??
         "";
+      const initialStatus = so.displayFulfillmentStatus === "FULFILLED" ? "shipped" : "pending";
       const id = `order_${randomBytes(8).toString("hex")}`;
       const result = await query(
         `INSERT INTO orders (id, shop, shopify_order_id, order_number, product_id, product_name,
           variant_id, variant_title, quantity, design_token, preview_url, production_file_url,
           customer_name, customer_email, production_status, missing_surcharge, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'pending',FALSE,$15)
-         ON CONFLICT (shop, shopify_order_id, variant_id) DO NOTHING`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,FALSE,$16)
+         ON CONFLICT (shop, shopify_order_id, variant_id) DO UPDATE
+           SET production_status = EXCLUDED.production_status
+           WHERE orders.production_status = 'pending'`,
         [
           id,
           shop,
@@ -394,6 +398,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           frontPrintUrl,
           "Müşteri",
           "",
+          initialStatus,
           new Date(so.createdAt),
         ],
       );
@@ -431,7 +436,7 @@ export async function getOrdersWithPrintFiles(shop: string, statuses?: string[])
     `${ORDER_SELECT}
      WHERE o.shop = $1
        AND o.design_token != ''
-       AND o.production_status != 'cancelled'
+       AND o.production_status NOT IN ('cancelled', 'shipped')
        AND (d.front_print_url IS NOT NULL AND d.front_print_url != ''
             OR o.production_file_url IS NOT NULL AND o.production_file_url != '')
        ${statusFilter}
