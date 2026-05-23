@@ -356,14 +356,15 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     const hasDesignToken = orderToken || designItems.length > 0;
     if (!hasDesignToken) continue;
 
-    // All shipping items when token is order-level; design-tagged items otherwise.
-    // No slice(0,1) — a single Shopify order can have multiple variants (XS×4, L×9 etc.)
-    const itemsToProcess: LineItem[] = designItems.length > 0 ? designItems : so.lineItems.nodes.filter((li) => li.requiresShipping);
+    // Always capture ALL shipping items — size variants share the same design.
+    // The design_token may be on only one line item; fall back to that token for siblings.
+    const sharedToken = orderToken || (designItems.length > 0 ? getAttr(designItems[0].customAttributes, "design_token") : "");
+    const itemsToProcess: LineItem[] = so.lineItems.nodes.filter((li) => li.requiresShipping);
     if (itemsToProcess.length === 0) continue;
 
     for (const item of itemsToProcess) {
       const variantId = item.variant?.id.split("/").pop() ?? "";
-      const token = getAttr(item.customAttributes, "design_token") ?? orderToken ?? "";
+      const token = getAttr(item.customAttributes, "design_token") ?? sharedToken;
       const frontPreviewUrl =
         getAttr(item.customAttributes, "_front_preview_url") ??
         getAttr(so.customAttributes, "_front_preview_url") ??
