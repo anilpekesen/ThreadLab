@@ -25,6 +25,17 @@ export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
 }
 
 export async function runMigrations() {
+  // Exclusive advisory lock so two PM2 workers starting simultaneously don't
+  // both run DDL at the same time (race condition on DROP/ADD PRIMARY KEY etc.)
+  await query(`SELECT pg_advisory_lock(9876543210)`);
+  try {
+    await _runMigrationsLocked();
+  } finally {
+    await query(`SELECT pg_advisory_unlock(9876543210)`);
+  }
+}
+
+async function _runMigrationsLocked() {
   await query(`
     CREATE TABLE IF NOT EXISTS bg_removal_usage (
       shop        TEXT NOT NULL,

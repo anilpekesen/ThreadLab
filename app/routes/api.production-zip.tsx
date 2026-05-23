@@ -20,36 +20,25 @@ async function fetchBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
-// Extract the raw uploaded image src from design_json for orders that have no
-// separate print URL (e.g. older designs that only stored a preview URL).
-async function getRawImageSrc(
-  shop: string,
+// Look up the complete rendered print URL from the designs table.
+// This is the full canvas export (image + text + all elements), stored when
+// the customer finishes designing. Falls back to empty string if not found.
+async function getDesignPrintUrls(
   designToken: string,
-  side: "front" | "back",
-): Promise<string | null> {
-  if (!designToken) return null;
+): Promise<{ frontPrintUrl: string; backPrintUrl: string }> {
+  if (!designToken) return { frontPrintUrl: "", backPrintUrl: "" };
   try {
-    const result = await query<{ design_json: Record<string, string> }>(
-      "SELECT design_json FROM designs WHERE shop = $1 AND token = $2 LIMIT 1",
-      [shop, designToken],
+    const result = await query<{ front_print_url: string; back_print_url: string }>(
+      "SELECT front_print_url, back_print_url FROM designs WHERE token = $1 LIMIT 1",
+      [designToken],
     );
     const row = result.rows[0];
-    if (!row?.design_json) return null;
-    const sideStr = row.design_json[side];
-    if (!sideStr) return null;
-    const canvas = JSON.parse(sideStr) as { objects?: Array<{ type: string; src?: string }> };
-    const imageObj = canvas.objects?.find((o) => o.type === "image" && o.src);
-    if (!imageObj?.src) return null;
-    let src = imageObj.src;
-    if (src.includes("/api/img-proxy?url=")) {
-      try {
-        const inner = new URL(src).searchParams.get("url");
-        if (inner) src = decodeURIComponent(inner);
-      } catch {}
-    }
-    return src;
+    return {
+      frontPrintUrl: row?.front_print_url ?? "",
+      backPrintUrl: row?.back_print_url ?? "",
+    };
   } catch {
-    return null;
+    return { frontPrintUrl: "", backPrintUrl: "" };
   }
 }
 
@@ -80,22 +69,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const folder = sanitize(order.orderNumber || order.id);
 
       // ── Front print file ─────────────────────────────────────────────
-      // Priority: stored print URL → raw image from design JSON
-      let frontBuf = await fetchBuffer(order.designFrontPrintUrl ?? "");
-      if (!frontBuf && order.designToken) {
-        const rawSrc = await getRawImageSrc(shop, order.designToken, "front");
-        if (rawSrc) frontBuf = await fetchBuffer(rawSrc);
-      }
-      if (!frontBuf) {
-        frontBuf = await fetchBuffer(order.productionFileUrl || "");
+      // Priority:
+      // 1. order.designFrontPrintUrl  (copied from designs table at order time)
+      // 2. designs.front_print_url    (the full canvas render: image + text)
+      // 3. order.productionFileUrl    (legacy field)
+      let frontUrl = order.designFrontPrintUrl ?? "";
+      let backUrl = order.designBackPrintUrl ?? "";
+
+      if ((!frontUrl || !backUrl) && order.designToken) {
+        const { frontPrintUrl, backPrintUrl } = await getDesignPrintUrls(order.designToken);
+        if (!frontUrl && frontPrintUrl) frontUrl = frontPrintUrl;
+        if (!backUrl && backPrintUrl) backUrl = backPrintUrl;
       }
 
-      // ── Back print file ──────────────────────────────────────────────
-      let backBuf = await fetchBuffer(order.designBackPrintUrl ?? "");
-      if (!backBuf && order.designToken) {
-        const rawSrc = await getRawImageSrc(shop, order.designToken, "back");
-        if (rawSrc) backBuf = await fetchBuffer(rawSrc);
-      }
+      if (!frontUrl) frontUrl = order.productionFileUrl || "";
+
+      const [frontBuf, backBuf] = await Promise.all([
+        fetchBuffer(frontUrl),
+        fetchBuffer(backUrl),
+      ]);
 
       if (frontBuf) {
         files[`${folder}/on-baski.png`] = new Uint8Array(frontBuf);
