@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { authenticate } from "~/shopify.server";
 import { getOrdersByIds } from "~/models/orders.server";
 import { query } from "~/lib/db.server";
+import { zipSync } from "fflate";
 import sharp from "sharp";
 
 const SHEET_PRESETS: Record<string, { width: number; height: number | null; pxPerMm: number }> = {
@@ -13,7 +14,6 @@ const SHEET_PRESETS: Record<string, { width: number; height: number | null; pxPe
   "dtf100": { width: 5906, height: null, pxPerMm: 150 / 25.4 },
 };
 
-// Designer canvas logical size (px) — matches the 2× canvas export dimensions
 const CANVAS_LOGICAL_W = 960;
 const CANVAS_LOGICAL_H = 1160;
 
@@ -33,7 +33,6 @@ async function fetchBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
-// Get physical print dimensions in mm for a product/side from DB
 async function getPrintSizeMm(
   shop: string,
   productId: string,
@@ -78,9 +77,7 @@ async function buildGangSheet(
   margin: number,
 ): Promise<Buffer> {
   const bg = { r: 0, g: 0, b: 0, alpha: 0 };
-
   const sorted = [...items].sort((a, b) => b.targetH - a.targetH);
-
   const placed: Placement[] = [];
   let curX = margin;
   let curY = margin;
@@ -90,10 +87,7 @@ async function buildGangSheet(
     let w = item.targetW;
     let h = item.targetH;
     const maxW = sheetWidth - 2 * margin;
-    if (w > maxW) {
-      h = Math.round((h * maxW) / w);
-      w = maxW;
-    }
+    if (w > maxW) { h = Math.round((h * maxW) / w); w = maxW; }
     if (curX + w + margin > sheetWidth && curX > margin) {
       curY += shelfH + margin;
       curX = margin;
@@ -109,6 +103,7 @@ async function buildGangSheet(
   const compositeOps: sharp.OverlayOptions[] = await Promise.all(
     placed.map(async (p) => {
       const resized = await sharp(p.buffer)
+        .ensureAlpha()
         .resize(p.w, p.h, { fit: "fill", background: bg })
         .png()
         .toBuffer();
@@ -124,32 +119,20 @@ async function buildGangSheet(
     .toBuffer();
 }
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shop = session.shop;
-  const url = new URL(request.url);
-  const idsParam = url.searchParams.get("ids") ?? "";
-  const ids = idsParam.split(",").filter(Boolean);
-  const preset = url.searchParams.get("preset") ?? "dtf60";
-  const margin = Math.max(0, Math.min(200, parseInt(url.searchParams.get("margin") ?? "20", 10)));
-  const columns = Math.max(0, Math.min(10, parseInt(url.searchParams.get("cols") ?? "0", 10)));
-  const side = url.searchParams.get("side") === "back" ? "back" : "front";
-
-  if (!ids.length) return new Response("ids required", { status: 400 });
-
-  const orders = await getOrdersByIds(shop, ids);
-  if (!orders.length) return new Response("no orders found", { status: 404 });
-
-  const sheetConfig = SHEET_PRESETS[preset] ?? SHEET_PRESETS["dtf60"];
-  const pxPerMm = sheetConfig.pxPerMm;
+async function buildItemsForSide(
+  shop: string,
+  orders: Awaited<ReturnType<typeof getOrdersByIds>>,
+  side: "front" | "back",
+  pxPerMm: number,
+  columns: number,
+  sheetWidth: number,
+  margin: number,
+): Promise<GangItem[]> {
   const items: GangItem[] = [];
 
   await Promise.all(
     orders.map(async (order) => {
       const sizeMm = await getPrintSizeMm(shop, order.productId ?? "", side);
-
-      // Canvas export: full transparent PNG with image + text + all design elements.
-      // Using this (not raw uploaded image) preserves transparency and includes all layers.
       const storedUrl = side === "back"
         ? order.designBackPrintUrl ?? ""
         : (order.designFrontPrintUrl || order.productionFileUrl || "");
@@ -192,7 +175,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         targetH = contentH;
       }
 
-      // Duplicate the item according to order quantity
       const qty = Math.max(1, order.quantity ?? 1);
       for (let i = 0; i < qty; i++) {
         items.push({ buffer: trimmedBuf, targetW, targetH });
@@ -200,11 +182,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }),
   );
 
-  if (!items.length) return new Response("no valid print images found", { status: 404 });
-
-  // If a column count is requested, scale items so they each fit within that column width.
-  if (columns > 0) {
-    const maxItemW = Math.floor((sheetConfig.width - (columns + 1) * margin) / columns);
+  if (columns > 0 && items.length > 0) {
+    const maxItemW = Math.floor((sheetWidth - (columns + 1) * margin) / columns);
     for (const item of items) {
       if (item.targetW > maxItemW) {
         item.targetH = Math.round((item.targetH * maxItemW) / item.targetW);
@@ -213,16 +192,67 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  const pngBuffer = await buildGangSheet(items, sheetConfig.width, sheetConfig.height, margin);
+  return items;
+}
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+  const url = new URL(request.url);
+  const idsParam = url.searchParams.get("ids") ?? "";
+  const ids = idsParam.split(",").filter(Boolean);
+  const preset = url.searchParams.get("preset") ?? "dtf60";
+  const margin = Math.max(0, Math.min(200, parseInt(url.searchParams.get("margin") ?? "20", 10)));
+  const columns = Math.max(0, Math.min(10, parseInt(url.searchParams.get("cols") ?? "0", 10)));
+
+  if (!ids.length) return new Response("ids required", { status: 400 });
+
+  const orders = await getOrdersByIds(shop, ids);
+  if (!orders.length) return new Response("no orders found", { status: 404 });
+
+  const sheetConfig = SHEET_PRESETS[preset] ?? SHEET_PRESETS["dtf60"];
+  const { pxPerMm, width: sheetWidth, height: sheetHeight } = sheetConfig;
+
+  const [frontItems, backItems] = await Promise.all([
+    buildItemsForSide(shop, orders, "front", pxPerMm, columns, sheetWidth, margin),
+    buildItemsForSide(shop, orders, "back", pxPerMm, columns, sheetWidth, margin),
+  ]);
 
   const date = new Date().toISOString().slice(0, 10);
-  const filename = `gang-sheet-${preset}-${date}.png`;
 
-  return new Response(new Uint8Array(pngBuffer), {
+  // If only front has images, return single PNG. Otherwise return ZIP with both.
+  if (frontItems.length === 0 && backItems.length === 0) {
+    return new Response("no valid print images found", { status: 404 });
+  }
+
+  if (backItems.length === 0) {
+    const png = await buildGangSheet(frontItems, sheetWidth, sheetHeight, margin);
+    return new Response(new Uint8Array(png), {
+      headers: {
+        "Content-Type": "image/png",
+        "Content-Disposition": `attachment; filename="gang-sheet-on-${preset}-${date}.png"`,
+        "Content-Length": String(png.length),
+      },
+    });
+  }
+
+  // Both sides — return ZIP
+  const [frontPng, backPng] = await Promise.all([
+    frontItems.length > 0 ? buildGangSheet(frontItems, sheetWidth, sheetHeight, margin) : null,
+    buildGangSheet(backItems, sheetWidth, sheetHeight, margin),
+  ]);
+
+  const zipFiles: Record<string, Uint8Array> = {};
+  if (frontPng) zipFiles[`gang-sheet-on-${preset}-${date}.png`] = new Uint8Array(frontPng);
+  zipFiles[`gang-sheet-arka-${preset}-${date}.png`] = new Uint8Array(backPng);
+
+  const zipBuffer = zipSync(zipFiles, { level: 6 });
+
+  return new Response(zipBuffer, {
     headers: {
-      "Content-Type": "image/png",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-      "Content-Length": String(pngBuffer.length),
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="gang-sheet-${preset}-${date}.zip"`,
+      "Content-Length": String(zipBuffer.length),
     },
   });
 };

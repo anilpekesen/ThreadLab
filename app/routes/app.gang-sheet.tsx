@@ -1,15 +1,15 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useNavigate } from "@remix-run/react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useTranslation } from "~/i18n";
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
   Box, Select, RangeSlider, Thumbnail, Checkbox, Banner,
-  Grid, Divider, RadioButton,
+  Grid, Divider,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getOrdersByIds, getOrdersWithPrintFiles } from "~/models/orders.server";
+import { getOrdersWithPrintFiles, getOrdersByIds } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 
 const SHEET_PRESETS = [
@@ -30,6 +30,47 @@ const PRESET_DIMS: Record<string, { w: number; h: number | null }> = {
   a4l:    { w: 3508, h: 2480 },
 };
 
+interface OrderGroup {
+  shopifyOrderId: string;
+  orderNumber: string;
+  customerName: string;
+  productBaseName: string;
+  previewUrl: string;
+  totalQty: number;
+  orderIds: string[];
+  variants: Array<{ variantTitle: string; quantity: number }>;
+  hasFront: boolean;
+  hasBack: boolean;
+}
+
+function groupOrders(orders: Order[]): OrderGroup[] {
+  const map = new Map<string, OrderGroup>();
+  for (const o of orders) {
+    const key = o.shopifyOrderId || o.id;
+    if (!map.has(key)) {
+      map.set(key, {
+        shopifyOrderId: key,
+        orderNumber: o.orderNumber,
+        customerName: o.customerName,
+        productBaseName: (o.productName || "").split(" - ")[0] || o.productName || "",
+        previewUrl: o.designFrontPrintUrl || o.productionFileUrl || o.designFrontPreviewUrl || o.previewUrl || "",
+        totalQty: 0,
+        orderIds: [],
+        variants: [],
+        hasFront: false,
+        hasBack: false,
+      });
+    }
+    const g = map.get(key)!;
+    g.orderIds.push(o.id);
+    g.totalQty += o.quantity ?? 1;
+    if (o.variantTitle) g.variants.push({ variantTitle: o.variantTitle, quantity: o.quantity ?? 1 });
+    if (o.designFrontPrintUrl || o.productionFileUrl) g.hasFront = true;
+    if (o.designBackPrintUrl) g.hasBack = true;
+  }
+  return Array.from(map.values());
+}
+
 function hasPrintFile(order: Order): boolean {
   return !!(order.designFrontPrintUrl || order.productionFileUrl || order.designBackPrintUrl);
 }
@@ -37,64 +78,73 @@ function hasPrintFile(order: Order): boolean {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
-
   const url = new URL(request.url);
   const idsParam = url.searchParams.get("ids") ?? "";
   const preselectedIds = idsParam.split(",").filter(Boolean);
 
-  // Load orders with print files
   let orders: Order[];
   if (preselectedIds.length) {
     orders = await getOrdersByIds(shop, preselectedIds);
   } else {
-    // Show all orders with print files (not just today's)
     orders = await getOrdersWithPrintFiles(shop);
   }
 
   const printableOrders = orders.filter(hasPrintFile);
-
-  return json({ printableOrders, preselectedIds, shop });
+  return json({ printableOrders, shop });
 };
 
 export default function GangSheet() {
-  const { printableOrders, preselectedIds, shop } = useLoaderData<typeof loader>();
+  const { printableOrders, shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  const [selectedIds, setSelectedIds] = useState<string[]>(
-    preselectedIds.length ? preselectedIds.filter((id) => printableOrders.some((o) => o.id === id)) : printableOrders.map((o) => o.id),
+  const groups = useMemo(() => groupOrders(printableOrders), [printableOrders]);
+
+  const [selectedKeys, setSelectedKeys] = useState<string[]>(
+    groups.map((g) => g.shopifyOrderId),
   );
   const [preset, setPreset] = useState("dtf60");
   const [margin, setMargin] = useState(20);
   const [columns, setColumns] = useState("0");
-  const [side, setSide] = useState<"front" | "back">("front");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const toggleOrder = useCallback((id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+  const toggleGroup = useCallback((key: string) => {
+    setSelectedKeys((prev) =>
+      prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key],
     );
   }, []);
 
   const toggleAll = useCallback(() => {
-    if (selectedIds.length === printableOrders.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(printableOrders.map((o) => o.id));
-    }
-  }, [selectedIds, printableOrders]);
+    setSelectedKeys((prev) =>
+      prev.length === groups.length ? [] : groups.map((g) => g.shopifyOrderId),
+    );
+  }, [groups]);
+
+  const selectedGroups = useMemo(
+    () => groups.filter((g) => selectedKeys.includes(g.shopifyOrderId)),
+    [groups, selectedKeys],
+  );
+
+  const allOrderIds = useMemo(
+    () => selectedGroups.flatMap((g) => g.orderIds),
+    [selectedGroups],
+  );
+
+  const totalPrints = useMemo(
+    () => selectedGroups.reduce((s, g) => s + g.totalQty, 0),
+    [selectedGroups],
+  );
 
   const handleGenerate = useCallback(async () => {
-    if (!selectedIds.length) return;
+    if (!allOrderIds.length) return;
     setGenerating(true);
     setError(null);
     const params = new URLSearchParams({
-      ids: selectedIds.join(","),
+      ids: allOrderIds.join(","),
       preset,
       margin: String(margin),
       cols: columns,
-      side,
       shop,
     });
     try {
@@ -108,7 +158,8 @@ export default function GangSheet() {
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      a.download = `gang-sheet-${preset}-${new Date().toISOString().slice(0, 10)}.png`;
+      const isZip = res.headers.get("Content-Type")?.includes("zip");
+      a.download = `gang-sheet-${preset}-${new Date().toISOString().slice(0, 10)}.${isZip ? "zip" : "png"}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -118,14 +169,12 @@ export default function GangSheet() {
     } finally {
       setGenerating(false);
     }
-  }, [selectedIds, preset, margin, columns, side]);
+  }, [allOrderIds, preset, margin, columns]);
 
   const dims = PRESET_DIMS[preset];
   const dimsLabel = dims
     ? `${dims.w}px × ${dims.h ? `${dims.h}px` : "otomatik yükseklik"}`
     : "";
-
-  const allSelected = selectedIds.length === printableOrders.length;
 
   return (
     <Page
@@ -134,7 +183,7 @@ export default function GangSheet() {
       primaryAction={{
         content: generating ? t("gangSheet.generating") : t("gangSheet.generate"),
         onAction: handleGenerate,
-        disabled: selectedIds.length === 0 || generating,
+        disabled: selectedKeys.length === 0 || generating,
         loading: generating,
       }}
     >
@@ -190,39 +239,20 @@ export default function GangSheet() {
                     helpText={columns === "0" ? "Fiziksel baskı boyutuna göre otomatik" : `Her satırda en az ${columns} tasarım`}
                   />
 
-                  <BlockStack gap="200">
-                    <Text as="p" variant="bodySm">{t("gangSheet.side")}</Text>
-                    <InlineStack gap="300">
-                      <RadioButton
-                        label={t("gangSheet.sideFront")}
-                        checked={side === "front"}
-                        id="side-front"
-                        name="side"
-                        onChange={() => setSide("front")}
-                      />
-                      <RadioButton
-                        label={t("gangSheet.sideBack")}
-                        checked={side === "back"}
-                        id="side-back"
-                        name="side"
-                        onChange={() => setSide("back")}
-                      />
-                    </InlineStack>
-                  </BlockStack>
-
                   <Divider />
 
-                  {/* Özet */}
+                  <Banner tone="info">
+                    <Text as="p" variant="bodySm">
+                      Tasarım yüzü: ön ve arka planlar otomatik eklenmektedir.
+                    </Text>
+                  </Banner>
+
                   <BlockStack gap="100">
                     <Text as="p" variant="bodySm" tone="subdued">
-                      {selectedIds.length} / {printableOrders.length} sipariş seçildi
+                      {selectedKeys.length} / {groups.length} sipariş seçildi
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Toplam baskı:{" "}
-                      {printableOrders
-                        .filter((o) => selectedIds.includes(o.id))
-                        .reduce((s, o) => s + (o.quantity ?? 1), 0)}{" "}
-                      adet
+                      Toplam baskı: <strong>{totalPrints}</strong> adet
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
                       Sayfa: {dimsLabel}
@@ -245,29 +275,23 @@ export default function GangSheet() {
                   <InlineStack align="space-between" blockAlign="center">
                     <Text as="h2" variant="headingMd">{t("gangSheet.selectOrders")}</Text>
                     <Button size="slim" variant="plain" onClick={toggleAll}>
-                      {allSelected ? "Tümünü Kaldır" : t("production.selectAll")}
+                      {selectedKeys.length === groups.length ? "Tümünü Kaldır" : t("production.selectAll")}
                     </Button>
                   </InlineStack>
 
                   <Divider />
 
-                  {printableOrders.length === 0 ? (
+                  {groups.length === 0 ? (
                     <Box padding="600">
                       <Text as="p" tone="subdued" alignment="center">{t("gangSheet.noOrders")}</Text>
                     </Box>
                   ) : (
                     <BlockStack gap="200">
-                      {printableOrders.map((order) => {
-                        const isSelected = selectedIds.includes(order.id);
-                        const previewUrl = order.designFrontPrintUrl || order.productionFileUrl || order.designFrontPreviewUrl || order.previewUrl || "";
-                        const hasFront = !!(order.designFrontPrintUrl || order.productionFileUrl);
-                        const hasBack = !!order.designBackPrintUrl;
-                        const qty = order.quantity ?? 1;
-                        const variantLabel = order.variantTitle || "";
-
+                      {groups.map((group) => {
+                        const isSelected = selectedKeys.includes(group.shopifyOrderId);
                         return (
                           <div
-                            key={order.id}
+                            key={group.shopifyOrderId}
                             style={{
                               border: `1px solid ${isSelected ? "#4f46e5" : "#e5e7eb"}`,
                               borderRadius: 8,
@@ -276,38 +300,48 @@ export default function GangSheet() {
                               cursor: "pointer",
                               transition: "all .15s",
                             }}
-                            onClick={() => toggleOrder(order.id)}
+                            onClick={() => toggleGroup(group.shopifyOrderId)}
                           >
                             <InlineStack gap="300" blockAlign="center">
                               <Checkbox
                                 label=""
                                 checked={isSelected}
-                                onChange={() => toggleOrder(order.id)}
+                                onChange={() => toggleGroup(group.shopifyOrderId)}
                               />
-                              {previewUrl && (
-                                <Thumbnail source={previewUrl} alt="Tasarım" size="small" />
+                              {group.previewUrl && (
+                                <Thumbnail source={group.previewUrl} alt="Tasarım" size="small" />
                               )}
-                              <BlockStack gap="050">
+                              <BlockStack gap="100">
                                 <InlineStack gap="200" blockAlign="center">
                                   <Text as="span" variant="bodySm" fontWeight="semibold">
-                                    {order.orderNumber}
+                                    {group.orderNumber}
                                   </Text>
-                                  {qty > 1 && (
-                                    <Badge tone="warning" size="small">{`${qty}× adet`}</Badge>
-                                  )}
-                                  {variantLabel && (
-                                    <Badge tone="info" size="small">{variantLabel}</Badge>
-                                  )}
-                                  {hasFront && (
-                                    <Badge tone="success" size="small">Ön ✓</Badge>
-                                  )}
-                                  {hasBack && (
-                                    <Badge size="small">Arka ✓</Badge>
-                                  )}
+                                  <Badge tone="warning" size="small">{`${group.totalQty} adet`}</Badge>
+                                  {group.hasFront && <Badge tone="success" size="small">Ön ✓</Badge>}
+                                  {group.hasBack && <Badge size="small">Arka ✓</Badge>}
                                 </InlineStack>
                                 <Text as="span" variant="bodySm" tone="subdued">
-                                  {order.customerName} · {order.productName}
+                                  {group.customerName} · {group.productBaseName}
                                 </Text>
+                                {group.variants.length > 0 && (
+                                  <InlineStack gap="100" wrap>
+                                    {group.variants.map((v, i) => (
+                                      <span
+                                        key={i}
+                                        style={{
+                                          fontSize: 11,
+                                          background: "#f3f4f6",
+                                          border: "1px solid #e5e7eb",
+                                          borderRadius: 10,
+                                          padding: "1px 7px",
+                                          color: "#374151",
+                                        }}
+                                      >
+                                        {v.variantTitle} ×{v.quantity}
+                                      </span>
+                                    ))}
+                                  </InlineStack>
+                                )}
                               </BlockStack>
                             </InlineStack>
                           </div>
@@ -321,17 +355,16 @@ export default function GangSheet() {
           </Grid.Cell>
         </Grid>
 
-        {/* Büyük oluştur butonu */}
-        {selectedIds.length > 0 && (
+        {selectedKeys.length > 0 && (
           <Card>
             <Box padding="400">
               <InlineStack align="center" gap="400" blockAlign="center">
                 <BlockStack gap="100">
                   <Text as="p" variant="headingMd">
-                    {printableOrders.filter((o) => selectedIds.includes(o.id)).reduce((s, o) => s + (o.quantity ?? 1), 0)} baskı → Gang Sheet hazır
+                    {totalPrints} baskı → Gang Sheet hazır
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {SHEET_PRESETS.find((p) => p.value === preset)?.label} · {columns !== "0" ? `${columns} sütun` : "Otomatik boyut"} · {side === "front" ? "Ön yüz" : "Arka yüz"}
+                    {SHEET_PRESETS.find((p) => p.value === preset)?.label} · {columns !== "0" ? `${columns} sütun` : "Otomatik boyut"} · Ön + Arka
                   </Text>
                 </BlockStack>
                 <Button
@@ -341,7 +374,7 @@ export default function GangSheet() {
                   disabled={generating}
                   loading={generating}
                 >
-                  {generating ? t("gangSheet.generating") : `${t("gangSheet.generate")} (${printableOrders.filter((o) => selectedIds.includes(o.id)).reduce((s, o) => s + (o.quantity ?? 1), 0)} baskı)`}
+                  {generating ? t("gangSheet.generating") : `${t("gangSheet.generate")} (${totalPrints} baskı)`}
                 </Button>
               </InlineStack>
             </Box>
