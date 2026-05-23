@@ -10,6 +10,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import { getOrders, updateOrderStatus, getDashboardStats, syncOrdersFromAdmin, fulfillShopifyOrders } from "~/models/orders.server";
+import { query } from "~/lib/db.server";
 
 const STATUSES = [
   { labelKey: "status.all" as const, value: "" },
@@ -52,12 +53,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const status = url.searchParams.get("status") ?? "";
 
-  // Sync from Admin API only on explicit refresh (not on every status filter click)
   const forceSync = url.searchParams.get("sync") === "1";
+  const resetOrders = url.searchParams.get("reset") === "1";
   let syncError: string | null = null;
   let syncCount = 0;
-  if (!status || forceSync) {
+  if (!status || forceSync || resetOrders) {
     try {
+      if (resetOrders) {
+        await query("DELETE FROM orders WHERE shop = $1", [session.shop]);
+      }
       syncCount = await syncOrdersFromAdmin(admin, session.shop);
     } catch (e) {
       // Re-throw redirects so Shopify auth flow can handle them
@@ -255,6 +259,15 @@ export default function Orders() {
         content: t("common.refresh"),
         onAction: () => navigate("/app/orders?sync=1"),
       }}
+      secondaryActions={[{
+        content: "Temizle ve Yeniden Senkronize Et",
+        destructive: true,
+        onAction: () => {
+          if (window.confirm("Tüm siparişler silinip Shopify'dan yeniden çekilecek. Emin misin?")) {
+            navigate("/app/orders?reset=1");
+          }
+        },
+      }]}
     >
       <BlockStack gap="400">
         <PageHelper sections={[
