@@ -219,6 +219,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // ── Orders deleted: remove from production queue entirely ────────
+  if (topic === "ORDERS_DELETE" || topic === "orders/delete") {
+    const order = payload as { id?: number };
+    const shopifyOrderId = String(order.id ?? "");
+    console.log(`[webhook] deleted shopifyId=${shopifyOrderId}`);
+
+    if (shopifyOrderId) {
+      query("DELETE FROM orders WHERE shop = $1 AND shopify_order_id = $2", [shop, shopifyOrderId])
+        .catch((err) =>
+          console.error(`[webhook] delete failed for shopifyId=${shopifyOrderId}:`, err),
+        );
+    }
+  }
+
   // ── Orders fulfilled: update production status ────────────────────
   if (topic === "ORDERS_FULFILLED" || topic === "orders/fulfilled") {
     const order = payload as OrderPayload;

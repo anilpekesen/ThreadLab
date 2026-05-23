@@ -309,6 +309,23 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
   const getAttr = (attrs: Attr[], key: string) => attrs.find((a) => a.key === key)?.value;
   let added = 0;
 
+  // Purge orders in our DB that no longer exist in Shopify (deleted by merchant).
+  // Only purge within the date window of the fetched batch to avoid false positives
+  // from pagination (first:100 might not cover all older orders).
+  const shopifyIds = shopifyOrders.map((so) => so.id.split("/").pop() ?? so.id);
+  if (shopifyIds.length > 0) {
+    const oldest = shopifyOrders.reduce((min, so) =>
+      so.createdAt < min ? so.createdAt : min, shopifyOrders[0].createdAt);
+    await query(
+      `DELETE FROM orders
+       WHERE shop = $1
+         AND shopify_order_id != ALL($2::text[])
+         AND created_at >= $3
+         AND production_status NOT IN ('shipped')`,
+      [shop, shopifyIds, new Date(oldest)],
+    );
+  }
+
   for (const so of shopifyOrders) {
     const shopifyOrderId = so.id.split("/").pop() ?? so.id;
 
