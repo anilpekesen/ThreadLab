@@ -245,6 +245,15 @@ async function _runMigrationsLocked() {
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT 'Müşteri'`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_email TEXT NOT NULL DEFAULT ''`);
 
+  // ── Ensure per-variant unique index exists (re-run safe) ────────────────
+  // Drop legacy single-column unique first, then ensure the composite index.
+  await query(`ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_shopify_order_id_key`);
+  await query(`DROP INDEX IF EXISTS orders_shop_shopify_order_id`);
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS orders_shop_shopify_order_variant
+      ON orders (shop, shopify_order_id, variant_id)
+  `);
+
   // ── Clean up duplicate orders caused by empty variant_id migration ───────
   // Old records have variant_id=''. After per-variant migration, real variant
   // records were inserted alongside them creating duplicates. Delete the old

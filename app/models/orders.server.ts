@@ -380,9 +380,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           variant_id, variant_title, quantity, design_token, preview_url, production_file_url,
           customer_name, customer_email, production_status, missing_surcharge, created_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,FALSE,$16)
-         ON CONFLICT (shop, shopify_order_id, variant_id) DO UPDATE
-           SET production_status = EXCLUDED.production_status
-           WHERE orders.production_status = 'pending'`,
+         ON CONFLICT (shop, shopify_order_id, variant_id) DO NOTHING`,
         [
           id,
           shop,
@@ -402,6 +400,17 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           new Date(so.createdAt),
         ],
       );
+      // If row already exists and is still pending, update fulfillment status
+      if (!result.rowCount || result.rowCount === 0) {
+        if (initialStatus === "shipped") {
+          await query(
+            `UPDATE orders SET production_status = 'shipped', updated_at = now()
+             WHERE shop = $1 AND shopify_order_id = $2 AND variant_id = $3
+               AND production_status NOT IN ('shipped', 'cancelled')`,
+            [shop, shopifyOrderId, variantId],
+          );
+        }
+      }
       if (result.rowCount && result.rowCount > 0) {
         // Fire-and-forget: don't block sync on Shopify metafield writes
         writeDesignMetafields(admin, shop, so.id, id, frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, token)
