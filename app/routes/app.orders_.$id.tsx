@@ -18,7 +18,8 @@ import {
   Box, Divider, Grid, Thumbnail, Banner,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import { getOrder, updateOrderStatus, fulfillShopifyOrders } from "~/models/orders.server";
+import { getOrder, getSiblingOrders, updateOrderStatus, fulfillShopifyOrders } from "~/models/orders.server";
+import type { Order } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
 
 function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHref?: string }) {
@@ -160,11 +161,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const order = await getOrder(params.id ?? "");
   if (!order) throw new Response("Sipariş bulunamadı", { status: 404 });
 
-  const design = order.designToken ? await getDesignByToken(session.shop, order.designToken) : null;
+  const [design, siblings] = await Promise.all([
+    order.designToken ? getDesignByToken(session.shop, order.designToken) : null,
+    getSiblingOrders(session.shop, order.shopifyOrderId, order.id),
+  ]);
   const frontObjects = design ? extractObjects(design.designJson, "front") : [];
   const backObjects = design ? extractObjects(design.designJson, "back") : [];
 
-  return json({ order, design, frontObjects, backObjects, shop: session.shop });
+  return json({ order, siblings, design, frontObjects, backObjects, shop: session.shop });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -184,7 +188,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function OrderDetail() {
-  const { order, design, frontObjects, backObjects, shop } = useLoaderData<typeof loader>();
+  const { order, siblings, design, frontObjects, backObjects, shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const { t, lang } = useTranslation();
@@ -341,11 +345,11 @@ export default function OrderDetail() {
               </InlineStack>
               <InlineStack align="space-between">
                 <Text as="span" tone="subdued">Ürün</Text>
-                <Text as="span">{order.productName || "—"}</Text>
+                <Text as="span">{order.productName?.split(" - ")[0] || order.productName || "—"}</Text>
               </InlineStack>
               {order.variantTitle && (
                 <InlineStack align="space-between">
-                  <Text as="span" tone="subdued">Beden / Varyant</Text>
+                  <Text as="span" tone="subdued">Bu kayıt (beden)</Text>
                   <Badge tone="info">{order.variantTitle}</Badge>
                 </InlineStack>
               )}
@@ -353,6 +357,34 @@ export default function OrderDetail() {
                 <Text as="span" tone="subdued">Adet</Text>
                 <Text as="span" fontWeight="semibold">{order.quantity ?? 1}</Text>
               </InlineStack>
+
+              {/* Aynı siparişin diğer bedenleri */}
+              {siblings.length > 0 && (
+                <>
+                  <Divider />
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Bu tasarımın diğer bedenleri ({siblings.length + 1} beden toplam{" "}
+                      {[order, ...siblings].reduce((s: number, o: Order) => s + (o.quantity ?? 1), 0)} adet):
+                    </Text>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {/* Mevcut kayıt */}
+                      <span style={{ background: "#4f46e5", color: "#fff", padding: "3px 10px", borderRadius: 20, fontSize: 13, fontWeight: 600 }}>
+                        {order.variantTitle || "—"} × {order.quantity ?? 1}
+                      </span>
+                      {siblings.map((s: Order) => (
+                        <a key={s.id} href={`/app/orders/${s.id}`} style={{ textDecoration: "none" }}>
+                          <span style={{ background: "#f3f4f6", color: "#374151", padding: "3px 10px", borderRadius: 20, fontSize: 13, border: "1px solid #e5e7eb", cursor: "pointer" }}>
+                            {s.variantTitle || "—"} × {s.quantity ?? 1}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  </BlockStack>
+                </>
+              )}
+
+              <Divider />
               <InlineStack align="space-between">
                 <Text as="span" tone="subdued">Durum</Text>
                 <Badge tone={BADGE_TONE[order.productionStatus] ?? "new"}>

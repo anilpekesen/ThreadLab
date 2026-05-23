@@ -432,6 +432,16 @@ export async function getOrdersWithPrintFiles(shop: string, statuses?: string[])
   return result.rows.map(rowToOrder);
 }
 
+export async function getSiblingOrders(shop: string, shopifyOrderId: string, excludeId: string): Promise<Order[]> {
+  if (!shopifyOrderId) return [];
+  await ensureMigrations();
+  const result = await query<DbRow>(
+    `${ORDER_SELECT} WHERE o.shop = $1 AND o.shopify_order_id = $2 AND o.id != $3 ORDER BY o.variant_title ASC`,
+    [shop, shopifyOrderId, excludeId],
+  );
+  return result.rows.map(rowToOrder);
+}
+
 export async function getOrdersByIds(shop: string, ids: string[]): Promise<Order[]> {
   if (!ids.length) return [];
   await ensureMigrations();
