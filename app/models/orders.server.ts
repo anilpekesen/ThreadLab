@@ -600,7 +600,7 @@ export async function createOrderFromPixel(data: {
       variant_id, design_token, preview_url, production_file_url, production_status,
       missing_surcharge)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',FALSE)
-     ON CONFLICT (shop, shopify_order_id) DO NOTHING`,
+     ON CONFLICT (shop, shopify_order_id, variant_id) DO NOTHING`,
     [
       id,
       data.shop,
