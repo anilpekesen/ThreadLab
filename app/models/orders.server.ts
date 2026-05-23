@@ -337,6 +337,15 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     if (itemsToProcess.length === 0) continue;
 
     for (const item of itemsToProcess) {
+      const variantId = item.variant?.id.split("/").pop() ?? "";
+
+      // Skip already-imported variants — only add genuinely new ones
+      const exists = await query(
+        "SELECT 1 FROM orders WHERE shop = $1 AND shopify_order_id = $2 AND variant_id = $3",
+        [shop, shopifyOrderId, variantId],
+      );
+      if (exists.rows.length > 0) continue;
+
       const token = getAttr(item.customAttributes, "design_token") ?? orderToken ?? "";
       const frontPreviewUrl =
         getAttr(item.customAttributes, "_front_preview_url") ??
@@ -360,11 +369,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           variant_id, variant_title, quantity, design_token, preview_url, production_file_url,
           production_status, missing_surcharge, created_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',FALSE,$13)
-         ON CONFLICT (shop, shopify_order_id, variant_id) DO UPDATE SET
-           quantity      = EXCLUDED.quantity,
-           variant_title = EXCLUDED.variant_title,
-           product_name  = EXCLUDED.product_name,
-           updated_at    = now()`,
+         ON CONFLICT (shop, shopify_order_id, variant_id) DO NOTHING`,
         [
           id,
           shop,
@@ -372,7 +377,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           so.name,
           item.product?.id.split("/").pop() ?? "",
           item.name ?? "",
-          item.variant?.id.split("/").pop() ?? "",
+          variantId,
           item.variant?.title ?? "",
           item.quantity ?? 1,
           token,

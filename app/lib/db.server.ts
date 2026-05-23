@@ -244,4 +244,16 @@ async function _runMigrationsLocked() {
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS variant_title TEXT NOT NULL DEFAULT ''`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT 'Müşteri'`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_email TEXT NOT NULL DEFAULT ''`);
+
+  // ── Clean up duplicate orders caused by empty variant_id migration ───────
+  // Old records have variant_id=''. After per-variant migration, real variant
+  // records were inserted alongside them creating duplicates. Delete the old
+  // empty-variant_id records where proper variant records now exist.
+  await query(`
+    DELETE FROM orders
+    WHERE variant_id = ''
+      AND shopify_order_id IN (
+        SELECT DISTINCT shopify_order_id FROM orders WHERE variant_id != ''
+      )
+  `);
 }
