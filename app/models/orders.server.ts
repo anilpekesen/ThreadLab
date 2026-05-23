@@ -272,6 +272,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     displayFinancialStatus: string | null;
     customAttributes: Attr[];
     lineItems: { nodes: LineItem[] };
+    customer?: { firstName?: string; lastName?: string; email?: string };
   };
 
   const res = await admin.graphql(`#graphql
@@ -280,6 +281,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
         nodes {
           id name createdAt cancelledAt displayFinancialStatus
           customAttributes { key value }
+          customer { firstName lastName email }
           lineItems(first: 20) {
             nodes {
               name quantity requiresShipping
@@ -363,12 +365,14 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
         getAttr(item.customAttributes, "_back_print_url") ??
         getAttr(so.customAttributes, "_back_print_url") ??
         "";
+      const customerName = [so.customer?.firstName, so.customer?.lastName].filter(Boolean).join(" ") || "Müşteri";
+      const customerEmail = so.customer?.email ?? "";
       const id = `order_${randomBytes(8).toString("hex")}`;
       await query(
         `INSERT INTO orders (id, shop, shopify_order_id, order_number, product_id, product_name,
           variant_id, variant_title, quantity, design_token, preview_url, production_file_url,
-          production_status, missing_surcharge, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',FALSE,$13)
+          customer_name, customer_email, production_status, missing_surcharge, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'pending',FALSE,$15)
          ON CONFLICT (shop, shopify_order_id, variant_id) DO NOTHING`,
         [
           id,
@@ -383,6 +387,8 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           token,
           frontPreviewUrl,
           frontPrintUrl,
+          customerName,
+          customerEmail,
           new Date(so.createdAt),
         ],
       );
