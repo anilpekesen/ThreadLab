@@ -270,19 +270,16 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     createdAt: string;
     cancelledAt: string | null;
     displayFinancialStatus: string | null;
-    email?: string | null;
     customAttributes: Attr[];
     lineItems: { nodes: LineItem[] };
-    billingAddress?: { firstName?: string; lastName?: string } | null;
   };
 
   const res = await admin.graphql(`#graphql
     {
       orders(first: 100, sortKey: CREATED_AT, reverse: true) {
         nodes {
-          id name createdAt cancelledAt displayFinancialStatus email
+          id name createdAt cancelledAt displayFinancialStatus
           customAttributes { key value }
-          billingAddress { firstName lastName }
           lineItems(first: 20) {
             nodes {
               name quantity requiresShipping
@@ -383,8 +380,9 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
         getAttr(item.customAttributes, "_back_print_url") ??
         getAttr(so.customAttributes, "_back_print_url") ??
         "";
-      const customerName = [so.billingAddress?.firstName, so.billingAddress?.lastName].filter(Boolean).join(" ") || "Müşteri";
-      const customerEmail = so.email ?? "";
+      // customer_name/email come from webhook; leave as default on sync-only imports
+      const customerName = "Müşteri";
+      const customerEmail = "";
       const id = `order_${randomBytes(8).toString("hex")}`;
       await query(
         `INSERT INTO orders (id, shop, shopify_order_id, order_number, product_id, product_name,
