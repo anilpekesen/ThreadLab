@@ -19,6 +19,8 @@ export interface Order {
   productId: string;
   productName: string;
   variantId: string;
+  variantTitle: string;
+  quantity: number;
   designToken: string;
   previewUrl: string;
   productionFileUrl: string;
@@ -42,6 +44,8 @@ type DbRow = {
   product_id: string;
   product_name: string;
   variant_id: string;
+  variant_title: string;
+  quantity: number;
   design_token: string;
   preview_url: string;
   production_file_url: string;
@@ -65,6 +69,8 @@ function rowToOrder(row: DbRow): Order {
     productId: row.product_id,
     productName: row.product_name,
     variantId: row.variant_id,
+    variantTitle: row.variant_title ?? "",
+    quantity: row.quantity ?? 1,
     designToken: row.design_token,
     previewUrl: row.preview_url,
     productionFileUrl: row.production_file_url,
@@ -81,7 +87,8 @@ function rowToOrder(row: DbRow): Order {
 
 const ORDER_SELECT = `
   SELECT o.id, o.shopify_order_id, o.order_number, o.customer_name, o.customer_email,
-    o.product_id, o.product_name, o.variant_id, o.design_token, o.preview_url,
+    o.product_id, o.product_name, o.variant_id, o.variant_title, o.quantity,
+    o.design_token, o.preview_url,
     o.production_file_url, o.production_status, o.missing_surcharge, o.created_at, o.updated_at,
     d.front_preview_url AS design_front_preview_url,
     d.back_preview_url  AS design_back_preview_url,
@@ -251,9 +258,10 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
   type Attr = { key: string; value: string };
   type LineItem = {
     name: string;
+    quantity: number;
     requiresShipping: boolean;
     product?: { id: string };
-    variant?: { id: string };
+    variant?: { id: string; title?: string };
     customAttributes: Attr[];
   };
   type ShopifyOrder = {
@@ -274,9 +282,9 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           customAttributes { key value }
           lineItems(first: 20) {
             nodes {
-              name requiresShipping
+              name quantity requiresShipping
               product { id }
-              variant { id }
+              variant { id title }
               customAttributes { key value }
             }
           }
@@ -353,9 +361,9 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
       const id = `order_${randomBytes(8).toString("hex")}`;
       await query(
         `INSERT INTO orders (id, shop, shopify_order_id, order_number, product_id, product_name,
-          variant_id, design_token, preview_url, production_file_url, production_status,
-          missing_surcharge, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',FALSE,$11)
+          variant_id, variant_title, quantity, design_token, preview_url, production_file_url,
+          production_status, missing_surcharge, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending',FALSE,$13)
          ON CONFLICT (shop, shopify_order_id) DO NOTHING`,
         [
           id,
@@ -365,6 +373,8 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           item.product?.id.split("/").pop() ?? "",
           item.name ?? "",
           item.variant?.id.split("/").pop() ?? "",
+          item.variant?.title ?? "",
+          item.quantity ?? 1,
           token,
           frontPreviewUrl,
           frontPrintUrl,

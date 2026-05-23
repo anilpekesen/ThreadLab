@@ -343,6 +343,16 @@ export default function OrderDetail() {
                 <Text as="span" tone="subdued">Ürün</Text>
                 <Text as="span">{order.productName || "—"}</Text>
               </InlineStack>
+              {order.variantTitle && (
+                <InlineStack align="space-between">
+                  <Text as="span" tone="subdued">Beden / Varyant</Text>
+                  <Badge tone="info">{order.variantTitle}</Badge>
+                </InlineStack>
+              )}
+              <InlineStack align="space-between">
+                <Text as="span" tone="subdued">Adet</Text>
+                <Text as="span" fontWeight="semibold">{order.quantity ?? 1}</Text>
+              </InlineStack>
               <InlineStack align="space-between">
                 <Text as="span" tone="subdued">Durum</Text>
                 <Badge tone={BADGE_TONE[order.productionStatus] ?? "new"}>

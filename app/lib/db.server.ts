@@ -235,4 +235,10 @@ async function _runMigrationsLocked() {
   await query(`CREATE INDEX IF NOT EXISTS orders_shop_idx ON orders (shop, created_at DESC)`);
   await query(`CREATE INDEX IF NOT EXISTS designs_shop_idx ON designs (shop)`);
   await query(`CREATE INDEX IF NOT EXISTS product_print_areas_shop_product ON product_print_areas (shop, product_id)`);
+
+  // ── Quantity and variant title ───────────────────────────────────────────
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS quantity INTEGER NOT NULL DEFAULT 1`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS variant_title TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT 'Müşteri'`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_email TEXT NOT NULL DEFAULT ''`);
 }

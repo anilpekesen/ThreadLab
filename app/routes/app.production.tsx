@@ -207,7 +207,17 @@ export default function Production() {
 
         {/* Ürün */}
         <IndexTable.Cell>
-          <Text as="span" variant="bodySm">{o.productName}</Text>
+          <BlockStack gap="050">
+            <Text as="span" variant="bodySm">{o.productName}</Text>
+            <InlineStack gap="100">
+              {o.variantTitle && (
+                <Badge tone="info" size="small">{o.variantTitle}</Badge>
+              )}
+              {(o.quantity ?? 1) > 1 && (
+                <Badge tone="warning" size="small">{`${o.quantity}× adet`}</Badge>
+              )}
+            </InlineStack>
+          </BlockStack>
         </IndexTable.Cell>
 
         {/* Durum */}

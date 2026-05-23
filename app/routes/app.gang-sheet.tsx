@@ -31,7 +31,7 @@ const PRESET_DIMS: Record<string, { w: number; h: number | null }> = {
 };
 
 function hasPrintFile(order: Order): boolean {
-  return !!(order.designFrontPrintUrl || order.productionFileUrl);
+  return !!(order.designFrontPrintUrl || order.productionFileUrl || order.designBackPrintUrl);
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -215,7 +215,14 @@ export default function GangSheet() {
                   {/* Özet */}
                   <BlockStack gap="100">
                     <Text as="p" variant="bodySm" tone="subdued">
-                      {selectedIds.length} / {printableOrders.length} tasarım seçildi
+                      {selectedIds.length} / {printableOrders.length} sipariş seçildi
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Toplam baskı:{" "}
+                      {printableOrders
+                        .filter((o) => selectedIds.includes(o.id))
+                        .reduce((s, o) => s + (o.quantity ?? 1), 0)}{" "}
+                      adet
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
                       Sayfa: {dimsLabel}
@@ -255,6 +262,8 @@ export default function GangSheet() {
                         const previewUrl = order.designFrontPrintUrl || order.productionFileUrl || order.designFrontPreviewUrl || order.previewUrl || "";
                         const hasFront = !!(order.designFrontPrintUrl || order.productionFileUrl);
                         const hasBack = !!order.designBackPrintUrl;
+                        const qty = order.quantity ?? 1;
+                        const variantLabel = order.variantTitle || "";
 
                         return (
                           <div
@@ -283,11 +292,17 @@ export default function GangSheet() {
                                   <Text as="span" variant="bodySm" fontWeight="semibold">
                                     {order.orderNumber}
                                   </Text>
+                                  {qty > 1 && (
+                                    <Badge tone="warning" size="small">{`${qty}× adet`}</Badge>
+                                  )}
+                                  {variantLabel && (
+                                    <Badge tone="info" size="small">{variantLabel}</Badge>
+                                  )}
                                   {hasFront && (
                                     <Badge tone="success" size="small">Ön ✓</Badge>
                                   )}
                                   {hasBack && (
-                                    <Badge tone="info" size="small">Arka ✓</Badge>
+                                    <Badge size="small">Arka ✓</Badge>
                                   )}
                                 </InlineStack>
                                 <Text as="span" variant="bodySm" tone="subdued">
@@ -313,7 +328,7 @@ export default function GangSheet() {
               <InlineStack align="center" gap="400" blockAlign="center">
                 <BlockStack gap="100">
                   <Text as="p" variant="headingMd">
-                    {selectedIds.length} tasarım → Gang Sheet hazır
+                    {printableOrders.filter((o) => selectedIds.includes(o.id)).reduce((s, o) => s + (o.quantity ?? 1), 0)} baskı → Gang Sheet hazır
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
                     {SHEET_PRESETS.find((p) => p.value === preset)?.label} · {columns !== "0" ? `${columns} sütun` : "Otomatik boyut"} · {side === "front" ? "Ön yüz" : "Arka yüz"}
@@ -326,7 +341,7 @@ export default function GangSheet() {
                   disabled={generating}
                   loading={generating}
                 >
-                  {generating ? t("gangSheet.generating") : `${t("gangSheet.generate")} (${selectedIds.length} tasarım)`}
+                  {generating ? t("gangSheet.generating") : `${t("gangSheet.generate")} (${printableOrders.filter((o) => selectedIds.includes(o.id)).reduce((s, o) => s + (o.quantity ?? 1), 0)} baskı)`}
                 </Button>
               </InlineStack>
             </Box>
