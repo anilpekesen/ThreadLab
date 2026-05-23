@@ -158,8 +158,7 @@ export default function GangSheet() {
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      const isZip = res.headers.get("Content-Type")?.includes("zip");
-      a.download = `gang-sheet-${preset}-${new Date().toISOString().slice(0, 10)}.${isZip ? "zip" : "png"}`;
+      a.download = `gang-sheet-${preset}-${new Date().toISOString().slice(0, 10)}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

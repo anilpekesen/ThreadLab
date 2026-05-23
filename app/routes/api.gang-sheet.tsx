@@ -2,7 +2,6 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { authenticate } from "~/shopify.server";
 import { getOrdersByIds } from "~/models/orders.server";
 import { query } from "~/lib/db.server";
-import { zipSync } from "fflate";
 import sharp from "sharp";
 
 const SHEET_PRESETS: Record<string, { width: number; height: number | null; pxPerMm: number }> = {
@@ -152,13 +151,30 @@ async function buildItemsForSide(
       let contentW = origW;
       let contentH = origH;
       try {
-        const { data, info } = await sharp(rawBuf)
+        // First pass: remove white/near-white background by making it transparent
+        const withAlpha = await sharp(rawBuf)
           .ensureAlpha()
+          .toBuffer();
+
+        // Convert near-white pixels to transparent using raw pixel manipulation
+        const { data: pixels, info: alphaInfo } = await sharp(withAlpha)
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        const buf = Buffer.from(pixels);
+        for (let i = 0; i < buf.length; i += 4) {
+          const r = buf[i], g = buf[i + 1], b = buf[i + 2];
+          if (r > 240 && g > 240 && b > 240) buf[i + 3] = 0; // make white transparent
+        }
+        const whiteless = await sharp(buf, {
+          raw: { width: alphaInfo.width, height: alphaInfo.height, channels: 4 },
+        }).png().toBuffer();
+
+        // Second pass: trim remaining transparent border
+        const { data, info } = await sharp(whiteless)
           .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 10 })
           .png()
           .toBuffer({ resolveWithObject: true });
-        if (info.width > 0 && info.height > 0 && info.width <= origW && info.height <= origH
-            && (info.width < origW || info.height < origH)) {
+        if (info.width > 0 && info.height > 0) {
           trimmedBuf = data;
           contentW = info.width;
           contentH = info.height;
@@ -220,39 +236,41 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const date = new Date().toISOString().slice(0, 10);
 
-  // If only front has images, return single PNG. Otherwise return ZIP with both.
   if (frontItems.length === 0 && backItems.length === 0) {
     return new Response("no valid print images found", { status: 404 });
   }
 
-  if (backItems.length === 0) {
-    const png = await buildGangSheet(frontItems, sheetWidth, sheetHeight, margin);
-    return new Response(new Uint8Array(png), {
-      headers: {
-        "Content-Type": "image/png",
-        "Content-Disposition": `attachment; filename="gang-sheet-on-${preset}-${date}.png"`,
-        "Content-Length": String(png.length),
-      },
-    });
-  }
-
-  // Both sides — return ZIP
   const [frontPng, backPng] = await Promise.all([
     frontItems.length > 0 ? buildGangSheet(frontItems, sheetWidth, sheetHeight, margin) : null,
-    buildGangSheet(backItems, sheetWidth, sheetHeight, margin),
+    backItems.length > 0  ? buildGangSheet(backItems,  sheetWidth, sheetHeight, margin) : null,
   ]);
 
-  const zipFiles: Record<string, Uint8Array> = {};
-  if (frontPng) zipFiles[`gang-sheet-on-${preset}-${date}.png`] = new Uint8Array(frontPng);
-  zipFiles[`gang-sheet-arka-${preset}-${date}.png`] = new Uint8Array(backPng);
+  let finalPng: Buffer;
+  if (frontPng && backPng) {
+    // Stack front on top, back below, separated by margin gap
+    const frontMeta = await sharp(frontPng).metadata();
+    const backMeta  = await sharp(backPng).metadata();
+    const fH = frontMeta.height ?? 0;
+    const bH = backMeta.height  ?? 0;
+    const totalH = fH + margin + bH;
+    finalPng = await sharp({
+      create: { width: sheetWidth, height: totalH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([
+        { input: frontPng, left: 0, top: 0 },
+        { input: backPng,  left: 0, top: fH + margin },
+      ])
+      .png({ compressionLevel: 6 })
+      .toBuffer();
+  } else {
+    finalPng = (frontPng ?? backPng)!;
+  }
 
-  const zipBuffer = zipSync(zipFiles, { level: 6 });
-
-  return new Response(zipBuffer, {
+  return new Response(new Uint8Array(finalPng), {
     headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="gang-sheet-${preset}-${date}.zip"`,
-      "Content-Length": String(zipBuffer.length),
+      "Content-Type": "image/png",
+      "Content-Disposition": `attachment; filename="gang-sheet-${preset}-${date}.png"`,
+      "Content-Length": String(finalPng.length),
     },
   });
 };
