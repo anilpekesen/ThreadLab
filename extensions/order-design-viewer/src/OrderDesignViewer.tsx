@@ -95,9 +95,11 @@ function OrderDesignViewer() {
       const shopifyNumericId = orderId.includes('/') ? orderId.split('/').pop()! : orderId;
       let apiData: ApiResult | null = null;
       try {
-        const apiRes = await fetch(
-          `${APP_URL}/api/order-design?shopify_order_id=${shopifyNumericId}&shop=${encodeURIComponent(shopFull)}`,
-        );
+        // Use app proxy URL to avoid CORS — goes through Shopify's infrastructure
+        const proxyUrl = shopFull
+          ? `https://${shopFull}/apps/tshirt-designer/order-design?shopify_order_id=${shopifyNumericId}`
+          : `${APP_URL}/api/order-design?shopify_order_id=${shopifyNumericId}&shop=${encodeURIComponent(shopFull)}`;
+        const apiRes = await fetch(proxyUrl);
         if (apiRes.ok) apiData = await apiRes.json() as ApiResult;
       } catch { /* fall through to custom attrs */ }
 

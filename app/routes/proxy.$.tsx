@@ -136,6 +136,23 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     });
   }
 
+  // GET /apps/tshirt-designer/order-design?shopify_order_id=<id>
+  if (path === "order-design") {
+    const { getOrderByShopifyId } = await import("~/models/orders.server");
+    const shopifyOrderId = url.searchParams.get("shopify_order_id") ?? "";
+    if (!shopifyOrderId) return json({ found: false }, { status: 200 });
+    const order = await getOrderByShopifyId(shop, shopifyOrderId);
+    if (!order) return json({ found: false, appOrderUrl: "https://app.printlabapp.com/app/orders?sync=1" }, { status: 200 });
+    return json({
+      found: true,
+      appOrderUrl: `https://app.printlabapp.com/app/orders/${order.id}`,
+      frontPreviewUrl: order.designFrontPreviewUrl || order.previewUrl || null,
+      backPreviewUrl: order.designBackPreviewUrl || null,
+      frontPrintUrl: order.designFrontPrintUrl || order.productionFileUrl || null,
+      backPrintUrl: order.designBackPrintUrl || null,
+    }, { status: 200 });
+  }
+
   // GET /apps/tshirt-designer/designs/<token>
   const designsMatch = path.match(/^designs\/([^/]+)$/);
   if (designsMatch) {
