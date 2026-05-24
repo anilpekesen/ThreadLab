@@ -5,10 +5,10 @@ export function run(input) {
     const surchargeGid = line.surchargeVariantGid?.value ?? null;
     if (!surchargeGid) continue;
 
-    // Stored as per-unit TL amount (e.g. "40" = ₺40/shirt)
-    const frontPerUnit = Math.max(0, parseInt(line.surchargeQtyFront?.value ?? '0') || 0);
-    const backPerUnit  = Math.max(0, parseInt(line.surchargeQtyBack?.value  ?? '0') || 0);
-    if (frontPerUnit === 0 && backPerUnit === 0) continue;
+    // Stored as total TL amount for this line (e.g. 2 shirts × ₺40 = "80")
+    const frontTotal = Math.max(0, parseInt(line.surchargeQtyFront?.value ?? '0') || 0);
+    const backTotal  = Math.max(0, parseInt(line.surchargeQtyBack?.value  ?? '0') || 0);
+    if (frontTotal === 0 && backTotal === 0) continue;
 
     const totalAmount = parseFloat(line.cost?.totalAmount?.amount ?? '0');
     const perUnitPrice = line.quantity > 0
@@ -27,31 +27,29 @@ export function run(input) {
       },
     ];
 
-    if (frontPerUnit > 0) {
+    if (frontTotal > 0) {
       expandedCartItems.push({
         merchandiseId: surchargeGid,
-        quantity: line.quantity,
+        quantity: 1,
         title: 'Ön baskı',
         price: {
           adjustment: {
-            fixedPricePerUnit: { amount: frontPerUnit.toFixed(2) },
+            fixedPricePerUnit: { amount: frontTotal.toFixed(2) },
           },
         },
-        attributes: [{ key: '_design_role', value: 'surcharge_child' }],
       });
     }
 
-    if (backPerUnit > 0) {
+    if (backTotal > 0) {
       expandedCartItems.push({
         merchandiseId: surchargeGid,
-        quantity: line.quantity,
+        quantity: 1,
         title: 'Arka baskı',
         price: {
           adjustment: {
-            fixedPricePerUnit: { amount: backPerUnit.toFixed(2) },
+            fixedPricePerUnit: { amount: backTotal.toFixed(2) },
           },
         },
-        attributes: [{ key: '_design_role', value: 'surcharge_child' }],
       });
     }
 
