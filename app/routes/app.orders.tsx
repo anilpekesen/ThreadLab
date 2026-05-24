@@ -61,7 +61,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const forceSync = url.searchParams.get("sync") === "1";
   const resetOrders = url.searchParams.get("reset") === "1";
 
-  const activeStatus = status ?? "pending";
+  const activeStatus = status ?? "";
   let syncError: string | null = null;
   let syncCount = 0;
   if (forceSync || resetOrders) {
