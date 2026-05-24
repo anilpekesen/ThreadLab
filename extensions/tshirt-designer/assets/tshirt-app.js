@@ -2929,34 +2929,27 @@
         if (design && design.token) properties.design_token = design.token;
         if (design && design.downloadUrl) properties['Tasarımı indir'] = design.downloadUrl;
         if (design && design.editUrl) properties['Tasarımı düzenle'] = design.editUrl;
+        // Surcharge is handled via cart transform (expand operation).
+        // Each base product line carries per-line surcharge quantities so the
+        // transform can price them correctly for multi-size orders.
+        var frontUnitSurcharge = (cfg.surchargeVariantId && pricing.front.hasContent && pricing.front.surcharge > 0)
+          ? pricing.front.surcharge : 0;
+        var backUnitSurcharge  = (cfg.surchargeVariantId && pricing.back.hasContent  && pricing.back.surcharge  > 0)
+          ? pricing.back.surcharge  : 0;
+
         var items = lines.map(function (line) {
+          var lineProps = Object.assign({}, properties, { 'Beden': line.size, '_design_role': 'base' });
+          if (cfg.surchargeVariantId && (frontUnitSurcharge > 0 || backUnitSurcharge > 0)) {
+            lineProps['_surcharge_variant_gid'] = 'gid://shopify/ProductVariant/' + cfg.surchargeVariantId;
+            lineProps['_surcharge_qty_front']   = String(Math.round(frontUnitSurcharge * line.quantity));
+            lineProps['_surcharge_qty_back']    = String(Math.round(backUnitSurcharge  * line.quantity));
+          }
           return {
             id: String(baseVariantIdForSize(line.size)),
             quantity: line.quantity,
-            properties: Object.assign({}, properties, { 'Beden': line.size, '_design_role': 'base' }),
+            properties: lineProps,
           };
         });
-        if (cfg.surchargeVariantId) {
-          ['front', 'back'].forEach(function (side) {
-            var sidePricing = pricing[side];
-            if (!sidePricing || !sidePricing.hasContent || !sidePricing.surcharge) return;
-            var qty = Math.round(sidePricing.surcharge * pricing.totalQuantity);
-            if (qty < 1) return;
-            items.push({
-              id: String(cfg.surchargeVariantId),
-              quantity: qty,
-              properties: Object.assign({}, properties, {
-                '_design_role': 'surcharge',
-                'Ürün tipi': side === 'front' ? 'Ön baskı ek ücreti' : 'Arka baskı ek ücreti',
-                'Baskı yüzü': side === 'front' ? 'Ön' : 'Arka',
-                'Baskı ölçü': formatMetricSize(sidePricing.metrics),
-                'Baskı alanı': roundMetric(sidePricing.metrics.areaCm2) + ' cm²',
-                'Fiyat bandı': sidePricing.band.label,
-                'Ek ücret / adet': money(sidePricing.surcharge),
-              }),
-            });
-          });
-        }
 
         fetch('/cart/add.js', {
           method: 'POST',
