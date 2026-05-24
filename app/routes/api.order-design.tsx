@@ -2,7 +2,7 @@ import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { getOrderByShopifyId } from "~/models/orders.server";
 import { getDesignByToken, extractObjects } from "~/models/designs.server";
 
-const APP_HANDLE = "bikafa-tisort-tasarim";
+const APP_HANDLE = "printlabapp";
 
 function corsHeaders(_request: Request) {
   return {
