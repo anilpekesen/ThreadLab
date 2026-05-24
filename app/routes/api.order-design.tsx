@@ -4,14 +4,11 @@ import { getDesignByToken, extractObjects } from "~/models/designs.server";
 
 const APP_HANDLE = "bikafa-tisort-tasarim";
 
-function corsHeaders(request: Request) {
-  const origin = request.headers.get("Origin") ?? "*";
+function corsHeaders(_request: Request) {
   return {
-    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Credentials": "true",
-    "Vary": "Origin",
   };
 }
 
