@@ -156,6 +156,11 @@ const NEXT_STATUS: Record<string, string> = {
   ready: "shipped",
 };
 
+export const headers = () => ({
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "Pragma": "no-cache",
+});
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const order = await getOrder(params.id ?? "");

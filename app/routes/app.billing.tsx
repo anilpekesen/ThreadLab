@@ -18,6 +18,11 @@ const PLAN_BADGE: Record<PlanKey, "attention" | "info" | "success"> = {
   Starter: "attention", Growth: "info", Pro: "info", Business: "success",
 };
 
+export const headers = () => ({
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "Pragma": "no-cache",
+});
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, billing } = await authenticate.admin(request);
   const shop = session.shop;

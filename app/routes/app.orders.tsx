@@ -49,6 +49,11 @@ const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | 
   shipped: "success",
 };
 
+export const headers = () => ({
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "Pragma": "no-cache",
+});
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);

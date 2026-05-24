@@ -29,6 +29,11 @@ const STATUS_TONE: Record<string, "attention" | "info" | "success"> = {
   shipped: "success",
 };
 
+export const headers = () => ({
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "Pragma": "no-cache",
+});
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const url = new URL(request.url);

@@ -16,6 +16,11 @@ import { PLANS } from "~/lib/plans";
 
 const AUTO_REFRESH_MS = 30_000;
 
+export const headers = () => ({
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "Pragma": "no-cache",
+});
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const [stats, orders, analytics] = await Promise.all([

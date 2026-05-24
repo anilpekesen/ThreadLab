@@ -20,6 +20,11 @@ import { authenticate } from "~/shopify.server";
 import { getGlobalSettings, saveGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server";
 
+export const headers = () => ({
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "Pragma": "no-cache",
+});
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const [globalSettings, shopSettings] = await Promise.all([

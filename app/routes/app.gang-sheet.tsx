@@ -75,6 +75,11 @@ function hasPrintFile(order: Order): boolean {
   return !!(order.designFrontPrintUrl || order.productionFileUrl || order.designBackPrintUrl);
 }
 
+export const headers = () => ({
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "Pragma": "no-cache",
+});
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
