@@ -116,7 +116,7 @@ function OrderDesignViewer() {
 
   if (loading) {
     return (
-      <AdminBlock title="Baskı Tasarımı">
+      <AdminBlock title="Printlabapp">
         <Text tone="subdued">Yükleniyor...</Text>
       </AdminBlock>
     );
@@ -125,7 +125,7 @@ function OrderDesignViewer() {
   if (!design) return null;
 
   return (
-    <AdminBlock title="Baskı Tasarımı">
+    <AdminBlock title="Printlabapp">
       <BlockStack gap="base">
 
         {(design.frontPreviewUrl || design.backPreviewUrl) && (
