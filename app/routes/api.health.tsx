@@ -1,7 +1,7 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
-import { sessionStorage } from "~/shopify.server";
+import { query } from "~/lib/db.server";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
+export const loader = async (_: LoaderFunctionArgs) => {
   const dbType = process.env.DATABASE_URL ? "postgresql" : "memory";
 
   let sessionCount = 0;
@@ -9,11 +9,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let dbError = "";
 
   try {
-    const sessions = await (sessionStorage as any).findSessionsByShop?.("whanotify-dev.myshopify.com") ?? [];
-    sessionCount = sessions.length;
+    const result = await query(`SELECT COUNT(*) FROM shopify_sessions`);
+    sessionCount = parseInt(result.rows[0]?.count ?? "0", 10);
     dbOk = true;
-  } catch (e: any) {
-    dbError = e?.message ?? "unknown error";
+  } catch (e: unknown) {
+    dbError = (e as Error)?.message ?? "unknown error";
   }
 
   return json({

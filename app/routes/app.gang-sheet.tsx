@@ -8,7 +8,7 @@ import {
   Box, Select, RangeSlider, Thumbnail, Checkbox, Banner,
   Grid, Divider,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { getOrdersWithPrintFiles, getOrdersByIds } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 
@@ -81,7 +81,7 @@ export const headers = () => ({
 });
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const shop = session.shop;
   const url = new URL(request.url);
   const idsParam = url.searchParams.get("ids") ?? "";

@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { getOrdersByIds } from "~/models/orders.server";
 import { query } from "~/lib/db.server";
 import { zipSync } from "fflate";
@@ -47,7 +47,7 @@ function sanitize(name: string): string {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const shop = session.shop;
   const url = new URL(request.url);
   const idsParam = url.searchParams.get("ids") ?? "";

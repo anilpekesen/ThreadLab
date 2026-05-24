@@ -15,7 +15,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { useState } from "react";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { fetchShopifyProducts, getProductConfig } from "~/models/product-config.server";
 import { useTranslation } from "~/i18n";
 import { PageHelper } from "~/components/PageHelper";
@@ -34,7 +34,7 @@ function encodeProductToken(productId: string) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate(request);
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
   const products = await fetchShopifyProducts(admin, q);

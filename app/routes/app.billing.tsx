@@ -7,7 +7,9 @@ import {
   Page, Layout, Card, Text, BlockStack, Badge, Button, Box,
   InlineStack, InlineGrid, List, Divider, Banner, ProgressBar,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
+import { shopifyGraphQL } from "~/lib/shopify.server";
+import { query } from "~/lib/db.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
 import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/models/billing.server";
 
@@ -23,29 +25,145 @@ export const headers = () => ({
   "Pragma": "no-cache",
 });
 
+async function getAccessToken(shop: string): Promise<string | null> {
+  const result = await query(`SELECT "accessToken" FROM shopify_sessions WHERE id = $1`, [
+    `offline_${shop}`,
+  ]);
+  return (result.rows[0]?.accessToken as string | undefined) ?? null;
+}
+
+async function checkShopifySubscription(
+  shop: string,
+  accessToken: string,
+): Promise<{ hasActivePayment: boolean; subscriptionId: string | null; planName: string | null }> {
+  try {
+    const resp = await shopifyGraphQL(shop, accessToken, `{
+      currentAppInstallation {
+        activeSubscriptions { id name status test }
+      }
+    }`);
+    const data = (await resp.json()) as {
+      data?: { currentAppInstallation?: { activeSubscriptions?: { id: string; name: string; status: string; test: boolean }[] } };
+    };
+    const subs = data.data?.currentAppInstallation?.activeSubscriptions ?? [];
+    const active = subs.find((s) => s.status === "ACTIVE");
+    if (active) {
+      return { hasActivePayment: true, subscriptionId: active.id, planName: active.name };
+    }
+  } catch (err) {
+    console.error("[billing] checkShopifySubscription error:", err);
+  }
+  return { hasActivePayment: false, subscriptionId: null, planName: null };
+}
+
+async function createShopifySubscription(
+  shop: string,
+  accessToken: string,
+  planKey: PlanKey,
+  returnUrl: string,
+): Promise<string> {
+  const plan = PLANS[planKey];
+  const resp = await shopifyGraphQL(
+    shop,
+    accessToken,
+    `mutation AppSubscriptionCreate(
+      $name: String!
+      $lineItems: [AppSubscriptionLineItemInput!]!
+      $returnUrl: URL!
+      $test: Boolean
+      $trialDays: Int
+    ) {
+      appSubscriptionCreate(
+        name: $name
+        lineItems: $lineItems
+        returnUrl: $returnUrl
+        test: $test
+        trialDays: $trialDays
+      ) {
+        appSubscription { id }
+        confirmationUrl
+        userErrors { field message }
+      }
+    }`,
+    {
+      name: planKey,
+      lineItems: [
+        {
+          plan: {
+            appRecurringPricingDetails: {
+              price: { amount: plan.price, currencyCode: "USD" },
+              interval: "EVERY_30_DAYS",
+            },
+          },
+        },
+      ],
+      returnUrl,
+      test: IS_TEST,
+      trialDays: 7,
+    },
+  );
+
+  const data = (await resp.json()) as {
+    data?: {
+      appSubscriptionCreate?: {
+        confirmationUrl?: string;
+        userErrors?: { field: string; message: string }[];
+      };
+    };
+  };
+
+  const result = data.data?.appSubscriptionCreate;
+  if (result?.userErrors?.length) {
+    throw new Error(result.userErrors.map((e) => e.message).join(", "));
+  }
+  if (!result?.confirmationUrl) {
+    throw new Error("No confirmation URL returned from Shopify");
+  }
+  return result.confirmationUrl;
+}
+
+async function cancelShopifySubscription(
+  shop: string,
+  accessToken: string,
+  subscriptionId: string,
+): Promise<void> {
+  await shopifyGraphQL(
+    shop,
+    accessToken,
+    `mutation AppSubscriptionCancel($id: ID!, $prorate: Boolean) {
+      appSubscriptionCancel(id: $id, prorate: $prorate) {
+        appSubscription { id status }
+        userErrors { field message }
+      }
+    }`,
+    { id: subscriptionId, prorate: true },
+  );
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session, billing } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const shop = session.shop;
 
-  // Sync Shopify billing state to our DB
-  const billingCheck = await billing.check({ plans: PLAN_ORDER, isTest: IS_TEST }).catch(() => null);
-  if (billingCheck?.hasActivePayment && billingCheck.appSubscriptions.length > 0) {
-    const activeSub = billingCheck.appSubscriptions[0];
-    const planKey = PLAN_ORDER.find((p) => activeSub.name === p);
-    if (planKey) {
+  const accessToken = await getAccessToken(shop);
+  if (accessToken) {
+    const { hasActivePayment, subscriptionId, planName } = await checkShopifySubscription(
+      shop,
+      accessToken,
+    );
+    if (hasActivePayment && planName && PLAN_ORDER.includes(planName as PlanKey)) {
       await upsertShopSubscription(shop, {
-        planKey,
-        shopifySubscriptionId: activeSub.id,
+        planKey: planName as PlanKey,
+        shopifySubscriptionId: subscriptionId,
         subscriptionStatus: "active",
       });
-    }
-  } else if (billingCheck && !billingCheck.hasActivePayment) {
-    const sub = await getShopSubscription(shop);
-    if (sub?.subscription_status === "active") {
-      await upsertShopSubscription(shop, {
-        planKey: sub.plan_key,
-        subscriptionStatus: "cancelled",
-      });
+    } else {
+      const sub = await getShopSubscription(shop);
+      if (sub?.subscription_status === "active") {
+        await upsertShopSubscription(shop, {
+          planKey: sub.plan_key,
+          subscriptionStatus: "cancelled",
+        });
+      }
     }
   }
 
@@ -54,10 +172,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session, billing } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const shop = session.shop;
   const form = await request.formData();
   const intent = form.get("intent") as string;
+
+  const accessToken = await getAccessToken(shop);
+  if (!accessToken) return redirect("/auth/login");
 
   if (intent === "subscribe") {
     const planKey = form.get("plan") as PlanKey;
@@ -65,18 +186,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     await upsertShopSubscription(shop, { planKey, subscriptionStatus: "none" });
 
-    // billing.request throws a redirect response — do NOT return after this
-    await billing.request({
-      plan: planKey,
-      isTest: IS_TEST,
-      returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
-    });
+    const returnUrl = `${process.env.SHOPIFY_APP_URL}/app/billing`;
+    const confirmationUrl = await createShopifySubscription(shop, accessToken, planKey, returnUrl);
+    return redirect(confirmationUrl);
   }
 
   if (intent === "cancel") {
     const subscriptionId = form.get("subscriptionId") as string;
     if (subscriptionId) {
-      await billing.cancel({ subscriptionId, prorate: true, isTest: IS_TEST });
+      await cancelShopifySubscription(shop, accessToken, subscriptionId);
     }
     const sub = await getShopSubscription(shop);
     await upsertShopSubscription(shop, {
@@ -112,7 +230,6 @@ export default function BillingPage() {
           </Banner>
         )}
 
-        {/* Mevcut plan özeti */}
         <Card>
           <Box padding="400">
             <BlockStack gap="300">
@@ -166,7 +283,6 @@ export default function BillingPage() {
           </Box>
         </Card>
 
-        {/* Plan kartları */}
         <Layout>
           <Layout.Section>
             <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
@@ -220,7 +336,6 @@ export default function BillingPage() {
           </Layout.Section>
         </Layout>
 
-        {/* Karşılaştırma tablosu */}
         <Card>
           <Box padding="400">
             <BlockStack gap="300">

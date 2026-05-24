@@ -2,22 +2,17 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Outlet, useLoaderData, useLocation, useNavigate, useRouteError } from "@remix-run/react";
 import { useState } from "react";
-import { boundary } from "@shopify/shopify-app-remix/server";
-import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-remix/react";
 import {
   AppProvider as PolarisAppProvider,
-  Badge,
   Frame,
   Navigation,
   TopBar,
-  InlineStack,
-  Text,
   Box,
 } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import trTranslations from "@shopify/polaris/locales/tr.json";
 import enTranslations from "@shopify/polaris/locales/en.json";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { getShopSubscription } from "~/models/billing.server";
 import type { PlanKey } from "~/lib/plans";
 import { LanguageProvider, useTranslation, type Lang } from "~/i18n";
@@ -25,13 +20,12 @@ import { LanguageProvider, useTranslation, type Lang } from "~/i18n";
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const sub = await getShopSubscription(session.shop);
   const cookieHeader = request.headers.get("Cookie") ?? "";
   const langMatch = cookieHeader.match(/(?:^|; )dk_lang=([^;]*)/);
   const lang: Lang = langMatch?.[1] === "en" ? "en" : "tr";
   return json({
-    apiKey: process.env.SHOPIFY_API_KEY ?? "",
     planKey: (sub?.plan_key ?? "Pro") as PlanKey,
     subscriptionStatus: sub?.subscription_status ?? "none",
     lang,
@@ -39,15 +33,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
 };
 
-const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attention"> = {
-  Business: "success",
-  Pro: "info",
-  Growth: "info",
-  Starter: "attention",
-};
-
 function AppInner() {
-  const { apiKey, planKey, subscriptionStatus, lang, shop } = useLoaderData<typeof loader>();
+  const { planKey, subscriptionStatus, lang, shop } = useLoaderData<typeof loader>();
   const { t, setLang } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -72,9 +59,7 @@ function AppInner() {
       <Navigation.Section
         separator
         title={shop.replace(".myshopify.com", "")}
-        items={[
-          { label: `Plan: ${planKey}`, url: "/app/billing" },
-        ]}
+        items={[{ label: `Plan: ${planKey}`, url: "/app/billing" }]}
       />
     </Navigation>
   );
@@ -88,7 +73,14 @@ function AppInner() {
           {!isActive && (
             <button
               onClick={() => navigate("/app/billing")}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "#2271b1", fontSize: 13, fontWeight: 600 }}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#2271b1",
+                fontSize: 13,
+                fontWeight: 600,
+              }}
             >
               {t("planHeader.choosePlan")}
             </button>
@@ -100,8 +92,12 @@ function AppInner() {
                 onClick={() => setLang(l)}
                 style={{
                   background: lang === l ? "#4f46e5" : "transparent",
-                  border: "none", borderRadius: 6, cursor: "pointer",
-                  padding: "4px 12px", fontSize: 13, fontWeight: 600,
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  padding: "4px 12px",
+                  fontSize: 13,
+                  fontWeight: 600,
                   color: lang === l ? "#fff" : "#6b7280",
                   transition: "all .15s",
                 }}
@@ -116,27 +112,25 @@ function AppInner() {
   );
 
   return (
-    <ShopifyAppProvider isEmbeddedApp={false} apiKey={apiKey}>
-      <PolarisAppProvider i18n={lang === "en" ? enTranslations : trTranslations}>
-        <Frame
-          logo={{
-            width: 124,
-            url: "/app",
-            accessibilityLabel: "PrintLab",
-            topBarSource: "/logo.svg",
-            contextualSaveBarSource: "/logo.svg",
-          }}
-          topBar={topBarMarkup}
-          navigation={navigationMarkup}
-          showMobileNavigation={mobileNavOpen}
-          onNavigationDismiss={() => setMobileNavOpen(false)}
-        >
-          <Box paddingBlockEnd="400">
-            <Outlet context={{ planKey, subscriptionStatus }} />
-          </Box>
-        </Frame>
-      </PolarisAppProvider>
-    </ShopifyAppProvider>
+    <PolarisAppProvider i18n={lang === "en" ? enTranslations : trTranslations}>
+      <Frame
+        logo={{
+          width: 124,
+          url: "/app",
+          accessibilityLabel: "PrintLab",
+          topBarSource: "/logo.svg",
+          contextualSaveBarSource: "/logo.svg",
+        }}
+        topBar={topBarMarkup}
+        navigation={navigationMarkup}
+        showMobileNavigation={mobileNavOpen}
+        onNavigationDismiss={() => setMobileNavOpen(false)}
+      >
+        <Box paddingBlockEnd="400">
+          <Outlet context={{ planKey, subscriptionStatus }} />
+        </Box>
+      </Frame>
+    </PolarisAppProvider>
   );
 }
 
@@ -150,7 +144,12 @@ export default function App() {
 }
 
 export function ErrorBoundary() {
-  return boundary.error(useRouteError());
+  const error = useRouteError();
+  console.error("[app.tsx ErrorBoundary]", error);
+  return (
+    <div style={{ padding: 40, textAlign: "center", fontFamily: "system-ui, sans-serif" }}>
+      <h2 style={{ color: "#d92020" }}>Bir hata oluştu</h2>
+      <p style={{ color: "#6b7280" }}>Lütfen sayfayı yenileyin.</p>
+    </div>
+  );
 }
-
-export const headers = boundary.headers;

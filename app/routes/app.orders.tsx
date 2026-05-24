@@ -9,7 +9,7 @@ import {
   Thumbnail, IndexTable, useIndexResourceState, Banner,
   Grid, Modal,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { getOrders, updateOrderStatus, getDashboardStats, syncOrdersFromAdmin, fulfillShopifyOrders } from "~/models/orders.server";
 import { query } from "~/lib/db.server";
 
@@ -55,7 +55,7 @@ export const headers = () => ({
 });
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate(request);
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
   const forceSync = url.searchParams.get("sync") === "1";
@@ -88,7 +88,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate(request);
   const form = await request.formData();
   const id = form.get("id") as string;
   const status = form.get("status") as string;

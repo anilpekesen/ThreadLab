@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import nodePath from "node:path";
 import { getUploadsDir } from "~/lib/storage.server";
 import { handleDesignerUpload } from "~/models/uploads.server";
-import { authenticate } from "~/shopify.server";
+import { verifyProxyHmac, liquidResponse } from "~/lib/shopify.server";
 import { findConfigForStorefront, toStorefrontSettings } from "~/models/product-config.server";
 import { handleWaveSpeedRemoveBackground } from "~/models/background-removal.server";
 import { getDesignByToken, saveDesign, extractObjects } from "~/models/designs.server";
@@ -68,23 +68,24 @@ async function handleFetchUrl(request: Request) {
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const appProxy = await authenticate.public.appProxy(request);
+  const url = new URL(request.url);
+  if (!verifyProxyHmac(url.searchParams)) {
+    return new Response("Forbidden", { status: 403 });
+  }
   const path = params["*"] ?? "";
-  const shop = appProxy.session?.shop ?? new URL(request.url).searchParams.get("shop") ?? "";
+  const shop = url.searchParams.get("shop") ?? "";
 
   if (path === "designer") {
-    const url = new URL(request.url);
     const iframeParams = new URLSearchParams(url.searchParams);
     iframeParams.delete("shop");
-    const shopDomain = appProxy.session?.shop ?? url.searchParams.get("shop") ?? "";
-    if (shopDomain) iframeParams.set("shop", shopDomain);
+    if (shop) iframeParams.set("shop", shop);
     const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
     const designerUrl = new URL("/designer-app/", appUrl);
     designerUrl.search = iframeParams.toString();
     const iframeSrc = designerUrl.toString().replace(/&/g, "&amp;");
 
     // Liquid renders {{ shop.permanent_domain }} server-side and postMessages it to the iframe
-    return appProxy.liquid(
+    return liquidResponse(
       `<!doctype html>
 <html lang="tr">
 <head>
@@ -172,9 +173,11 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const proxy = await authenticate.public.appProxy(request);
   const url = new URL(request.url);
-  const shop = proxy.session?.shop ?? url.searchParams.get("shop") ?? "unknown";
+  if (!verifyProxyHmac(url.searchParams)) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  const shop = url.searchParams.get("shop") ?? "unknown";
   const path = params["*"] ?? "";
 
   if (path === "upload") {

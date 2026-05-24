@@ -9,7 +9,7 @@ import {
   Badge, Button, InlineStack, ProgressBar, Divider,
   IndexTable, Thumbnail,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { getOrders, getDashboardStats } from "~/models/orders.server";
 import { getAnalytics } from "~/models/billing.server";
 import { PLANS } from "~/lib/plans";
@@ -22,7 +22,7 @@ export const headers = () => ({
 });
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const [stats, orders, analytics] = await Promise.all([
     getDashboardStats(session.shop),
     getOrders(session.shop),

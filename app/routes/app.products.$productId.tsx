@@ -15,7 +15,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { useEffect, useRef, useState } from "react";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { useTranslation } from "~/i18n";
 import { PageHelper } from "~/components/PageHelper";
 import {
@@ -845,7 +845,7 @@ function PrintAreaEditor({
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate(request);
   const productToken = params.productId ?? "";
   const productId = decodeProductToken(productToken);
   const product = await fetchShopifyProductById(admin, productId);
@@ -860,7 +860,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const shop = session.shop;
   const productToken = params.productId ?? "";
   const productId = decodeProductToken(productToken);

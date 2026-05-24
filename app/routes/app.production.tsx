@@ -8,7 +8,7 @@ import {
   Thumbnail, IndexTable, useIndexResourceState, Banner, Grid,
   Divider,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { getOrders, getTodayOrders, bulkUpdateStatus, fulfillShopifyOrders } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 
@@ -35,7 +35,7 @@ export const headers = () => ({
 });
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const url = new URL(request.url);
   const statusFilter = url.searchParams.get("status") ?? "";
   const todayOnly = url.searchParams.get("today") === "1";
@@ -68,7 +68,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate(request);
   const form = await request.formData();
   const intent = form.get("intent") as string;
   const idsRaw = form.get("ids") as string;

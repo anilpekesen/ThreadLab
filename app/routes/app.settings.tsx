@@ -16,7 +16,7 @@ import {
   Badge,
 } from "@shopify/polaris";
 import { useState } from "react";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { getGlobalSettings, saveGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server";
 
@@ -26,7 +26,7 @@ export const headers = () => ({
 });
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate(request);
   const [globalSettings, shopSettings] = await Promise.all([
     getGlobalSettings(),
     getShopSettings(session.shop),
@@ -160,7 +160,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 async function writeSurchargeMetafield(
-  admin: Awaited<ReturnType<typeof authenticate.admin>>["admin"],
+  admin: Awaited<ReturnType<typeof authenticate>>["admin"],
   variantId: string,
 ) {
   const shopRes = await admin.graphql(`#graphql { shop { id } }`);
@@ -190,7 +190,7 @@ async function writeSurchargeMetafield(
 
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate(request);
   const form = await request.formData();
   const intent = form.get("intent");
 

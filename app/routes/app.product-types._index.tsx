@@ -9,7 +9,7 @@ import {
   Modal, TextField, Select, InlineGrid,
 } from "@shopify/polaris";
 import { useState } from "react";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { runMigrations } from "~/lib/db.server";
 import {
   getProductTypesForShop, canCreateProductType, createProductType, deleteProductType,
@@ -67,7 +67,7 @@ function PrintTypeField({
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   await runMigrations();
   const [productTypes, quota] = await Promise.all([
     getProductTypesForShop(session.shop),
@@ -77,7 +77,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const shop = session.shop;
   const form = await request.formData();
   const intent = form.get("intent") as string;

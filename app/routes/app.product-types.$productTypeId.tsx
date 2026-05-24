@@ -8,7 +8,7 @@ import {
   ResourceList, ResourceItem, Banner,
 } from "@shopify/polaris";
 import { useState } from "react";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { getProductTypeById, updateProductType } from "~/models/product-types.server";
 import { fetchShopifyProducts, saveProductConfig, buildDefaultConfig, normalizeProductConfig } from "~/models/product-config.server";
 import type { SurfaceMode } from "~/models/product-config.server";
@@ -64,7 +64,7 @@ function encodeProductToken(productId: string) {
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate(request);
   const shop = session.shop;
   const productTypeId = params.productTypeId!;
 
@@ -79,7 +79,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const shop = session.shop;
   const productTypeId = params.productTypeId!;
   const form = await request.formData();

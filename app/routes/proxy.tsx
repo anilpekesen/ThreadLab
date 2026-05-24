@@ -1,14 +1,17 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { authenticate } from "~/shopify.server";
+import { verifyProxyHmac, liquidResponse } from "~/lib/shopify.server";
 import { handleDesignerUpload } from "~/models/uploads.server";
 
-/**
- * App Proxy: /apps/tshirt-designer → bu route
- * Remix'te app proxy rotası "proxy" olarak adlandırılır.
- * https://shopify.dev/docs/api/shopify-app-remix/authenticate/public/app-proxy
- */
+function verifyOrReject(request: Request) {
+  const url = new URL(request.url);
+  if (!verifyProxyHmac(url.searchParams)) {
+    throw new Response("Forbidden", { status: 403 });
+  }
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { liquid } = await authenticate.public.appProxy(request);
+  verifyOrReject(request);
+
   const url = new URL(request.url);
   const params = url.searchParams.toString();
   const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
@@ -17,7 +20,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const iframeSrc = designerUrl.toString().replace(/&/g, "&amp;");
 
-  return liquid(
+  return liquidResponse(
     `<!doctype html>
 <html lang="tr">
 <head>
@@ -38,6 +41,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  await authenticate.public.appProxy(request);
+  verifyOrReject(request);
   return handleDesignerUpload(request);
 };

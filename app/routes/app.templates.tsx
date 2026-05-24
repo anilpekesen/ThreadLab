@@ -12,7 +12,7 @@ import {
   Badge, Banner, Divider, EmptyState, TextField, Thumbnail,
 } from "@shopify/polaris";
 import { useState, useEffect } from "react";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import {
   getShopTemplates,
   addShopTemplate,
@@ -29,7 +29,7 @@ const CATEGORY_SUGGESTION_KEYS = [
 ] as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const shop = session.shop;
   const [templates, quota, planKey] = await Promise.all([
     getShopTemplates(shop),
@@ -41,7 +41,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const cloned = request.clone();
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const shop = session.shop;
 
   const contentType = cloned.headers.get("content-type") ?? "";

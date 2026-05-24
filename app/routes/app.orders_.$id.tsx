@@ -17,7 +17,7 @@ import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
   Box, Divider, Grid, Thumbnail, Banner,
 } from "@shopify/polaris";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "~/lib/authenticate.server";
 import { getOrder, getSiblingOrders, updateOrderStatus, fulfillShopifyOrders } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
@@ -162,7 +162,7 @@ export const headers = () => ({
 });
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session } = await authenticate(request);
   const order = await getOrder(params.id ?? "");
   if (!order) throw new Response("Sipariş bulunamadı", { status: 404 });
 
@@ -178,7 +178,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate(request);
   const form = await request.formData();
   const status = form.get("status") as string;
   const appOrderId = params.id ?? "";

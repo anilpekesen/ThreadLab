@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { sessionStorage } from "~/shopify.server";
+import { query } from "~/lib/db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -12,14 +12,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = url.searchParams.get("shop") || "whanotify-dev.myshopify.com";
   const sessionId = `offline_${shop}`;
 
-  let session: Awaited<ReturnType<typeof sessionStorage.loadSession>> = null;
+  let accessToken: string | null = null;
   try {
-    session = await sessionStorage.loadSession(sessionId);
+    const result = await query(`SELECT "accessToken" FROM shopify_sessions WHERE id = $1`, [sessionId]);
+    accessToken = result.rows[0]?.accessToken ?? null;
   } catch (e) {
     return json({ error: "session load failed", detail: String(e) });
   }
 
-  if (!session) {
+  if (!accessToken) {
     return json({ error: "no session found", sessionId });
   }
 
@@ -27,15 +28,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const endpoint = `https://${shop}/admin/api/${apiVersion}/graphql.json`;
 
   let gqlResult: unknown;
-  let status: number;
-  let responseHeaders: Record<string, string> = {};
+  let status = 0;
+  const responseHeaders: Record<string, string> = {};
 
   try {
     const gqlResponse = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Access-Token": session.accessToken ?? "",
+        "X-Shopify-Access-Token": accessToken,
       },
       body: JSON.stringify({
         query: `{
@@ -56,9 +57,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return json({
     sessionId,
-    shop: session.shop,
-    scope: session.scope,
-    tokenPrefix: session.accessToken ? session.accessToken.substring(0, 8) + "..." : "NONE",
+    shop,
+    tokenPrefix: accessToken.substring(0, 8) + "...",
     apiVersion,
     endpoint,
     httpStatus: status,

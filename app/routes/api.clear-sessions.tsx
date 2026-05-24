@@ -1,5 +1,5 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-run/node";
-import { sessionStorage } from "~/shopify.server";
+import { query } from "~/lib/db.server";
 
 async function clearSessions(request: Request) {
   const secret = new URL(request.url).searchParams.get("secret");
@@ -7,11 +7,10 @@ async function clearSessions(request: Request) {
     return json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const storage = sessionStorage as any;
-    await storage.client?.query?.(`DELETE FROM shopify_sessions`);
+    await query(`DELETE FROM shopify_sessions`);
     return json({ ok: true, message: "Sessions cleared" });
-  } catch (e: any) {
-    return json({ error: e?.message ?? "Failed" }, { status: 500 });
+  } catch (e: unknown) {
+    return json({ error: (e as Error)?.message ?? "Failed" }, { status: 500 });
   }
 }
 

@@ -1,0 +1,128 @@
+import crypto from "crypto";
+
+const API_VERSION = "2025-07";
+
+export function verifyHmac(query: URLSearchParams): boolean {
+  const hmac = query.get("hmac");
+  if (!hmac) return false;
+
+  const params = new URLSearchParams();
+  query.forEach((value, key) => {
+    if (key !== "hmac") params.append(key, value);
+  });
+
+  const sortedParams = Array.from(params.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join("&");
+
+  const expected = crypto
+    .createHmac("sha256", process.env.SHOPIFY_API_SECRET ?? "")
+    .update(sortedParams)
+    .digest("hex");
+
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hmac, "utf8"), Buffer.from(expected, "utf8"));
+  } catch {
+    return false;
+  }
+}
+
+export function verifyProxyHmac(query: URLSearchParams): boolean {
+  const signature = query.get("signature");
+  if (!signature) return false;
+
+  const params = new URLSearchParams();
+  query.forEach((value, key) => {
+    if (key !== "signature") params.append(key, value);
+  });
+
+  const sortedParams = Array.from(params.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join("&");
+
+  const expected = crypto
+    .createHmac("sha256", process.env.SHOPIFY_API_SECRET ?? "")
+    .update(sortedParams)
+    .digest("hex");
+
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signature, "utf8"), Buffer.from(expected, "utf8"));
+  } catch {
+    return false;
+  }
+}
+
+export function buildAuthUrl(shop: string, state: string): string {
+  const redirectUri = `${process.env.SHOPIFY_APP_URL}/auth/callback`;
+  const scopes =
+    process.env.SCOPES ??
+    "read_products,write_products,read_orders,write_orders,write_fulfillments,write_app_proxy,write_cart_transforms,write_script_tags";
+
+  return (
+    `https://${shop}/admin/oauth/authorize?` +
+    new URLSearchParams({
+      client_id: process.env.SHOPIFY_API_KEY ?? "",
+      scope: scopes,
+      redirect_uri: redirectUri,
+      state,
+    }).toString()
+  );
+}
+
+export async function exchangeCodeForToken(shop: string, code: string): Promise<string> {
+  const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: process.env.SHOPIFY_API_KEY,
+      client_secret: process.env.SHOPIFY_API_SECRET,
+      code,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Token exchange failed: ${text}`);
+  }
+
+  const data = (await response.json()) as { access_token: string };
+  return data.access_token;
+}
+
+export function shopifyGraphQL(
+  shop: string,
+  accessToken: string,
+  gqlQuery: string,
+  variables?: Record<string, unknown>,
+): Promise<Response> {
+  return fetch(`https://${shop}/admin/api/${API_VERSION}/graphql.json`, {
+    method: "POST",
+    headers: {
+      "X-Shopify-Access-Token": accessToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query: gqlQuery, variables }),
+  });
+}
+
+export function verifyWebhookHmac(rawBody: string, hmacHeader: string): boolean {
+  const expected = crypto
+    .createHmac("sha256", process.env.SHOPIFY_API_SECRET ?? "")
+    .update(rawBody, "utf8")
+    .digest("base64");
+
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hmacHeader, "utf8"), Buffer.from(expected, "utf8"));
+  } catch {
+    return false;
+  }
+}
+
+export function liquidResponse(body: string, options?: { layout?: boolean }): Response {
+  const content = options?.layout === false ? `{% layout none %} ${body}` : body;
+  return new Response(content, {
+    headers: { "Content-Type": "application/liquid" },
+  });
+}

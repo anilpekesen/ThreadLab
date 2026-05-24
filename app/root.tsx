@@ -5,15 +5,8 @@ import {
   Scripts,
   ScrollRestoration,
   useRouteError,
+  isRouteErrorResponse,
 } from "@remix-run/react";
-import type { LoaderFunctionArgs } from "@remix-run/node";
-import { boundary } from "@shopify/shopify-app-remix/server";
-import { AppProvider } from "@shopify/shopify-app-remix/react";
-
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const url = new URL(request.url);
-  return { apiKey: process.env.SHOPIFY_API_KEY ?? "" };
-};
 
 export default function App() {
   return (
@@ -36,7 +29,12 @@ export default function App() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
-  // boundary.error renders [object Object] when data is not a string — wrap in full page
+  const message = isRouteErrorResponse(error)
+    ? `${error.status} ${error.statusText}`
+    : error instanceof Error
+      ? error.message
+      : "Bilinmeyen hata";
+
   return (
     <html>
       <head>
@@ -45,11 +43,12 @@ export function ErrorBoundary() {
         <Links />
       </head>
       <body>
-        {boundary.error(error)}
+        <div style={{ padding: 40, fontFamily: "system-ui, sans-serif", textAlign: "center" }}>
+          <h2 style={{ color: "#d92020" }}>Bir hata oluştu</h2>
+          <p style={{ color: "#6b7280" }}>{message}</p>
+        </div>
         <Scripts />
       </body>
     </html>
   );
 }
-
-export const headers = boundary.headers;
