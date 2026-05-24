@@ -24,6 +24,7 @@ interface OrderResult {
     customAttributes: Attribute[];
     lineItems: { nodes: { customAttributes: Attribute[] }[] };
   };
+  shop: { myshopifyDomain: string };
 }
 
 interface ApiResult {
@@ -65,48 +66,41 @@ function OrderDesignViewer() {
   const orderId = (data as { selected?: { id: string }[] }).selected?.[0]?.id ?? '';
 
   useEffect(() => {
-    if (!orderId) { setLoading(false); return; }
+    if (!orderId || !query) { setLoading(false); return; }
 
-    const shopifyNumericId = orderId.includes('/') ? orderId.split('/').pop()! : orderId;
+    query<OrderResult>(
+      `query GetOrderBase($id: ID!) {
+        order(id: $id) {
+          customAttributes { key value }
+          lineItems(first: 10) { nodes { customAttributes { key value } } }
+        }
+        shop { myshopifyDomain }
+      }`,
+      { variables: { id: orderId } },
+    ).then(async ({ data: result }) => {
+      if (!result?.order) { setLoading(false); return; }
 
-    const run = async () => {
-      // Step 1: Get custom attrs via GraphQL (for image fallback)
-      let attrs: Attribute[] = [];
-      if (query) {
-        try {
-          const { data: result } = await query<OrderResult>(
-            `query GetOrderAttrs($id: ID!) {
-              order(id: $id) {
-                customAttributes { key value }
-                lineItems(first: 10) { nodes { customAttributes { key value } } }
-              }
-            }`,
-            { variables: { id: orderId } },
-          );
-          if (result?.order) {
-            attrs = result.order.customAttributes ?? [];
-            if (!getAttr(attrs, '_front_preview_url')) {
-              for (const item of result.order.lineItems?.nodes ?? []) {
-                if (getAttr(item.customAttributes, '_front_preview_url')) {
-                  attrs = item.customAttributes;
-                  break;
-                }
-              }
-            }
+      const shopFull = result.shop?.myshopifyDomain ?? '';
+
+      let attrs = result.order.customAttributes ?? [];
+      if (!getAttr(attrs, '_front_preview_url') && !getAttr(attrs, 'design_token')) {
+        for (const item of result.order.lineItems?.nodes ?? []) {
+          if (getAttr(item.customAttributes, '_front_preview_url') || getAttr(item.customAttributes, 'design_token')) {
+            attrs = item.customAttributes;
+            break;
           }
-        } catch { /* ignore, will use API */ }
+        }
       }
 
-      // Step 2: Fetch from our API (returns appOrderUrl + high-quality URLs)
+      const shopifyNumericId = orderId.includes('/') ? orderId.split('/').pop()! : orderId;
       let apiData: ApiResult | null = null;
       try {
         const apiRes = await fetch(
-          `${APP_URL}/api/order-design?shopify_order_id=${shopifyNumericId}`,
+          `${APP_URL}/api/order-design?shopify_order_id=${shopifyNumericId}&shop=${encodeURIComponent(shopFull)}`,
         );
         if (apiRes.ok) apiData = await apiRes.json() as ApiResult;
       } catch { /* fall through to custom attrs */ }
 
-      // Merge: API takes priority, custom attrs as fallback
       const frontPreviewUrl = apiData?.frontPreviewUrl || getAttr(attrs, '_front_preview_url') || '';
       const backPreviewUrl  = apiData?.backPreviewUrl  || getAttr(attrs, '_back_preview_url')  || '';
       const frontPrintUrl   = apiData?.frontPrintUrl   || getAttr(attrs, '_front_print_url')   || '';
@@ -117,15 +111,13 @@ function OrderDesignViewer() {
 
       setDesign({ frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, appOrderUrl });
       setLoading(false);
-    };
-
-    run().catch(() => setLoading(false));
+    }).catch(() => setLoading(false));
   }, [orderId]);
 
   if (loading) {
     return (
       <AdminBlock title="Baskı Tasarımı">
-        <Text>Yükleniyor...</Text>
+        <Text tone="subdued">Yükleniyor...</Text>
       </AdminBlock>
     );
   }
@@ -139,16 +131,16 @@ function OrderDesignViewer() {
         {(design.frontPreviewUrl || design.backPreviewUrl) && (
           <InlineStack gap="base">
             {design.frontPreviewUrl && (
-              <BlockStack>
-                <Text>Ön Yüz</Text>
+              <BlockStack gap="tight">
+                <Text tone="subdued">Ön Yüz</Text>
                 <Box maxInlineSize={140}>
                   <Image source={design.frontPreviewUrl} alt="Ön yüz önizlemesi" />
                 </Box>
               </BlockStack>
             )}
             {design.backPreviewUrl && (
-              <BlockStack>
-                <Text>Arka Yüz</Text>
+              <BlockStack gap="tight">
+                <Text tone="subdued">Arka Yüz</Text>
                 <Box maxInlineSize={140}>
                   <Image source={design.backPreviewUrl} alt="Arka yüz önizlemesi" />
                 </Box>
@@ -160,8 +152,8 @@ function OrderDesignViewer() {
         {(design.frontPrintUrl || design.backPrintUrl) && (
           <>
             <Divider />
-            <BlockStack>
-              <Text>Baskı Dosyaları</Text>
+            <BlockStack gap="tight">
+              <Text tone="subdued">Baskı Dosyaları</Text>
               <InlineStack gap="base">
                 {design.frontPrintUrl && (
                   <Link href={downloadUrl(design.frontPrintUrl, 'on-baski.png')} target="_blank">⬇ Ön Baskı İndir</Link>
