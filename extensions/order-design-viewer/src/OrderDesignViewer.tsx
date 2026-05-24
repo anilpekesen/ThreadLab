@@ -105,9 +105,10 @@ function OrderDesignViewer() {
       const backPreviewUrl  = apiData?.backPreviewUrl  || getAttr(attrs, '_back_preview_url')  || '';
       const frontPrintUrl   = apiData?.frontPrintUrl   || getAttr(attrs, '_front_print_url')   || '';
       const backPrintUrl    = apiData?.backPrintUrl    || getAttr(attrs, '_back_print_url')    || '';
-      const appOrderUrl     = apiData?.appOrderUrl     ?? '';
+      // Always show a link: use API url if available, otherwise fall back to orders page
+      const appOrderUrl = apiData?.appOrderUrl || `${APP_URL}/app/orders?sync=1`;
 
-      if (!frontPreviewUrl && !appOrderUrl) { setLoading(false); return; }
+      if (!frontPreviewUrl && !frontPrintUrl) { setLoading(false); return; }
 
       setDesign({ frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, appOrderUrl });
       setLoading(false);
