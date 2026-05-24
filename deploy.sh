@@ -15,7 +15,15 @@ npm install --production=false
 # Build Remix app
 npx remix vite:build
 
-# Full restart to ensure all workers run new code with updated env
+# Load env vars so pm2 picks them up via --update-env
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+fi
+
+# Full restart to ensure all workers run new code and env
 pm2 restart shopify-app --update-env
 
 echo "$(date): Deploy tamamlandı"
