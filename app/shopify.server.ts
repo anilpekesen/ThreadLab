@@ -26,7 +26,7 @@ const shopify = shopifyApp({
   authPathPrefix: "/auth",
   sessionStorage: buildSessionStorage(),
   distribution: AppDistribution.AppStore,
-  useOnlineTokens: true,
+  useOnlineTokens: false,
   billing: {
     Starter: {
       trialDays: 7,
