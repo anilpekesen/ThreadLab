@@ -38,7 +38,6 @@ function run(input) {
       expandedCartItems.push({
         merchandiseId: surchargeGid,
         quantity: 1,
-        title: "\xD6n baskı",
         price: {
           adjustment: {
             fixedPricePerUnit: { amount: frontTotal.toFixed(2) }
@@ -50,7 +49,6 @@ function run(input) {
       expandedCartItems.push({
         merchandiseId: surchargeGid,
         quantity: 1,
-        title: "Arka baskı",
         price: {
           adjustment: {
             fixedPricePerUnit: { amount: backTotal.toFixed(2) }
