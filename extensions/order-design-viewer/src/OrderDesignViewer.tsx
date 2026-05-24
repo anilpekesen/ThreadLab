@@ -169,7 +169,11 @@ function OrderDesignViewer() {
         {design.appOrderUrl && (
           <>
             <Divider />
-            <Link href={design.appOrderUrl} target="_blank">Sipariş detaylarını ve görselleri gör →</Link>
+            <Link href={design.appOrderUrl} target="_blank">
+              {design.appOrderUrl.includes('sync=1')
+                ? 'Siparişleri senkronize et →'
+                : 'Sipariş detaylarını gör →'}
+            </Link>
           </>
         )}
 

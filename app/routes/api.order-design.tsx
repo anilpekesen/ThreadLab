@@ -29,7 +29,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // shop param is optional — Shopify order IDs are globally unique
   const order = await getOrderByShopifyId(shop, shopifyOrderId);
   if (!order) {
-    return json({ found: false }, { status: 200, headers: corsHeaders(request) });
+    return json(
+      { found: false, appOrderUrl: "https://app.printlabapp.com/app/orders?sync=1" },
+      { status: 200, headers: corsHeaders(request) },
+    );
   }
 
   const frontPreviewUrl = order.designFrontPreviewUrl || order.previewUrl || null;
