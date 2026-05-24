@@ -2,7 +2,6 @@ import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { getOrderByShopifyId } from "~/models/orders.server";
 import { getDesignByToken, extractObjects } from "~/models/designs.server";
 
-const APP_HANDLE = "printlabapp";
 
 function corsHeaders(_request: Request) {
   return {
@@ -65,10 +64,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         angle: o.angle != null ? Math.round(o.angle) : null,
       }));
 
-  const shopDomain = order.shop.replace(".myshopify.com", "");
-  const appOrderUrl = shopDomain
-    ? `https://admin.shopify.com/store/${shopDomain}/apps/${APP_HANDLE}/app/orders/${order.id}`
-    : "";
+  const appOrderUrl = `https://app.printlabapp.com/app/orders/${order.id}`;
 
   return json(
     {
