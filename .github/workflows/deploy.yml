@@ -7,10 +7,14 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
       - name: Deploy via SSH
         run: |
           sudo apt-get install -y sshpass
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no \
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=10 \
             root@144.91.77.39 \
             "bash /var/www/printlabapp/shopify-app/deploy.sh 2>&1"
