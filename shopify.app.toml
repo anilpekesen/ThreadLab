@@ -1,7 +1,7 @@
 name = "PrintLab"
 client_id = "1876054aac4bd32ba8019c2d27ef65f2"
 application_url = "https://app.printlabapp.com"
-embedded = true
+embedded = false
 
 [build]
 automatically_update_urls_on_dev = false
