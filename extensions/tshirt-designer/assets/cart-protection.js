@@ -1,6 +1,6 @@
-// Cart protection — legacy backward compatibility only.
-// New carts use Shopify Cart Transform Function which prevents child-line removal natively.
-// This script only blocks deletion of OLD-format surcharge items (_design_role: surcharge).
+// Cart protection — blocks removal of surcharge line items on the cart page.
+// Covers both old-format separate items (_design_role: surcharge) and new-format
+// cart-transform expanded items (_design_role: surcharge_child).
 (function () {
   var _fetch = window.fetch;
   var _cartItems = [];
@@ -17,7 +17,8 @@
   }
 
   function isSurcharge(item) {
-    return (item.properties || {})['_design_role'] === 'surcharge';
+    var role = (item.properties || {})['_design_role'];
+    return role === 'surcharge' || role === 'surcharge_child';
   }
 
   function isLegacySurchargeRemoval(url, opts) {

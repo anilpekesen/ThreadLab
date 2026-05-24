@@ -2941,8 +2941,8 @@
           var lineProps = Object.assign({}, properties, { 'Beden': line.size, '_design_role': 'base' });
           if (cfg.surchargeVariantId && (frontUnitSurcharge > 0 || backUnitSurcharge > 0)) {
             lineProps['_surcharge_variant_gid'] = 'gid://shopify/ProductVariant/' + cfg.surchargeVariantId;
-            lineProps['_surcharge_qty_front']   = String(Math.round(frontUnitSurcharge * line.quantity));
-            lineProps['_surcharge_qty_back']    = String(Math.round(backUnitSurcharge  * line.quantity));
+            lineProps['_surcharge_qty_front']   = String(Math.round(frontUnitSurcharge));
+            lineProps['_surcharge_qty_back']    = String(Math.round(backUnitSurcharge));
           }
           return {
             id: String(baseVariantIdForSize(line.size)),
