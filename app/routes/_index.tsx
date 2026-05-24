@@ -6,7 +6,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
   if (shop) {
-    throw redirect(`/auth?shop=${shop}`);
+    throw redirect(`/auth/login?shop=${shop}`);
   }
   return { loginUrl: "/auth/login" };
 };

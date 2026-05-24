@@ -82,6 +82,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return redirect(authUrl, {
     headers: {
       "Set-Cookie": makeStateCookie(state, 600),
+      "Cache-Control": "no-store",
     },
   });
 };
