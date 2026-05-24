@@ -2,6 +2,8 @@ import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { getOrderByShopifyId } from "~/models/orders.server";
 import { getDesignByToken, extractObjects } from "~/models/designs.server";
 
+const APP_HANDLE = "bikafa-tisort-tasarim";
+
 function corsHeaders(request: Request) {
   const origin = request.headers.get("Origin") ?? "*";
   return {
@@ -28,6 +30,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json({ error: "shopify_order_id required" }, { status: 400, headers: corsHeaders(request) });
   }
 
+  // shop param is optional — Shopify order IDs are globally unique
   const order = await getOrderByShopifyId(shop, shopifyOrderId);
   if (!order) {
     return json({ found: false }, { status: 200, headers: corsHeaders(request) });
@@ -65,10 +68,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         angle: o.angle != null ? Math.round(o.angle) : null,
       }));
 
+  const shopDomain = order.shop.replace(".myshopify.com", "");
+  const appOrderUrl = shopDomain
+    ? `https://admin.shopify.com/store/${shopDomain}/apps/${APP_HANDLE}/app/orders/${order.id}`
+    : "";
+
   return json(
     {
       found: true,
       appOrderId: order.id,
+      appOrderUrl,
       orderNumber: order.orderNumber,
       productName: order.productName,
       designToken: order.designToken,

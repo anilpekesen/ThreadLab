@@ -14,23 +14,13 @@ import {
 
 const TARGET = 'admin.order-details.block.render';
 const APP_URL = 'https://app.printlabapp.com';
-const APP_HANDLE = 'bikafa-tisort-tasarim';
 
 export default reactExtension(TARGET, () => <OrderDesignViewer />);
-
-interface Attribute { key: string; value: string; }
-
-interface OrderResult {
-  order: {
-    customAttributes: Attribute[];
-    lineItems: { nodes: { customAttributes: Attribute[] }[] };
-  };
-  shop: { myshopifyDomain: string };
-}
 
 interface ApiResult {
   found: boolean;
   appOrderId?: string;
+  appOrderUrl?: string;
   frontPreviewUrl?: string | null;
   backPreviewUrl?: string | null;
   frontPrintUrl?: string | null;
@@ -50,16 +40,9 @@ function downloadUrl(fileUrl: string, filename: string): string {
   return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
 }
 
-function getAttr(attrs: Attribute[], key: string): string {
-  return attrs.find((a) => a.key === key)?.value ?? '';
-}
-
 function OrderDesignViewer() {
   const api = useApi(TARGET);
   const { data } = api;
-  const query = (api as unknown as {
-    query: <T>(q: string, opts?: { variables?: Record<string, unknown> }) => Promise<{ data?: T }>;
-  }).query;
 
   const [design, setDesign] = useState<DesignInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,59 +50,28 @@ function OrderDesignViewer() {
   const orderId = (data as { selected?: { id: string }[] }).selected?.[0]?.id ?? '';
 
   useEffect(() => {
-    if (!orderId || !query) { setLoading(false); return; }
+    if (!orderId) { setLoading(false); return; }
 
-    query<OrderResult>(
-      `query GetOrderBase($id: ID!) {
-        order(id: $id) {
-          customAttributes { key value }
-          lineItems(first: 10) { nodes { customAttributes { key value } } }
-        }
-        shop { myshopifyDomain }
-      }`,
-      { variables: { id: orderId } },
-    ).then(async ({ data: result }) => {
-      if (!result?.order) { setLoading(false); return; }
+    const shopifyNumericId = orderId.includes('/') ? orderId.split('/').pop()! : orderId;
 
-      const shopDomain = result.shop?.myshopifyDomain?.replace('.myshopify.com', '') ?? '';
-      const shopFull = result.shop?.myshopifyDomain ?? '';
+    fetch(`${APP_URL}/api/order-design?shopify_order_id=${shopifyNumericId}`)
+      .then(async (res) => {
+        if (!res.ok) { setLoading(false); return; }
+        const apiData = await res.json() as ApiResult;
+        if (!apiData.found) { setLoading(false); return; }
 
-      // Fallback attrs from order or line items
-      let attrs = result.order.customAttributes ?? [];
-      if (!getAttr(attrs, '_front_preview_url') && !getAttr(attrs, 'design_token')) {
-        for (const item of result.order.lineItems?.nodes ?? []) {
-          if (getAttr(item.customAttributes, '_front_preview_url') || getAttr(item.customAttributes, 'design_token')) {
-            attrs = item.customAttributes;
-            break;
-          }
-        }
-      }
+        const frontPreviewUrl = apiData.frontPreviewUrl ?? '';
+        const backPreviewUrl  = apiData.backPreviewUrl  ?? '';
+        const frontPrintUrl   = apiData.frontPrintUrl   ?? '';
+        const backPrintUrl    = apiData.backPrintUrl    ?? '';
+        const appOrderUrl     = apiData.appOrderUrl     ?? '';
 
-      // Primary source: our API (reads directly from DB, always up-to-date)
-      const shopifyNumericId = orderId.includes('/') ? orderId.split('/').pop()! : orderId;
-      let apiData: ApiResult | null = null;
-      try {
-        const apiRes = await fetch(
-          `${APP_URL}/api/order-design?shopify_order_id=${shopifyNumericId}&shop=${encodeURIComponent(shopFull)}`,
-        );
-        if (apiRes.ok) apiData = await apiRes.json() as ApiResult;
-      } catch { /* fall through to custom attrs */ }
+        if (!frontPreviewUrl && !appOrderUrl) { setLoading(false); return; }
 
-      const frontPreviewUrl = apiData?.frontPreviewUrl || getAttr(attrs, '_front_preview_url') || '';
-      const backPreviewUrl  = apiData?.backPreviewUrl  || getAttr(attrs, '_back_preview_url')  || '';
-      const frontPrintUrl   = apiData?.frontPrintUrl   || getAttr(attrs, '_front_print_url')   || '';
-      const backPrintUrl    = apiData?.backPrintUrl    || getAttr(attrs, '_back_print_url')    || '';
-      const appOrderId      = apiData?.appOrderId ?? '';
-
-      if (!frontPreviewUrl && !appOrderId) { setLoading(false); return; }
-
-      const appOrderUrl = appOrderId && shopDomain
-        ? `https://admin.shopify.com/store/${shopDomain}/apps/${APP_HANDLE}/app/orders/${appOrderId}`
-        : '';
-
-      setDesign({ frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, appOrderUrl });
-      setLoading(false);
-    }).catch(() => setLoading(false));
+        setDesign({ frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, appOrderUrl });
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, [orderId]);
 
   if (loading) {

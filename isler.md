@@ -582,19 +582,18 @@ Bu, server'ına geçici bir public URL (ngrok tüneli) açar. Sadece geliştirme
 ---                                                                                                                                                                                                                                                                
 Seçenek 2 — Ücretsiz cloud'a deploy et (kalıcı)
 
-Railway veya Render en kolay seçenek:
-1. railway.app veya render.com'da hesap aç
-2. GitHub repo'ya yükle
-3. server.js'i deploy et → sabit bir URL alırsın (örn. https://bikafa-designer.railway.app)
-4. shopify.app.toml'daki application_url'i güncelle
-5. shopify app deploy → Shopify o URL'i kullanır
+Contabo VPS'e deploy et (kalıcı):
+1. GitHub repo'ya yükle
+2. VPS'de git pull && pm2 restart shopify-app yap
+3. shopify.app.toml'daki application_url güncelle
+4. shopify app deploy → Shopify o URL'i kullanır
 
   ---                                                                                                                                                                                                                                                                
 Şu an için asıl soru:
 
 Eski vanilla JS designer'ı mı kullanmaya devam edelim, yoksa önce React app'i internete çıkaralım mı?
 
-Eğer React app'i kullanmak istiyorsan, Railway/Render'a deploy etmeye yardım ederim — 15 dakika sürer.
+Eğer React app'i kullanmak istiyorsan, Contabo VPS'e deploy etmeye yardım ederim — 15 dakika sürer.
 
 ✻ Sautéed for 30s
 

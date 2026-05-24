@@ -161,9 +161,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const order = await getOrder(params.id ?? "");
   if (!order) throw new Response("Sipariş bulunamadı", { status: 404 });
 
+  const orderShop = order.shop || session.shop;
   const [design, siblings] = await Promise.all([
-    order.designToken ? getDesignByToken(session.shop, order.designToken) : null,
-    getSiblingOrders(session.shop, order.shopifyOrderId, order.id),
+    order.designToken ? getDesignByToken(orderShop, order.designToken) : null,
+    getSiblingOrders(orderShop, order.shopifyOrderId, order.id),
   ]);
   const frontObjects = design ? extractObjects(design.designJson, "front") : [];
   const backObjects = design ? extractObjects(design.designJson, "back") : [];

@@ -12,6 +12,7 @@ async function ensureMigrations() {
 
 export interface Order {
   id: string;
+  shop: string;
   shopifyOrderId: string;
   orderNumber: string;
   customerName: string;
@@ -37,6 +38,7 @@ export interface Order {
 
 type DbRow = {
   id: string;
+  shop: string;
   shopify_order_id: string;
   order_number: string;
   customer_name: string;
@@ -62,6 +64,7 @@ type DbRow = {
 function rowToOrder(row: DbRow): Order {
   return {
     id: row.id,
+    shop: row.shop ?? "",
     shopifyOrderId: row.shopify_order_id,
     orderNumber: row.order_number,
     customerName: row.customer_name,
@@ -86,7 +89,7 @@ function rowToOrder(row: DbRow): Order {
 }
 
 const ORDER_SELECT = `
-  SELECT o.id, o.shopify_order_id, o.order_number, o.customer_name, o.customer_email,
+  SELECT o.id, o.shop, o.shopify_order_id, o.order_number, o.customer_name, o.customer_email,
     o.product_id, o.product_name, o.variant_id, o.variant_title, o.quantity,
     o.design_token, o.preview_url,
     o.production_file_url, o.production_status, o.missing_surcharge, o.created_at, o.updated_at,
@@ -146,10 +149,9 @@ export async function getOrder(id: string): Promise<Order | null> {
 
 export async function getOrderByShopifyId(shop: string, shopifyOrderId: string): Promise<Order | null> {
   await ensureMigrations();
-  const result = await query<DbRow>(
-    `${ORDER_SELECT} WHERE o.shop = $1 AND o.shopify_order_id = $2`,
-    [shop, shopifyOrderId],
-  );
+  const result = shop
+    ? await query<DbRow>(`${ORDER_SELECT} WHERE o.shop = $1 AND o.shopify_order_id = $2`, [shop, shopifyOrderId])
+    : await query<DbRow>(`${ORDER_SELECT} WHERE o.shopify_order_id = $1 LIMIT 1`, [shopifyOrderId]);
   if (!result.rows.length) return null;
   return rowToOrder(result.rows[0]);
 }
