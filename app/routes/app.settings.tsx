@@ -512,21 +512,6 @@ export default function SettingsRoute() {
               </Box>
             </Card>
 
-            {/* WaveSpeed */}
-            <Card>
-              <Box padding="400">
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">{t("settings.wavespeedTitle")}</Text>
-                  <InlineStack gap="200" blockAlign="center">
-                    <Badge tone="success">Aktif</Badge>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      API key sunucu ortam değişkeninde yapılandırılmış.
-                    </Text>
-                  </InlineStack>
-                </BlockStack>
-              </Box>
-            </Card>
-
             {/* Müşteri başına bg limit */}
             <Card>
               <Box padding="400">
