@@ -1,0 +1,278 @@
+/* ==========================================================================
+   PrintLab Design System — Tokens
+   Mobile-first Shopify print-on-demand designer.
+   Source of truth: anilpekesen/ThreadLab (designer-ui Tailwind config + components)
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+/* User content / display fonts (used inside Fabric.js canvas designs, not UI chrome).
+   Kept narrow on purpose — these are the canvas-side fonts shipped in designer-ui/index.html. */
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Dancing+Script:wght@700&family=Lobster&family=Montserrat:wght@400;700&family=Oswald:wght@400;700&family=Pacifico&family=Permanent+Marker&family=Playfair+Display:wght@700&family=Poppins:wght@400;700;800;900&family=Press+Start+2P&family=Righteous&family=Rock+Salt&family=Roboto+Condensed:wght@700&family=Russo+One&family=Satisfy&family=Special+Elite&family=Teko:wght@700&display=swap');
+
+/* Brand-uploaded canvas font — fits alongside Pacifico/Rock Salt/Satisfy in the handwritten/script family.
+   For use inside Fabric.js text layers, NOT UI chrome. Make sure to expose it in the canvas font picker. */
+
+:root {
+  /* ── Brand ── */
+  --brand-indigo-500: #6366f1;     /* logo gradient start */
+  --brand-indigo-600: #4f46e5;     /* "Lab" wordmark fill */
+  --brand-indigo-700: #4338ca;     /* logo gradient end */
+  --brand-indigo-300: #a5b4fc;     /* sparkle accent */
+
+  /* ── Primary action (blue) — matches Tailwind blue-500/600/700 used across designer-ui ── */
+  --primary-50:  #eff6ff;
+  --primary-100: #dbeafe;
+  --primary-200: #bfdbfe;
+  --primary-400: #60a5fa;
+  --primary-500: #3b82f6;          /* selection borders, range thumbs */
+  --primary-600: #2563eb;          /* primary CTAs (Sepete Ekle, "Ekle") */
+  --primary-700: #1d4ed8;          /* primary hover */
+
+  /* ── Accents — semantic per tab/panel ── */
+  --accent-saved:     #2563eb;     /* "Arşiv" eyebrow */
+  --accent-templates: #7c3aed;     /* "Şablon" eyebrow (violet-600) */
+  --accent-templates-50: #f5f3ff;
+  --accent-templates-200: #ddd6fe;
+  --accent-bg-removal: #8b5cf6;    /* Sparkles (Photoroom) */
+  --accent-rotate:    #6366f1;     /* fabric rotate handle */
+  --accent-resize:    #10b981;     /* fabric resize handle (emerald-500) */
+
+  /* ── Print area / canvas overlays ── */
+  --canvas-print-area: #fbbf24;    /* amber-400, mockup boundary */
+  --canvas-safe-area:  #38bdf8;    /* sky-400, printable safe zone (dashed) */
+  --canvas-size-label: #0ea5e9;    /* sky-500, "28 x 45 CM" pill */
+
+  /* ── Surfaces (light theme only — no dark mode in this product) ── */
+  --bg-app:       #f3f4f6;         /* page background, body */
+  --bg-app-soft:  #f9fafb;         /* secondary surface */
+  --bg-canvas:    #ffffff;         /* product card / canvas wrapper */
+  --bg-input:     #f9fafb;         /* idle input field */
+  --bg-elevated:  #ffffff;         /* sheets, modals, popovers */
+
+  /* Floating toolbar — the ONE dark surface in this product (object toolbar over canvas) */
+  --bg-toolbar:        #1c1f24;
+  --bg-toolbar-hover:  rgba(255,255,255,0.12);
+  --bg-toolbar-active: rgba(99,211,196,0.20);
+  --fg-toolbar:        #e2e5ea;
+  --fg-toolbar-muted:  #7c8490;
+  --fg-toolbar-active: #5eead4;    /* teal-300 */
+
+  /* ── Borders ── */
+  --border-subtle: #f3f4f6;        /* hairline within a card */
+  --border-default: #e5e7eb;       /* card edges, dividers */
+  --border-strong: #d1d5db;        /* hover state for inputs */
+  --border-focus:  var(--primary-500);
+  --border-dashed: #e5e7eb;        /* dropzone resting state */
+
+  /* ── Foreground / text ── */
+  --fg-1: #0f172a;   /* slate-900 — headings, hard emphasis */
+  --fg-2: #111827;   /* gray-900 — body, default ink */
+  --fg-3: #334155;   /* slate-700 — secondary body */
+  --fg-4: #6b7280;   /* gray-500 — muted, helper text */
+  --fg-5: #94a3b8;   /* slate-400 — placeholders, micro labels */
+  --fg-on-primary: #ffffff;
+
+  /* ── Semantic state ── */
+  --success-50:  #f0fdf4;
+  --success-500: #22c55e;
+  --success-600: #16a34a;
+  --warning-50:  #fffbeb;
+  --warning-200: #fde68a;
+  --warning-500: #f59e0b;
+  --warning-600: #d97706;
+  --danger-50:   #fef2f2;
+  --danger-100:  #fee2e2;
+  --danger-500:  #ef4444;
+  --danger-600:  #dc2626;
+  --info-50:     #eff6ff;
+  --info-500:    #3b82f6;
+
+  /* ── Typography ── */
+  --font-ui: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* base scale (px) — mobile-first; UI never goes below 12px */
+  --fs-12: 12px;   /* micro labels, eyebrows, captions */
+  --fs-13: 13px;   /* bar buttons, dense input text */
+  --fs-14: 14px;   /* default mobile body */
+  --fs-15: 15px;   /* form fields */
+  --fs-16: 16px;   /* prevents iOS auto-zoom on input focus */
+  --fs-18: 18px;   /* price emphasis */
+  --fs-20: 20px;   /* sub-section heads */
+  --fs-22: 22px;   /* logo wordmark, sheet titles */
+  --fs-28: 28px;   /* hero numbers */
+
+  /* line heights */
+  --lh-tight: 1.1;
+  --lh-snug:  1.3;
+  --lh-body:  1.5;
+  --lh-loose: 1.7;
+
+  /* font weights — designer-ui leans heavy: 600/700/800/900 are used liberally for premium feel */
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+  --fw-extrabold: 800;
+  --fw-black:    900;
+
+  /* tracking */
+  --tracking-tight:  -0.02em;     /* large display */
+  --tracking-normal: 0;
+  --tracking-wide:   0.06em;      /* uppercase eyebrows */
+  --tracking-wider:  0.18em;      /* "ŞABLON" pills */
+  --tracking-widest: 0.22em;      /* section eyebrows ("ARŞİV", "MAĞAZA ŞABLONLARI") */
+
+  /* ── Radii — VERY generous, this is the most distinctive part of the visual language ── */
+  --r-xs:  4px;    /* control icons inside toolbar */
+  --r-sm:  6px;    /* small chips, range thumbs */
+  --r-md:  8px;    /* admin Polaris cards (small) */
+  --r-lg:  12px;   /* dense buttons, inline pills */
+  --r-xl:  16px;   /* secondary cards */
+  --r-2xl: 20px;   /* thumbnails, image tiles */
+  --r-3xl: 24px;   /* primary buttons, text inputs, dropzones */
+  --r-4xl: 28px;   /* canvas frame, saved-design cards */
+  --r-5xl: 30px;   /* outermost canvas wrapper */
+  --r-full: 9999px;/* color swatches, badge pills, segmented toggles */
+
+  /* ── Shadows ── */
+  --shadow-sm:   0 1px 4px rgba(0,0,0,0.06);
+  --shadow-card: 0 1px 2px rgba(15,23,42,0.04), 0 1px 1px rgba(15,23,42,0.03);
+  --shadow-pop:  0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10);  /* float toolbar / popups */
+  --shadow-sheet: 0 -8px 32px rgba(15,23,42,0.12);                          /* bottom sheet rises */
+  --shadow-canvas: 0 18px 40px rgba(148,163,184,0.28);                      /* canvas card lift */
+  --shadow-product-drop: 0 10px 28px rgba(0,0,0,0.16);                      /* shirt mockup drop shadow */
+  --shadow-control: 0 2px 8px rgba(15,23,42,0.18);                          /* fabric handle bubble */
+
+  /* ── Spacing scale (Tailwind-aligned, 4px base) ── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 28px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* ── Touch targets — non-negotiable ── */
+  --touch-min: 44px;      /* iOS/Android floor — every interactive element */
+  --touch-comfy: 48px;    /* primary CTAs */
+
+  /* ── Layout ── */
+  --sheet-handle-w: 36px;
+  --sheet-handle-h: 4px;
+  --tabbar-h: 64px;       /* bottom tab bar height (excluding safe area) */
+  --topbar-h: 56px;       /* top product selector bar */
+
+  /* ── Motion ── */
+  --ease-out: cubic-bezier(.4, 0, .2, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-sheet: 280ms;
+  --dur-page: 320ms;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Semantic type roles
+   Used directly via class or @apply; UI chrome rarely uses anything bigger than 22px on mobile.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.h1, h1 {
+  font: var(--fw-extrabold) var(--fs-28)/var(--lh-tight) var(--font-ui);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-1);
+}
+.h2, h2 {
+  font: var(--fw-bold) var(--fs-22)/var(--lh-snug) var(--font-ui);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-1);
+}
+.h3, h3 {
+  font: var(--fw-bold) var(--fs-18)/var(--lh-snug) var(--font-ui);
+  color: var(--fg-2);
+}
+.h4, h4 {
+  font: var(--fw-bold) var(--fs-16)/var(--lh-snug) var(--font-ui);
+  color: var(--fg-2);
+}
+
+.body, p {
+  font: var(--fw-medium) var(--fs-14)/var(--lh-body) var(--font-ui);
+  color: var(--fg-3);
+}
+.body-strong {
+  font-weight: var(--fw-semibold);
+  color: var(--fg-2);
+}
+.caption {
+  font: var(--fw-semibold) var(--fs-12)/var(--lh-snug) var(--font-ui);
+  color: var(--fg-4);
+}
+
+/* Eyebrow — short uppercase label that sits above a panel/sheet title.
+   Pattern used everywhere: "ARŞİV", "MAĞAZA ŞABLONLARI", "SON YÜKLEMELER" */
+.eyebrow {
+  font: var(--fw-black) var(--fs-12)/1 var(--font-ui);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--accent-saved);
+}
+.eyebrow--templates { color: var(--accent-templates); }
+.eyebrow--muted     { color: var(--fg-4); letter-spacing: var(--tracking-wide); font-weight: var(--fw-bold); }
+
+/* Button label — bold all-caps on primary actions */
+.btn-label {
+  font: var(--fw-bold) var(--fs-13)/1 var(--font-ui);
+  letter-spacing: var(--tracking-wide);
+}
+.btn-label--lg {
+  font-size: var(--fs-16);
+  font-weight: var(--fw-black);
+}
+
+/* Eyebrow numerics — pills like "28 x 45 CM" floating over the canvas */
+.canvas-size-pill {
+  font: var(--fw-bold) 10px/1 var(--font-ui);
+  letter-spacing: 0.14em;
+  color: var(--canvas-size-label);
+}
+
+/* Tabular numerals for prices and quantity steppers */
+.numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Mono — used in admin order properties and design tokens, never in customer designer */
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-13);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Global resets specific to PrintLab
+   ────────────────────────────────────────────────────────────────────────── */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-app);
+  color: var(--fg-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-14);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Hairline scrollbar (designer-ui pattern) */
+::-webkit-scrollbar      { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg-app); }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
