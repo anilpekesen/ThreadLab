@@ -1757,7 +1757,8 @@ export default function App() {
                 <div className="pointer-events-auto flex flex-col items-center gap-2">
                 <div className="pointer-events-auto w-[min(340px,95vw)] rounded-[20px] border border-white/50 bg-white/95 shadow-[0_10px_50px_rgba(0,0,0,0.15)] backdrop-blur-xl">
                   {objState?.type === 'text' ? (
-                    <div className="grid grid-cols-5 gap-1 p-2">
+                    <div>
+                    <div className="grid grid-cols-5 gap-1 p-2 pb-1">
                       {/* Row 1: Renk | Düzenle | B | I | Kaldır */}
                       <button
                         type="button"
@@ -1857,28 +1858,56 @@ export default function App() {
                       </button>
 
                     </div>
+
+                    {/* Color swatches — inline, below grid, only when showTextColorPalette */}
+                    {showTextColorPalette && (
+                      <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 px-2 pb-2 pt-2">
+                        {TEXT_COLOR_SWATCHES.map((color) => {
+                          const isActive = (objState.color ?? '#111827').toLowerCase() === color.toLowerCase();
+                          return (
+                            <button
+                              key={color}
+                              type="button"
+                              onClick={() => updateTextProp({ color })}
+                              className={cn('h-6 w-6 rounded-full border-2 transition-transform active:scale-90', isActive ? 'border-blue-500 shadow-md scale-110' : 'border-white shadow-sm')}
+                              style={{ backgroundColor: color }}
+                            />
+                          );
+                        })}
+                        <label className="flex h-6 cursor-pointer items-center gap-1 rounded-full border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-500 shadow-sm">
+                          Özel
+                          <input
+                            type="color"
+                            value={colorInputValue(objState.color)}
+                            onChange={(e) => updateTextProp({ color: e.target.value })}
+                            className="sr-only"
+                          />
+                        </label>
+                      </div>
+                    )}
+                    </div>
                   ) : (
-                    <>
+                    <div className="grid grid-cols-4 gap-1 p-2">
                       <button
                         onClick={centerSelectedObject}
-                        className="group flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 transition-colors hover:bg-gray-50 md:gap-1 md:px-4 md:py-2"
+                        className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
                       >
-                        <Sparkles className="h-4 w-4 text-gray-500 group-hover:text-blue-500 md:h-5 md:w-5" />
-                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500 md:text-[10px]">Ortala</span>
+                        <Sparkles className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
+                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">Ortala</span>
                       </button>
                       <button
                         onClick={duplicateSelected}
-                        className="group flex shrink-0 flex-col items-center gap-0.5 rounded-xl border-x border-gray-100 px-3 py-1.5 transition-colors hover:bg-gray-50 md:gap-1 md:px-4 md:py-2"
+                        className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
                       >
-                        <Plus className="h-4 w-4 text-gray-500 group-hover:text-blue-500 md:h-5 md:w-5" />
-                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500 md:text-[10px]">Kopyala</span>
+                        <Plus className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
+                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">Kopyala</span>
                       </button>
                       <button
                         onClick={toggleLayerOrder}
-                        className="group flex min-w-[70px] shrink-0 flex-col items-center gap-0.5 rounded-xl border-r border-gray-100 px-3 py-1.5 transition-colors hover:bg-gray-50 md:gap-1 md:px-4 md:py-2"
+                        className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
                       >
-                        <Layers className="h-4 w-4 text-gray-500 group-hover:text-blue-500 md:h-5 md:w-5" />
-                        <span className="text-[9px] font-bold uppercase text-gray-500 group-hover:text-blue-500 md:text-[10px]">
+                        <Layers className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
+                        <span className="text-[9px] font-bold uppercase text-gray-500 group-hover:text-blue-500">
                           {(() => {
                             const objects = getActiveCanvasHandle()?.getCanvas()?.getObjects() ?? [];
                             return objects.indexOf(selectedObj) === objects.length - 1 ? 'Arkaya' : 'Öne';
@@ -1887,42 +1916,15 @@ export default function App() {
                       </button>
                       <button
                         onClick={deleteSelected}
-                        className="group flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 transition-colors hover:bg-red-50 md:gap-1 md:px-4 md:py-2"
+                        className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-red-50"
                       >
-                        <Trash2 className="h-4 w-4 text-red-400 group-hover:text-red-500 md:h-5 md:w-5" />
-                        <span className="text-[9px] font-bold text-red-400 group-hover:text-red-500 md:text-[10px]">Kaldır</span>
+                        <Trash2 className="h-4 w-4 text-red-400 group-hover:text-red-500" />
+                        <span className="text-[9px] font-bold text-red-400 group-hover:text-red-500">Kaldır</span>
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
                 </div>
-            </div>
-          )}
-
-          {/* Renk paleti — ekran altına sabit panel, yazıyı kapatmaz */}
-          {selectedObj && objState?.type === 'text' && showTextColorPalette && !activeTab && !showPreview && (
-            <div className="fixed bottom-0 left-0 right-0 z-[101] flex flex-wrap items-center justify-center gap-2 border-t border-gray-100 bg-white/97 px-4 py-3 shadow-[0_-8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl">
-              {TEXT_COLOR_SWATCHES.map((color) => {
-                const isActive = (objState.color ?? '#111827').toLowerCase() === color.toLowerCase();
-                return (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => updateTextProp({ color })}
-                    className={cn('h-8 w-8 rounded-full border-2 transition-transform active:scale-90', isActive ? 'border-blue-500 shadow-md scale-110' : 'border-white shadow-sm')}
-                    style={{ backgroundColor: color }}
-                  />
-                );
-              })}
-              <label className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 text-[11px] font-bold text-gray-500 shadow-sm">
-                Özel
-                <input
-                  type="color"
-                  value={colorInputValue(objState.color)}
-                  onChange={(e) => updateTextProp({ color: e.target.value })}
-                  className="sr-only"
-                />
-              </label>
             </div>
           )}
 
