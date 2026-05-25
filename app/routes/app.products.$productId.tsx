@@ -438,8 +438,6 @@ function PrintAreaEditor({
   const rightGap = mockupX + mockupWidth - x - width;
 
   useEffect(() => {
-    if (!dragState.current) return;
-
     const handlePointerMove = (event: PointerEvent) => {
       if (!dragState.current || event.pointerId !== dragState.current.pointerId) return;
       const frame = frameRef.current;
@@ -481,14 +479,14 @@ function PrintAreaEditor({
       }
 
       if (origin.target === "print" && origin.mode === "move") {
-        const nextX = clamp(Math.round(origin.originX + deltaX), origin.originMockupX, origin.originMockupX + origin.originMockupWidth - origin.originWidth);
-        const nextY = clamp(Math.round(origin.originY + deltaY), origin.originMockupY, origin.originMockupY + origin.originMockupHeight - origin.originHeight);
+        const nextX = clamp(Math.round(origin.originX + deltaX), 0, PREVIEW_WIDTH - origin.originWidth);
+        const nextY = clamp(Math.round(origin.originY + deltaY), 0, PREVIEW_HEIGHT - origin.originHeight);
         onChange(patchAreaState(currentArea, { x: String(nextX), y: String(nextY) }));
         return;
       }
 
-      const nextWidth = clamp(Math.round(origin.originWidth + deltaX), MIN_AREA_SIZE, origin.originMockupX + origin.originMockupWidth - origin.originX);
-      const nextHeight = clamp(Math.round(origin.originHeight + deltaY), MIN_AREA_SIZE, origin.originMockupY + origin.originMockupHeight - origin.originY);
+      const nextWidth = clamp(Math.round(origin.originWidth + deltaX), MIN_AREA_SIZE, PREVIEW_WIDTH - origin.originX);
+      const nextHeight = clamp(Math.round(origin.originHeight + deltaY), MIN_AREA_SIZE, PREVIEW_HEIGHT - origin.originY);
       onChange(patchAreaState(currentArea, { width: String(nextWidth), height: String(nextHeight) }));
     };
 
@@ -608,10 +606,10 @@ function PrintAreaEditor({
           </div>
 
           <InlineStack gap="150">
-            <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { x: String(Math.round(mockupX + (mockupWidth - width) / 2)) }))}>
+            <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { x: String(Math.round((PREVIEW_WIDTH - width) / 2)) }))}>
               Yatay ortala
             </Button>
-            <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { y: String(Math.round(mockupY + (mockupHeight - height) / 2)) }))}>
+            <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { y: String(Math.round((PREVIEW_HEIGHT - height) / 2)) }))}>
               Dikey ortala
             </Button>
           </InlineStack>
