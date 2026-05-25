@@ -97,7 +97,12 @@ export async function exchangeCodeForToken(shop: string, code: string): Promise<
     access_token: string;
     expires_in?: number;
     refresh_token?: string;
+    scope?: string;
   };
+
+  console.log("[token-exchange] response keys:", Object.keys(data).join(", "));
+  console.log("[token-exchange] expires_in:", data.expires_in ?? "NOT PRESENT");
+  console.log("[token-exchange] scope:", data.scope ?? "NOT PRESENT");
 
   const expiresAt = data.expires_in
     ? new Date(Date.now() + data.expires_in * 1000)
