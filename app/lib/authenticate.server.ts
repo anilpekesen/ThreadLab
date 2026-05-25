@@ -15,7 +15,9 @@ export async function authenticate(request: Request) {
     admin: {
       graphql: async (gqlQuery: string, opts?: { variables?: Record<string, unknown> }) => {
         const resp = await shopifyGraphQL(shop, accessToken, gqlQuery, opts?.variables);
-        if (resp.status === 401 || resp.status === 403) throw redirect(`/auth?shop=${shop}`);
+        if (resp.status === 401 || resp.status === 403) {
+          console.error(`[auth] Shopify API ${resp.status} for ${shop} — token may need rotation`);
+        }
         return resp;
       },
     },
