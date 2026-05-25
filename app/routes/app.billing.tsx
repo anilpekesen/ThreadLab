@@ -140,6 +140,38 @@ async function cancelShopifySubscription(
   );
 }
 
+async function getDowngradeRestrictions(shop: string, analytics: Awaited<ReturnType<typeof getAnalytics>>) {
+  const [ptResult, tplResult] = await Promise.all([
+    query<{ count: string }>("SELECT COUNT(*) AS count FROM product_categories WHERE shop = $1", [shop]),
+    query<{ count: string }>("SELECT COUNT(*) AS count FROM shop_templates WHERE shop = $1", [shop]),
+  ]);
+  const productTypeCount = Number(ptResult.rows[0]?.count ?? 0);
+  const templateCount = Number(tplResult.rows[0]?.count ?? 0);
+
+  const currentIdx = PLAN_ORDER.indexOf(analytics.planKey);
+  const blockedReasons: Partial<Record<PlanKey, string[]>> = {};
+
+  for (const pk of PLAN_ORDER) {
+    const pkIdx = PLAN_ORDER.indexOf(pk);
+    if (pkIdx >= currentIdx) continue; // upgrade or same — always allowed
+    const target = PLANS[pk];
+    const reasons: string[] = [];
+
+    if (target.removeBgMonthlyQuota !== -1 && analytics.bgThisMonth > target.removeBgMonthlyQuota) {
+      reasons.push(`Bu ay ${analytics.bgThisMonth} arka plan kaldırma kullandınız (${pk}: ${target.removeBgMonthlyQuota} limit)`);
+    }
+    if (target.maxProductTypes !== -1 && productTypeCount > target.maxProductTypes) {
+      reasons.push(`${productTypeCount} ürün kategoriniz var (${pk}: max ${target.maxProductTypes})`);
+    }
+    if (target.maxShopTemplates !== -1 && templateCount > target.maxShopTemplates) {
+      reasons.push(`${templateCount} şablonunuz var (${pk}: max ${target.maxShopTemplates === 0 ? "yok" : target.maxShopTemplates})`);
+    }
+    if (reasons.length) blockedReasons[pk] = reasons;
+  }
+
+  return { blockedReasons, productTypeCount, templateCount };
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const shop = session.shop;
@@ -168,7 +200,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const analytics = await getAnalytics(shop);
-  return json({ analytics, isTest: IS_TEST });
+  const { blockedReasons } = await getDowngradeRestrictions(shop, analytics);
+  return json({ analytics, isTest: IS_TEST, blockedReasons });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -183,6 +216,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "subscribe") {
     const planKey = form.get("plan") as PlanKey;
     if (!PLAN_ORDER.includes(planKey)) return json({ error: "Geçersiz plan" }, { status: 400 });
+
+    // Downgrade protection: block if current usage exceeds target plan limits
+    const currentSub = await getShopSubscription(shop);
+    const currentPlanKey = currentSub?.plan_key ?? "Starter";
+    const targetIdx = PLAN_ORDER.indexOf(planKey);
+    const currentIdx = PLAN_ORDER.indexOf(currentPlanKey);
+
+    if (targetIdx < currentIdx && currentSub?.subscription_status === "active") {
+      const analytics = await getAnalytics(shop);
+      const { blockedReasons } = await getDowngradeRestrictions(shop, analytics);
+      const reasons = blockedReasons[planKey];
+      if (reasons?.length) {
+        return json({ error: `${planKey} planına geçiş engellenmiştir:\n• ${reasons.join("\n• ")}` }, { status: 400 });
+      }
+    }
 
     await upsertShopSubscription(shop, { planKey, subscriptionStatus: "none" });
 
@@ -209,9 +257,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function BillingPage() {
-  const { analytics, isTest } = useLoaderData<typeof loader>();
+  const { analytics, isTest, blockedReasons } = useLoaderData<typeof loader>();
   const nav = useNavigation();
   const { t, lang } = useTranslation();
+  const actionData = nav.formData ? null : undefined; // reset on navigation
   const isLoading = nav.state === "submitting";
   const isActive = analytics.subscriptionStatus === "active";
   const isTrial = analytics.subscriptionStatus === "trial";
@@ -288,8 +337,10 @@ export default function BillingPage() {
             <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
               {PLAN_ORDER.map((planKey) => {
                 const plan = PLANS[planKey];
-                const isCurrent = analytics.planKey === planKey && isActive;
+                const isCurrent = analytics.planKey === planKey && (isActive || isTrial);
                 const isRecommended = planKey === "Growth";
+                const blockReasons = (isActive || isTrial) ? (blockedReasons[planKey] ?? null) : null;
+                const isBlocked = !!blockReasons;
 
                 return (
                   <Card key={planKey}>
@@ -298,8 +349,9 @@ export default function BillingPage() {
                         <BlockStack gap="100">
                           <InlineStack align="space-between" blockAlign="center">
                             <Text as="h3" variant="headingMd">{planKey}</Text>
-                            {isRecommended && !isCurrent && <Badge tone="info">{t("billing.recommended")}</Badge>}
+                            {isRecommended && !isCurrent && !isBlocked && <Badge tone="info">{t("billing.recommended")}</Badge>}
                             {isCurrent && <Badge tone="success">{t("billing.active")}</Badge>}
+                            {isBlocked && <Badge tone="critical">Kısıtlı</Badge>}
                           </InlineStack>
                           <InlineStack blockAlign="end" gap="100">
                             <Text as="p" variant="headingXl">${plan.price}</Text>
@@ -316,14 +368,27 @@ export default function BillingPage() {
                           ))}
                         </List>
 
+                        {isBlocked && (
+                          <Banner tone="critical">
+                            <BlockStack gap="100">
+                              <Text as="p" variant="bodySm" fontWeight="semibold">Bu plana geçemezsiniz:</Text>
+                              {blockReasons.map((r, i) => (
+                                <Text key={i} as="p" variant="bodySm">• {r}</Text>
+                              ))}
+                            </BlockStack>
+                          </Banner>
+                        )}
+
                         {isCurrent ? (
                           <Button fullWidth disabled>{t("billing.currentPlanBtn")}</Button>
+                        ) : isBlocked ? (
+                          <Button fullWidth disabled tone="critical">Geçiş Engellendi</Button>
                         ) : (
                           <Form method="post">
                             <input type="hidden" name="intent" value="subscribe" />
                             <input type="hidden" name="plan" value={planKey} />
                             <Button fullWidth variant="primary" submit loading={isLoading}>
-                              {isActive ? t("billing.changePlan") : t("billing.choosePlan")} → {planKey}
+                              {isActive || isTrial ? t("billing.changePlan") : t("billing.choosePlan")} → {planKey}
                             </Button>
                           </Form>
                         )}
