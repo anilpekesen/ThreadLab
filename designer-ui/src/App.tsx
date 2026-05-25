@@ -569,7 +569,7 @@ export default function App() {
     const scaleX = rect.width / cv.getWidth();
     const scaleY = rect.height / cv.getHeight();
     const centerX = rect.left + (bounds.left + bounds.width / 2) * scaleX;
-    const aboveY = rect.top + bounds.top * scaleY - 86;
+    const aboveY = rect.top + bounds.top * scaleY - 116;
     const belowY = rect.top + (bounds.top + bounds.height) * scaleY + 20;
     setToolbarPos({
       x: centerX,
@@ -1748,58 +1748,27 @@ export default function App() {
                     left: 8,
                     right: 8,
                     top: toolbarPos
-                      ? `clamp(88px, ${Math.round(toolbarPos.y)}px, calc(100vh - 156px))`
-                      : 'calc(50vh - 78px)',
+                      ? `clamp(108px, ${Math.round(toolbarPos.y)}px, calc(100vh - 180px))`
+                      : 'calc(50vh - 90px)',
                     transform: 'none',
                   }
                 : { left: toolbarPos?.x ?? 0, top: toolbarPos?.y ?? 0, transform: 'translateX(-50%)' }}
             >
                 <div className="pointer-events-auto flex flex-col items-center gap-2">
-                {objState?.type === 'text' && showTextColorPalette && (
-                  <div className="flex max-w-[92vw] flex-wrap items-center justify-center gap-2 rounded-[18px] border border-white/60 bg-white/96 px-3 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.14)] backdrop-blur-xl">
-                    <label className="flex h-8 items-center gap-2 rounded-full border border-gray-200 bg-white px-2 text-[10px] font-black uppercase tracking-wide text-gray-500 shadow-sm">
-                      Özel
-                      <input
-                        type="color"
-                        value={colorInputValue(objState.color)}
-                        onChange={(event) => updateTextProp({ color: event.target.value })}
-                        className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                        aria-label="Özel metin rengi seç"
-                      />
-                    </label>
-                    {TEXT_COLOR_SWATCHES.map((color) => {
-                      const isActive = (objState.color ?? '#111827').toLowerCase() === color.toLowerCase();
-                      return (
-                        <button
-                          key={color}
-                          type="button"
-                          onClick={() => updateTextProp({ color })}
-                          className={cn(
-                            'h-8 w-8 rounded-full border-2 transition-transform hover:scale-105',
-                            isActive ? 'border-blue-500 shadow-md' : 'border-white shadow-sm',
-                          )}
-                          style={{ backgroundColor: color }}
-                          aria-label={`Renk ${color}`}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
                 <div className="pointer-events-auto w-[min(340px,95vw)] rounded-[20px] border border-white/50 bg-white/95 shadow-[0_10px_50px_rgba(0,0,0,0.15)] backdrop-blur-xl">
                   {objState?.type === 'text' ? (
                     <div className="grid grid-cols-5 gap-1 p-2">
                       {/* Row 1: Renk | Düzenle | B | I | Kaldır */}
-                      <button
-                        type="button"
-                        onClick={() => setShowTextColorPalette((prev) => !prev)}
-                        className={cn(
-                          'flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50',
-                          showTextColorPalette ? 'bg-blue-50/70' : '',
-                        )}
-                      >
+                      <label className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50">
                         <div className="h-5 w-5 rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: objState.color }} />
                         <span className="text-[9px] font-bold text-gray-500">Renk</span>
-                      </button>
+                        <input
+                          type="color"
+                          value={colorInputValue(objState.color)}
+                          onChange={(e) => updateTextProp({ color: e.target.value })}
+                          className="sr-only"
+                        />
+                      </label>
 
                       <button
                         onClick={editText}
