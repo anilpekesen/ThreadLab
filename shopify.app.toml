@@ -18,11 +18,11 @@ shop_redact_url = "/webhooks"
 
   [[webhooks.subscriptions]]
   topics = [
-  "orders/fulfilled",
-  "orders/create",
-  "orders/cancelled",
   "orders/delete",
-  "orders/paid"
+  "orders/paid",
+  "orders/fulfilled",
+  "orders/cancelled",
+  "orders/create"
 ]
   uri = "/webhooks"
 
@@ -35,7 +35,6 @@ redirect_urls = [
   "https://app.printlabapp.com/auth/callback",
   "https://app.printlabapp.com/auth/callback/offline"
 ]
-rotate_offline_tokens = true
 
 [app_proxy]
 url = "https://app.printlabapp.com/proxy"

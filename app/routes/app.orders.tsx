@@ -73,13 +73,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       syncCount = await syncOrdersFromAdmin(admin, session.shop);
     } catch (e) {
       if (e instanceof Response && e.status >= 300 && e.status < 400) throw e;
-      if (e instanceof Response) {
-        const body = await e.text().catch(() => "");
-        console.error("[sync] Response error:", e.status, body.slice(0, 500));
-        syncError = `HTTP ${e.status}: ${body.slice(0, 200)}`;
+      const msg = e instanceof Response
+        ? await e.text().catch(() => "")
+        : (e instanceof Error ? e.message : String(e));
+      console.error("[sync] error:", msg.slice(0, 300));
+      if (msg.includes("Non-expiring access tokens")) {
+        syncError = "Shopify API token yenilenmesi bekleniyor. Yeni siparişler webhook üzerinden otomatik geliyor, manuel sync geçici olarak devre dışı.";
       } else {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error("[sync] Error:", msg);
         syncError = msg;
       }
     }
