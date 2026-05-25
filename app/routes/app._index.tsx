@@ -29,18 +29,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     getAnalytics(session.shop),
   ]);
 
-  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
-  const appBlockHandle = "tshirt-designer";
-  const newAppsSectionUrl = apiKey
-    ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=newAppsSection`
-    : null;
-  const mainSectionUrl = apiKey
-    ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=mainSection`
-    : null;
-
   const shopDomain = session.shop.replace(".myshopify.com", "");
 
-  return json({ stats, recentOrders: orders.slice(0, 10), newAppsSectionUrl, mainSectionUrl, analytics, shopDomain });
+  return json({ stats, recentOrders: orders.slice(0, 10), analytics, shopDomain });
 };
 
 const STATUS_KEYS: Record<string, "status.pending" | "status.preparing" | "status.printed" | "status.ready" | "status.shipped"> = {
@@ -56,7 +47,7 @@ const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attentio
 };
 
 export default function Index() {
-  const { stats, recentOrders, newAppsSectionUrl, mainSectionUrl, analytics, shopDomain } = useLoaderData<typeof loader>();
+  const { stats, recentOrders, analytics, shopDomain } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
   const { t, lang } = useTranslation();
@@ -231,24 +222,6 @@ export default function Index() {
             </Box>
           </Card>
         </InlineGrid>
-
-        {/* Tema kurulumu */}
-        <Card>
-          <Box padding="400">
-            <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">{t("dashboard.themeSetup")}</Text>
-              <Text as="p" tone="subdued">{t("dashboard.themeSetupDesc")}</Text>
-              <InlineStack gap="200">
-                {newAppsSectionUrl && (
-                  <Button url={newAppsSectionUrl} target="_blank" variant="primary">{t("dashboard.addAppsSection")}</Button>
-                )}
-                {mainSectionUrl && (
-                  <Button url={mainSectionUrl} target="_blank">{t("dashboard.addBlock")}</Button>
-                )}
-              </InlineStack>
-            </BlockStack>
-          </Box>
-        </Card>
 
         {/* Son siparişler — IndexTable */}
         <Card>

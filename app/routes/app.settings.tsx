@@ -156,7 +156,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     cartTransformStatus = "error";
   }
 
-  return json({ settings, saved, created, cartTransformStatus });
+  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+  const appBlockHandle = "tshirt-designer";
+  const newAppsSectionUrl = apiKey
+    ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=newAppsSection`
+    : null;
+  const mainSectionUrl = apiKey
+    ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=mainSection`
+    : null;
+
+  return json({ settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl });
 };
 
 async function writeSurchargeMetafield(
@@ -372,7 +381,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created, cartTransformStatus } = useLoaderData<typeof loader>();
+  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const fetcher = useFetcher<{ error?: string; success?: string }>();
   const { t, lang } = useTranslation();
@@ -560,6 +569,20 @@ export default function SettingsRoute() {
                     : "Open the theme editor and add the DesignKit block to display the design tool on your product page."}
                 </Text>
               </BlockStack>
+              {(newAppsSectionUrl || mainSectionUrl) && (
+                <InlineStack gap="200">
+                  {newAppsSectionUrl && (
+                    <Button url={newAppsSectionUrl} target="_blank" variant="primary">
+                      {lang === "tr" ? "Yeni Apps Section Ekle" : "Add Apps Section"}
+                    </Button>
+                  )}
+                  {mainSectionUrl && (
+                    <Button url={mainSectionUrl} target="_blank">
+                      {lang === "tr" ? "Ana Bölüme Ekle" : "Add to Main Section"}
+                    </Button>
+                  )}
+                </InlineStack>
+              )}
               <img
                 src="/tema-kurulumu.png"
                 alt="Tema kurulumu - DesignKit block settings"
