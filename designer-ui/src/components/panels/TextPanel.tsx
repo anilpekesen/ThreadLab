@@ -1,15 +1,28 @@
-import { Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw, X } from 'lucide-react';
 
 interface Props {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
   isEditing?: boolean;
+  onClose?: () => void;
 }
 
-export default function TextPanel({ value, onChange, onSubmit, isEditing = false }: Props) {
+export default function TextPanel({ value, onChange, onSubmit, isEditing = false, onClose }: Props) {
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <p className="text-base font-bold text-gray-800">{isEditing ? 'Yazıyı Düzenle' : 'Yazı Ekle'}</p>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95"
+          >
+            <X className="h-4 w-4" />
+            Kapat
+          </button>
+        )}
+      </div>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}

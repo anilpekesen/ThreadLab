@@ -1636,29 +1636,14 @@ export default function App() {
                 <div className="flex justify-center pt-3 pb-1">
                   <div className="h-1 w-10 rounded-full bg-gray-200" />
                 </div>
-                <div className="flex items-center justify-between px-4 py-2 md:px-6 md:py-3">
-                  <p className="text-base font-bold text-gray-800 md:text-lg">
-                    {activeTab === 'image' ? 'Medya Ekle' : activeTab === 'text' ? 'Yazı Ekle' : activeTab === 'layers' ? 'Katmanlar' : activeTab === 'templates' ? 'Şablonlar' : 'Kayıtlı Tasarımlar'}
-                  </p>
-                  <button
-                    onClick={() => {
-                      setActiveTab(null);
-                      setIsEditingText(false);
-                      setTextDraft('');
-                    }}
-                    className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95"
-                  >
-                    <X className="h-4 w-4" />
-                    Kapat
-                  </button>
-                </div>
 
-                <div className="max-h-[54vh] overflow-y-auto p-6">
+                <div className="max-h-[54vh] overflow-y-auto p-4 md:p-6">
                   {activeTab === 'image' && (
                     <ImagePanel
                       onAddImage={handleAddImage}
                       onRemoveBg={handleRemoveBg}
                       canRemoveBg={personalization.removeBgAvailable}
+                      onClose={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
                     />
                   )}
 
@@ -1668,11 +1653,16 @@ export default function App() {
                       onChange={setTextDraft}
                       onSubmit={handleSubmitText}
                       isEditing={isEditingText}
+                      onClose={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
                     />
                   )}
 
                   {activeTab === 'layers' && (
                     <div className="space-y-3 pr-2">
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-base font-bold text-gray-800">Katmanlar</p>
+                      <button onClick={() => setActiveTab(null)} className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"><X className="h-4 w-4" />Kapat</button>
+                    </div>
                       {reversedLayers.length === 0 ? (
                         <div className="py-12 text-center text-gray-400">
                           <Layers className="mx-auto mb-3 h-12 w-12 opacity-20" />
@@ -1737,15 +1727,27 @@ export default function App() {
                   )}
 
                   {activeTab === 'templates' && (
-                    <TemplatesPanel
-                      onApply={handleApplyTemplate}
-                      onAddImage={handleAddImage}
-                      shopTemplates={shopTemplates}
-                    />
+                    <>
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-base font-bold text-gray-800">Şablonlar</p>
+                        <button onClick={() => setActiveTab(null)} className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"><X className="h-4 w-4" />Kapat</button>
+                      </div>
+                      <TemplatesPanel
+                        onApply={handleApplyTemplate}
+                        onAddImage={handleAddImage}
+                        shopTemplates={shopTemplates}
+                      />
+                    </>
                   )}
 
                   {activeTab === 'saved' && (
-                    <SavedPanel onLoad={handleLoadSaved} />
+                    <>
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-base font-bold text-gray-800">Kayıtlı Tasarımlar</p>
+                        <button onClick={() => setActiveTab(null)} className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"><X className="h-4 w-4" />Kapat</button>
+                      </div>
+                      <SavedPanel onLoad={handleLoadSaved} />
+                    </>
                   )}
                 </div>
             </div>
