@@ -532,38 +532,28 @@ function PrintAreaEditor({
     <Card>
       <Box padding="300">
         <BlockStack gap="300">
-          <Text as="h3" variant="headingSm">{title}</Text>
-          <Text as="p" tone="subdued">
-            Sari kutu urunun gercek govde alanini, yesil kutu ise baski alanini temsil eder. Once urun alanini,
-            sonra baski alanini bu sinirin icinde ayarlayin.
-          </Text>
-          <InlineStack gap="200">
-            <Button
-              size="slim"
-              variant={activeTarget === "mockup" ? "primary" : "secondary"}
-              onClick={() => setActiveTarget("mockup")}
-            >
-              Urun alani
-            </Button>
-            <Button
-              size="slim"
-              variant={activeTarget === "print" ? "primary" : "secondary"}
-              onClick={() => setActiveTarget("print")}
-            >
-              Baski alani
-            </Button>
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="h3" variant="headingSm">{title}</Text>
+            <InlineStack gap="150">
+              <Button size="slim" variant={activeTarget === "mockup" ? "primary" : "secondary"} onClick={() => setActiveTarget("mockup")}>
+                Ürün alanı
+              </Button>
+              <Button size="slim" variant={activeTarget === "print" ? "primary" : "secondary"} onClick={() => setActiveTarget("print")}>
+                Baskı alanı
+              </Button>
+            </InlineStack>
           </InlineStack>
 
           {imageOptions.length > 0 && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {imageOptions.map((url, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => selectImage(url)}
                   style={{
-                    width: 48,
-                    height: 48,
+                    width: 44,
+                    height: 44,
                     borderRadius: 8,
                     overflow: "hidden",
                     border: activeImage === url ? "2.5px solid #0f766e" : "2px solid #e5e7eb",
@@ -592,7 +582,6 @@ function PrintAreaEditor({
               border: "1px solid rgba(15, 23, 42, 0.12)",
             }}
           >
-            {/* object-fit:cover matches Fabric.js cover scaling — centered, fills canvas, slight edge crop */}
             {activeImage && (
               <img
                 src={activeImage}
@@ -600,14 +589,7 @@ function PrintAreaEditor({
                 style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block", objectFit: "cover" }}
               />
             )}
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background:
-                  "linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.00) 60%, rgba(15,23,42,0.06) 100%)",
-              }}
-            />
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.00) 60%, rgba(15,23,42,0.06) 100%)" }} />
             <div
               style={{
                 position: "absolute",
@@ -628,16 +610,9 @@ function PrintAreaEditor({
                 position: "absolute",
                 left: `${((mockupX + mockupWidth) / PREVIEW_WIDTH) * 100}%`,
                 top: `${((mockupY + mockupHeight) / PREVIEW_HEIGHT) * 100}%`,
-                width: 18,
-                height: 18,
-                marginLeft: -9,
-                marginTop: -9,
-                borderRadius: 999,
-                background: "#d97706",
-                border: "2px solid white",
-                boxShadow: "0 4px 12px rgba(217, 119, 6, 0.35)",
-                cursor: "nwse-resize",
-                zIndex: 2,
+                width: 18, height: 18, marginLeft: -9, marginTop: -9,
+                borderRadius: 999, background: "#d97706", border: "2px solid white",
+                boxShadow: "0 4px 12px rgba(217, 119, 6, 0.35)", cursor: "nwse-resize", zIndex: 2,
               }}
               onPointerDown={(event) => startDrag(event, "mockup", "resize")}
             />
@@ -661,154 +636,41 @@ function PrintAreaEditor({
                 position: "absolute",
                 left: `${((x + width) / PREVIEW_WIDTH) * 100}%`,
                 top: `${((y + height) / PREVIEW_HEIGHT) * 100}%`,
-                width: 18,
-                height: 18,
-                marginLeft: -9,
-                marginTop: -9,
-                borderRadius: 999,
-                background: "#0f766e",
-                border: "2px solid white",
-                boxShadow: "0 4px 12px rgba(15, 118, 110, 0.35)",
-                cursor: "nwse-resize",
-                zIndex: 4,
+                width: 18, height: 18, marginLeft: -9, marginTop: -9,
+                borderRadius: 999, background: "#0f766e", border: "2px solid white",
+                boxShadow: "0 4px 12px rgba(15, 118, 110, 0.35)", cursor: "nwse-resize", zIndex: 4,
               }}
               onPointerDown={(event) => startDrag(event, "print", "resize")}
             />
           </div>
 
-          <Text as="h4" variant="headingSm">Urun / mockup alani</Text>
-          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
-            <TextField
-              label="Mockup X"
-              value={currentArea.mockupX}
-              onChange={(value) => onChange(patchAreaState(currentArea, { mockupX: value }))}
-              autoComplete="off"
-              type="number"
-            />
-            <TextField
-              label="Mockup Y"
-              value={currentArea.mockupY}
-              onChange={(value) => onChange(patchAreaState(currentArea, { mockupY: value }))}
-              autoComplete="off"
-              type="number"
-            />
-          </InlineGrid>
-          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
-            <TextField
-              label="Mockup genisligi"
-              value={currentArea.mockupWidth}
-              onChange={(value) => onChange(patchAreaState(currentArea, { mockupWidth: value }))}
-              autoComplete="off"
-              type="number"
-            />
-            <TextField
-              label="Mockup yuksekligi"
-              value={currentArea.mockupHeight}
-              onChange={(value) => onChange(patchAreaState(currentArea, { mockupHeight: value }))}
-              autoComplete="off"
-              type="number"
-            />
-          </InlineGrid>
-          <InlineStack gap="200">
-            <Button
-              size="slim"
-              onClick={() =>
-                onChange(
-                  patchAreaState(currentArea, {
-                    mockupX: String(Math.round((PREVIEW_WIDTH - mockupWidth) / 2)),
-                  }),
-                )
-              }
-            >
-              Mockup yatay ortala
+          {/* Centering shortcuts */}
+          <InlineStack gap="150" wrap>
+            <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { mockupX: String(Math.round((PREVIEW_WIDTH - mockupWidth) / 2)) }))}>
+              Ürün yatay ortala
             </Button>
-            <Button
-              size="slim"
-              onClick={() =>
-                onChange(
-                  patchAreaState(currentArea, {
-                    mockupY: String(Math.round((PREVIEW_HEIGHT - mockupHeight) / 2)),
-                  }),
-                )
-              }
-            >
-              Mockup dikey ortala
+            <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { mockupY: String(Math.round((PREVIEW_HEIGHT - mockupHeight) / 2)) }))}>
+              Ürün dikey ortala
+            </Button>
+            <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { x: String(Math.round(mockupX + (mockupWidth - width) / 2)) }))}>
+              Baskı yatay ortala
+            </Button>
+            <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { y: String(Math.round(mockupY + (mockupHeight - height) / 2)) }))}>
+              Baskı dikey ortala
             </Button>
           </InlineStack>
 
-          <Text as="h4" variant="headingSm">Baski alani</Text>
+          {/* Real print dimensions — critical for gang sheet calculations */}
           <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
             <TextField
-              label="Merkez X (sol-sağ ekseni)"
-              value={String(centerX)}
-              onChange={(value) => {
-                const cx = Number(value);
-                onChange(patchAreaState(currentArea, { x: String(Math.round(cx - width / 2)) }));
-              }}
-              helpText={`Mockup icinde sol: ${leftGap}px | sag: ${rightGap}px`}
-              autoComplete="off"
-              type="number"
-            />
-            <TextField
-              label="Y"
-              value={currentArea.y}
-              onChange={(value) => onChange(patchAreaState(currentArea, { y: value }))}
-              autoComplete="off"
-              type="number"
-            />
-          </InlineGrid>
-          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
-            <TextField
-              label="Kutu genisligi"
-              value={currentArea.width}
-              onChange={(value) => onChange(patchAreaState(currentArea, { width: value }))}
-              autoComplete="off"
-              type="number"
-            />
-            <TextField
-              label="Kutu yuksekligi"
-              value={currentArea.height}
-              onChange={(value) => onChange(patchAreaState(currentArea, { height: value }))}
-              autoComplete="off"
-              type="number"
-            />
-          </InlineGrid>
-          <InlineStack gap="200">
-            <Button
-              size="slim"
-              onClick={() =>
-                onChange(
-                  patchAreaState(currentArea, {
-                    x: String(Math.round(mockupX + (mockupWidth - width) / 2)),
-                  }),
-                )
-              }
-            >
-              Yatay ortala
-            </Button>
-            <Button
-              size="slim"
-              onClick={() =>
-                onChange(
-                  patchAreaState(currentArea, {
-                    y: String(Math.round(mockupY + (mockupHeight - height) / 2)),
-                  }),
-                )
-              }
-            >
-              Dikey ortala
-            </Button>
-          </InlineStack>
-          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
-            <TextField
-              label="Gercek baski genisligi (mm)"
+              label="Gerçek baskı genişliği (mm)"
               value={currentArea.realWidthMm}
               onChange={(value) => onChange({ ...currentArea, realWidthMm: value })}
               autoComplete="off"
               type="number"
             />
             <TextField
-              label="Gercek baski yuksekligi (mm)"
+              label="Gerçek baskı yüksekliği (mm)"
               value={currentArea.realHeightMm}
               onChange={(value) => onChange({ ...currentArea, realHeightMm: value })}
               autoComplete="off"
@@ -817,14 +679,14 @@ function PrintAreaEditor({
           </InlineGrid>
           <InlineGrid columns={{ xs: 1, md: 3 }} gap="300">
             <TextField
-              label="Safe margin"
+              label="Güvenli kenar (mm)"
               value={currentArea.safeMargin}
               onChange={(value) => onChange({ ...currentArea, safeMargin: value })}
               autoComplete="off"
               type="number"
             />
             <TextField
-              label="Bleed margin"
+              label="Taşma payı (mm)"
               value={currentArea.bleedMargin}
               onChange={(value) => onChange({ ...currentArea, bleedMargin: value })}
               autoComplete="off"
