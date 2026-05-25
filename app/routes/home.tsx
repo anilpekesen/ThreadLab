@@ -257,7 +257,7 @@ function buildHtml(lang: Lang): string {
   <meta property="og:site_name" content="PrintLabApp" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"PrintLabApp","applicationCategory":"BusinessApplication","operatingSystem":"Shopify","url":"https://printlabapp.com","offers":{"@type":"AggregateOffer","lowPrice":"9.99","highPrice":"79.99","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"PrintLabApp","url":"https://printlabapp.com","logo":"https://printlabapp.com/logo.png"}}
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"PrintLabApp","applicationCategory":"BusinessApplication","operatingSystem":"Shopify","url":"https://printlabapp.com","offers":{"@type":"AggregateOffer","lowPrice":"9.99","highPrice":"99.99","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"PrintLabApp","url":"https://printlabapp.com","logo":"https://printlabapp.com/logo.png"}}
   </script>
   <link rel="stylesheet" href="/landing-tokens.css" />
   <link rel="stylesheet" href="/landing.css" />

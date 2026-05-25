@@ -99,7 +99,7 @@ async function createShopifySubscription(
       ],
       returnUrl,
       test: IS_TEST,
-      trialDays: 7,
+      trialDays: 14,
     },
   );
 
@@ -328,16 +328,21 @@ export default function BillingPage() {
                 </>
               )}
 
-              {(isActive || isTrial) && analytics.shopifySubscriptionId && (
+              {(isActive || isTrial) && (
                 <>
                   <Divider />
-                  <Form method="post">
-                    <input type="hidden" name="intent" value="cancel" />
-                    <input type="hidden" name="subscriptionId" value={analytics.shopifySubscriptionId} />
-                    <Button tone="critical" variant="plain" submit loading={isLoading}>
-                      {t("billing.cancelSubscription")}
-                    </Button>
-                  </Form>
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {lang === "tr" ? "Aboneliği iptal etmek istiyorsanız:" : "To cancel your subscription:"}
+                    </Text>
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="cancel" />
+                      <input type="hidden" name="subscriptionId" value={analytics.shopifySubscriptionId ?? ""} />
+                      <Button tone="critical" variant="plain" submit loading={isLoading}>
+                        {t("billing.cancelSubscription")}
+                      </Button>
+                    </Form>
+                  </InlineStack>
                 </>
               )}
             </BlockStack>

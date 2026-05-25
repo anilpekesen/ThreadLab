@@ -1,6 +1,6 @@
 export const PLANS = {
   Starter: {
-    price: 19.99,
+    price: 9.99,
     maxProductTypes: 1,
     maxMonthlyOrders: 100,
     allowBackSurface: true,
@@ -25,7 +25,7 @@ export const PLANS = {
     },
   },
   Growth: {
-    price: 29.99,
+    price: 19.99,
     maxProductTypes: 2,
     maxMonthlyOrders: 500,
     allowBackSurface: true,
