@@ -75,18 +75,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       if (e instanceof Response && e.status >= 300 && e.status < 400) throw e;
       if (e instanceof Response) {
         const body = await e.text().catch(() => "");
-        if (body.includes("Non-expiring access tokens") || e.status === 401) {
-          syncError = "Shopify token yenilenmesi gerekiyor. Uygulamayı Shopify admin'den kaldırıp tekrar kurun.";
-        } else {
-          syncError = `Shopify API hatası (HTTP ${e.status})`;
-        }
+        console.error("[sync] Response error:", e.status, body.slice(0, 500));
+        syncError = `HTTP ${e.status}: ${body.slice(0, 200)}`;
       } else {
         const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes("Non-expiring access tokens")) {
-          syncError = "Shopify token yenilenmesi gerekiyor. Uygulamayı Shopify admin'den kaldırıp tekrar kurun.";
-        } else {
-          syncError = msg;
-        }
+        console.error("[sync] Error:", msg);
+        syncError = msg;
       }
     }
   }
