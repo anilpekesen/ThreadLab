@@ -281,25 +281,19 @@ async function _runMigrationsLocked() {
       )
   `);
 
-  // ── Deactivate product_settings for deleted product categories ────────────
-  // Products linked to a soft-deleted product_category should not show the
-  // designer on the storefront. Set isActive=false for any product_settings
-  // whose only category link is deleted.
+  // ── Deactivate all product_settings not linked to an active product_category ─
+  // product_categories is now the single source of truth. Any product_settings
+  // record that has no active (non-deleted) product_category link should be
+  // treated as inactive so it does not show the designer on the storefront.
   await query(`
     UPDATE product_settings ps
     SET config = config || '{"isActive": false}'::jsonb, updated_at = now()
     WHERE (config->>'isActive')::boolean IS NOT FALSE
-      AND EXISTS (
+      AND NOT EXISTS (
         SELECT 1 FROM product_categories pc
         WHERE pc.shop = ps.shop
           AND pc.shopify_product_id = ps.product_id
-          AND pc.deleted_at IS NOT NULL
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM product_categories pc2
-        WHERE pc2.shop = ps.shop
-          AND pc2.shopify_product_id = ps.product_id
-          AND pc2.deleted_at IS NULL
+          AND pc.deleted_at IS NULL
       )
   `);
 }
