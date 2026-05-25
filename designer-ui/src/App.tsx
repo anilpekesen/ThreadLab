@@ -1759,16 +1759,14 @@ export default function App() {
                   {objState?.type === 'text' ? (
                     <div className="grid grid-cols-5 gap-1 p-2">
                       {/* Row 1: Renk | Düzenle | B | I | Kaldır */}
-                      <label className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50">
+                      <button
+                        type="button"
+                        onClick={() => setShowTextColorPalette((prev) => !prev)}
+                        className={cn('flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50', showTextColorPalette ? 'bg-blue-50/70' : '')}
+                      >
                         <div className="h-5 w-5 rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: objState.color }} />
                         <span className="text-[9px] font-bold text-gray-500">Renk</span>
-                        <input
-                          type="color"
-                          value={colorInputValue(objState.color)}
-                          onChange={(e) => updateTextProp({ color: e.target.value })}
-                          className="sr-only"
-                        />
-                      </label>
+                      </button>
 
                       <button
                         onClick={editText}
@@ -1857,6 +1855,33 @@ export default function App() {
                         <Sparkles className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
                         <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">Ortala</span>
                       </button>
+
+                      {/* Renk paleti — Renk butonuna basınca açılır, grid altına yapışık */}
+                      {showTextColorPalette && (
+                        <div className="col-span-5 flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-2">
+                          {TEXT_COLOR_SWATCHES.map((color) => {
+                            const isActive = (objState.color ?? '#111827').toLowerCase() === color.toLowerCase();
+                            return (
+                              <button
+                                key={color}
+                                type="button"
+                                onClick={() => updateTextProp({ color })}
+                                className={cn('h-7 w-7 rounded-full border-2 transition-transform active:scale-90', isActive ? 'border-blue-500 shadow-md' : 'border-white shadow-sm')}
+                                style={{ backgroundColor: color }}
+                              />
+                            );
+                          })}
+                          <label className="flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-500 shadow-sm">
+                            Özel
+                            <input
+                              type="color"
+                              value={colorInputValue(objState.color)}
+                              onChange={(e) => updateTextProp({ color: e.target.value })}
+                              className="sr-only"
+                            />
+                          </label>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <>
