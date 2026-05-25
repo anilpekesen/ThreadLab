@@ -124,6 +124,11 @@
     window.addEventListener('message', function(e) {
       if (!e.data || !e.data.type) return;
 
+      if (e.data.type === 'DESIGNER_INACTIVE') {
+        roots.forEach(function(r) { r.style.display = 'none'; });
+        return;
+      }
+
       if (e.data.type === 'DESIGNER_ADD_TO_CART') {
         var items = Array.isArray(e.data.items) ? e.data.items : [];
         var props = e.data.properties || {};

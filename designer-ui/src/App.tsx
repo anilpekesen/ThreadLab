@@ -654,10 +654,18 @@ export default function App() {
     fetch(`/api/designer-config?${params.toString()}`, {
       headers: { Accept: 'application/json' },
     })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (res.status === 404) {
+          // Product type deleted or inactive — hide the designer iframe entirely
+          window.parent.postMessage({ type: 'DESIGNER_INACTIVE' }, '*');
+          document.body.style.display = 'none';
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
       .then((payload) => {
-        if (cancelled) return;
-        setPersonalization(payload ? normalizePersonalizationPayload(payload) : defaultPersonalization());
+        if (cancelled || payload === null) return;
+        setPersonalization(normalizePersonalizationPayload(payload));
       })
       .catch(() => {
         if (!cancelled) setPersonalization(defaultPersonalization());
