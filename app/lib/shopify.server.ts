@@ -144,13 +144,13 @@ export async function refreshAccessToken(shop: string, refreshToken: string): Pr
   };
 }
 
-export function shopifyGraphQL(
+export async function shopifyGraphQL(
   shop: string,
   accessToken: string,
   gqlQuery: string,
   variables?: Record<string, unknown>,
 ): Promise<Response> {
-  return fetch(`https://${shop}/admin/api/${API_VERSION}/graphql.json`, {
+  const resp = await fetch(`https://${shop}/admin/api/${API_VERSION}/graphql.json`, {
     method: "POST",
     headers: {
       "X-Shopify-Access-Token": accessToken,
@@ -158,6 +158,11 @@ export function shopifyGraphQL(
     },
     body: JSON.stringify({ query: gqlQuery, variables }),
   });
+  if (resp.status !== 200) {
+    const body = await resp.clone().text();
+    console.error(`[graphql] ${resp.status} from ${shop}:`, body.slice(0, 300));
+  }
+  return resp;
 }
 
 export function verifyWebhookHmac(rawBody: string, hmacHeader: string): boolean {
