@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-const API_VERSION = "2025-07";
+const API_VERSION = "2024-10";
 
 export function verifyHmac(query: URLSearchParams): boolean {
   const hmac = query.get("hmac");
