@@ -19,7 +19,7 @@ const html = `<!DOCTYPE html>
     }
     body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; min-height: 100vh; }
     header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
-    .logo { font-size: 20px; font-weight: 800; color: var(--brand); text-decoration: none; letter-spacing: -0.5px; }
+    .logo { text-decoration: none; display: flex; align-items: center; }
     nav a { margin-left: 16px; color: var(--muted); text-decoration: none; font-size: 14px; }
     nav a:hover { color: var(--brand); }
     .lang-btns { display: flex; gap: 6px; }
@@ -43,7 +43,7 @@ const html = `<!DOCTYPE html>
 </head>
 <body>
   <header>
-    <a href="/" class="logo">PrintLab</a>
+    <a href="/" class="logo"><img src="/logo.png" alt="PrintLabApp" height="36" /></a>
     <div style="display:flex;align-items:center;gap:20px">
       <nav>
         <a href="/terms-of-service">Terms of Service</a>

@@ -262,14 +262,13 @@ function buildHtml(lang: Lang): string {
   <link rel="stylesheet" href="/landing-tokens.css" />
   <link rel="stylesheet" href="/landing.css" />
   <style>
-    .lang-switcher{position:fixed;bottom:20px;right:20px;z-index:100;background:#fff;border:1px solid #e5e7eb;border-radius:99px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.10);color:#4f46e5;text-decoration:none;letter-spacing:0.04em;transition:background 0.15s;}
-    .lang-switcher:hover{background:#eef2ff;}
     .pp-cur{font-size:22px;font-weight:700;margin-right:2px;}
+    .nav-lang{display:flex;gap:3px;background:#f3f4f6;border-radius:99px;padding:3px;}
+    .nav-lang a{padding:5px 12px;border-radius:99px;font-size:12px;font-weight:700;color:#6b7280;text-decoration:none;transition:all 0.15s;letter-spacing:0.04em;}
+    .nav-lang a.active{background:#4f46e5;color:#fff;}
   </style>
 </head>
 <body>
-
-<a class="lang-switcher" href="/?lang=${other}" onclick="document.cookie='dk_lang=${other};path=/;max-age=31536000';">${t.switchLang}</a>
 
 <!-- ===== Nav ===== -->
 <header class="nav">
@@ -284,6 +283,10 @@ function buildHtml(lang: Lang): string {
       <a href="#sss">${t.nav.faq}</a>
     </nav>
     <div class="nav-cta">
+      <div class="nav-lang">
+        <a href="/" class="${lang === "tr" ? "active" : ""}" onclick="document.cookie='dk_lang=tr;path=/;max-age=31536000';">TR</a>
+        <a href="/" class="${lang === "en" ? "active" : ""}" onclick="document.cookie='dk_lang=en;path=/;max-age=31536000';">EN</a>
+      </div>
       <a class="link-muted" href="/app">${t.nav.login}</a>
       <a class="btn btn-primary btn-sm" href="${SHOPIFY_APP_URL}">
         ${t.nav.cta} ${arrowIcon}
