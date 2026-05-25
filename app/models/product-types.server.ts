@@ -16,9 +16,10 @@ export interface ShopProductType {
   updated_at: string;
 }
 
+// Returns only active (non-deleted) product types for display
 export async function getProductTypesForShop(shop: string): Promise<ShopProductType[]> {
   const result = await query<ShopProductType>(
-    "SELECT * FROM product_categories WHERE shop = $1 ORDER BY created_at ASC",
+    "SELECT * FROM product_categories WHERE shop = $1 AND deleted_at IS NULL ORDER BY created_at ASC",
     [shop],
   );
   return result.rows;
@@ -26,13 +27,23 @@ export async function getProductTypesForShop(shop: string): Promise<ShopProductT
 
 export async function getProductTypeById(id: string, shop: string): Promise<ShopProductType | null> {
   const result = await query<ShopProductType>(
-    "SELECT * FROM product_categories WHERE id = $1 AND shop = $2",
+    "SELECT * FROM product_categories WHERE id = $1 AND shop = $2 AND deleted_at IS NULL",
     [id, shop],
   );
   return result.rows[0] ?? null;
 }
 
-export async function getProductTypeCount(shop: string): Promise<number> {
+// Active count — for display / downgrade checks
+export async function getActiveProductTypeCount(shop: string): Promise<number> {
+  const result = await query<{ count: string }>(
+    "SELECT COUNT(*) AS count FROM product_categories WHERE shop = $1 AND deleted_at IS NULL",
+    [shop],
+  );
+  return Number(result.rows[0]?.count ?? 0);
+}
+
+// Total ever created (including deleted) — used for plan quota enforcement
+export async function getTotalProductTypeCount(shop: string): Promise<number> {
   const result = await query<{ count: string }>(
     "SELECT COUNT(*) AS count FROM product_categories WHERE shop = $1",
     [shop],
@@ -41,13 +52,13 @@ export async function getProductTypeCount(shop: string): Promise<number> {
 }
 
 export async function canCreateProductType(shop: string): Promise<{ allowed: boolean; used: number; limit: number; planKey: PlanKey }> {
-  const [planKey, used] = await Promise.all([
+  const [planKey, totalCreated] = await Promise.all([
     getShopPlan(shop),
-    getProductTypeCount(shop),
+    getTotalProductTypeCount(shop), // total ever created, not just active
   ]);
   const limit = PLANS[planKey].maxProductTypes;
-  const allowed = limit === -1 || used < limit;
-  return { allowed, used, limit, planKey };
+  const allowed = limit === -1 || totalCreated < limit;
+  return { allowed, used: totalCreated, limit, planKey };
 }
 
 export async function createProductType(
@@ -99,9 +110,10 @@ export async function updateProductType(
   return result.rows[0] ?? null;
 }
 
+// Soft delete — marks deleted_at so the slot cannot be recycled
 export async function deleteProductType(id: string, shop: string): Promise<void> {
   await query(
-    "DELETE FROM product_categories WHERE id = $1 AND shop = $2",
+    "UPDATE product_categories SET deleted_at = now() WHERE id = $1 AND shop = $2",
     [id, shop],
   );
 }

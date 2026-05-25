@@ -266,6 +266,9 @@ async function _runMigrationsLocked() {
       ON orders (shop, shopify_order_id, variant_id)
   `);
 
+  // ── Soft delete for product_categories (prevents slot-cycling exploit) ────
+  await query(`ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL`);
+
   // ── Clean up duplicate orders caused by empty variant_id migration ───────
   // Old records have variant_id=''. After per-variant migration, real variant
   // records were inserted alongside them creating duplicates. Delete the old
