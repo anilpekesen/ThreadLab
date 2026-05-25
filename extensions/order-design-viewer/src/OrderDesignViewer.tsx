@@ -41,7 +41,7 @@ interface DesignInfo {
   backPreviewUrl: string;
   frontPrintUrl: string;
   backPrintUrl: string;
-  appOrderUrl: string;
+  appOrderUrl: string | null;
 }
 
 function downloadUrl(fileUrl: string, filename: string): string {
@@ -95,11 +95,8 @@ function OrderDesignViewer() {
       const shopifyNumericId = orderId.includes('/') ? orderId.split('/').pop()! : orderId;
       let apiData: ApiResult | null = null;
       try {
-        // Use app proxy URL to avoid CORS — goes through Shopify's infrastructure
-        const proxyUrl = shopFull
-          ? `https://${shopFull}/apps/tshirt-designer/order-design?shopify_order_id=${shopifyNumericId}`
-          : `${APP_URL}/api/order-design?shopify_order_id=${shopifyNumericId}&shop=${encodeURIComponent(shopFull)}`;
-        const apiRes = await fetch(proxyUrl);
+        const apiUrl = `${APP_URL}/api/order-design?shopify_order_id=${shopifyNumericId}&shop=${encodeURIComponent(shopFull)}`;
+        const apiRes = await fetch(apiUrl);
         if (apiRes.ok) apiData = await apiRes.json() as ApiResult;
       } catch { /* fall through to custom attrs */ }
 
@@ -107,8 +104,7 @@ function OrderDesignViewer() {
       const backPreviewUrl  = apiData?.backPreviewUrl  || getAttr(attrs, '_back_preview_url')  || '';
       const frontPrintUrl   = apiData?.frontPrintUrl   || getAttr(attrs, '_front_print_url')   || '';
       const backPrintUrl    = apiData?.backPrintUrl    || getAttr(attrs, '_back_print_url')    || '';
-      // Always show a link: use API url if available, otherwise fall back to orders page
-      const appOrderUrl = apiData?.appOrderUrl || `${APP_URL}/app/orders?sync=1`;
+      const appOrderUrl = (apiData?.found && apiData.appOrderUrl) ? apiData.appOrderUrl : null;
 
       if (!frontPreviewUrl && !frontPrintUrl) { setLoading(false); return; }
 
@@ -172,11 +168,7 @@ function OrderDesignViewer() {
         {design.appOrderUrl && (
           <>
             <Divider />
-            <Link href={design.appOrderUrl} target="_blank">
-              {design.appOrderUrl.includes('sync=1')
-                ? 'Siparişleri senkronize et →'
-                : 'Sipariş detaylarını gör →'}
-            </Link>
+            <Link href={design.appOrderUrl} target="_blank">Sipariş detaylarını gör →</Link>
           </>
         )}
 

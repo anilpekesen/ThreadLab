@@ -19,7 +19,7 @@ function run(input) {
     const surchargeGid = line.surchargeVariantGid?.value ?? null;
     if (!surchargeGid) continue;
     const frontTotal = Math.max(0, parseInt(line.surchargeQtyFront?.value ?? "0") || 0);
-    const backTotal  = Math.max(0, parseInt(line.surchargeQtyBack?.value  ?? "0") || 0);
+    const backTotal = Math.max(0, parseInt(line.surchargeQtyBack?.value ?? "0") || 0);
     if (frontTotal === 0 && backTotal === 0) continue;
     const totalAmount = parseFloat(line.cost?.totalAmount?.amount ?? "0");
     const perUnitPrice = line.quantity > 0 ? (totalAmount / line.quantity).toFixed(2) : totalAmount.toFixed(2);
