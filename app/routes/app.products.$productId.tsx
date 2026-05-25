@@ -404,7 +404,7 @@ function PrintAreaEditor({
     setActiveImage(url);
     onChange({ ...area, mockupImageUrl: url });
   }
-  const [activeTarget, setActiveTarget] = useState<"mockup" | "print">("print");
+  const activeTarget = "print";
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<
     | {
@@ -532,17 +532,7 @@ function PrintAreaEditor({
     <Card>
       <Box padding="300">
         <BlockStack gap="300">
-          <InlineStack align="space-between" blockAlign="center">
-            <Text as="h3" variant="headingSm">{title}</Text>
-            <InlineStack gap="150">
-              <Button size="slim" variant={activeTarget === "mockup" ? "primary" : "secondary"} onClick={() => setActiveTarget("mockup")}>
-                Ürün alanı
-              </Button>
-              <Button size="slim" variant={activeTarget === "print" ? "primary" : "secondary"} onClick={() => setActiveTarget("print")}>
-                Baskı alanı
-              </Button>
-            </InlineStack>
-          </InlineStack>
+          <Text as="h3" variant="headingSm">{title}</Text>
 
           {imageOptions.length > 0 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -593,32 +583,6 @@ function PrintAreaEditor({
             <div
               style={{
                 position: "absolute",
-                left: `${(mockupX / PREVIEW_WIDTH) * 100}%`,
-                top: `${(mockupY / PREVIEW_HEIGHT) * 100}%`,
-                width: `${(mockupWidth / PREVIEW_WIDTH) * 100}%`,
-                height: `${(mockupHeight / PREVIEW_HEIGHT) * 100}%`,
-                border: activeTarget === "mockup" ? "2px solid #d97706" : "2px solid rgba(217, 119, 6, 0.8)",
-                background: activeTarget === "mockup" ? "rgba(245, 158, 11, 0.14)" : "rgba(245, 158, 11, 0.08)",
-                boxSizing: "border-box",
-                cursor: "move",
-                zIndex: 1,
-              }}
-              onPointerDown={(event) => startDrag(event, "mockup", "move")}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: `${((mockupX + mockupWidth) / PREVIEW_WIDTH) * 100}%`,
-                top: `${((mockupY + mockupHeight) / PREVIEW_HEIGHT) * 100}%`,
-                width: 18, height: 18, marginLeft: -9, marginTop: -9,
-                borderRadius: 999, background: "#d97706", border: "2px solid white",
-                boxShadow: "0 4px 12px rgba(217, 119, 6, 0.35)", cursor: "nwse-resize", zIndex: 2,
-              }}
-              onPointerDown={(event) => startDrag(event, "mockup", "resize")}
-            />
-            <div
-              style={{
-                position: "absolute",
                 left: `${(x / PREVIEW_WIDTH) * 100}%`,
                 top: `${(y / PREVIEW_HEIGHT) * 100}%`,
                 width: `${(width / PREVIEW_WIDTH) * 100}%`,
@@ -644,19 +608,12 @@ function PrintAreaEditor({
             />
           </div>
 
-          {/* Centering shortcuts */}
-          <InlineStack gap="150" wrap>
-            <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { mockupX: String(Math.round((PREVIEW_WIDTH - mockupWidth) / 2)) }))}>
-              Ürün yatay ortala
-            </Button>
-            <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { mockupY: String(Math.round((PREVIEW_HEIGHT - mockupHeight) / 2)) }))}>
-              Ürün dikey ortala
-            </Button>
+          <InlineStack gap="150">
             <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { x: String(Math.round(mockupX + (mockupWidth - width) / 2)) }))}>
-              Baskı yatay ortala
+              Yatay ortala
             </Button>
             <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { y: String(Math.round(mockupY + (mockupHeight - height) / 2)) }))}>
-              Baskı dikey ortala
+              Dikey ortala
             </Button>
           </InlineStack>
 
