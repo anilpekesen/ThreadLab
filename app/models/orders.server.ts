@@ -347,8 +347,11 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     errors?: Array<{ message: string }>;
   };
 
-  if (data.errors?.length) {
-    throw new Error(data.errors.map((e) => e.message).join(", "));
+  if (data.errors) {
+    const errMsg = Array.isArray(data.errors)
+      ? data.errors.map((e) => e.message).join(", ")
+      : String(data.errors);
+    throw new Error(errMsg);
   }
 
   const shopifyOrders = data.data?.orders?.nodes ?? [];
@@ -564,8 +567,12 @@ async function fulfillSingleShopifyOrder(admin: AdminClient, shopifyOrderId: str
     errors?: Array<{ message: string }>;
   };
 
-  if (foData.errors?.length) {
-    throw new Error(`GraphQL errors querying fulfillment orders: ${foData.errors.map(e => e.message).join(", ")}`);
+  if (foData.errors) {
+    const errMsg = Array.isArray(foData.errors)
+      ? foData.errors.map(e => e.message).join(", ")
+      : String(foData.errors);
+    console.error(`[fulfill] GraphQL errors for order ${shopifyOrderId}:`, errMsg);
+    throw new Error(`GraphQL errors querying fulfillment orders: ${errMsg}`);
   }
 
   const allFOs = foData.data?.order?.fulfillmentOrders?.nodes ?? [];
