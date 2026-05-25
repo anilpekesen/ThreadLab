@@ -137,6 +137,45 @@ export async function getDashboardStats(shop: string) {
   };
 }
 
+export async function getProductionAnalytics(shop: string) {
+  await ensureMigrations();
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+  const [avgFulfill, weekCount, lateCount, dailyCounts] = await Promise.all([
+    query<{ avg_hours: string | null }>(
+      `SELECT ROUND(AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600)::numeric, 1) AS avg_hours
+       FROM orders
+       WHERE shop = $1 AND production_status = 'shipped' AND updated_at IS NOT NULL AND created_at >= $2`,
+      [shop, thirtyDaysAgo],
+    ),
+    query<{ count: string }>(
+      `SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != '' AND created_at >= $2`,
+      [shop, sevenDaysAgo],
+    ),
+    query<{ count: string }>(
+      `SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != ''
+       AND production_status IN ('pending', 'preparing') AND created_at < $2`,
+      [shop, twoDaysAgo],
+    ),
+    query<{ day: string; count: string }>(
+      `SELECT DATE(created_at AT TIME ZONE 'Europe/Istanbul') AS day, COUNT(*) AS count
+       FROM orders WHERE shop = $1 AND design_token != '' AND created_at >= $2
+       GROUP BY day ORDER BY day ASC`,
+      [shop, sevenDaysAgo],
+    ),
+  ]);
+
+  const avgHours = avgFulfill.rows[0]?.avg_hours ? parseFloat(avgFulfill.rows[0].avg_hours) : null;
+  return {
+    avgFulfillmentHours: avgHours,
+    weekCount: Number(weekCount.rows[0].count),
+    lateCount: Number(lateCount.rows[0].count),
+    dailyCounts: dailyCounts.rows.map((r) => ({ day: r.day, count: Number(r.count) })),
+  };
+}
+
 export async function getOrder(id: string): Promise<Order | null> {
   await ensureMigrations();
   const result = await query<DbRow>(
