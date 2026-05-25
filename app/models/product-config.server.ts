@@ -573,6 +573,10 @@ export async function findConfigForStorefront(shop: string, productId: string, h
     productType: String(storedConfig?.productType || "apparel"),
   });
   const config = normalizeProductConfig(storedConfig, fallback);
+
+  // Product type was deleted — treat as if no designer config exists
+  if (!config.isActive) return null;
+
   const allAreas = await readPrintAreas(shop);
   const printAreas = allAreas.filter((area) => area.productId === storedProductId);
 
