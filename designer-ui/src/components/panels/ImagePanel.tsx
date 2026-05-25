@@ -1,8 +1,10 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Loader2, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
 import { compressImage, generateId } from '@/utils/compress';
 import type { UploadedImage } from '@/types';
+
+const CONSENT_KEY = 'printlab_image_rights_accepted';
 
 interface Props {
   onAddImage: (url: string) => void;
@@ -14,6 +16,13 @@ interface Props {
 export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState('');
+  const [consentAccepted, setConsentAccepted] = useState(() => {
+    try { return localStorage.getItem(CONSENT_KEY) === '1'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(CONSENT_KEY, consentAccepted ? '1' : '0'); } catch { /* ignore */ }
+  }, [consentAccepted]);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const [urlLoading, setUrlLoading] = useState(false);
   const [urlError, setUrlError] = useState('');
@@ -94,11 +103,32 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
       {/* Upload tab */}
       {activeSource === 'upload' && (
         <>
+          {/* Copyright consent — must be accepted before any upload action */}
+          <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border-2 p-4 transition-all ${consentAccepted ? 'border-green-300 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+            <input
+              type="checkbox"
+              checked={consentAccepted}
+              onChange={(e) => setConsentAccepted(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-green-600"
+            />
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-bold text-gray-800">
+                Bu görselin kullanım ve baskı hakkına sahibim ya da gerekli izinleri aldım.
+              </span>
+              <span className="text-xs text-gray-500">
+                Telif hakkı ihlali bildirimi halinde ilgili sipariş veya ürün durdurulabilir.{' '}
+                <a href="https://app.printlabapp.com/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                  Kullanım Koşulları
+                </a>
+              </span>
+            </div>
+          </label>
+
           <div
-            onDrop={onDrop}
-            onDragOver={(e) => e.preventDefault()}
-            onClick={() => fileRef.current?.click()}
-            className="group relative cursor-pointer rounded-[24px] border-2 border-dashed border-gray-200 px-6 py-8 transition-all hover:border-blue-400 hover:bg-blue-50/40"
+            onDrop={consentAccepted ? onDrop : undefined}
+            onDragOver={consentAccepted ? (e) => e.preventDefault() : undefined}
+            onClick={() => consentAccepted && fileRef.current?.click()}
+            className={`group relative rounded-[24px] border-2 border-dashed px-6 py-8 transition-all ${consentAccepted ? 'cursor-pointer border-gray-200 hover:border-blue-400 hover:bg-blue-50/40' : 'cursor-not-allowed border-gray-100 opacity-50'}`}
           >
             <div className="flex cursor-pointer flex-col items-center justify-center gap-4 text-center">
               <input
@@ -126,14 +156,15 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                 <input
                   type="text"
                   value={imageUrl}
+                  disabled={!consentAccepted}
                   onChange={(e) => { setImageUrl(e.target.value); setUrlError(''); }}
-                  onKeyDown={async (e) => { if (e.key === 'Enter') await handleAddFromUrl(); }}
+                  onKeyDown={async (e) => { if (e.key === 'Enter' && consentAccepted) await handleAddFromUrl(); }}
                   placeholder="Veya görsel URL yapıştırın..."
-                  className="w-full rounded-2xl border border-transparent bg-gray-50 py-3.5 pl-11 pr-4 text-sm outline-none transition-all focus:border-blue-400 focus:bg-white"
+                  className="w-full rounded-2xl border border-transparent bg-gray-50 py-3.5 pl-11 pr-4 text-sm outline-none transition-all focus:border-blue-400 focus:bg-white disabled:opacity-50"
                 />
               </div>
               <button
-                disabled={urlLoading}
+                disabled={urlLoading || !consentAccepted}
                 onClick={handleAddFromUrl}
                 className="flex items-center gap-1.5 rounded-2xl bg-gray-100 px-6 py-3.5 font-bold text-gray-400 transition-colors hover:bg-gray-200 disabled:opacity-50"
               >

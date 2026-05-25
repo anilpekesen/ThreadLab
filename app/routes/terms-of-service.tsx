@@ -115,8 +115,20 @@ const html = `<!DOCTYPE html>
       <h2>11. Uygulanacak Hukuk</h2>
       <p>Bu sözleşme Türk Hukuku'na tabidir. Uyuşmazlıklarda İstanbul Mahkemeleri yetkilidir.</p>
 
-      <h2>12. İletişim</h2>
+      <h2>12. Yüklenen İçerikler ve Telif Hakkı</h2>
+      <p>Müşterilerin tasarım editörüne yüklediği her görsel için aşağıdaki kurallar geçerlidir:</p>
+      <ul>
+        <li>Kullanıcı, yüklediği görselin <strong>kullanım ve baskı hakkına sahip olduğunu veya gerekli izinleri aldığını</strong> sisteme onay vererek beyan eder.</li>
+        <li>Bu onay olmadan görsel yükleme işlemi tamamlanamaz.</li>
+        <li>Telif hakkı, ticari marka veya lisans ihlali içerdiği bildirilen görseller kapsamındaki <strong>siparişler ve ürünler derhal durdurulabilir</strong>.</li>
+        <li>PrintLab, meşru bir ihlal bildirimi (DMCA veya eşdeğeri) alması halinde ilgili tasarım dosyalarını ve sipariş kayıtlarını <strong>hak sahibine veya yetkili makamlara iletme hakkını</strong> saklı tutar.</li>
+        <li>İhlal nedeniyle doğan hukuki sorumluluk, içeriği yükleyen kullanıcıya aittir; PrintLab aracı platform konumundadır.</li>
+      </ul>
+      <div class="warning"><p>⚠️ Fikri mülkiyet hakkı ihlali içeren sipariş/ürün tespitinde ya da yetkili bildirim alınmasında söz konusu sipariş veya ürün önceden bildirim yapılmaksızın durdurulabilir.</p></div>
+
+      <h2>13. İletişim</h2>
       <p>Sorularınız için: <a href="mailto:anpekesen@gmail.com">anpekesen@gmail.com</a></p>
+      <p>Telif hakkı bildirimi için: <a href="mailto:anpekesen@gmail.com">anpekesen@gmail.com</a> (Konu: DMCA / Telif Bildirimi)</p>
     </div>
 
     <!-- ENGLISH -->
@@ -175,8 +187,20 @@ const html = `<!DOCTYPE html>
       <h2>11. Governing Law</h2>
       <p>This agreement is governed by Turkish Law. Istanbul Courts have jurisdiction over disputes.</p>
 
-      <h2>12. Contact</h2>
+      <h2>12. User-Uploaded Content &amp; Copyright</h2>
+      <p>The following rules apply to every image uploaded by customers in the design editor:</p>
+      <ul>
+        <li>By checking the consent box, the user <strong>declares that they own the usage and print rights to the uploaded image, or have obtained the necessary permissions</strong>.</li>
+        <li>No image can be uploaded without this consent.</li>
+        <li>Orders and products involving images reported as infringing on copyright, trademarks, or licenses <strong>may be suspended immediately</strong>.</li>
+        <li>Upon receiving a legitimate infringement notice (DMCA or equivalent), PrintLab <strong>reserves the right to share relevant design files and order records with rights holders or competent authorities</strong>.</li>
+        <li>Legal liability arising from infringement rests with the user who uploaded the content; PrintLab acts as an intermediary platform.</li>
+      </ul>
+      <div class="warning"><p>⚠️ If an order or product is found to contain intellectual property infringement, or upon receipt of an authorised notice, the relevant order or product may be suspended without prior notice.</p></div>
+
+      <h2>13. Contact</h2>
       <p>For inquiries: <a href="mailto:anpekesen@gmail.com">anpekesen@gmail.com</a></p>
+      <p>For copyright notices: <a href="mailto:anpekesen@gmail.com">anpekesen@gmail.com</a> (Subject: DMCA / Copyright Notice)</p>
     </div>
 
   </div>
