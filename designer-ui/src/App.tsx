@@ -1636,9 +1636,10 @@ export default function App() {
                       setIsEditingText(false);
                       setTextDraft('');
                     }}
-                    className="rounded-full p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                    className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95"
                   >
-                    <X className="h-5 w-5 md:h-6 md:w-6" />
+                    <X className="h-4 w-4" />
+                    Kapat
                   </button>
                 </div>
 

@@ -219,13 +219,55 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
           {uploadedImages.length > 0 && (
             <div className="space-y-3">
               <p className="text-xs font-bold uppercase tracking-wide text-gray-400">Son Yüklemeler</p>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+
+              {/* Mobile: liste görünümü */}
+              <div className="flex flex-col gap-2 md:hidden">
+                {uploadedImages.map((img) => (
+                  <div key={img.id} className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-2">
+                    <img src={img.dataUrl} alt={img.name} className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-700">{img.name || 'Görsel'}</span>
+                    <div className="flex shrink-0 gap-2">
+                      {canRemoveBg && (
+                        <button
+                          disabled={isBgRemoving}
+                          onClick={async () => {
+                            const result = await onRemoveBg(img.serverUrl ?? img.dataUrl);
+                            if (result) {
+                              addUploadedImage({ id: generateId(), dataUrl: result, serverUrl: result, name: `${img.name} (temizlenmiş)`, addedAt: Date.now() });
+                              onAddImage(result);
+                            }
+                          }}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-600 disabled:opacity-40"
+                          title="Arka planı kaldır"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeUploadedImage(img.id)}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 text-red-500"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)}
+                        className="flex h-10 items-center rounded-xl bg-blue-500 px-4 text-sm font-bold text-white"
+                      >
+                        Ekle
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop: grid görünümü */}
+              <div className="hidden grid-cols-4 gap-3 md:grid">
                 {uploadedImages.map((img) => (
                   <div key={img.id} className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100">
-                    <div className="block aspect-square w-full">
+                    <div className="aspect-square w-full">
                       <img src={img.dataUrl} alt={img.name} className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]" />
                     </div>
-                    <div className="absolute inset-x-0 bottom-0 flex gap-1 bg-gradient-to-t from-black/70 p-1.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                    <div className="absolute inset-x-0 bottom-0 flex gap-1 bg-gradient-to-t from-black/70 p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
                       <button
                         className="flex-1 rounded-lg bg-blue-500 px-2 py-1 text-[10px] font-bold text-white transition-colors hover:bg-blue-600"
                         onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)}
@@ -239,13 +281,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
                           onClick={async () => {
                             const result = await onRemoveBg(img.serverUrl ?? img.dataUrl);
                             if (result) {
-                              addUploadedImage({
-                                id: generateId(),
-                                dataUrl: result,
-                                serverUrl: result,
-                                name: `${img.name} (temizlenmiş)`,
-                                addedAt: Date.now(),
-                              });
+                              addUploadedImage({ id: generateId(), dataUrl: result, serverUrl: result, name: `${img.name} (temizlenmiş)`, addedAt: Date.now() });
                               onAddImage(result);
                             }
                           }}
