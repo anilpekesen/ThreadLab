@@ -26,9 +26,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
 
   if (!config) {
-    return json({
-      settings: { surchargeVariantId, removeBgAvailable },
-    });
+    return json({ error: 'Not found' }, { status: 404 });
   }
 
   const storefrontSettings = toStorefrontSettings(config.settings);
