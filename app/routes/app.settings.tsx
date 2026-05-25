@@ -517,10 +517,6 @@ export default function SettingsRoute() {
               <Box padding="400">
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">{t("settings.wavespeedTitle")}</Text>
-                  <Text as="p" tone="subdued" variant="bodySm">
-                    AI arka plan kaldırma servisi. Mağazalara plana göre kota tanımlanır;
-                    Growth: 50/ay · Pro: 500/ay · Business: sınırsız.
-                  </Text>
                   <InlineStack gap="200" blockAlign="center">
                     <Badge tone="success">Aktif</Badge>
                     <Text as="p" variant="bodySm" tone="subdued">
