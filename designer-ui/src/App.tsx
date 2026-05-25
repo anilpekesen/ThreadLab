@@ -1856,32 +1856,6 @@ export default function App() {
                         <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">Ortala</span>
                       </button>
 
-                      {/* Renk paleti — Renk butonuna basınca açılır, grid altına yapışık */}
-                      {showTextColorPalette && (
-                        <div className="col-span-5 flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-2">
-                          {TEXT_COLOR_SWATCHES.map((color) => {
-                            const isActive = (objState.color ?? '#111827').toLowerCase() === color.toLowerCase();
-                            return (
-                              <button
-                                key={color}
-                                type="button"
-                                onClick={() => updateTextProp({ color })}
-                                className={cn('h-7 w-7 rounded-full border-2 transition-transform active:scale-90', isActive ? 'border-blue-500 shadow-md' : 'border-white shadow-sm')}
-                                style={{ backgroundColor: color }}
-                              />
-                            );
-                          })}
-                          <label className="flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-500 shadow-sm">
-                            Özel
-                            <input
-                              type="color"
-                              value={colorInputValue(objState.color)}
-                              onChange={(e) => updateTextProp({ color: e.target.value })}
-                              className="sr-only"
-                            />
-                          </label>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <>
@@ -1922,6 +1896,33 @@ export default function App() {
                   )}
                 </div>
                 </div>
+            </div>
+          )}
+
+          {/* Renk paleti — ekran altına sabit panel, yazıyı kapatmaz */}
+          {selectedObj && objState?.type === 'text' && showTextColorPalette && !activeTab && !showPreview && (
+            <div className="fixed bottom-0 left-0 right-0 z-[101] flex flex-wrap items-center justify-center gap-2 border-t border-gray-100 bg-white/97 px-4 py-3 shadow-[0_-8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl">
+              {TEXT_COLOR_SWATCHES.map((color) => {
+                const isActive = (objState.color ?? '#111827').toLowerCase() === color.toLowerCase();
+                return (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => updateTextProp({ color })}
+                    className={cn('h-8 w-8 rounded-full border-2 transition-transform active:scale-90', isActive ? 'border-blue-500 shadow-md scale-110' : 'border-white shadow-sm')}
+                    style={{ backgroundColor: color }}
+                  />
+                );
+              })}
+              <label className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 text-[11px] font-bold text-gray-500 shadow-sm">
+                Özel
+                <input
+                  type="color"
+                  value={colorInputValue(objState.color)}
+                  onChange={(e) => updateTextProp({ color: e.target.value })}
+                  className="sr-only"
+                />
+              </label>
             </div>
           )}
 
