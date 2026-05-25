@@ -124,8 +124,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       f.apiType === "cart_transform" || f.apiType === "purchase.cart-transform.run"
     );
 
+    console.log("[cart-transform] shopifyFunctions:", JSON.stringify(functions));
     if (!cartFn) {
-      cartTransformStatus = "function_not_found";
+      const list = functions.map((f) => `${f.title}(${f.apiType})`).join(" | ") || "HİÇ YOK";
+      cartTransformStatus = `function_not_found:${list}`;
     } else {
       const alreadyRegistered = transforms.some((t) => t.functionId === cartFn.id);
       if (alreadyRegistered) {
