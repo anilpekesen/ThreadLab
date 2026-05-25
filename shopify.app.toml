@@ -9,6 +9,11 @@ automatically_update_urls_on_dev = false
 [webhooks]
 api_version = "2026-07"
 
+[webhooks.privacy_compliance]
+customers_data_request_url = "/webhooks"
+customers_redact_url = "/webhooks"
+shop_redact_url = "/webhooks"
+
 [[webhooks.subscriptions]]
 topics = ["orders/create"]
 uri = "/webhooks"
