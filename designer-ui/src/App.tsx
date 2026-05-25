@@ -1627,9 +1627,9 @@ export default function App() {
           {activeTab && (
             <div className="absolute bottom-0 left-0 z-50 w-full overflow-hidden rounded-t-[32px] border-t border-gray-100 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
                 <div className="flex items-center justify-between border-b border-gray-50 px-4 py-3 md:px-6 md:py-4">
-                  <h3 className="text-base font-bold text-gray-800 md:text-lg">
+                  <p className="text-base font-bold text-gray-800 md:text-lg">
                     {activeTab === 'image' ? 'Medya Ekle' : activeTab === 'text' ? 'Yazı Ekle' : activeTab === 'layers' ? 'Katmanlar' : activeTab === 'templates' ? 'Şablonlar' : 'Kayıtlı Tasarımlar'}
-                  </h3>
+                  </p>
                   <button
                     onClick={() => {
                       setActiveTab(null);
@@ -1955,7 +1955,7 @@ export default function App() {
                 onClick={(e) => e.stopPropagation()}
               >
                   <div className="flex flex-none items-center justify-between border-b border-gray-100 bg-white px-5 py-4 md:px-8 md:py-6">
-                    <h3 className="text-lg font-black md:text-xl">Tasarım Önizleme</h3>
+                    <p className="text-lg font-black md:text-xl">Tasarım Önizleme</p>
                     <button onClick={() => setShowPreview(false)} className="rounded-full p-2 transition-colors hover:bg-gray-100">
                       <X className="h-6 w-6 text-gray-500" />
                     </button>
@@ -2137,7 +2137,7 @@ export default function App() {
         <div className="flex w-full flex-none flex-col overflow-y-auto border-t border-gray-100 bg-white layout:w-[300px] layout:min-w-[300px] layout:border-l layout:border-t-0 lg:w-[340px] lg:min-w-[340px] xl:w-[380px] xl:min-w-[380px]">
           {config?.productTitle && (
             <div className="border-b border-gray-100 px-3 py-3">
-              <h2 className="text-xs font-bold leading-snug text-gray-900">{config.productTitle}</h2>
+              <p className="text-xs font-bold leading-snug text-gray-900">{config.productTitle}</p>
             </div>
           )}
 
