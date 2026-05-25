@@ -18,7 +18,7 @@ import {
   Box, Divider, Grid, Thumbnail, Banner,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
-import { getOrder, getSiblingOrders, updateOrderStatus, fulfillShopifyOrders } from "~/models/orders.server";
+import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
 
@@ -182,14 +182,26 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const form = await request.formData();
   const status = form.get("status") as string;
   const appOrderId = params.id ?? "";
-  await updateOrderStatus(appOrderId, status);
-  if (status === "shipped" && appOrderId) {
+
+  if (status === "shipped") {
+    // Mark all variants of this Shopify order as shipped (not just this one row)
+    const order = await getOrder(appOrderId);
+    let allIds = [appOrderId];
+    if (order?.shopifyOrderId) {
+      // Pass "" as excludeId — no UUID matches empty string, so returns ALL rows for this Shopify order
+      const all = await getSiblingOrders(session.shop, order.shopifyOrderId, "");
+      allIds = [...new Set([appOrderId, ...all.map((s) => s.id)])];
+    }
+    await bulkUpdateStatus(allIds, "shipped");
     try {
-      await fulfillShopifyOrders(admin, session.shop, [appOrderId]);
+      await fulfillShopifyOrders(admin, session.shop, allIds);
     } catch (err) {
       console.error("[fulfill] order detail ship error:", err);
     }
+  } else {
+    await updateOrderStatus(appOrderId, status);
   }
+
   return redirect(`/app/orders/${params.id}`);
 };
 
