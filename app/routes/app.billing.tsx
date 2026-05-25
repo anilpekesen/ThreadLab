@@ -9,6 +9,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
 import { shopifyGraphQL } from "~/lib/shopify.server";
+import { getValidAccessToken } from "~/lib/session.server";
 import { query } from "~/lib/db.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
 import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/models/billing.server";
@@ -25,12 +26,6 @@ export const headers = () => ({
   "Pragma": "no-cache",
 });
 
-async function getAccessToken(shop: string): Promise<string | null> {
-  const result = await query(`SELECT "accessToken" FROM shopify_sessions WHERE id = $1`, [
-    `offline_${shop}`,
-  ]);
-  return (result.rows[0]?.accessToken as string | undefined) ?? null;
-}
 
 async function checkShopifySubscription(
   shop: string,
@@ -176,7 +171,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const shop = session.shop;
 
-  const accessToken = await getAccessToken(shop);
+  const accessToken = await getValidAccessToken(shop);
   if (accessToken) {
     const { hasActivePayment, subscriptionId, planName } = await checkShopifySubscription(
       shop,
@@ -210,7 +205,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const form = await request.formData();
   const intent = form.get("intent") as string;
 
-  const accessToken = await getAccessToken(shop);
+  const accessToken = await getValidAccessToken(shop);
   if (!accessToken) return redirect("/auth/login");
 
   if (intent === "subscribe") {

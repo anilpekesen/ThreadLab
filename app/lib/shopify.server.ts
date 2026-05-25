@@ -71,7 +71,13 @@ export function buildAuthUrl(shop: string, state: string): string {
   );
 }
 
-export async function exchangeCodeForToken(shop: string, code: string): Promise<string> {
+export interface TokenData {
+  accessToken: string;
+  expiresAt: Date | null;
+  refreshToken: string | null;
+}
+
+export async function exchangeCodeForToken(shop: string, code: string): Promise<TokenData> {
   const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -87,8 +93,55 @@ export async function exchangeCodeForToken(shop: string, code: string): Promise<
     throw new Error(`Token exchange failed: ${text}`);
   }
 
-  const data = (await response.json()) as { access_token: string };
-  return data.access_token;
+  const data = (await response.json()) as {
+    access_token: string;
+    expires_in?: number;
+    refresh_token?: string;
+  };
+
+  const expiresAt = data.expires_in
+    ? new Date(Date.now() + data.expires_in * 1000)
+    : null;
+
+  return {
+    accessToken: data.access_token,
+    expiresAt,
+    refreshToken: data.refresh_token ?? null,
+  };
+}
+
+export async function refreshAccessToken(shop: string, refreshToken: string): Promise<TokenData> {
+  const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: process.env.SHOPIFY_API_KEY,
+      client_secret: process.env.SHOPIFY_API_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Token refresh failed: ${text}`);
+  }
+
+  const data = (await response.json()) as {
+    access_token: string;
+    expires_in?: number;
+    refresh_token?: string;
+  };
+
+  const expiresAt = data.expires_in
+    ? new Date(Date.now() + data.expires_in * 1000)
+    : null;
+
+  return {
+    accessToken: data.access_token,
+    expiresAt,
+    refreshToken: data.refresh_token ?? null,
+  };
 }
 
 export function shopifyGraphQL(

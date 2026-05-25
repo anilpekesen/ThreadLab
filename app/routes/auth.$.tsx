@@ -47,13 +47,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return new Response("OAuth state mismatch", { status: 403 });
     }
 
-    const accessToken = await exchangeCodeForToken(shop, code);
+    const tokenData = await exchangeCodeForToken(shop, code);
 
     await query(
-      `INSERT INTO shopify_sessions (id, shop, state, "isOnline", scope, expires, "accessToken")
-       VALUES ($1, $2, '', false, $3, null, $4)
-       ON CONFLICT (id) DO UPDATE SET "accessToken" = $4, scope = $3`,
-      [`offline_${shop}`, shop, SCOPES, accessToken],
+      `INSERT INTO shopify_sessions (id, shop, state, "isOnline", scope, expires, "accessToken", "refreshToken")
+       VALUES ($1, $2, '', false, $3, $4, $5, $6)
+       ON CONFLICT (id) DO UPDATE SET "accessToken" = $5, scope = $3, expires = $4, "refreshToken" = $6`,
+      [`offline_${shop}`, shop, SCOPES, tokenData.expiresAt, tokenData.accessToken, tokenData.refreshToken],
     );
 
     const sessionCookie = await createShopSession(shop);

@@ -465,7 +465,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
       }
       if (result.rowCount && result.rowCount > 0) {
         // Fire-and-forget: don't block sync on Shopify metafield writes
-        writeDesignMetafields(admin, shop, so.id, id, frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, token)
+        writeDesignMetafields(admin, shop, so.id, id, frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, token ?? "")
           .catch((e) => console.error("[sync] writeDesignMetafields failed:", e));
         added++;
       } else if (token) {
