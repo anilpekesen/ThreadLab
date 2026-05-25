@@ -52,13 +52,13 @@ export async function getTotalProductTypeCount(shop: string): Promise<number> {
 }
 
 export async function canCreateProductType(shop: string): Promise<{ allowed: boolean; used: number; limit: number; planKey: PlanKey }> {
-  const [planKey, totalCreated] = await Promise.all([
+  const [planKey, activeCount] = await Promise.all([
     getShopPlan(shop),
-    getTotalProductTypeCount(shop), // total ever created, not just active
+    getActiveProductTypeCount(shop),
   ]);
   const limit = PLANS[planKey].maxProductTypes;
-  const allowed = limit === -1 || totalCreated < limit;
-  return { allowed, used: totalCreated, limit, planKey };
+  const allowed = limit === -1 || activeCount < limit;
+  return { allowed, used: activeCount, limit, planKey };
 }
 
 export async function createProductType(
@@ -110,10 +110,11 @@ export async function updateProductType(
   return result.rows[0] ?? null;
 }
 
-// Soft delete — marks deleted_at so the slot cannot be recycled
-export async function deleteProductType(id: string, shop: string): Promise<void> {
-  await query(
-    "UPDATE product_categories SET deleted_at = now() WHERE id = $1 AND shop = $2",
+// Soft delete — returns the linked shopify_product_id so caller can deactivate it
+export async function deleteProductType(id: string, shop: string): Promise<{ shopify_product_id: string | null }> {
+  const result = await query<{ shopify_product_id: string | null }>(
+    "UPDATE product_categories SET deleted_at = now() WHERE id = $1 AND shop = $2 RETURNING shopify_product_id",
     [id, shop],
   );
+  return { shopify_product_id: result.rows[0]?.shopify_product_id ?? null };
 }

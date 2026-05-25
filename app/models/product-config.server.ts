@@ -547,6 +547,14 @@ export async function saveProductConfig(shop: string, productId: string, config:
   );
 }
 
+export async function deactivateProductConfig(shop: string, productId: string): Promise<void> {
+  await query(
+    `UPDATE product_settings SET config = config || '{"isActive": false}'::jsonb, updated_at = now()
+     WHERE shop = $1 AND product_id = $2`,
+    [shop, productId],
+  );
+}
+
 export async function findConfigForStorefront(shop: string, productId: string, handle: string) {
   const idKey = String(productId || "").trim();
   const handleKey = String(handle || "").trim();

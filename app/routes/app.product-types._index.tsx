@@ -14,6 +14,7 @@ import { runMigrations } from "~/lib/db.server";
 import {
   getProductTypesForShop, canCreateProductType, createProductType, deleteProductType,
 } from "~/models/product-types.server";
+import { deactivateProductConfig } from "~/models/product-config.server";
 import { PLANS } from "~/lib/plans";
 
 const TYPE_SUGGESTIONS = ["Tişört", "Sweatshirt", "Hoodie", "Polo", "Bez Çanta", "Kupa", "Boxer", "Şort", "Diğer"];
@@ -95,7 +96,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "delete") {
     const id = form.get("id") as string;
-    await deleteProductType(id, shop);
+    const { shopify_product_id } = await deleteProductType(id, shop);
+    if (shopify_product_id) {
+      await deactivateProductConfig(shop, shopify_product_id);
+    }
     return json({ ok: true });
   }
 
