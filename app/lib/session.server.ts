@@ -51,6 +51,7 @@ export async function getValidAccessToken(shop: string): Promise<string | null> 
     console.log(`[token] Non-expiring token detected for ${shop}, attempting migration`);
     try {
       const migrated = await migrateToExpiringToken(shop, row.accessToken);
+      console.log(`[token] migrate result: migrated=${!!migrated}, expiresAt=${migrated?.expiresAt}`);
       if (migrated?.expiresAt) {
         // Optimistic lock: only update if another worker hasn't already migrated
         const updated = await query(

@@ -174,9 +174,12 @@ export async function migrateToExpiringToken(shop: string, currentToken: string)
     return null;
   }
 
-  console.log(`[token-migrate] Success for ${shop}: expires_in=${data.expires_in}, has_refresh=${!!data.refresh_token}`);
+  console.log(`[token-migrate] keys=${Object.keys(data).join(",")}, expires_in=${data.expires_in}, has_token=${!!data.access_token}, has_refresh=${!!data.refresh_token}`);
 
-  if (!data.access_token) return null;
+  if (!data.access_token) {
+    console.error(`[token-migrate] No access_token in response for ${shop}`);
+    return null;
+  }
 
   const expiresAt = data.expires_in
     ? new Date(Date.now() + data.expires_in * 1000)
