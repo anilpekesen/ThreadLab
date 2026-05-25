@@ -93,9 +93,7 @@ export async function exchangeCodeForToken(shop: string, code: string): Promise<
     throw new Error(`Token exchange failed: ${text}`);
   }
 
-  const raw = await response.json();
-  console.log("[token-exchange] Shopify response keys:", Object.keys(raw as object).join(", "));
-  const data = raw as {
+  const data = (await response.json()) as {
     access_token: string;
     expires_in?: number;
     refresh_token?: string;
