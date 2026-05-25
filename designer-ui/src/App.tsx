@@ -569,7 +569,7 @@ export default function App() {
     const scaleX = rect.width / cv.getWidth();
     const scaleY = rect.height / cv.getHeight();
     const centerX = rect.left + (bounds.left + bounds.width / 2) * scaleX;
-    const aboveY = rect.top + bounds.top * scaleY - 116;
+    const aboveY = rect.top + bounds.top * scaleY - 160;
     const belowY = rect.top + (bounds.top + bounds.height) * scaleY + 20;
     setToolbarPos({
       x: centerX,
@@ -1748,7 +1748,7 @@ export default function App() {
                     left: 8,
                     right: 8,
                     top: toolbarPos
-                      ? `clamp(108px, ${Math.round(toolbarPos.y)}px, calc(100vh - 180px))`
+                      ? `clamp(72px, ${Math.round(toolbarPos.y)}px, calc(100vh - 180px))`
                       : 'calc(50vh - 90px)',
                     transform: 'none',
                   }
