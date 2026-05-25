@@ -1,6 +1,6 @@
 import { createCookieSessionStorage } from "@remix-run/node";
 import { query } from "~/lib/db.server";
-import { refreshAccessToken } from "~/lib/shopify.server";
+import { refreshAccessToken, migrateToExpiringToken } from "~/lib/shopify.server";
 
 const sessionStorage = createCookieSessionStorage({
   cookie: {
@@ -44,9 +44,41 @@ export async function getValidAccessToken(shop: string): Promise<string | null> 
   const row = result.rows[0];
   if (!row) return null;
 
-  // Token not expiring or expires more than 5 minutes from now — still valid
   const BUFFER_MS = 5 * 60 * 1000;
-  if (!row.expires || row.expires.getTime() - Date.now() > BUFFER_MS) {
+
+  // Non-expiring (legacy) token — migrate to expiring token
+  if (!row.expires) {
+    console.log(`[token] Non-expiring token detected for ${shop}, attempting migration`);
+    try {
+      const migrated = await migrateToExpiringToken(shop, row.accessToken);
+      if (migrated?.expiresAt) {
+        // Optimistic lock: only update if another worker hasn't already migrated
+        const updated = await query(
+          `UPDATE shopify_sessions SET "accessToken" = $1, expires = $2, "refreshToken" = $3
+           WHERE id = $4 AND "accessToken" = $5`,
+          [migrated.accessToken, migrated.expiresAt, migrated.refreshToken, `offline_${shop}`, row.accessToken],
+        );
+        if ((updated.rowCount ?? 0) === 0) {
+          // Another PM2 worker already migrated — re-read the fresh token
+          const fresh = await query<{ accessToken: string }>(
+            `SELECT "accessToken" FROM shopify_sessions WHERE id = $1`,
+            [`offline_${shop}`],
+          );
+          console.log(`[token] Another worker already migrated for ${shop}, using fresh token`);
+          return fresh.rows[0]?.accessToken ?? null;
+        }
+        console.log(`[token] Migration successful for ${shop}, expires at ${migrated.expiresAt}`);
+        return migrated.accessToken;
+      }
+    } catch (err) {
+      console.error(`[token] Migration failed for ${shop}:`, err);
+    }
+    // Migration failed — return existing non-expiring token (API call may fail)
+    return row.accessToken;
+  }
+
+  // Token still valid
+  if (row.expires.getTime() - Date.now() > BUFFER_MS) {
     return row.accessToken;
   }
 

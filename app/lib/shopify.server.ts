@@ -100,10 +100,6 @@ export async function exchangeCodeForToken(shop: string, code: string): Promise<
     scope?: string;
   };
 
-  console.log("[token-exchange] response keys:", Object.keys(data).join(", "));
-  console.log("[token-exchange] expires_in:", data.expires_in ?? "NOT PRESENT");
-  console.log("[token-exchange] scope:", data.scope ?? "NOT PRESENT");
-
   const expiresAt = data.expires_in
     ? new Date(Date.now() + data.expires_in * 1000)
     : null;
@@ -137,6 +133,50 @@ export async function refreshAccessToken(shop: string, refreshToken: string): Pr
     expires_in?: number;
     refresh_token?: string;
   };
+
+  const expiresAt = data.expires_in
+    ? new Date(Date.now() + data.expires_in * 1000)
+    : null;
+
+  return {
+    accessToken: data.access_token,
+    expiresAt,
+    refreshToken: data.refresh_token ?? null,
+  };
+}
+
+export async function migrateToExpiringToken(shop: string, currentToken: string): Promise<TokenData | null> {
+  const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: process.env.SHOPIFY_API_KEY ?? "",
+      client_secret: process.env.SHOPIFY_API_SECRET ?? "",
+      grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+      subject_token: currentToken,
+      subject_token_type: "urn:shopify:params:oauth:token-type:offline-access-token",
+      requested_token_type: "urn:shopify:params:oauth:token-type:offline-access-token",
+      expiring: "1",
+    }).toString(),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    console.error(`[token-migrate] Failed for ${shop}: ${response.status} ${text.slice(0, 300)}`);
+    return null;
+  }
+
+  let data: { access_token?: string; expires_in?: number; refresh_token?: string };
+  try {
+    data = JSON.parse(text);
+  } catch {
+    console.error(`[token-migrate] Invalid JSON response for ${shop}:`, text.slice(0, 200));
+    return null;
+  }
+
+  console.log(`[token-migrate] Success for ${shop}: expires_in=${data.expires_in}, has_refresh=${!!data.refresh_token}`);
+
+  if (!data.access_token) return null;
 
   const expiresAt = data.expires_in
     ? new Date(Date.now() + data.expires_in * 1000)
