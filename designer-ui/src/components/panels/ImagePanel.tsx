@@ -222,10 +222,10 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg }: Prop
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {uploadedImages.map((img) => (
                   <div key={img.id} className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100">
-                    <button className="block aspect-square w-full" onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)}>
+                    <div className="block aspect-square w-full">
                       <img src={img.dataUrl} alt={img.name} className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]" />
-                    </button>
-                    <div className="absolute inset-x-0 bottom-0 flex gap-1 bg-gradient-to-t from-black/70 p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 flex gap-1 bg-gradient-to-t from-black/70 p-1.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                       <button
                         className="flex-1 rounded-lg bg-blue-500 px-2 py-1 text-[10px] font-bold text-white transition-colors hover:bg-blue-600"
                         onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)}
