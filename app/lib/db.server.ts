@@ -280,4 +280,26 @@ async function _runMigrationsLocked() {
         SELECT DISTINCT shopify_order_id FROM orders WHERE variant_id != ''
       )
   `);
+
+  // ── Deactivate product_settings for deleted product categories ────────────
+  // Products linked to a soft-deleted product_category should not show the
+  // designer on the storefront. Set isActive=false for any product_settings
+  // whose only category link is deleted.
+  await query(`
+    UPDATE product_settings ps
+    SET config = config || '{"isActive": false}'::jsonb, updated_at = now()
+    WHERE (config->>'isActive')::boolean IS NOT FALSE
+      AND EXISTS (
+        SELECT 1 FROM product_categories pc
+        WHERE pc.shop = ps.shop
+          AND pc.shopify_product_id = ps.product_id
+          AND pc.deleted_at IS NOT NULL
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM product_categories pc2
+        WHERE pc2.shop = ps.shop
+          AND pc2.shopify_product_id = ps.product_id
+          AND pc2.deleted_at IS NULL
+      )
+  `);
 }
