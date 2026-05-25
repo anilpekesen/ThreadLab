@@ -29,20 +29,9 @@ uri = "/webhooks"
 topics = ["orders/delete"]
 uri = "/webhooks"
 
-[[webhooks.subscriptions]]
-topics = ["customers/data_request"]
-uri = "/webhooks"
-
-[[webhooks.subscriptions]]
-topics = ["customers/redact"]
-uri = "/webhooks"
-
-[[webhooks.subscriptions]]
-topics = ["shop/redact"]
-uri = "/webhooks"
 
 [access_scopes]
-scopes = "read_products,write_products,read_orders,write_orders,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders,write_app_proxy,write_cart_transforms,write_script_tags"
+scopes = "read_products,write_products,read_orders,write_orders,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders,write_app_proxy,write_script_tags"
 
 [auth]
 redirect_urls = [
