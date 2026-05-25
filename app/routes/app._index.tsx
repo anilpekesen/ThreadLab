@@ -6,11 +6,10 @@ import { useTranslation } from "~/i18n";
 import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Text, BlockStack, InlineGrid, Box,
-  Badge, Button, InlineStack, ProgressBar, Divider,
-  IndexTable, Thumbnail,
+  Badge, Button, InlineStack, ProgressBar, Banner,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
-import { getOrders, getDashboardStats } from "~/models/orders.server";
+import { getDashboardStats, getProductionAnalytics } from "~/models/orders.server";
 import { getAnalytics } from "~/models/billing.server";
 import { PLANS } from "~/lib/plans";
 
@@ -23,103 +22,84 @@ export const headers = () => ({
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
-  const [stats, orders, analytics] = await Promise.all([
+  const [stats, analytics, production] = await Promise.all([
     getDashboardStats(session.shop),
-    getOrders(session.shop),
     getAnalytics(session.shop),
+    getProductionAnalytics(session.shop),
   ]);
 
-  const shopDomain = session.shop.replace(".myshopify.com", "");
-
-  return json({ stats, recentOrders: orders.slice(0, 10), analytics, shopDomain });
+  return json({ stats, analytics, production });
 };
 
-const STATUS_KEYS: Record<string, "status.pending" | "status.preparing" | "status.printed" | "status.ready" | "status.shipped"> = {
-  pending: "status.pending", preparing: "status.preparing", printed: "status.printed",
-  ready: "status.ready", shipped: "status.shipped",
-};
-const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | "new"> = {
-  pending: "attention", preparing: "info", printed: "info",
-  ready: "success", shipped: "success",
-};
 const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attention"> = {
   Business: "success", Pro: "info", Growth: "info", Starter: "attention",
 };
 
+function formatFulfillmentTime(hours: number | null, lang: string): string {
+  if (hours === null) return lang === "tr" ? "Veri yok" : "No data";
+  if (hours < 1) return lang === "tr" ? "< 1 saat" : "< 1 hr";
+  if (hours < 24) return lang === "tr" ? `${hours} saat` : `${hours} hrs`;
+  const days = (hours / 24).toFixed(1);
+  return lang === "tr" ? `${days} gün` : `${days} days`;
+}
+
+function MiniBarChart({ data, lang }: { data: Array<{ day: string; count: number }>; lang: string }) {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d.toISOString().slice(0, 10);
+  });
+
+  const countByDay: Record<string, number> = {};
+  for (const r of data) countByDay[r.day] = r.count;
+
+  const values = days.map((d) => countByDay[d] ?? 0);
+  const max = Math.max(...values, 1);
+
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 80, paddingTop: 4 }}>
+      {days.map((day, i) => {
+        const count = values[i];
+        const barH = Math.max(3, Math.round((count / max) * 56));
+        const label = new Date(day + "T12:00:00").toLocaleDateString(
+          lang === "en" ? "en-US" : "tr-TR",
+          { weekday: "short" },
+        );
+        const isToday = day === new Date().toISOString().slice(0, 10);
+        return (
+          <div key={day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            {count > 0 && (
+              <Text as="span" variant="bodySm" fontWeight={isToday ? "semibold" : undefined}>{count}</Text>
+            )}
+            <div style={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
+              <div style={{
+                width: "100%",
+                height: barH,
+                background: isToday ? "#4f46e5" : "#c7d2fe",
+                borderRadius: "3px 3px 0 0",
+                minHeight: 3,
+              }} />
+            </div>
+            <Text as="span" variant="bodySm" tone="subdued">{label}</Text>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Index() {
-  const { stats, recentOrders, analytics, shopDomain } = useLoaderData<typeof loader>();
+  const { stats, analytics, production } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
   const { t, lang } = useTranslation();
   const plan = PLANS[analytics.planKey];
   const isActive = analytics.subscriptionStatus === "active" || analytics.subscriptionStatus === "trial";
 
-  // Otomatik yenileme
   useEffect(() => {
     const id = setInterval(revalidate, AUTO_REFRESH_MS);
     return () => clearInterval(id);
   }, [revalidate]);
-
-  const rowMarkup = recentOrders.map((o, index) => {
-    const shopifyOrderUrl = o.shopifyOrderId
-      ? `https://admin.shopify.com/store/${shopDomain}/orders/${o.shopifyOrderId}`
-      : null;
-
-    return (
-      <IndexTable.Row
-        id={o.id}
-        key={o.id}
-        position={index}
-        onClick={() => navigate(`/app/orders/${o.id}`)}
-      >
-        <IndexTable.Cell>
-          {(o.designFrontPreviewUrl || o.previewUrl) ? (
-            <div style={{ display: "flex", gap: 4 }}>
-              <Thumbnail source={o.designFrontPreviewUrl || o.previewUrl} alt="Ön" size="small" />
-              {o.designBackPreviewUrl && (
-                <Thumbnail source={o.designBackPreviewUrl} alt="Arka" size="small" />
-              )}
-            </div>
-          ) : (
-            <div style={{ width: 40, height: 40, borderRadius: 6, background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🎨</div>
-          )}
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          {shopifyOrderUrl ? (
-            <a href={shopifyOrderUrl} target="_blank" rel="noreferrer"
-              style={{ fontWeight: 600, color: "#2c6ecb", textDecoration: "none" }}
-              onClick={(e) => e.stopPropagation()}>
-              {o.orderNumber}
-            </a>
-          ) : (
-            <Text as="span" fontWeight="semibold">{o.orderNumber}</Text>
-          )}
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <BlockStack gap="050">
-            <Text as="span" variant="bodySm" fontWeight="semibold">{o.customerName}</Text>
-            {o.customerEmail && <Text as="span" variant="bodySm" tone="subdued">{o.customerEmail}</Text>}
-          </BlockStack>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Text as="span" variant="bodySm">{o.productName}</Text>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <InlineStack gap="150" blockAlign="center">
-            <Badge tone={BADGE_TONE[o.productionStatus] ?? "new"}>
-              {STATUS_KEYS[o.productionStatus] ? t(STATUS_KEYS[o.productionStatus]) : o.productionStatus}
-            </Badge>
-            {o.missingSurcharge && <Badge tone="critical">{t("dashboard.missingSurchargeWarning")}</Badge>}
-          </InlineStack>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Text as="span" variant="bodySm" tone="subdued">
-            {new Date(o.createdAt).toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", { day: "2-digit", month: "short", year: "numeric" })}
-          </Text>
-        </IndexTable.Cell>
-      </IndexTable.Row>
-    );
-  });
 
   return (
     <Page title={t("dashboard.title")}>
@@ -154,7 +134,7 @@ export default function Index() {
         </Card>
 
         {/* Sipariş istatistikleri */}
-        <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
+        <InlineGrid columns={{ xs: 2, sm: 2, md: 4 }} gap="400">
           {[
             { label: t("dashboard.totalOrders"), value: stats.total },
             { label: t("dashboard.today"), value: stats.today },
@@ -171,6 +151,85 @@ export default function Index() {
             </Card>
           ))}
         </InlineGrid>
+
+        {/* Üretim analitiği */}
+        {production.lateCount > 0 && (
+          <Banner
+            tone="warning"
+            title={lang === "tr"
+              ? `${production.lateCount} sipariş 2 günden uzun süredir bekliyor`
+              : `${production.lateCount} order${production.lateCount > 1 ? "s" : ""} waiting for over 2 days`}
+            action={{ content: lang === "tr" ? "Siparişlere Git" : "Go to Orders", onAction: () => navigate("/app/orders") }}
+          />
+        )}
+
+        <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+          {/* Ort. karşılama süresi */}
+          <Card>
+            <Box padding="400">
+              <BlockStack gap="100">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {lang === "tr" ? "Ort. Karşılama Süresi" : "Avg. Fulfillment Time"}
+                </Text>
+                <Text as="p" variant="headingXl" tone={
+                  production.avgFulfillmentHours === null ? undefined
+                  : production.avgFulfillmentHours <= 24 ? "success"
+                  : production.avgFulfillmentHours <= 48 ? undefined
+                  : "caution"
+                }>
+                  {formatFulfillmentTime(production.avgFulfillmentHours, lang)}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {lang === "tr" ? "Son 30 gün · gönderildi olanlar" : "Last 30 days · shipped orders"}
+                </Text>
+              </BlockStack>
+            </Box>
+          </Card>
+
+          {/* Bu hafta */}
+          <Card>
+            <Box padding="400">
+              <BlockStack gap="100">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {lang === "tr" ? "Bu Hafta" : "This Week"}
+                </Text>
+                <Text as="p" variant="headingXl">{production.weekCount}</Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {lang === "tr" ? "Son 7 günde gelen sipariş" : "Orders in the last 7 days"}
+                </Text>
+              </BlockStack>
+            </Box>
+          </Card>
+
+          {/* Geciken */}
+          <Card>
+            <Box padding="400">
+              <BlockStack gap="100">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {lang === "tr" ? "Geciken Sipariş" : "Late Orders"}
+                </Text>
+                <Text as="p" variant="headingXl" tone={production.lateCount > 0 ? "caution" : undefined}>
+                  {production.lateCount}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {lang === "tr" ? "2 günden uzun bekliyor / hazırlanıyor" : "Pending / preparing over 2 days"}
+                </Text>
+              </BlockStack>
+            </Box>
+          </Card>
+        </InlineGrid>
+
+        {/* 7 günlük sipariş grafiği */}
+        <Card>
+          <Box padding="400">
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">
+                {lang === "tr" ? "Son 7 Gün — Sipariş Hacmi" : "Last 7 Days — Order Volume"}
+              </Text>
+              <MiniBarChart data={production.dailyCounts} lang={lang} />
+            </BlockStack>
+          </Box>
+        </Card>
 
         {/* Tasarım & AI analitiği */}
         <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
@@ -222,38 +281,6 @@ export default function Index() {
             </Box>
           </Card>
         </InlineGrid>
-
-        {/* Son siparişler — IndexTable */}
-        <Card>
-          <Box padding="400">
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="h2" variant="headingMd">{t("dashboard.recentOrders")}</Text>
-              <Button onClick={() => navigate("/app/orders")} variant="plain">{t("common.viewAll")}</Button>
-            </InlineStack>
-          </Box>
-          <Divider />
-          {recentOrders.length === 0 ? (
-            <Box padding="400">
-              <Text as="p" tone="subdued" alignment="center">{t("dashboard.noOrders")}</Text>
-            </Box>
-          ) : (
-            <IndexTable
-              resourceName={{ singular: t("common.order"), plural: t("common.orders") }}
-              itemCount={recentOrders.length}
-              headings={[
-                { title: "" },
-                { title: t("common.order") },
-                { title: t("common.customer") },
-                { title: t("common.product") },
-                { title: t("common.status") },
-                { title: t("common.date") },
-              ]}
-              selectable={false}
-            >
-              {rowMarkup}
-            </IndexTable>
-          )}
-        </Card>
 
       </BlockStack>
     </Page>
