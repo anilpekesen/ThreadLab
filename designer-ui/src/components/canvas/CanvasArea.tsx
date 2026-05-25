@@ -747,16 +747,6 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
             <div className="pointer-events-none absolute left-1/2 top-[14px] z-20 -translate-x-1/2 rounded-full bg-white/92 px-3 py-1 text-[10px] font-bold tracking-[0.14em] text-sky-500 shadow-sm">
               {Math.round(printArea.realWidthMm / 10)} × {Math.round(printArea.realHeightMm / 10)} CM
             </div>
-            {/* Print area overlay — same coordinate space as fabric canvas */}
-            <div
-              className="pointer-events-none absolute z-[9] rounded-[18px] border border-amber-400/90 bg-amber-100/10"
-              style={{
-                left: mockupRect.left,
-                top: mockupRect.top,
-                width: mockupRect.width,
-                height: mockupRect.height,
-              }}
-            />
             <div
               className="pointer-events-none absolute z-10 rounded-[14px] border-2 border-dashed border-sky-400 bg-sky-100/20"
               style={{

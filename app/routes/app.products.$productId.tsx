@@ -509,7 +509,6 @@ function PrintAreaEditor({
   function startDrag(event: React.PointerEvent<HTMLDivElement>, target: "mockup" | "print", mode: "move" | "resize") {
     event.preventDefault();
     event.stopPropagation();
-    setActiveTarget(target);
 
     dragState.current = {
       pointerId: event.pointerId,
@@ -923,15 +922,7 @@ export default function ProductSettingsRoute() {
                     Tasarimin fiziksel olcusune gore ek ucretleri burada yonet. Ornek olarak 10x15, 21x29, 29x42
                     gibi esikler tanimlayabilirsin; bu degerler tamamen degistirilebilir.
                   </Text>
-                  <TextField
-                    label="Ek ucret varyanti ID (1 birim fiyatli)"
-                    helpText="Bos birakılırsa Ayarlar sayfasindaki global deger kullanilir. Doldurulursa bu urun icin gecersiz kilar."
-                    value={surchargeVariantId}
-                    onChange={setSurchargeVariantId}
-                    name="surchargeVariantId"
-                    autoComplete="off"
-                    placeholder="(global ayar kullanilir)"
-                  />
+                  <input type="hidden" name="surchargeVariantId" value={surchargeVariantId} />
 
                   <input type="hidden" name="frontBandCount" value={String(frontBands.length)} />
                   <BlockStack gap="400">
