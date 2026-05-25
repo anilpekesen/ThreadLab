@@ -1,18 +1,17 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "~/i18n";
 import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Badge, Button, InlineStack, Box, Text, BlockStack,
   Thumbnail, IndexTable, useIndexResourceState, Banner,
-  Grid, Modal,
+  Grid,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
-import { getOrders, bulkUpdateStatus, getDashboardStats, syncOrdersFromAdmin, fulfillShopifyOrders } from "~/models/orders.server";
+import { getOrders, bulkUpdateStatus, getDashboardStats, fulfillShopifyOrders } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
-import { query } from "~/lib/db.server";
 
 const STATUSES = [
   { labelKey: "status.all" as const, value: "" },
@@ -56,40 +55,16 @@ export const headers = () => ({
 });
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate(request);
+  const { session } = await authenticate(request);
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
-  const forceSync = url.searchParams.get("sync") === "1";
-  const resetOrders = url.searchParams.get("reset") === "1";
-
   const activeStatus = status ?? "";
-  let syncError: string | null = null;
-  let syncCount = 0;
-  if (forceSync || resetOrders) {
-    try {
-      if (resetOrders) {
-        await query("DELETE FROM orders WHERE shop = $1", [session.shop]);
-      }
-      syncCount = await syncOrdersFromAdmin(admin, session.shop);
-    } catch (e) {
-      if (e instanceof Response && e.status >= 300 && e.status < 400) throw e;
-      const msg = e instanceof Response
-        ? await e.text().catch(() => "")
-        : (e instanceof Error ? e.message : String(e));
-      console.error("[sync] error:", msg.slice(0, 300));
-      if (msg.includes("Non-expiring access tokens")) {
-        syncError = "Shopify API token yenilenmesi bekleniyor. Yeni siparişler webhook üzerinden otomatik geliyor, manuel sync geçici olarak devre dışı.";
-      } else {
-        syncError = msg;
-      }
-    }
-  }
 
   const [orders, stats] = await Promise.all([
     getOrders(session.shop, activeStatus || undefined),
     getDashboardStats(session.shop),
   ]);
-  return json({ orders, status: activeStatus, stats, shop: session.shop, syncError, syncCount });
+  return json({ orders, status: activeStatus, stats, shop: session.shop });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -192,11 +167,10 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
 }
 
 export default function Orders() {
-  const { orders, status, stats, shop, syncError, syncCount } = useLoaderData<typeof loader>();
+  const { orders, status, stats, shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const { t, lang } = useTranslation();
-  const [resetModalOpen, setResetModalOpen] = useState(false);
 
   const groups = useMemo(() => groupOrders(orders), [orders]);
 
@@ -322,67 +296,13 @@ export default function Orders() {
   return (
     <Page
       title={t("orders.printedOrders")}
-      primaryAction={{
-        content: t("common.refresh"),
-        onAction: () => navigate("/app/orders?sync=1"),
-      }}
-      secondaryActions={[{
-        content: "Temizle ve Yeniden Senkronize Et",
-        destructive: true,
-        onAction: () => setResetModalOpen(true),
-      }]}
     >
-      <Modal
-        open={resetModalOpen}
-        onClose={() => setResetModalOpen(false)}
-        title="Siparişleri sıfırla"
-        primaryAction={{
-          content: "Evet, sil ve yeniden çek",
-          destructive: true,
-          onAction: () => { setResetModalOpen(false); navigate("/app/orders?reset=1"); },
-        }}
-        secondaryActions={[{
-          content: "Vazgeç",
-          onAction: () => setResetModalOpen(false),
-        }]}
-      >
-        <Modal.Section>
-          <BlockStack gap="300">
-            <Text as="p">
-              Bu mağazadaki tüm siparişler veritabanından silinecek ve Shopify'dan yeniden çekilecek.
-            </Text>
-            <Text as="p" tone="subdued">
-              Üretim durumları (Hazırlanıyor, Baskıda vb.) sıfırlanır. Gönderilmiş siparişler Shopify'daki durumuna göre tekrar "Gönderildi" olarak gelecektir.
-            </Text>
-          </BlockStack>
-        </Modal.Section>
-      </Modal>
       <BlockStack gap="400">
         <PageHelper sections={[
           { titleKey: "helper.orders.1.title", bodyKey: "helper.orders.1.body" },
           { titleKey: "helper.orders.2.title", bodyKey: "helper.orders.2.body" },
           { titleKey: "helper.orders.3.title", bodyKey: "helper.orders.3.body" },
         ]} />
-        {syncError && (
-          <Banner tone={syncError.includes("protected") || syncError.includes("approved") ? "warning" : "critical"}
-            title={syncError.includes("protected") || syncError.includes("approved")
-              ? t("orders.apiAuthRequired")
-              : `Sync hatası: ${syncError}`}>
-            {(syncError.includes("protected") || syncError.includes("approved")) && (
-              <p>
-                Shopify'da sipariş verisi okumak için Partner Dashboard'dan
-                &quot;Protected Customer Data&quot; başvurusu yapılması gerekiyor.{" "}
-                <a href="https://partners.shopify.com" target="_blank" rel="noreferrer">
-                  partners.shopify.com
-                </a>{" "}
-                → DesignKit → API access → Protected customer data access → Request access
-              </p>
-            )}
-          </Banner>
-        )}
-        {!syncError && syncCount > 0 && (
-          <Banner tone="success" title={`${syncCount} ${t("orders.synced")}`} />
-        )}
         {/* İstatistik kartları */}
         <Grid>
           <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
