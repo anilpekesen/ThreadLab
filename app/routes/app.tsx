@@ -59,7 +59,7 @@ function AppInner() {
         <nav className="app-sidebar">
           <div className="app-sidebar-logo">
             <a href="/app">
-              <img src="/logo.svg" alt="PrintLab" />
+              <img src="/logo.png" alt="PrintLabApp" />
             </a>
           </div>
 

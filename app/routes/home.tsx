@@ -54,7 +54,7 @@ const html = `<!DOCTYPE html>
       "@type": "Organization",
       "name": "PrintLab",
       "url": "https://printlabapp.com",
-      "logo": "https://printlabapp.com/logo.svg"
+      "logo": "https://printlabapp.com/logo.png"
     },
     "aggregateRating": {
       "@type": "AggregateRating",
@@ -206,7 +206,7 @@ const html = `<!DOCTYPE html>
 
   <nav>
     <a href="/" class="logo">
-      <img src="/logo.svg" alt="PrintLab" height="32" style="display:block;" />
+      <img src="/logo.png" alt="PrintLabApp" height="40" style="display:block;" />
     </a>
     <div class="nav-links">
       <a href="#features" class="nav-link">Features</a>
