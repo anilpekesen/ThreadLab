@@ -11,6 +11,8 @@ import {
 import { authenticate } from "~/lib/authenticate.server";
 import { getOrders, getTodayOrders, bulkUpdateStatus, fulfillShopifyOrders } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
+import { getShopSubscription } from "~/models/billing.server";
+import { PLANS, planKeyFromName } from "~/lib/billing.server";
 
 const APP_URL = "https://app.printlabapp.com";
 
@@ -36,11 +38,18 @@ export const headers = () => ({
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
+  const shop = session.shop;
+
+  const sub = await getShopSubscription(shop);
+  const planKey = planKeyFromName(sub?.plan_key) ?? "Pro";
+  const plan = PLANS[planKey];
+  if (!plan.allowProduction) {
+    return json({ orders: [], withFile: 0, statusFilter: "", todayOnly: false, shop, locked: true });
+  }
+
   const url = new URL(request.url);
   const statusFilter = url.searchParams.get("status") ?? "";
   const todayOnly = url.searchParams.get("today") === "1";
-
-  const shop = session.shop;
   let orders: Order[];
   if (todayOnly) {
     const statuses = statusFilter ? [statusFilter] : ["pending", "preparing"];
@@ -64,6 +73,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     statusFilter,
     todayOnly,
     shop: session.shop,
+    locked: false,
   });
 };
 
@@ -114,8 +124,19 @@ const STATUSES = [
 ];
 
 export default function Production() {
-  const { orders, withFile, statusFilter, todayOnly, shop } = useLoaderData<typeof loader>();
+  const { orders, withFile, statusFilter, todayOnly, shop, locked } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+
+  if (locked) {
+    return (
+      <Page title="Üretim">
+        <Banner tone="warning" title="Pro veya Business planı gerekli">
+          <p>Üretim ekranı Pro ve Business planlarında kullanılabilir.</p>
+          <Button onClick={() => navigate("/app/billing")}>Planı Yükselt</Button>
+        </Banner>
+      </Page>
+    );
+  }
   const fetcher = useFetcher();
   const { t } = useTranslation();
 

@@ -7,6 +7,8 @@ export const PLANS = {
     allowRemoveBg: true,
     removeBgMonthlyQuota: 100,
     maxShopTemplates: 0,
+    allowProduction: false,
+    allowGangSheet: false,
     features: {
       tr: [
         "1 ürün kategorisi",
@@ -30,6 +32,8 @@ export const PLANS = {
     allowRemoveBg: true,
     removeBgMonthlyQuota: 500,
     maxShopTemplates: 10,
+    allowProduction: false,
+    allowGangSheet: false,
     features: {
       tr: [
         "2 ürün kategorisi",
@@ -55,6 +59,8 @@ export const PLANS = {
     allowRemoveBg: true,
     removeBgMonthlyQuota: 1500,
     maxShopTemplates: 20,
+    allowProduction: true,
+    allowGangSheet: true,
     features: {
       tr: [
         "4 ürün kategorisi",
@@ -62,6 +68,7 @@ export const PLANS = {
         "Ön + arka yüz baskı",
         "1500 arka plan kaldırma/ay",
         "20 özel şablon",
+        "Üretim & Gang Sheet",
         "Öncelikli destek",
       ],
       en: [
@@ -70,6 +77,7 @@ export const PLANS = {
         "Front + back surface print",
         "1500 background removals/month",
         "20 custom templates",
+        "Production & Gang Sheet",
         "Priority support",
       ],
     },
@@ -82,6 +90,8 @@ export const PLANS = {
     allowRemoveBg: true,
     removeBgMonthlyQuota: 4000,
     maxShopTemplates: -1,
+    allowProduction: true,
+    allowGangSheet: true,
     features: {
       tr: [
         "Sınırsız ürün kategorisi",
@@ -89,6 +99,7 @@ export const PLANS = {
         "Ön + arka yüz baskı",
         "4000 arka plan kaldırma/ay",
         "Sınırsız özel şablon",
+        "Üretim & Gang Sheet",
         "Özel onboarding & destek",
       ],
       en: [
@@ -97,6 +108,7 @@ export const PLANS = {
         "Front + back surface print",
         "4000 background removals/month",
         "Unlimited custom templates",
+        "Production & Gang Sheet",
         "Custom onboarding & support",
       ],
     },

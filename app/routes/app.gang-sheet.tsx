@@ -11,6 +11,8 @@ import {
 import { authenticate } from "~/lib/authenticate.server";
 import { getOrdersWithPrintFiles, getOrdersByIds } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
+import { getShopSubscription } from "~/models/billing.server";
+import { PLANS, planKeyFromName } from "~/lib/billing.server";
 
 const SHEET_PRESETS = [
   { label: "DTF Rulo 60cm (150dpi — 3543px)", value: "dtf60" },
@@ -83,6 +85,14 @@ export const headers = () => ({
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const shop = session.shop;
+
+  const sub = await getShopSubscription(shop);
+  const planKey = planKeyFromName(sub?.plan_key) ?? "Pro";
+  const plan = PLANS[planKey];
+  if (!plan.allowGangSheet) {
+    return json({ printableOrders: [], shop, locked: true });
+  }
+
   const url = new URL(request.url);
   const idsParam = url.searchParams.get("ids") ?? "";
   const preselectedIds = idsParam.split(",").filter(Boolean);
@@ -95,13 +105,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const printableOrders = orders.filter(hasPrintFile);
-  return json({ printableOrders, shop });
+  return json({ printableOrders, shop, locked: false });
 };
 
 export default function GangSheet() {
-  const { printableOrders, shop } = useLoaderData<typeof loader>();
+  const { printableOrders, shop, locked } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  if (locked) {
+    return (
+      <Page title="Gang Sheet">
+        <Banner tone="warning" title="Pro veya Business planı gerekli">
+          <p>Gang Sheet özelliği Pro ve Business planlarında kullanılabilir.</p>
+          <Button onClick={() => navigate("/app/billing")}>Planı Yükselt</Button>
+        </Banner>
+      </Page>
+    );
+  }
 
   const groups = useMemo(() => groupOrders(printableOrders), [printableOrders]);
 

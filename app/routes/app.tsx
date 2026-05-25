@@ -7,7 +7,7 @@ import trTranslations from "@shopify/polaris/locales/tr.json";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "~/lib/authenticate.server";
 import { getShopSubscription } from "~/models/billing.server";
-import type { PlanKey } from "~/lib/plans";
+import { PLANS, type PlanKey } from "~/lib/plans";
 import { LanguageProvider, useTranslation, type Lang } from "~/i18n";
 import appLayoutStyles from "~/styles/app-layout.css?url";
 
@@ -22,16 +22,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const cookieHeader = request.headers.get("Cookie") ?? "";
   const langMatch = cookieHeader.match(/(?:^|; )dk_lang=([^;]*)/);
   const lang: Lang = langMatch?.[1] === "en" ? "en" : "tr";
+  const planKey = (sub?.plan_key ?? "Pro") as PlanKey;
+  const planFeatures = PLANS[planKey] ?? PLANS["Pro"];
   return json({
-    planKey: (sub?.plan_key ?? "Pro") as PlanKey,
+    planKey,
     subscriptionStatus: sub?.subscription_status ?? "none",
     lang,
     shop: session.shop,
+    allowProduction: planFeatures.allowProduction,
+    allowGangSheet: planFeatures.allowGangSheet,
   });
 };
 
 function AppInner() {
-  const { planKey, subscriptionStatus, lang, shop } = useLoaderData<typeof loader>();
+  const { planKey, subscriptionStatus, lang, shop, allowProduction, allowGangSheet } = useLoaderData<typeof loader>();
   const { t, setLang } = useTranslation();
   const navigate = useNavigate();
 
@@ -39,15 +43,15 @@ function AppInner() {
   const shopName = shop.replace(".myshopify.com", "");
 
   const navItems = [
-    { label: t("nav.home"), url: "/app", end: true },
-    { label: t("nav.orders"), url: "/app/orders", end: false },
-    { label: t("nav.production"), url: "/app/production", end: false },
-    { label: t("nav.gangSheet"), url: "/app/gang-sheet", end: false },
-    { label: t("nav.productTypes"), url: "/app/product-types", end: false },
-    { label: t("nav.templates"), url: "/app/templates", end: false },
-    { label: t("nav.billing"), url: "/app/billing", end: false },
-    { label: t("nav.settings"), url: "/app/settings", end: false },
-  ];
+    { label: t("nav.home"), url: "/app", end: true, show: true },
+    { label: t("nav.orders"), url: "/app/orders", end: false, show: true },
+    { label: t("nav.production"), url: "/app/production", end: false, show: allowProduction },
+    { label: t("nav.gangSheet"), url: "/app/gang-sheet", end: false, show: allowGangSheet },
+    { label: t("nav.productTypes"), url: "/app/product-types", end: false, show: true },
+    { label: t("nav.templates"), url: "/app/templates", end: false, show: true },
+    { label: t("nav.billing"), url: "/app/billing", end: false, show: true },
+    { label: t("nav.settings"), url: "/app/settings", end: false, show: true },
+  ].filter((item) => item.show);
 
   return (
     <PolarisAppProvider i18n={lang === "en" ? enTranslations : trTranslations}>
@@ -102,7 +106,7 @@ function AppInner() {
           </header>
 
           <main className="app-content">
-            <Outlet context={{ planKey, subscriptionStatus }} />
+            <Outlet context={{ planKey, subscriptionStatus, allowProduction, allowGangSheet }} />
           </main>
         </div>
       </div>
