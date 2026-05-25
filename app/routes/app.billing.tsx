@@ -360,7 +360,8 @@ export default function BillingPage() {
                 const isBlocked = !!blockReasons;
 
                 return (
-                  <Card key={planKey}>
+                  <div key={planKey} style={isCurrent ? { outline: "2px solid #008060", borderRadius: "12px", boxShadow: "0 0 0 4px rgba(0,128,96,0.12)" } : { borderRadius: "12px" }}>
+                  <Card>
                     <Box padding="400">
                       <BlockStack gap="400">
                         <BlockStack gap="100">
@@ -412,6 +413,7 @@ export default function BillingPage() {
                       </BlockStack>
                     </Box>
                   </Card>
+                  </div>
                 );
               })}
             </InlineGrid>
