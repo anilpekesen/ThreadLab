@@ -1,5 +1,7 @@
-name = "PrintLab"
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
 client_id = "1876054aac4bd32ba8019c2d27ef65f2"
+name = "PrintLab"
 application_url = "https://app.printlabapp.com"
 embedded = false
 
@@ -14,37 +16,28 @@ customers_data_request_url = "/webhooks"
 customers_redact_url = "/webhooks"
 shop_redact_url = "/webhooks"
 
-[[webhooks.subscriptions]]
-topics = ["orders/create"]
-uri = "/webhooks"
-
-[[webhooks.subscriptions]]
-topics = ["orders/paid"]
-uri = "/webhooks"
-
-[[webhooks.subscriptions]]
-topics = ["orders/fulfilled"]
-uri = "/webhooks"
-
-[[webhooks.subscriptions]]
-topics = ["orders/cancelled"]
-uri = "/webhooks"
-
-[[webhooks.subscriptions]]
-topics = ["orders/delete"]
-uri = "/webhooks"
-
+  [[webhooks.subscriptions]]
+  topics = [
+  "orders/fulfilled",
+  "orders/create",
+  "orders/cancelled",
+  "orders/delete",
+  "orders/paid"
+]
+  uri = "/webhooks"
 
 [access_scopes]
-scopes = "read_products,write_products,read_orders,write_orders,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders,write_app_proxy,write_cart_transforms,write_script_tags"
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_merchant_managed_fulfillment_orders,read_orders,read_products,write_app_proxy,write_cart_transforms,write_fulfillments,write_merchant_managed_fulfillment_orders,write_orders,write_products,write_script_tags"
 
 [auth]
 redirect_urls = [
   "https://app.printlabapp.com/auth/callback",
   "https://app.printlabapp.com/auth/callback/offline"
 ]
+rotate_offline_tokens = true
 
 [app_proxy]
 url = "https://app.printlabapp.com/proxy"
-prefix = "apps"
 subpath = "tshirt-designer"
+prefix = "apps"
