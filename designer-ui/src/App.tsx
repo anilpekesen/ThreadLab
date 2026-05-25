@@ -1785,44 +1785,66 @@ export default function App() {
                     })}
                   </div>
                 )}
-                <div className="pointer-events-auto flex max-w-[95vw] items-center gap-0.5 overflow-x-auto rounded-[20px] border border-white/50 bg-white/95 p-1 shadow-[0_10px_50px_rgba(0,0,0,0.15)] backdrop-blur-xl no-scrollbar md:max-w-none md:gap-1 md:rounded-[28px] md:p-2">
+                <div className="pointer-events-auto w-[min(340px,95vw)] rounded-[20px] border border-white/50 bg-white/95 shadow-[0_10px_50px_rgba(0,0,0,0.15)] backdrop-blur-xl">
                   {objState?.type === 'text' ? (
-                    <>
+                    <div className="grid grid-cols-5 gap-1 p-2">
+                      {/* Row 1: Renk | Düzenle | B | I | Kaldır */}
                       <button
                         type="button"
                         onClick={() => setShowTextColorPalette((prev) => !prev)}
                         className={cn(
-                          'relative flex shrink-0 flex-col items-center gap-0.5 rounded-xl border-r border-gray-100 px-2 py-1.5 transition-colors hover:bg-gray-50/50 md:gap-1 md:px-3 md:py-2',
+                          'flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50',
                           showTextColorPalette ? 'bg-blue-50/70' : '',
                         )}
                       >
-                        <div className="h-5 w-5 rounded-full border border-gray-200 shadow-inner md:h-6 md:w-6" style={{ backgroundColor: objState.color }} />
-                        <span className="text-[9px] font-bold text-gray-500 md:text-[10px]">Renk</span>
+                        <div className="h-5 w-5 rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: objState.color }} />
+                        <span className="text-[9px] font-bold text-gray-500">Renk</span>
                       </button>
 
                       <button
                         onClick={editText}
-                        className="flex shrink-0 flex-col items-center gap-0.5 rounded-xl border-r border-gray-100 px-2 py-1.5 transition-colors hover:bg-gray-50/50 md:gap-1 md:px-3 md:py-2"
+                        className="flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
                       >
-                        <Scissors className="h-4 w-4 text-gray-500 md:h-5 md:w-5" />
-                        <span className="text-[9px] font-bold text-gray-500 md:text-[10px]">Düzenle</span>
+                        <Scissors className="h-4 w-4 text-gray-500" />
+                        <span className="text-[9px] font-bold text-gray-500">Düzenle</span>
                       </button>
 
-                      <div className="flex shrink-0 items-center gap-1 border-r border-gray-100 px-2 md:gap-2 md:px-3">
-                        <div className="flex flex-col items-center gap-0.5 md:gap-1">
-                          <input
-                            type="number"
-                            min={8}
-                            max={120}
-                            value={objState.fontSize ?? 40}
-                            onChange={(e) => updateTextProp({ fontSize: Number(e.target.value) || 40 })}
-                            className="w-10 rounded-lg border bg-gray-50 py-0.5 text-center text-xs font-bold md:w-12 md:py-1 md:text-sm"
-                          />
-                          <span className="text-[9px] font-bold text-gray-400 md:text-[10px]">Boyut</span>
-                        </div>
+                      <button
+                        onClick={() => updateTextProp({ isBold: !objState.isBold })}
+                        className={cn('flex flex-col items-center justify-center rounded-xl py-2 transition-colors', objState.isBold ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50')}
+                      >
+                        <span className="text-base font-black leading-none">B</span>
+                      </button>
+
+                      <button
+                        onClick={() => updateTextProp({ isItalic: !objState.isItalic })}
+                        className={cn('flex flex-col items-center justify-center rounded-xl py-2 transition-colors', objState.isItalic ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50')}
+                      >
+                        <span className="text-base font-bold italic leading-none">I</span>
+                      </button>
+
+                      <button
+                        onClick={deleteSelected}
+                        className="flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-400" />
+                        <span className="text-[9px] font-bold text-red-400">Kaldır</span>
+                      </button>
+
+                      {/* Row 2: Boyut | Font (col-span-2) | Ortala | Öne/Arkaya */}
+                      <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl bg-gray-50 p-1">
+                        <input
+                          type="number"
+                          min={8}
+                          max={120}
+                          value={objState.fontSize ?? 40}
+                          onChange={(e) => updateTextProp({ fontSize: Number(e.target.value) || 40 })}
+                          className="w-full rounded-md border-0 bg-transparent text-center text-xs font-bold focus:outline-none"
+                        />
+                        <span className="text-[9px] font-bold text-gray-400">Boyut</span>
                       </div>
 
-                      <div className="group relative flex shrink-0 items-center border-r border-gray-100 px-2 md:px-3">
+                      <div className="group relative col-span-2 flex items-center justify-center rounded-xl bg-gray-50 p-1">
                         <select
                           value={objState.fontFamily ?? 'Inter'}
                           onChange={(e) => updateTextProp({ fontFamily: e.target.value })}
@@ -1832,77 +1854,41 @@ export default function App() {
                             <option key={font} value={font}>{font}</option>
                           ))}
                         </select>
-                        <div className="flex items-center gap-1 rounded-xl bg-gray-50 px-2 py-1.5 text-[11px] font-bold text-gray-700 transition-colors group-hover:bg-gray-100 md:px-3 md:py-2 md:text-sm">
-                          <span className="max-w-[40px] truncate md:max-w-[60px]">{objState.fontFamily ?? 'Inter'}</span>
-                          <ChevronDown className="h-3 w-3 text-gray-400" />
+                        <div className="flex items-center gap-1 text-[11px] font-bold text-gray-700">
+                          <span className="max-w-[52px] truncate">{objState.fontFamily ?? 'Inter'}</span>
+                          <ChevronDown className="h-3 w-3 shrink-0 text-gray-400" />
                         </div>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-0.5 border-r border-gray-100 px-1 md:gap-1 md:px-2">
+                      <div className="flex items-center justify-center gap-0.5 rounded-xl bg-gray-50 p-1">
                         <button
-                          onClick={() => updateTextProp({ isBold: !objState.isBold })}
-                          className={cn('rounded-lg p-1.5 transition-colors md:p-2', objState.isBold ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50')}
+                          onClick={() => alignHorizontal('left')}
+                          className={cn('rounded p-1 transition-colors', objState.textAlign === 'left' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400')}
                         >
-                          <span className="text-sm font-black md:text-base">B</span>
+                          <AlignLeft className="h-3 w-3" />
                         </button>
                         <button
-                          onClick={() => updateTextProp({ isItalic: !objState.isItalic })}
-                          className={cn('rounded-lg p-1.5 transition-colors md:p-2', objState.isItalic ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50')}
+                          onClick={() => alignHorizontal('center')}
+                          className={cn('rounded p-1 transition-colors', objState.textAlign === 'center' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400')}
                         >
-                          <span className="text-sm font-bold italic md:text-base">I</span>
+                          <AlignCenter className="h-3 w-3" />
                         </button>
-
-                        <div className="flex rounded-lg bg-gray-50 p-0.5">
-                          <button
-                            onClick={() => alignHorizontal('left')}
-                            className={cn('rounded p-1 transition-colors md:p-1.5', objState.textAlign === 'left' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400')}
-                          >
-                            <AlignLeft className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                          </button>
-                          <button
-                            onClick={() => alignHorizontal('center')}
-                            className={cn('rounded p-1 transition-colors md:p-1.5', objState.textAlign === 'center' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400')}
-                          >
-                            <AlignCenter className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                          </button>
-                          <button
-                            onClick={() => alignHorizontal('right')}
-                            className={cn('rounded p-1 transition-colors md:p-1.5', objState.textAlign === 'right' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400')}
-                          >
-                            <AlignRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => alignHorizontal('right')}
+                          className={cn('rounded p-1 transition-colors', objState.textAlign === 'right' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400')}
+                        >
+                          <AlignRight className="h-3 w-3" />
+                        </button>
                       </div>
 
                       <button
                         onClick={centerSelectedObject}
-                        className="group flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 transition-colors hover:bg-gray-50 md:gap-1 md:px-4 md:py-2"
+                        className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
                       >
-                        <Sparkles className="h-4 w-4 text-gray-500 group-hover:text-blue-500 md:h-5 md:w-5" />
-                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500 md:text-[10px]">Ortala</span>
+                        <Sparkles className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
+                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">Ortala</span>
                       </button>
-
-                      <button
-                        onClick={toggleLayerOrder}
-                        className="group ml-1 flex min-w-[70px] shrink-0 flex-col items-center gap-0.5 rounded-xl border-x border-gray-100 px-3 py-1.5 transition-colors hover:bg-gray-50 md:ml-2 md:gap-1 md:px-4 md:py-2"
-                      >
-                        <Layers className="h-4 w-4 text-gray-500 group-hover:text-blue-500 md:h-5 md:w-5" />
-                        <span className="text-[9px] font-bold uppercase text-gray-500 group-hover:text-blue-500 md:text-[10px]">
-                          {(() => {
-                            const objects = getActiveCanvasHandle()?.getCanvas()?.getObjects() ?? [];
-                            return objects.indexOf(selectedObj) === objects.length - 1 ? 'Arkaya' : 'Öne';
-                          })()}
-                        </span>
-                      </button>
-
-                      <button
-                        onClick={deleteSelected}
-                        className="group flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 transition-colors hover:bg-red-50 md:gap-1 md:px-3 md:py-2"
-                      >
-                        <Trash2 className="h-4 w-4 text-red-400 group-hover:text-red-500 md:h-5 md:w-5" />
-                        <span className="text-[9px] font-bold text-red-400 group-hover:text-red-500 md:text-[10px]">Kaldır</span>
-                      </button>
-                    </>
+                    </div>
                   ) : (
                     <>
                       <button
