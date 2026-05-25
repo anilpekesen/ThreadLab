@@ -92,6 +92,7 @@ async function buildGangSheet(
 ): Promise<Buffer> {
   const bg = { r: 0, g: 0, b: 0, alpha: 0 };
   const maxW = sheetWidth - 2 * margin;
+  const maxH = fixedHeight ? fixedHeight - 2 * margin : Infinity;
 
   // Sort tallest-first so items of similar height share the same rows
   const sorted = [...items].sort((a, b) => b.targetH - a.targetH);
@@ -106,7 +107,9 @@ async function buildGangSheet(
     let w = item.targetW;
     let h = item.targetH;
 
-    // Scale down if wider than sheet
+    // Scale down to fit within sheet dimensions, preserving aspect ratio
+    if (w > maxW) { h = Math.round((h * maxW) / w); w = maxW; }
+    if (h > maxH) { w = Math.round((w * maxH) / h); h = Math.round(maxH); }
     if (w > maxW) { h = Math.round((h * maxW) / w); w = maxW; }
 
     // Wrap to next row if item doesn't fit
