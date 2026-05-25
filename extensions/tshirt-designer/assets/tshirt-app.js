@@ -730,8 +730,12 @@
       fetch('/apps/tshirt-designer/personalization?' + params.toString(), {
         headers: { Accept: 'application/json' },
       })
-        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (res) {
+          if (res.status === 404) { root.style.display = 'none'; done(); return null; }
+          return res.ok ? res.json() : null;
+        })
         .then(function (payload) {
+          if (payload === null) return;
           if (payload && payload.settings) applyPersonalizationSettings(payload.settings, payload.printAreas, payload.product);
           else applySurfaceMode();
           done();
