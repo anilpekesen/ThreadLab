@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Link, Loader2, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { Link, Loader2, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
 import { compressImage, generateId } from '@/utils/compress';
 import type { UploadedImage } from '@/types';
@@ -8,13 +8,12 @@ interface Props {
   onAddImage: (url: string) => void;
   onRemoveBg: (url: string) => Promise<string>;
   canRemoveBg: boolean;
-  onClose?: () => void;
+  activeSource: 'upload' | 'qr';
 }
 
-export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, onClose }: Props) {
+export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState('');
-  const [activeSource, setActiveSource] = useState<'upload' | 'qr'>('upload');
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const [urlLoading, setUrlLoading] = useState(false);
   const [urlError, setUrlError] = useState('');
@@ -92,34 +91,6 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, onClos
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Tab bar — sticky so it stays visible when content scrolls */}
-      <div className="sticky top-0 z-10 -mx-4 flex items-center border-b border-gray-100 bg-white px-4 pb-0 md:-mx-6 md:px-6">
-        <div className="flex flex-1 gap-5">
-          {[
-            { id: 'upload' as const, label: 'Yükle' },
-            { id: 'qr' as const, label: 'QR Kod' },
-          ].map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => setActiveSource(id)}
-              className={`relative pb-3 text-sm font-bold transition-colors ${activeSource === id ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              {label}
-              {activeSource === id && <span className="absolute bottom-0 left-0 h-0.5 w-full bg-blue-600" />}
-            </button>
-          ))}
-        </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="mb-2 flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95"
-          >
-            <X className="h-4 w-4" />
-            Kapat
-          </button>
-        )}
-      </div>
-
       {/* Upload tab */}
       {activeSource === 'upload' && (
         <>

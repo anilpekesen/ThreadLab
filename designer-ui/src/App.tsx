@@ -504,6 +504,7 @@ export default function App() {
   const restoredCanvasRef = useRef<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<Tab>(null);
+  const [imageActiveSource, setImageActiveSource] = useState<'upload' | 'qr'>('upload');
   const [selectedObj, setSelectedObj] = useState<fabric.Object | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
   const [zoom, setZoom] = useState(getAutoZoom);
@@ -1626,24 +1627,64 @@ export default function App() {
 
           {activeTab && (
             <>
-            {/* Backdrop — tapping outside closes the panel */}
+            {/* Backdrop */}
             <div
               className="absolute inset-0 z-40 bg-black/30"
               onClick={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
             />
-            <div className="absolute bottom-0 left-0 z-50 w-full overflow-hidden rounded-t-[32px] bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.18)]">
-                {/* Drag handle */}
-                <div className="flex justify-center pt-3 pb-1">
+            <div className="absolute bottom-0 left-0 z-50 flex w-full flex-col rounded-t-[32px] bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.18)]" style={{ maxHeight: '62vh' }}>
+
+                {/* Drag handle — shrink-0, never scrolls */}
+                <div className="flex shrink-0 justify-center pt-3 pb-1">
                   <div className="h-1 w-10 rounded-full bg-gray-200" />
                 </div>
 
-                <div className="max-h-[54vh] overflow-y-auto p-4 md:p-6">
+                {/* Fixed header — always visible, never scrolls */}
+                <div className="shrink-0 border-b border-gray-100 px-4 md:px-6">
+                  {activeTab === 'image' ? (
+                    <div className="flex items-center">
+                      <div className="flex flex-1 gap-5">
+                        {(['upload', 'qr'] as const).map((id) => (
+                          <button
+                            key={id}
+                            onClick={() => setImageActiveSource(id)}
+                            className={`relative pb-3 text-sm font-bold transition-colors ${imageActiveSource === id ? 'text-blue-600' : 'text-gray-400'}`}
+                          >
+                            {id === 'upload' ? 'Yükle' : 'QR Kod'}
+                            {imageActiveSource === id && <span className="absolute bottom-0 left-0 h-0.5 w-full bg-blue-600" />}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => { setActiveTab(null); }}
+                        className="mb-2 flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"
+                      >
+                        <X className="h-4 w-4" />Kapat
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between py-3">
+                      <p className="text-base font-bold text-gray-800">
+                        {activeTab === 'text' ? (isEditingText ? 'Yazıyı Düzenle' : 'Yazı Ekle') : activeTab === 'layers' ? 'Katmanlar' : activeTab === 'templates' ? 'Şablonlar' : 'Kayıtlı Tasarımlar'}
+                      </p>
+                      <button
+                        onClick={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
+                        className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"
+                      >
+                        <X className="h-4 w-4" />Kapat
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Scrollable content */}
+                <div className="flex-1 overflow-y-auto p-4 md:p-6">
                   {activeTab === 'image' && (
                     <ImagePanel
                       onAddImage={handleAddImage}
                       onRemoveBg={handleRemoveBg}
                       canRemoveBg={personalization.removeBgAvailable}
-                      onClose={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
+                      activeSource={imageActiveSource}
                     />
                   )}
 
@@ -1653,16 +1694,11 @@ export default function App() {
                       onChange={setTextDraft}
                       onSubmit={handleSubmitText}
                       isEditing={isEditingText}
-                      onClose={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
                     />
                   )}
 
                   {activeTab === 'layers' && (
                     <div className="space-y-3 pr-2">
-                    <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center justify-between border-b border-gray-50 bg-white px-4 pb-3 md:-mx-6 md:px-6">
-                      <p className="text-base font-bold text-gray-800">Katmanlar</p>
-                      <button onClick={() => setActiveTab(null)} className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"><X className="h-4 w-4" />Kapat</button>
-                    </div>
                       {reversedLayers.length === 0 ? (
                         <div className="py-12 text-center text-gray-400">
                           <Layers className="mx-auto mb-3 h-12 w-12 opacity-20" />
@@ -1727,27 +1763,15 @@ export default function App() {
                   )}
 
                   {activeTab === 'templates' && (
-                    <>
-                      <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center justify-between border-b border-gray-50 bg-white px-4 pb-3 md:-mx-6 md:px-6">
-                        <p className="text-base font-bold text-gray-800">Şablonlar</p>
-                        <button onClick={() => setActiveTab(null)} className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"><X className="h-4 w-4" />Kapat</button>
-                      </div>
-                      <TemplatesPanel
-                        onApply={handleApplyTemplate}
-                        onAddImage={handleAddImage}
-                        shopTemplates={shopTemplates}
-                      />
-                    </>
+                    <TemplatesPanel
+                      onApply={handleApplyTemplate}
+                      onAddImage={handleAddImage}
+                      shopTemplates={shopTemplates}
+                    />
                   )}
 
                   {activeTab === 'saved' && (
-                    <>
-                      <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center justify-between border-b border-gray-50 bg-white px-4 pb-3 md:-mx-6 md:px-6">
-                        <p className="text-base font-bold text-gray-800">Kayıtlı Tasarımlar</p>
-                        <button onClick={() => setActiveTab(null)} className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"><X className="h-4 w-4" />Kapat</button>
-                      </div>
-                      <SavedPanel onLoad={handleLoadSaved} />
-                    </>
+                    <SavedPanel onLoad={handleLoadSaved} />
                   )}
                 </div>
             </div>
