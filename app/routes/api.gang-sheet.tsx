@@ -69,59 +69,6 @@ interface Placement {
   h: number;
 }
 
-// ── Skyline bin packer ────────────────────────────────────────────────────────
-// Tracks the occupied height at every x position as a step function.
-// For each item, picks the x that results in the lowest placement y,
-// optionally trying a 90° rotation to reduce material waste.
-
-interface SkyNode { x: number; h: number; }
-
-function skyGetH(sky: SkyNode[], x: number): number {
-  let h = 0;
-  for (const s of sky) {
-    if (s.x <= x) h = s.h;
-    else break;
-  }
-  return h;
-}
-
-function skyMaxH(sky: SkyNode[], fromX: number, w: number): number {
-  const toX = fromX + w;
-  let max = 0;
-  for (let i = 0; i < sky.length; i++) {
-    const sEnd = i + 1 < sky.length ? sky[i + 1].x : Infinity;
-    if (sky[i].x < toX && sEnd > fromX) max = Math.max(max, sky[i].h);
-  }
-  return max;
-}
-
-function skyRaise(sky: SkyNode[], fromX: number, toX: number, newH: number, sheetW: number): void {
-  const hAtEnd = toX < sheetW ? skyGetH(sky, toX) : 0;
-  // Keep nodes outside [fromX, toX), update/insert at fromX, insert at toX
-  const kept = sky.filter(s => s.x < fromX || s.x >= toX);
-  const atFrom = kept.find(s => s.x === fromX);
-  if (atFrom) atFrom.h = newH; else kept.push({ x: fromX, h: newH });
-  if (toX < sheetW && !kept.find(s => s.x === toX)) kept.push({ x: toX, h: hAtEnd });
-  kept.sort((a, b) => a.x - b.x);
-  sky.length = 0;
-  kept.forEach(s => sky.push(s));
-  // Merge adjacent nodes with the same height
-  for (let i = sky.length - 1; i > 0; i--) {
-    if (sky[i].h === sky[i - 1].h) sky.splice(i, 1);
-  }
-}
-
-function skyFindBest(sky: SkyNode[], itemW: number, margin: number, sheetW: number): { x: number; y: number } | null {
-  let best: { x: number; y: number } | null = null;
-  for (const { x } of sky) {
-    if (x < margin) continue;
-    if (x + itemW + margin > sheetW) continue;
-    const y = skyMaxH(sky, x, itemW);
-    if (!best || y < best.y || (y === best.y && x < best.x)) best = { x, y };
-  }
-  return best;
-}
-
 async function buildGangSheet(
   items: GangItem[],
   sheetWidth: number,
@@ -129,48 +76,45 @@ async function buildGangSheet(
   margin: number,
 ): Promise<Buffer> {
   const bg = { r: 0, g: 0, b: 0, alpha: 0 };
+  const maxW = sheetWidth - 2 * margin;
 
-  // Sort largest footprint first — improves packing density
-  const sorted = [...items].sort(
-    (a, b) => Math.max(b.targetH, b.targetW) - Math.max(a.targetH, a.targetW),
-  );
+  // ── Step 1: rotate portrait items to landscape to minimise row height ──────
+  const prepared = items.map((item) => {
+    const { buffer, targetW: w, targetH: h } = item;
+    return h > w
+      ? { buffer, targetW: h, targetH: w }  // 90° rotation
+      : { buffer, targetW: w, targetH: h };
+  });
 
-  // Skyline starts at y = margin across the full sheet
-  const sky: SkyNode[] = [{ x: margin, h: margin }];
+  // ── Step 2: sort tallest-first so items of similar height share rows ───────
+  const sorted = [...prepared].sort((a, b) => b.targetH - a.targetH);
+
+  // ── Step 3: shelf pack — clean left-to-right rows, no gap-filling ─────────
   const placed: Placement[] = [];
+  let curX = margin;
+  let curY = margin;
+  let rowH = 0;
 
   for (const item of sorted) {
-    const maxW = sheetWidth - 2 * margin;
-    let tw = item.targetW;
-    let th = item.targetH;
-    // Scale down if item is wider than sheet
-    if (tw > maxW) { th = Math.round((th * maxW) / tw); tw = maxW; }
+    let w = item.targetW;
+    let h = item.targetH;
 
-    // Try both orientations; pick whichever lands lower on the sheet
-    const normalPos = skyFindBest(sky, tw, margin, sheetWidth);
-    const rotPos    = th !== tw ? skyFindBest(sky, th, margin, sheetWidth) : null;
+    // Scale down if wider than sheet
+    if (w > maxW) { h = Math.round((h * maxW) / w); w = maxW; }
 
-    const ny = normalPos?.y ?? Infinity;
-    const ry = rotPos?.y   ?? Infinity;
-
-    if (!normalPos && !rotPos) continue; // item doesn't fit at all
-
-    let pos: { x: number; y: number };
-    let w: number;
-    let h: number;
-
-    if (normalPos && ny <= ry) {
-      pos = normalPos; w = tw; h = th;
-    } else {
-      pos = rotPos!; w = th; h = tw; // 90° rotation
+    // Wrap to next row if item doesn't fit
+    if (curX > margin && curX + w + margin > sheetWidth) {
+      curY += rowH + margin;
+      curX = margin;
+      rowH = 0;
     }
 
-    placed.push({ buffer: item.buffer, x: pos.x, y: pos.y, w, h });
-    skyRaise(sky, pos.x, pos.x + w + margin, pos.y + h + margin, sheetWidth);
+    placed.push({ buffer: item.buffer, x: curX, y: curY, w, h });
+    curX += w + margin;
+    if (h > rowH) rowH = h;
   }
 
-  const maxUsedY = placed.reduce((m, p) => Math.max(m, p.y + p.h + margin), margin * 2);
-  const totalHeight = fixedHeight ?? maxUsedY;
+  const totalHeight = fixedHeight ?? curY + rowH + margin;
 
   const compositeOps: sharp.OverlayOptions[] = await Promise.all(
     placed.map(async (p) => {
