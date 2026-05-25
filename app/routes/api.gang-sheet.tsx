@@ -32,21 +32,36 @@ async function fetchBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
-async function getPrintSizeMm(
+interface PrintAreaInfo {
+  sizeMm: { w: number; h: number };
+  canvasW: number; // print area width in 480px canvas space
+  canvasH: number; // print area height in 580px canvas space
+}
+
+async function getPrintAreaInfo(
   shop: string,
   productId: string,
   side: "front" | "back",
-): Promise<{ w: number; h: number } | null> {
+): Promise<PrintAreaInfo | null> {
   if (!productId) return null;
   try {
     for (const s of [side, "front"] as const) {
-      const result = await query<{ real_width_mm: number; real_height_mm: number }>(
-        "SELECT real_width_mm, real_height_mm FROM product_print_areas WHERE shop = $1 AND product_id = $2 AND side = $3 LIMIT 1",
+      const result = await query<{
+        real_width_mm: number;
+        real_height_mm: number;
+        width: number;
+        height: number;
+      }>(
+        "SELECT real_width_mm, real_height_mm, width, height FROM product_print_areas WHERE shop = $1 AND product_id = $2 AND side = $3 LIMIT 1",
         [shop, productId, s],
       );
       const row = result.rows[0];
       if (row?.real_width_mm && row?.real_height_mm) {
-        return { w: row.real_width_mm, h: row.real_height_mm };
+        return {
+          sizeMm: { w: row.real_width_mm, h: row.real_height_mm },
+          canvasW: row.width || 480,
+          canvasH: row.height || 580,
+        };
       }
     }
     return null;
@@ -78,16 +93,8 @@ async function buildGangSheet(
   const bg = { r: 0, g: 0, b: 0, alpha: 0 };
   const maxW = sheetWidth - 2 * margin;
 
-  // ── Step 1: rotate portrait items to landscape to minimise row height ──────
-  const prepared = items.map((item) => {
-    const { buffer, targetW: w, targetH: h } = item;
-    return h > w
-      ? { buffer, targetW: h, targetH: w }  // 90° rotation
-      : { buffer, targetW: w, targetH: h };
-  });
-
-  // ── Step 2: sort tallest-first so items of similar height share rows ───────
-  const sorted = [...prepared].sort((a, b) => b.targetH - a.targetH);
+  // Sort tallest-first so items of similar height share the same rows
+  const sorted = [...items].sort((a, b) => b.targetH - a.targetH);
 
   // ── Step 3: shelf pack — clean left-to-right rows, no gap-filling ─────────
   const placed: Placement[] = [];
@@ -120,7 +127,7 @@ async function buildGangSheet(
     placed.map(async (p) => {
       const resized = await sharp(p.buffer)
         .ensureAlpha()
-        .resize(p.w, p.h, { fit: "fill", background: bg })
+        .resize(p.w, p.h, { fit: "inside", withoutEnlargement: false, background: bg })
         .png()
         .toBuffer();
       return { input: resized, left: p.x, top: p.y } as sharp.OverlayOptions;
@@ -148,7 +155,7 @@ async function buildItemsForSide(
 
   await Promise.all(
     orders.map(async (order) => {
-      const sizeMm = await getPrintSizeMm(shop, order.productId ?? "", side);
+      const areaInfo = await getPrintAreaInfo(shop, order.productId ?? "", side);
       const storedUrl = side === "back"
         ? order.designBackPrintUrl ?? ""
         : (order.designFrontPrintUrl || order.productionFileUrl || "");
@@ -200,9 +207,16 @@ async function buildItemsForSide(
 
       let targetW: number;
       let targetH: number;
-      if (sizeMm) {
-        targetW = Math.max(10, Math.round((contentW / origW) * sizeMm.w * pxPerMm));
-        targetH = Math.max(10, Math.round((contentH / origH) * sizeMm.h * pxPerMm));
+      if (areaInfo) {
+        // Scale the canvas export dimensions to match the print area's canvas pixel size.
+        // origW/origH are the exported PNG dimensions (e.g. 1440×1740 at 3× multiplier).
+        // canvasW/canvasH are the print area dimensions in the 480×580 canvas coordinate space.
+        // By using (canvasW/480 × origW) as the reference width, we get the correct
+        // physical size regardless of where the print area sits on the canvas.
+        const refW = (areaInfo.canvasW / 480) * origW;
+        const refH = (areaInfo.canvasH / 580) * origH;
+        targetW = Math.max(10, Math.round((contentW / refW) * areaInfo.sizeMm.w * pxPerMm));
+        targetH = Math.max(10, Math.round((contentH / refH) * areaInfo.sizeMm.h * pxPerMm));
       } else {
         targetW = contentW;
         targetH = contentH;
