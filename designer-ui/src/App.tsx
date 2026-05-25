@@ -1625,8 +1625,18 @@ export default function App() {
           </div>
 
           {activeTab && (
-            <div className="absolute bottom-0 left-0 z-50 w-full overflow-hidden rounded-t-[32px] border-t border-gray-100 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
-                <div className="flex items-center justify-between border-b border-gray-50 px-4 py-3 md:px-6 md:py-4">
+            <>
+            {/* Backdrop — tapping outside closes the panel */}
+            <div
+              className="absolute inset-0 z-40 bg-black/30"
+              onClick={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
+            />
+            <div className="absolute bottom-0 left-0 z-50 w-full overflow-hidden rounded-t-[32px] bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.18)]">
+                {/* Drag handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className="h-1 w-10 rounded-full bg-gray-200" />
+                </div>
+                <div className="flex items-center justify-between px-4 py-2 md:px-6 md:py-3">
                   <p className="text-base font-bold text-gray-800 md:text-lg">
                     {activeTab === 'image' ? 'Medya Ekle' : activeTab === 'text' ? 'Yazı Ekle' : activeTab === 'layers' ? 'Katmanlar' : activeTab === 'templates' ? 'Şablonlar' : 'Kayıtlı Tasarımlar'}
                   </p>
@@ -1739,6 +1749,7 @@ export default function App() {
                   )}
                 </div>
             </div>
+            </>
           )}
 
           {selectedObj && (toolbarPos || mobileToolbar) && !activeTab && !showPreview && (
