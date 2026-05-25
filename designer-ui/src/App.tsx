@@ -1659,7 +1659,7 @@ export default function App() {
 
                   {activeTab === 'layers' && (
                     <div className="space-y-3 pr-2">
-                    <div className="mb-3 flex items-center justify-between">
+                    <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center justify-between border-b border-gray-50 bg-white px-4 pb-3 md:-mx-6 md:px-6">
                       <p className="text-base font-bold text-gray-800">Katmanlar</p>
                       <button onClick={() => setActiveTab(null)} className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"><X className="h-4 w-4" />Kapat</button>
                     </div>
@@ -1728,7 +1728,7 @@ export default function App() {
 
                   {activeTab === 'templates' && (
                     <>
-                      <div className="mb-3 flex items-center justify-between">
+                      <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center justify-between border-b border-gray-50 bg-white px-4 pb-3 md:-mx-6 md:px-6">
                         <p className="text-base font-bold text-gray-800">Şablonlar</p>
                         <button onClick={() => setActiveTab(null)} className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"><X className="h-4 w-4" />Kapat</button>
                       </div>
@@ -1742,7 +1742,7 @@ export default function App() {
 
                   {activeTab === 'saved' && (
                     <>
-                      <div className="mb-3 flex items-center justify-between">
+                      <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center justify-between border-b border-gray-50 bg-white px-4 pb-3 md:-mx-6 md:px-6">
                         <p className="text-base font-bold text-gray-800">Kayıtlı Tasarımlar</p>
                         <button onClick={() => setActiveTab(null)} className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"><X className="h-4 w-4" />Kapat</button>
                       </div>

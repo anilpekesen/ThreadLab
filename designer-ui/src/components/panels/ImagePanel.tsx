@@ -92,8 +92,8 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, onClos
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Tab bar */}
-      <div className="flex items-center border-b border-gray-100">
+      {/* Tab bar — sticky so it stays visible when content scrolls */}
+      <div className="sticky top-0 z-10 -mx-4 flex items-center border-b border-gray-100 bg-white px-4 pb-0 md:-mx-6 md:px-6">
         <div className="flex flex-1 gap-5">
           {[
             { id: 'upload' as const, label: 'Yükle' },

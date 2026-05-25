@@ -11,7 +11,7 @@ interface Props {
 export default function TextPanel({ value, onChange, onSubmit, isEditing = false, onClose }: Props) {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between border-b border-gray-50 bg-white px-4 pb-3 md:-mx-6 md:px-6">
         <p className="text-base font-bold text-gray-800">{isEditing ? 'Yazıyı Düzenle' : 'Yazı Ekle'}</p>
         {onClose && (
           <button
