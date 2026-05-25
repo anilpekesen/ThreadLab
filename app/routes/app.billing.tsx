@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, Form, useNavigation } from "@remix-run/react";
+import { useLoaderData, useActionData, Form, useNavigation } from "@remix-run/react";
 import { useTranslation } from "~/i18n";
 import { PageHelper } from "~/components/PageHelper";
 import {
@@ -217,13 +217,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const planKey = form.get("plan") as PlanKey;
     if (!PLAN_ORDER.includes(planKey)) return json({ error: "Geçersiz plan" }, { status: 400 });
 
-    // Downgrade protection: block if current usage exceeds target plan limits
+    // Downgrade protection
     const currentSub = await getShopSubscription(shop);
     const currentPlanKey = currentSub?.plan_key ?? "Starter";
     const targetIdx = PLAN_ORDER.indexOf(planKey);
     const currentIdx = PLAN_ORDER.indexOf(currentPlanKey);
 
-    if (targetIdx < currentIdx && currentSub?.subscription_status === "active") {
+    if (targetIdx < currentIdx && (currentSub?.subscription_status === "active" || currentSub?.subscription_status === "trial")) {
       const analytics = await getAnalytics(shop);
       const { blockedReasons } = await getDowngradeRestrictions(shop, analytics);
       const reasons = blockedReasons[planKey];
@@ -232,11 +232,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    await upsertShopSubscription(shop, { planKey, subscriptionStatus: "none" });
-
-    const returnUrl = `${process.env.SHOPIFY_APP_URL}/app/billing`;
-    const confirmationUrl = await createShopifySubscription(shop, accessToken, planKey, returnUrl);
-    return redirect(confirmationUrl);
+    try {
+      const returnUrl = `${process.env.SHOPIFY_APP_URL}/app/billing`;
+      const confirmationUrl = await createShopifySubscription(shop, accessToken, planKey, returnUrl);
+      // Only update DB after Shopify confirms the subscription was created
+      await upsertShopSubscription(shop, { planKey, subscriptionStatus: "none" });
+      return redirect(confirmationUrl);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Bilinmeyen hata";
+      console.error("[billing] subscription create error:", message);
+      return json({ error: `Shopify aboneliği oluşturulamadı: ${message}` }, { status: 500 });
+    }
   }
 
   if (intent === "cancel") {
@@ -258,9 +264,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function BillingPage() {
   const { analytics, isTest, blockedReasons } = useLoaderData<typeof loader>();
+  const actionData = useActionData<{ error?: string }>();
   const nav = useNavigation();
   const { t, lang } = useTranslation();
-  const actionData = nav.formData ? null : undefined; // reset on navigation
   const isLoading = nav.state === "submitting";
   const isActive = analytics.subscriptionStatus === "active";
   const isTrial = analytics.subscriptionStatus === "trial";
@@ -272,6 +278,12 @@ export default function BillingPage() {
           { titleKey: "helper.billing.1.title", bodyKey: "helper.billing.1.body" },
           { titleKey: "helper.billing.2.title", bodyKey: "helper.billing.2.body" },
         ]} />
+
+        {actionData?.error && (
+          <Banner title="Hata" tone="critical">
+            <Text as="p">{actionData.error}</Text>
+          </Banner>
+        )}
 
         {isTest && (
           <Banner title={t("billing.testMode")} tone="warning">
