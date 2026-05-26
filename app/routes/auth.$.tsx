@@ -53,7 +53,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       `INSERT INTO shopify_sessions (id, shop, state, "isOnline", scope, expires, "accessToken", "refreshToken")
        VALUES ($1, $2, '', false, $3, $4, $5, $6)
        ON CONFLICT (id) DO UPDATE SET "accessToken" = $5, scope = $3, expires = $4, "refreshToken" = $6`,
-      [`offline_${shop}`, shop, SCOPES, tokenData.expiresAt, tokenData.accessToken, tokenData.refreshToken],
+      [`offline_${shop}`, shop, SCOPES, tokenData.expiresAt ? Math.floor(tokenData.expiresAt.getTime() / 1000) : null, tokenData.accessToken, tokenData.refreshToken],
     );
 
     const sessionCookie = await createShopSession(shop);
