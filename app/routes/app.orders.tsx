@@ -184,8 +184,6 @@ export default function Orders() {
   const fetcher = useFetcher<{ ok: boolean; synced?: number; error?: string }>();
   const syncFetcher = useFetcher<{ ok: boolean; synced?: number; error?: string }>();
   const { t, lang } = useTranslation();
-  const [syncDone, setSyncDone] = useState(false);
-
   const isSyncing = syncFetcher.state !== "idle";
   const syncResult = syncFetcher.data as { ok: boolean; synced?: number; error?: string } | undefined;
 
