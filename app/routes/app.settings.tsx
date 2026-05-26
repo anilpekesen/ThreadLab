@@ -36,70 +36,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const saved = url.searchParams.get("saved") === "1";
   const created = url.searchParams.get("created") === "1";
 
-  // Auto-register order tracking ScriptTag on order status page
+  // Clean up any previously registered ScriptTags (ScriptTags are deprecated)
   try {
-    const appUrl = process.env.SHOPIFY_APP_URL ?? "https://app.printlabapp.com";
-    const scriptSrc = `${appUrl}/api/order-tracking-script`;
     const stRes = await admin.graphql(`#graphql
-      { scriptTags(first: 10) { nodes { id src displayScope } } }
+      { scriptTags(first: 20) { nodes { id src } } }
     `);
     const stData = await stRes.json() as {
-      data?: { scriptTags?: { nodes?: Array<{ id: string; src: string; displayScope: string }> } };
+      data?: { scriptTags?: { nodes?: Array<{ id: string; src: string }> } };
     };
-    const existing = stData.data?.scriptTags?.nodes ?? [];
-    const alreadyRegistered = existing.some((t) => t.src === scriptSrc);
-    if (!alreadyRegistered) {
+    for (const tag of stData.data?.scriptTags?.nodes ?? []) {
       await admin.graphql(`#graphql
-        mutation {
-          scriptTagCreate(input: {
-            src: "${scriptSrc}"
-            displayScope: ORDER_STATUS
-          }) {
-            scriptTag { id }
-            userErrors { field message }
-          }
-        }
-      `);
+        mutation { scriptTagDelete(id: "${tag.id}") { deletedScriptTagId userErrors { message } } }
+      `).catch(() => {});
     }
   } catch (_e) {
-    // silent — will retry on next load
-  }
-
-  // Auto-register cart preview ScriptTag (runs on all pages, filters to /cart in JS)
-  try {
-    const appUrl = process.env.SHOPIFY_APP_URL ?? "https://app.printlabapp.com";
-    const cartScriptSrc = `${appUrl}/api/cart-preview-script?v=5`;
-    const stRes2 = await admin.graphql(`#graphql
-      { scriptTags(first: 20) { nodes { id src displayScope } } }
-    `);
-    const stData2 = await stRes2.json() as {
-      data?: { scriptTags?: { nodes?: Array<{ id: string; src: string; displayScope: string }> } };
-    };
-    const existing2 = stData2.data?.scriptTags?.nodes ?? [];
-    // Delete stale cart-preview ScriptTags (old versions without ?v=2)
-    for (const tag of existing2) {
-      if (tag.src.includes('cart-preview-script') && tag.src !== cartScriptSrc) {
-        await admin.graphql(`#graphql
-          mutation { scriptTagDelete(id: "${tag.id}") { deletedScriptTagId userErrors { message } } }
-        `);
-      }
-    }
-    const cartAlreadyRegistered = existing2.some((t) => t.src === cartScriptSrc);
-    if (!cartAlreadyRegistered) {
-      await admin.graphql(`#graphql
-        mutation {
-          scriptTagCreate(input: {
-            src: "${cartScriptSrc}"
-            displayScope: ALL
-          }) {
-            scriptTag { id }
-            userErrors { field message }
-          }
-        }
-      `);
-    }
-  } catch (_e) {
-    console.error("[settings] cart ScriptTag registration error:", _e);
+    // silent
   }
 
   // Auto-register Cart Transform function; re-register if function ID changed after deploy

@@ -24,7 +24,7 @@ const T = {
       sub: "PrintLab, Shopify mağazanızın ürün sayfasına gömülen bir kişiselleştirme tasarımcısıdır. T-shirt, kupa, totebag — müşteri görsel ekler, yazı yazar, sepete atar. Siz yalnızca basın.",
       cta1: "14 gün ücretsiz başla", cta2: "2 dakikalık demo izle",
       b1: "Kurulum 5 dakika", b2: "Kredi kartı gerekmiyor", b3: "Türkçe destek",
-      trustLabel: "300+ Shopify mağazasının tercihi",
+      trustLabel: "Shopify mağazaları için baskı yönetimi",
     },
     how: {
       eyebrow: "NASIL ÇALIŞIR",
@@ -110,7 +110,7 @@ const T = {
       sub: "PrintLab is a customization designer embedded directly on your Shopify product pages. T-shirts, mugs, tote bags — customers add images, write text, add to cart. You just print.",
       cta1: "Start free for 14 days", cta2: "Watch 2-min demo",
       b1: "5-minute setup", b2: "No credit card required", b3: "English support",
-      trustLabel: "Trusted by 300+ Shopify stores",
+      trustLabel: "Print order management for Shopify stores",
     },
     how: {
       eyebrow: "HOW IT WORKS",
@@ -329,7 +329,7 @@ function buildHtml(lang: Lang): string {
         <div class="phone-screen">
           <div class="ph-topbar">
             <div class="ph-back"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></div>
-            <div class="ph-shop">denimco.com.tr</div>
+            <div class="ph-shop">mystore.myshopify.com</div>
             <div class="ph-cart">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
               <span class="ph-cart-dot">1</span>
@@ -399,14 +399,6 @@ function buildHtml(lang: Lang): string {
 
   <div class="trustbar">
     <div class="trustbar-label">${t.hero.trustLabel}</div>
-    <div class="trustbar-logos">
-      <span>denimco</span><span class="dot">·</span>
-      <span>FORM&amp;Co</span><span class="dot">·</span>
-      <span>kuponi</span><span class="dot">·</span>
-      <span>SADE atölye</span><span class="dot">·</span>
-      <span>NÜVE</span><span class="dot">·</span>
-      <span>basko</span>
-    </div>
   </div>
 </section>
 
