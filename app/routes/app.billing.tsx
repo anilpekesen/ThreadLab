@@ -16,7 +16,17 @@ import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/mod
 
 const PLAN_ORDER: PlanKey[] = ["Starter", "Growth", "Pro", "Business"];
 const TRIAL_DAYS = 14;
-const IS_TEST = process.env.SHOPIFY_BILLING_TEST === "true";
+
+function isBillingTestCharge(shop: string): boolean {
+  if (process.env.SHOPIFY_BILLING_TEST === "true") return true;
+
+  const testStores = (process.env.SHOPIFY_BILLING_TEST_STORES ?? "")
+    .split(",")
+    .map((store) => store.trim().toLowerCase())
+    .filter(Boolean);
+
+  return testStores.includes(shop.toLowerCase());
+}
 
 const PLAN_BADGE: Record<PlanKey, "attention" | "info" | "success"> = {
   Starter: "attention", Growth: "info", Pro: "info", Business: "success",
@@ -57,6 +67,7 @@ async function createShopifySubscription(
   accessToken: string,
   planKey: PlanKey,
   returnUrl: string,
+  test: boolean,
 ): Promise<string> {
   const plan = PLANS[planKey];
   const resp = await shopifyGraphQL(
@@ -96,7 +107,7 @@ async function createShopifySubscription(
         },
       ],
       returnUrl,
-      test: IS_TEST,
+      test,
       trialDays: TRIAL_DAYS,
       replacementBehavior: "APPLY_IMMEDIATELY",
     },
@@ -212,7 +223,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const analytics = await getAnalytics(shop);
   const { blockedReasons } = await getDowngradeRestrictions(shop, analytics);
-  return json({ analytics, isTest: IS_TEST, blockedReasons });
+  return json({ analytics, isTest: isBillingTestCharge(shop), blockedReasons });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -245,7 +256,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     try {
       const returnUrl = `${process.env.SHOPIFY_APP_URL}/app/billing`;
-      const confirmationUrl = await createShopifySubscription(shop, accessToken, planKey, returnUrl);
+      const confirmationUrl = await createShopifySubscription(
+        shop,
+        accessToken,
+        planKey,
+        returnUrl,
+        isBillingTestCharge(shop),
+      );
       return redirect(confirmationUrl);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Bilinmeyen hata";
