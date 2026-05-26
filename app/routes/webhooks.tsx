@@ -190,7 +190,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // ── GDPR: customers/redact ────────────────────────────────────────
   if (topic === "CUSTOMERS_REDACT" || topic === "customers/redact") {
-    console.log(`[webhook] GDPR customers_redact shop=${shop}`);
+    const body = payload as { customer?: { email?: string }; orders_to_redact?: Array<{ id: number }> };
+    const email = body.customer?.email;
+    console.log(`[webhook] GDPR customers_redact shop=${shop} email=${email}`);
+    if (email) {
+      await query(
+        `UPDATE orders SET customer_name = 'Redacted', customer_email = '' WHERE shop = $1 AND customer_email = $2`,
+        [shop, email],
+      ).catch((err) => console.error(`[webhook] customers_redact failed:`, err));
+    }
     return json({ ok: true });
   }
 
