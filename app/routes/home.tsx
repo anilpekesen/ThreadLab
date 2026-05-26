@@ -66,10 +66,10 @@ const T = {
       sub: "Tüm planlar 14 gün ücretsiz. İstediğiniz zaman iptal.",
       per: "/ay",
       plans: [
-        { name: "Starter", amt: "9.99", cur: "$", desc: "Başlamak için ideal.", feat: ["50 sipariş/ay", "1 ürün şablonu", "Temel font kütüphanesi", "E-posta destek"], cta: "Ücretsiz dene", featured: false },
-        { name: "Growth", amt: "19.99", cur: "$", desc: "Büyüyen mağazalar için.", feat: ["200 sipariş/ay", "5 ürün şablonu", "AI arka plan kaldırma", "24+ tasarım fontu", "300 DPI baskı PDF", "Türkçe canlı destek"], cta: "14 gün ücretsiz başla", featured: true, badge: "EN POPÜLER" },
-        { name: "Pro", amt: "49.99", cur: "$", desc: "Yüksek hacim, sınırsız şablon.", feat: ["1.000 sipariş/ay", "Sınırsız ürün şablonu", "AI arka plan kaldırma", "Gang sheet / toplu baskı", "Üretim paneli", "Öncelikli destek"], cta: "14 gün ücretsiz başla", featured: false },
-        { name: "Business", amt: "99.99", cur: "$", desc: "Sınırsız sipariş ve özellik.", feat: ["Sınırsız sipariş", "Sınırsız ürün şablonu", "Sınırsız AI kaldırma", "Gang sheet / toplu baskı", "Üretim paneli + ZIP", "7/24 öncelikli destek"], cta: "14 gün ücretsiz başla", featured: false },
+        { name: "Starter", amt: "9.99", cur: "$", desc: "Başlamak için ideal.", feat: ["100 sipariş/ay", "1 ürün kategorisi", "Ön + arka yüz baskı", "100 arka plan kaldırma/ay"], cta: "14 gün ücretsiz başla", featured: false },
+        { name: "Growth", amt: "19.99", cur: "$", desc: "Büyüyen mağazalar için.", feat: ["500 sipariş/ay", "2 ürün kategorisi", "Ön + arka yüz baskı", "500 arka plan kaldırma/ay", "10 özel şablon"], cta: "14 gün ücretsiz başla", featured: true, badge: "EN POPÜLER" },
+        { name: "Pro", amt: "49.99", cur: "$", desc: "Yüksek hacimli mağazalar için.", feat: ["2.000 sipariş/ay", "4 ürün kategorisi", "1.500 arka plan kaldırma/ay", "20 özel şablon", "Üretim & Gang Sheet", "Öncelikli destek"], cta: "14 gün ücretsiz başla", featured: false },
+        { name: "Business", amt: "99.99", cur: "$", desc: "Daha büyük ekipler için.", feat: ["Sınırsız sipariş", "Sınırsız ürün kategorisi", "4.000 arka plan kaldırma/ay", "Sınırsız özel şablon", "Üretim & Gang Sheet", "Özel onboarding & destek"], cta: "14 gün ücretsiz başla", featured: false },
       ],
     },
     faq: {
@@ -152,10 +152,10 @@ const T = {
       sub: "All plans include a 14-day free trial. Cancel any time.",
       per: "/mo",
       plans: [
-        { name: "Starter", amt: "9.99", cur: "$", desc: "Great to get started.", feat: ["50 orders/month", "1 product template", "Basic font library", "Email support"], cta: "Start free", featured: false },
-        { name: "Growth", amt: "19.99", cur: "$", desc: "For stores that are scaling.", feat: ["200 orders/month", "5 product templates", "AI background removal", "24+ design fonts", "300 DPI print PDF", "Live chat support"], cta: "Start free for 14 days", featured: true, badge: "MOST POPULAR" },
-        { name: "Pro", amt: "49.99", cur: "$", desc: "High volume, unlimited templates.", feat: ["1,000 orders/month", "Unlimited templates", "AI background removal", "Gang sheet printing", "Production dashboard", "Priority support"], cta: "Start free for 14 days", featured: false },
-        { name: "Business", amt: "99.99", cur: "$", desc: "Unlimited everything.", feat: ["Unlimited orders", "Unlimited templates", "Unlimited AI removals", "Gang sheet printing", "Production panel + ZIP", "24/7 priority support"], cta: "Start free for 14 days", featured: false },
+        { name: "Starter", amt: "9.99", cur: "$", desc: "Great to get started.", feat: ["100 orders/month", "1 product category", "Front + back surface print", "100 background removals/month"], cta: "Start free for 14 days", featured: false },
+        { name: "Growth", amt: "19.99", cur: "$", desc: "For stores that are scaling.", feat: ["500 orders/month", "2 product categories", "Front + back surface print", "500 background removals/month", "10 custom templates"], cta: "Start free for 14 days", featured: true, badge: "MOST POPULAR" },
+        { name: "Pro", amt: "49.99", cur: "$", desc: "For higher-volume stores.", feat: ["2,000 orders/month", "4 product categories", "1,500 background removals/month", "20 custom templates", "Production & Gang Sheet", "Priority support"], cta: "Start free for 14 days", featured: false },
+        { name: "Business", amt: "99.99", cur: "$", desc: "For larger teams.", feat: ["Unlimited orders", "Unlimited product categories", "4,000 background removals/month", "Unlimited custom templates", "Production & Gang Sheet", "Custom onboarding & support"], cta: "Start free for 14 days", featured: false },
       ],
     },
     faq: {

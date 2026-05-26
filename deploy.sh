@@ -17,10 +17,19 @@ npx remix vite:build
 
 # Load env vars so pm2 picks them up via --update-env
 if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ""|\#*) continue ;;
+      *=*)
+        key="${line%%=*}"
+        value="${line#*=}"
+        case "$key" in
+          *[!A-Za-z0-9_]*|"") continue ;;
+        esac
+        export "$key=$value"
+        ;;
+    esac
+  done < .env
 fi
 
 # Full restart to ensure all workers run new code and env

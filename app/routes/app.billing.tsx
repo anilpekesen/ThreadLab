@@ -15,7 +15,8 @@ import { PLANS, type PlanKey } from "~/lib/plans";
 import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/models/billing.server";
 
 const PLAN_ORDER: PlanKey[] = ["Starter", "Growth", "Pro", "Business"];
-const IS_TEST = process.env.SHOPIFY_BILLING_TEST !== "false";
+const TRIAL_DAYS = 14;
+const IS_TEST = process.env.SHOPIFY_BILLING_TEST === "true";
 
 const PLAN_BADGE: Record<PlanKey, "attention" | "info" | "success"> = {
   Starter: "attention", Growth: "info", Pro: "info", Business: "success",
@@ -67,6 +68,7 @@ async function createShopifySubscription(
       $returnUrl: URL!
       $test: Boolean
       $trialDays: Int
+      $replacementBehavior: AppSubscriptionReplacementBehavior
     ) {
       appSubscriptionCreate(
         name: $name
@@ -74,6 +76,7 @@ async function createShopifySubscription(
         returnUrl: $returnUrl
         test: $test
         trialDays: $trialDays
+        replacementBehavior: $replacementBehavior
       ) {
         appSubscription { id }
         confirmationUrl
@@ -94,7 +97,8 @@ async function createShopifySubscription(
       ],
       returnUrl,
       test: IS_TEST,
-      trialDays: 14,
+      trialDays: TRIAL_DAYS,
+      replacementBehavior: "APPLY_IMMEDIATELY",
     },
   );
 
@@ -122,7 +126,7 @@ async function cancelShopifySubscription(
   accessToken: string,
   subscriptionId: string,
 ): Promise<void> {
-  await shopifyGraphQL(
+  const resp = await shopifyGraphQL(
     shop,
     accessToken,
     `mutation AppSubscriptionCancel($id: ID!, $prorate: Boolean) {
@@ -133,6 +137,18 @@ async function cancelShopifySubscription(
     }`,
     { id: subscriptionId, prorate: true },
   );
+
+  const data = (await resp.json()) as {
+    data?: {
+      appSubscriptionCancel?: {
+        userErrors?: { field: string; message: string }[];
+      };
+    };
+  };
+  const errors = data.data?.appSubscriptionCancel?.userErrors ?? [];
+  if (errors.length) {
+    throw new Error(errors.map((e) => e.message).join(", "));
+  }
 }
 
 async function getDowngradeRestrictions(shop: string, analytics: Awaited<ReturnType<typeof getAnalytics>>) {
@@ -230,8 +246,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     try {
       const returnUrl = `${process.env.SHOPIFY_APP_URL}/app/billing`;
       const confirmationUrl = await createShopifySubscription(shop, accessToken, planKey, returnUrl);
-      // Only update DB after Shopify confirms the subscription was created
-      await upsertShopSubscription(shop, { planKey, subscriptionStatus: "none" });
       return redirect(confirmationUrl);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Bilinmeyen hata";
@@ -242,8 +256,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "cancel") {
     const subscriptionId = form.get("subscriptionId") as string;
-    if (subscriptionId) {
-      await cancelShopifySubscription(shop, accessToken, subscriptionId);
+    try {
+      if (subscriptionId) {
+        await cancelShopifySubscription(shop, accessToken, subscriptionId);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Bilinmeyen hata";
+      console.error("[billing] subscription cancel error:", message);
+      return json({ error: `Shopify aboneliği iptal edilemedi: ${message}` }, { status: 500 });
     }
     const sub = await getShopSubscription(shop);
     await upsertShopSubscription(shop, {

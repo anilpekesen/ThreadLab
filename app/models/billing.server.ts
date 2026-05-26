@@ -33,7 +33,7 @@ export async function upsertShopSubscription(
      VALUES ($1, $2, $3, $4, now())
      ON CONFLICT (shop) DO UPDATE SET
        plan_key = $2,
-       shopify_subscription_id = COALESCE($3, shop_subscriptions.shopify_subscription_id),
+       shopify_subscription_id = $3,
        subscription_status = $4,
        updated_at = now()`,
     [shop, data.planKey, data.shopifySubscriptionId ?? null, data.subscriptionStatus],

@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-const API_VERSION = "2026-07";
+const API_VERSION = "2026-04";
 
 export function verifyHmac(query: URLSearchParams): boolean {
   const hmac = query.get("hmac");
@@ -214,8 +214,11 @@ export async function shopifyGraphQL(
 }
 
 export function verifyWebhookHmac(rawBody: string, hmacHeader: string): boolean {
+  const secret = process.env.SHOPIFY_API_SECRET;
+  if (!secret || !hmacHeader) return false;
+
   const expected = crypto
-    .createHmac("sha256", process.env.SHOPIFY_API_SECRET ?? "")
+    .createHmac("sha256", secret)
     .update(rawBody, "utf8")
     .digest("base64");
 

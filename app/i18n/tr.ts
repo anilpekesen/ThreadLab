@@ -166,7 +166,7 @@ const tr = {
   // Billing
   "billing.title": "Abonelik ve Planlar",
   "billing.currentPlan": "Mevcut Plan",
-  "billing.trialDays": "7 gün",
+  "billing.trialDays": "14 gün",
   "billing.monthlyPrice": "Aylık fiyat",
   "billing.productTypes": "Ürün tipi",
   "billing.ordersPerMonth": "Sipariş/ay",
@@ -200,7 +200,7 @@ const tr = {
   "billing.feature": "Özellik",
   "billing.recommended": "Önerilen",
   "billing.perMonth": "/ay",
-  "billing.trialLabel": "7 gün ücretsiz deneme",
+  "billing.trialLabel": "14 gün ücretsiz deneme",
   "billing.testMode": "Test Modu Aktif",
   "billing.testModeDesc": "Faturalar gerçek kart ücretlendirilmeden test ediliyor. Üretim ortamı için SHOPIFY_BILLING_TEST=false yapın.",
 
@@ -280,7 +280,7 @@ const tr = {
   "helper.billing.1.title": "Planlar arasındaki fark nedir?",
   "helper.billing.1.body": "Her plan, aylık işleyebileceğiniz sipariş sayısını, tanımlayabileceğiniz ürün tipi sayısını, arka plan kaldırma kotasını ve şablon limitini belirler. Limitinize ulaştığınızda yeni siparişler veya tasarımlar reddedilir — plan yükselterek limiti artırabilirsiniz.",
   "helper.billing.2.title": "Ücretsiz deneme nasıl çalışır?",
-  "helper.billing.2.body": "Her plan için 7 günlük ücretsiz deneme hakkı vardır. Deneme süresi içinde tüm özellikleri kullanabilirsiniz; ücretlendirme 7. günden sonra başlar. Deneme süresi dolmadan iptal ederseniz ücret alınmaz.",
+  "helper.billing.2.body": "Her plan için 14 günlük ücretsiz deneme hakkı vardır. Deneme süresi içinde tüm özellikleri kullanabilirsiniz; ücretlendirme 14. günden sonra başlar. Deneme süresi dolmadan iptal ederseniz ücret alınmaz.",
 
   // Page helpers — Templates
   "helper.templates.1.title": "Şablonlar ne işe yarar?",

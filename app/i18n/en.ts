@@ -166,7 +166,7 @@ const en = {
   // Billing
   "billing.title": "Billing & Plans",
   "billing.currentPlan": "Current Plan",
-  "billing.trialDays": "7 days",
+  "billing.trialDays": "14 days",
   "billing.monthlyPrice": "Monthly price",
   "billing.productTypes": "Product types",
   "billing.ordersPerMonth": "Orders/month",
@@ -200,7 +200,7 @@ const en = {
   "billing.feature": "Feature",
   "billing.recommended": "Recommended",
   "billing.perMonth": "/month",
-  "billing.trialLabel": "7-day free trial",
+  "billing.trialLabel": "14-day free trial",
   "billing.testMode": "Test Mode Active",
   "billing.testModeDesc": "Billing is being tested without charging a real card. Set SHOPIFY_BILLING_TEST=false for production.",
 
@@ -280,7 +280,7 @@ const en = {
   "helper.billing.1.title": "What is the difference between plans?",
   "helper.billing.1.body": "Each plan determines the number of orders you can process per month, the number of product types you can define, your background removal quota, and your template limit. When you reach your limit, new orders or designs are rejected — upgrade your plan to increase limits.",
   "helper.billing.2.title": "How does the free trial work?",
-  "helper.billing.2.body": "Each plan comes with a 7-day free trial. You can use all features during the trial period; billing starts after day 7. If you cancel before the trial ends, you are not charged.",
+  "helper.billing.2.body": "Each plan comes with a 14-day free trial. You can use all features during the trial period; billing starts after day 14. If you cancel before the trial ends, you are not charged.",
 
   // Page helpers — Templates
   "helper.templates.1.title": "What are templates used for?",

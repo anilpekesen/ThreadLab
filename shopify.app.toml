@@ -9,22 +9,21 @@ embedded = false
 automatically_update_urls_on_dev = false
 
 [webhooks]
-api_version = "2026-07"
+api_version = "2026-04"
 
-[webhooks.privacy_compliance]
-customers_data_request_url = "/webhooks"
-customers_redact_url = "/webhooks"
-shop_redact_url = "/webhooks"
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+uri = "/webhooks"
 
-  [[webhooks.subscriptions]]
-  topics = [
+[[webhooks.subscriptions]]
+topics = [
   "orders/delete",
   "orders/paid",
   "orders/fulfilled",
   "orders/cancelled",
   "orders/create"
 ]
-  uri = "/webhooks"
+uri = "/webhooks"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
