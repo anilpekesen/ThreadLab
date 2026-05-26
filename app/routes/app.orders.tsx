@@ -10,7 +10,7 @@ import {
   Grid,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
-import { getOrders, bulkUpdateStatus, getDashboardStats, fulfillShopifyOrders } from "~/models/orders.server";
+import { getOrders, bulkUpdateStatus, getDashboardStats, fulfillShopifyOrders, syncOrdersFromAdmin } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 
 const STATUSES = [
@@ -70,6 +70,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate(request);
   const form = await request.formData();
+  const intent = form.get("intent") as string;
+
+  if (intent === "sync") {
+    try {
+      const count = await syncOrdersFromAdmin(admin, session.shop);
+      return json({ ok: true, synced: count });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return json({ ok: false, error: msg });
+    }
+  }
+
   const id = form.get("id") as string;
   const idsRaw = form.get("ids") as string;
   const status = form.get("status") as string;
@@ -169,8 +181,13 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
 export default function Orders() {
   const { orders, status, stats, shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<{ ok: boolean; synced?: number; error?: string }>();
+  const syncFetcher = useFetcher<{ ok: boolean; synced?: number; error?: string }>();
   const { t, lang } = useTranslation();
+  const [syncDone, setSyncDone] = useState(false);
+
+  const isSyncing = syncFetcher.state !== "idle";
+  const syncResult = syncFetcher.data as { ok: boolean; synced?: number; error?: string } | undefined;
 
   const groups = useMemo(() => groupOrders(orders), [orders]);
 
@@ -296,8 +313,23 @@ export default function Orders() {
   return (
     <Page
       title={t("orders.printedOrders")}
+      primaryAction={
+        <syncFetcher.Form method="post">
+          <input type="hidden" name="intent" value="sync" />
+          <Button submit loading={isSyncing} variant="secondary" size="slim">
+            {isSyncing ? "Senkronize ediliyor..." : "Eski siparişleri çek"}
+          </Button>
+        </syncFetcher.Form>
+      }
     >
       <BlockStack gap="400">
+        {syncResult && (
+          <Banner tone={syncResult.ok ? "success" : "critical"}>
+            {syncResult.ok
+              ? `${syncResult.synced ?? 0} yeni sipariş eklendi.`
+              : `Hata: ${syncResult.error}`}
+          </Banner>
+        )}
         <PageHelper sections={[
           { titleKey: "helper.orders.1.title", bodyKey: "helper.orders.1.body" },
           { titleKey: "helper.orders.2.title", bodyKey: "helper.orders.2.body" },
