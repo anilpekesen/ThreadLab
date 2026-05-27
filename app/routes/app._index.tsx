@@ -103,6 +103,19 @@ function formatDuration(seconds: number | null, lang: string): string {
   return lang === "tr" ? `${hours} saat` : `${hours} hr`;
 }
 
+function formatMoneyValue(value: number | null, currencyCode: string, lang: string): string {
+  if (value === null) return lang === "tr" ? "Veri yok" : "No data";
+  try {
+    return new Intl.NumberFormat(lang === "tr" ? "tr-TR" : "en-US", {
+      style: "currency",
+      currency: currencyCode || "USD",
+      maximumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    return `${value.toFixed(2)} ${currencyCode}`;
+  }
+}
+
 function statusLabel(status: string, lang: string): string {
   const tr: Record<string, string> = {
     pending: "Bekliyor",
@@ -449,18 +462,23 @@ export default function Index() {
                   </Text>
                   <InlineGrid columns={2} gap="300">
                     <BlockStack gap="050">
-                      <Text as="p" variant="headingLg">{detail.revenueImpact.customOrders}</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">{lang === "tr" ? "özel tasarım siparişi" : "custom design orders"}</Text>
+                      <Text as="p" variant="headingLg">
+                        {formatMoneyValue(detail.revenueImpact.customOrderValue, detail.revenueImpact.currencyCode, lang)}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">{lang === "tr" ? "özel tasarım geliri" : "custom design revenue"}</Text>
                     </BlockStack>
                     <BlockStack gap="050">
-                      <Text as="p" variant="headingLg">{detail.revenueImpact.customUnits}</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">{lang === "tr" ? "özel ürün adedi" : "custom units"}</Text>
+                      <Text as="p" variant="headingLg">
+                        {formatMoneyValue(detail.revenueImpact.avgCustomOrderValue, detail.revenueImpact.currencyCode, lang)}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">{lang === "tr" ? "ortalama özel sipariş" : "avg. custom order"}</Text>
                     </BlockStack>
                   </InlineGrid>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {lang === "tr"
-                      ? "Sipariş tutarı Shopify’dan henüz DB’ye yazılmıyor; bu yüzden burada hacim etkisi gösteriliyor."
-                      : "Order value is not stored in the app DB yet, so this shows volume impact for now."}
+                    {detail.revenueImpact.customOrders} {lang === "tr" ? "sipariş" : "orders"} · {detail.revenueImpact.customUnits} {lang === "tr" ? "adet" : "units"}
+                    {!detail.revenueImpact.valueTracked
+                      ? (lang === "tr" ? " · Yeni siparişlerde tutar otomatik dolacak." : " · Value will populate automatically for new orders.")
+                      : ""}
                   </Text>
                 </BlockStack>
               </Box>

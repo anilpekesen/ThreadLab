@@ -85,6 +85,7 @@ export interface DashboardAnalyticsDetail {
     valueTracked: boolean;
     customOrderValue: number | null;
     avgCustomOrderValue: number | null;
+    currencyCode: string;
   };
   recentActivity: Array<{
     type: string;
@@ -202,8 +203,11 @@ export async function getDashboardAnalyticsDetail(shop: string): Promise<Dashboa
         ), 0) AS orders_with_bg_session`,
       [shop, `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`, monthStart],
     ),
-    query<{ custom_orders: string; custom_units: string }>(
-      `SELECT COUNT(DISTINCT shopify_order_id) AS custom_orders, COALESCE(SUM(quantity), 0) AS custom_units
+    query<{ custom_orders: string; custom_units: string; custom_order_value: string; currency_code: string | null }>(
+      `SELECT COUNT(DISTINCT shopify_order_id) AS custom_orders,
+        COALESCE(SUM(quantity), 0) AS custom_units,
+        COALESCE(SUM(line_total_price), 0) AS custom_order_value,
+        MAX(NULLIF(currency_code, '')) AS currency_code
        FROM orders
        WHERE shop = $1 AND design_token != '' AND production_status != 'cancelled' AND created_at >= $2`,
       [shop, thirtyDaysAgo],
@@ -235,6 +239,7 @@ export async function getDashboardAnalyticsDetail(shop: string): Promise<Dashboa
   const bgUses = Number(bgStats.rows[0]?.bg_uses ?? 0);
   const ordersWithBgSession = Number(bgStats.rows[0]?.orders_with_bg_session ?? 0);
   const customOrders = Number(revenueImpact.rows[0]?.custom_orders ?? 0);
+  const customOrderValue = Number(revenueImpact.rows[0]?.custom_order_value ?? 0);
 
   const recentActivity = [...recentOrders.rows, ...recentEvents.rows]
     .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
@@ -290,9 +295,12 @@ export async function getDashboardAnalyticsDetail(shop: string): Promise<Dashboa
     revenueImpact: {
       customOrders,
       customUnits: Number(revenueImpact.rows[0]?.custom_units ?? 0),
-      valueTracked: false,
-      customOrderValue: null,
-      avgCustomOrderValue: null,
+      valueTracked: customOrderValue > 0,
+      customOrderValue: customOrderValue > 0 ? customOrderValue : null,
+      avgCustomOrderValue: customOrderValue > 0 && customOrders > 0
+        ? Math.round((customOrderValue / customOrders) * 100) / 100
+        : null,
+      currencyCode: revenueImpact.rows[0]?.currency_code ?? "",
     },
     recentActivity,
   };

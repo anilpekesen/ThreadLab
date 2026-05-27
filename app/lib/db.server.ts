@@ -281,6 +281,8 @@ async function _runMigrationsLocked() {
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS variant_title TEXT NOT NULL DEFAULT ''`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT 'Müşteri'`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_email TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_total_price NUMERIC NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT ''`);
 
   // ── Ensure per-variant unique index exists (re-run safe) ────────────────
   // Drop legacy single-column unique first, then ensure the composite index.

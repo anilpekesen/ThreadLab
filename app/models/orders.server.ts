@@ -310,6 +310,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     requiresShipping: boolean;
     product?: { id: string };
     variant?: { id: string; title?: string };
+    discountedTotalSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
     customAttributes: Attr[];
   };
   type ShopifyOrder = {
@@ -334,6 +335,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
               name quantity requiresShipping
               product { id }
               variant { id title }
+              discountedTotalSet { shopMoney { amount currencyCode } }
               customAttributes { key value }
             }
           }
@@ -426,12 +428,15 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
         getAttr(so.customAttributes, "_back_print_url") ??
         "";
       const initialStatus = so.displayFulfillmentStatus === "FULFILLED" ? "shipped" : "pending";
+      const lineTotalPrice = Number(item.discountedTotalSet?.shopMoney?.amount ?? 0);
+      const currencyCode = item.discountedTotalSet?.shopMoney?.currencyCode ?? "";
       const id = `order_${randomBytes(8).toString("hex")}`;
       const result = await query(
         `INSERT INTO orders (id, shop, shopify_order_id, order_number, product_id, product_name,
           variant_id, variant_title, quantity, design_token, preview_url, production_file_url,
-          customer_name, customer_email, production_status, missing_surcharge, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,FALSE,$16)
+          customer_name, customer_email, production_status, missing_surcharge, created_at,
+          line_total_price, currency_code)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,FALSE,$16,$17,$18)
          ON CONFLICT (shop, shopify_order_id, variant_id) DO NOTHING`,
         [
           id,
@@ -450,18 +455,31 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           "",
           initialStatus,
           new Date(so.createdAt),
+          Number.isFinite(lineTotalPrice) ? lineTotalPrice : 0,
+          currencyCode,
         ],
       );
       // If row already exists and is still pending, update fulfillment status
       if (!result.rowCount || result.rowCount === 0) {
-        if (initialStatus === "shipped") {
-          await query(
-            `UPDATE orders SET production_status = 'shipped', updated_at = now()
-             WHERE shop = $1 AND shopify_order_id = $2 AND variant_id = $3
-               AND production_status NOT IN ('shipped', 'cancelled')`,
-            [shop, shopifyOrderId, variantId],
-          );
-        }
+        await query(
+          `UPDATE orders SET
+             line_total_price = CASE WHEN $4::numeric > 0 THEN $4 ELSE line_total_price END,
+             currency_code = CASE WHEN $5 != '' THEN $5 ELSE currency_code END,
+             production_status = CASE
+               WHEN $6 = 'shipped' AND production_status NOT IN ('shipped', 'cancelled') THEN 'shipped'
+               ELSE production_status
+             END,
+             updated_at = now()
+           WHERE shop = $1 AND shopify_order_id = $2 AND variant_id = $3`,
+          [
+            shop,
+            shopifyOrderId,
+            variantId,
+            Number.isFinite(lineTotalPrice) ? lineTotalPrice : 0,
+            currencyCode,
+            initialStatus,
+          ],
+        );
       }
       if (result.rowCount && result.rowCount > 0) {
         // Fire-and-forget: don't block sync on Shopify metafield writes
