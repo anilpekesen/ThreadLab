@@ -47,6 +47,7 @@ function AppInner() {
     { label: t("nav.orders"), url: "/app/orders", end: false, show: true },
     { label: t("nav.production"), url: "/app/production", end: false, show: allowProduction },
     { label: t("nav.gangSheet"), url: "/app/gang-sheet", end: false, show: allowGangSheet },
+    { label: "Print Queue", url: "/app/print-queue", end: false, show: allowProduction && allowGangSheet },
     { label: t("nav.productTypes"), url: "/app/product-types", end: false, show: true },
     { label: t("nav.templates"), url: "/app/templates", end: false, show: true },
     { label: t("nav.billing"), url: "/app/billing", end: false, show: true },

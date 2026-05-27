@@ -289,6 +289,11 @@ export default function Production() {
       }}
       secondaryActions={[
         {
+          content: "Print Queue",
+          onAction: () => navigate("/app/print-queue"),
+          disabled: orders.filter(hasPrintFile).length === 0,
+        },
+        {
           content: t("production.openGangSheet"),
           onAction: handleGangSheet,
           disabled: orders.filter(hasPrintFile).length === 0,
