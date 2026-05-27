@@ -62,7 +62,7 @@ const html = `<!DOCTYPE html>
     <div data-lang="tr" class="visible">
       <span class="badge">Gizlilik</span>
       <h1>Gizlilik Politikası</h1>
-      <p class="meta">Son güncelleme: 15 Mayıs 2025 &nbsp;·&nbsp; Sürüm 1.0</p>
+      <p class="meta">Son güncelleme: 27 Mayıs 2026 &nbsp;·&nbsp; Sürüm 1.1</p>
 
       <div class="box"><p>Bu politika, PrintLab uygulamasının Shopify mağazanıza yüklenmesiyle toplanan ve işlenen verileri açıklar.</p></div>
 
@@ -74,6 +74,7 @@ const html = `<!DOCTYPE html>
         <li><strong>Sipariş bilgileri:</strong> Shopify sipariş kimliği, sipariş numarası, ürün adı, tasarım token'ı</li>
         <li><strong>Üretim dosyaları:</strong> Baskıya uygun yüksek çözünürlüklü PNG dosyaları ve önizleme görselleri</li>
         <li><strong>Müşteri iletişim bilgileri:</strong> Shopify'dan senkronize edilen ad, e-posta (yalnızca sipariş yönetimi için)</li>
+        <li><strong>Uygulama kullanım analitiği:</strong> Tasarım oluşturma, şablon kullanımı, sepete ekleme, tasarım süresi ve üretim durumu gibi mağaza performans olayları. Bu analitik olaylarında müşteri e-posta adresi, telefon numarası veya ödeme bilgisi saklanmaz.</li>
       </ul>
 
       <h2>2. Verilerin Kullanımı</h2>
@@ -82,11 +83,12 @@ const html = `<!DOCTYPE html>
         <li>Özelleştirilmiş ürün tasarımını mağaza müşterilerinize sunmak</li>
         <li>Baskı üretim süreçlerini yönetmek ve takip etmek</li>
         <li>Ödeme ve ücretlendirme doğrulaması yapmak</li>
+        <li>Mağaza yöneticisine dönüşüm, şablon performansı, üretim sağlığı ve uygulama kullanım raporları sunmak</li>
         <li>Teknik destek sağlamak</li>
       </ul>
 
       <h2>3. Veri Saklama</h2>
-      <p>Tasarım verileri ve baskı dosyaları, siparişin tamamlandığı tarihten itibaren <strong>90 gün</strong> boyunca saklanır. Sipariş kayıtları Shopify'ın standart saklama politikasına tabidir.</p>
+      <p>Tasarım verileri ve baskı dosyaları, siparişin tamamlandığı tarihten itibaren <strong>90 gün</strong> boyunca saklanır. Uygulama kullanım analitiği olayları en fazla <strong>24 ay</strong> saklanır. Sipariş kayıtları Shopify'ın standart saklama politikasına tabidir.</p>
 
       <h2>4. Üçüncü Taraf Hizmetler</h2>
       <p>Uygulama aşağıdaki üçüncü taraf hizmetlerini kullanmaktadır:</p>
@@ -125,7 +127,7 @@ const html = `<!DOCTYPE html>
     <div data-lang="en">
       <span class="badge">Privacy</span>
       <h1>Privacy Policy</h1>
-      <p class="meta">Last updated: May 15, 2025 &nbsp;·&nbsp; Version 1.0</p>
+      <p class="meta">Last updated: May 27, 2026 &nbsp;·&nbsp; Version 1.1</p>
 
       <div class="box"><p>This policy explains the data collected and processed when the PrintLab application is installed on your Shopify store.</p></div>
 
@@ -137,6 +139,7 @@ const html = `<!DOCTYPE html>
         <li><strong>Order information:</strong> Shopify order ID, order number, product name, design token</li>
         <li><strong>Production files:</strong> Print-ready high-resolution PNG files and preview images</li>
         <li><strong>Customer contact details:</strong> Name and email synchronized from Shopify (for order management only)</li>
+        <li><strong>App usage analytics:</strong> Store performance events such as design creation, template usage, cart additions, design time, and production status. These analytics events do not store customer email addresses, phone numbers, or payment information.</li>
       </ul>
 
       <h2>2. How We Use Data</h2>
@@ -145,11 +148,12 @@ const html = `<!DOCTYPE html>
         <li>Providing customized product design capabilities to your store customers</li>
         <li>Managing and tracking print production workflows</li>
         <li>Payment and pricing validation</li>
+        <li>Providing merchants with conversion, template performance, production health, and app usage reports</li>
         <li>Technical support</li>
       </ul>
 
       <h2>3. Data Retention</h2>
-      <p>Design data and production files are retained for <strong>90 days</strong> after order completion. Order records follow Shopify's standard retention policy.</p>
+      <p>Design data and production files are retained for <strong>90 days</strong> after order completion. App usage analytics events are retained for up to <strong>24 months</strong>. Order records follow Shopify's standard retention policy.</p>
 
       <h2>4. Third-Party Services</h2>
       <p>The application uses the following third-party services:</p>

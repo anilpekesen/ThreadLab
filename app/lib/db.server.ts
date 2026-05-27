@@ -202,6 +202,10 @@ async function _runMigrationsLocked() {
       ON analytics_events (shop, template_kind, template_id)
   `);
   await query(`
+    DELETE FROM analytics_events
+    WHERE created_at < now() - interval '24 months'
+  `);
+  await query(`
     ALTER TABLE designs ADD COLUMN IF NOT EXISTS session_id TEXT
   `);
   await query(`
