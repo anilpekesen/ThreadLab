@@ -529,6 +529,7 @@ export default function App() {
   const [noSizeQuantity, setNoSizeQuantity] = useState(1);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'info' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const designerStartedAtRef = useRef(Date.now());
 
   const showToast = useCallback((message: string, type: 'error' | 'warning' | 'info' = 'error') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -553,6 +554,37 @@ export default function App() {
     const cv = getActiveCanvasHandle()?.getCanvas();
     setLayers(cv ? [...cv.getObjects()] : []);
   }, [getActiveCanvasHandle]);
+
+  const analyticsEndpoint = useMemo(() => {
+    const appUrl = config?.uploadEndpoint?.split('/apps/')[0] ?? window.location.origin;
+    return `${appUrl}/api/analytics-event`;
+  }, [config?.uploadEndpoint]);
+
+  const trackDesignerEvent = useCallback((payload: Record<string, unknown>) => {
+    const shop = config?.shop;
+    if (!shop) return;
+    const body = JSON.stringify({
+      shop,
+      productId: config?.productId || config?.productHandle || '',
+      productName: config?.productTitle || '',
+      sessionId: getBgSessionId(),
+      ...payload,
+    });
+    try {
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: 'application/json' });
+        if (navigator.sendBeacon(analyticsEndpoint, blob)) return;
+      }
+    } catch {
+      // fall through to fetch
+    }
+    fetch(analyticsEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      keepalive: true,
+    }).catch(() => {});
+  }, [analyticsEndpoint, config?.productHandle, config?.productId, config?.productTitle, config?.shop]);
 
   const updateToolbarPosition = useCallback((obj: fabric.Object | null) => {
     const cv = getActiveCanvasHandle()?.getCanvas();
@@ -797,8 +829,16 @@ export default function App() {
     syncLayers();
   }, [syncLayers, updateToolbarPosition]);
 
-  const handleAddImage = (url: string) => {
+  const handleAddImage = (url: string, template?: import('@/types').ShopTemplate) => {
     getActiveCanvasHandle()?.addImageFromUrl(url);
+    if (template) {
+      trackDesignerEvent({
+        eventType: 'template_applied',
+        templateId: template.id,
+        templateName: template.name,
+        templateKind: 'shop',
+      });
+    }
     syncLayers();
     setActiveTab(null);
   };
@@ -832,6 +872,13 @@ export default function App() {
     const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv) return;
     tpl.build(cv);
+    trackDesignerEvent({
+      eventType: 'template_applied',
+      templateId: tpl.id,
+      templateName: tpl.label,
+      templateKind: 'text',
+      metadata: { category: tpl.category },
+    });
     cv.renderAll();
     syncLayers();
     setActiveTab(null);
@@ -962,6 +1009,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: config?.productId || config?.productHandle,
+          productName: config?.productTitle || '',
+          shop: config?.shop || '',
           sessionId: getBgSessionId(),
           designJson: {
             front: frontCanvasRef.current?.saveDesign(),
@@ -975,6 +1024,17 @@ export default function App() {
       }).then((r) => r.json());
 
       const token = (designRes as { token?: string }).token ?? '';
+      trackDesignerEvent({
+        eventType: 'cart_add',
+        designToken: token,
+        valueNumeric: Math.max(1, Math.round((Date.now() - designerStartedAtRef.current) / 1000)),
+        metadata: {
+          side: resolvedSide,
+          quantity: totalQuantity,
+          hasFront: frontHas,
+          hasBack: backHas,
+        },
+      });
       const properties: Record<string, string> = {
         'Ön Tasarım': frontHas ? 'Var' : 'Yok',
         design_token: token,

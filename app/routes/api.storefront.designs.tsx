@@ -1,6 +1,7 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-run/node";
 import { randomBytes } from "node:crypto";
 import { saveDesign } from "~/models/designs.server";
+import { trackAnalyticsEvent } from "~/models/analytics.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ ok: true, method: request.method });
@@ -29,6 +30,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     backPreviewUrl: typeof b.backPreviewUrl === "string" ? b.backPreviewUrl : undefined,
     frontPrintUrl: typeof b.frontPrintUrl === "string" ? b.frontPrintUrl : undefined,
     backPrintUrl: typeof b.backPrintUrl === "string" ? b.backPrintUrl : undefined,
+  });
+
+  await trackAnalyticsEvent({
+    shop,
+    eventType: "design_created",
+    productId: typeof b.productId === "string" ? b.productId : undefined,
+    productName: typeof b.productName === "string" ? b.productName : undefined,
+    designToken: token,
+    sessionId: typeof b.sessionId === "string" && b.sessionId ? b.sessionId : undefined,
   });
 
   return json({ token });

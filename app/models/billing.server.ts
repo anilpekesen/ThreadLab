@@ -53,8 +53,8 @@ export async function getAnalytics(shop: string) {
       "SELECT COALESCE(SUM(count), 0) AS count FROM bg_removal_usage WHERE shop = $1",
       [shop],
     ),
-    query<{ count: string }>("SELECT COUNT(*) AS count FROM designs"),
-    query<{ count: string }>("SELECT COUNT(*) AS count FROM designs WHERE created_at >= $1", [monthStart]),
+    query<{ count: string }>("SELECT COUNT(*) AS count FROM designs WHERE shop = $1", [shop]),
+    query<{ count: string }>("SELECT COUNT(*) AS count FROM designs WHERE shop = $1 AND created_at >= $2", [shop, monthStart]),
     getShopSubscription(shop),
     getCustomerBgStats(shop),
   ]);

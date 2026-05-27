@@ -11,6 +11,7 @@ import {
 import { authenticate } from "~/lib/authenticate.server";
 import { getDashboardStats, getProductionAnalytics } from "~/models/orders.server";
 import { getAnalytics } from "~/models/billing.server";
+import { getDashboardAnalyticsDetail } from "~/models/analytics.server";
 import { PLANS } from "~/lib/plans";
 
 const AUTO_REFRESH_MS = 30_000;
@@ -27,8 +28,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     getAnalytics(session.shop),
     getProductionAnalytics(session.shop),
   ]);
+  const detail = await getDashboardAnalyticsDetail(session.shop);
 
-  return json({ stats, analytics, production });
+  return json({ stats, analytics, production, detail });
 };
 
 const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attention"> = {
@@ -88,8 +90,49 @@ function MiniBarChart({ data, lang }: { data: Array<{ day: string; count: number
   );
 }
 
+function formatPercent(value: number): string {
+  return `${Math.max(0, Math.min(999, value))}%`;
+}
+
+function formatDuration(seconds: number | null, lang: string): string {
+  if (seconds === null) return lang === "tr" ? "Veri yok" : "No data";
+  if (seconds < 60) return lang === "tr" ? `${seconds} sn` : `${seconds}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return lang === "tr" ? `${minutes} dk` : `${minutes} min`;
+  const hours = (minutes / 60).toFixed(1);
+  return lang === "tr" ? `${hours} saat` : `${hours} hr`;
+}
+
+function statusLabel(status: string, lang: string): string {
+  const tr: Record<string, string> = {
+    pending: "Bekliyor",
+    preparing: "Hazırlanıyor",
+    printed: "Basılı",
+    ready: "Hazır",
+    shipped: "Gönderildi",
+    cancelled: "İptal",
+  };
+  const en: Record<string, string> = {
+    pending: "Pending",
+    preparing: "Preparing",
+    printed: "Printed",
+    ready: "Ready",
+    shipped: "Shipped",
+    cancelled: "Cancelled",
+  };
+  return (lang === "tr" ? tr : en)[status] ?? status;
+}
+
+function EmptyMetric({ lang }: { lang: string }) {
+  return (
+    <Text as="p" variant="bodySm" tone="subdued">
+      {lang === "tr" ? "Henüz veri yok" : "No data yet"}
+    </Text>
+  );
+}
+
 export default function Index() {
-  const { stats, analytics, production } = useLoaderData<typeof loader>();
+  const { stats, analytics, production, detail } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
   const { t, lang } = useTranslation();
@@ -230,6 +273,225 @@ export default function Index() {
             </BlockStack>
           </Box>
         </Card>
+
+        {/* Gelişmiş analitik */}
+        <BlockStack gap="300">
+          <Text as="h2" variant="headingMd">
+            {lang === "tr" ? "Gelişmiş Analitik" : "Advanced Analytics"}
+          </Text>
+
+          <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {lang === "tr" ? "Tasarım → Sipariş" : "Design → Order"}
+                  </Text>
+                  <Text as="p" variant="headingXl">{formatPercent(detail.conversion.designToOrderPercent)}</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {detail.conversion.designs} {lang === "tr" ? "tasarım" : "designs"} · {detail.conversion.cartAdds} {lang === "tr" ? "sepete ekleme" : "cart adds"} · {detail.conversion.orders} {lang === "tr" ? "sipariş" : "orders"}
+                  </Text>
+                  <InlineStack gap="200">
+                    <Badge tone="info">{lang === "tr" ? "Sepete" : "To cart"} {formatPercent(detail.conversion.designToCartPercent)}</Badge>
+                    <Badge tone="success">{lang === "tr" ? "Siparişe" : "To order"} {formatPercent(detail.conversion.cartToOrderPercent)}</Badge>
+                  </InlineStack>
+                </BlockStack>
+              </Box>
+            </Card>
+
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {lang === "tr" ? "Ortalama Tasarım Süresi" : "Avg. Design Time"}
+                  </Text>
+                  <Text as="p" variant="headingXl">{formatDuration(detail.designDuration.avgSeconds, lang)}</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {detail.designDuration.samples} {lang === "tr" ? "sepete ekleme örneği" : "cart-add samples"}
+                  </Text>
+                </BlockStack>
+              </Box>
+            </Card>
+
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {lang === "tr" ? "AI Kullanım Verimi" : "AI Usage Efficiency"}
+                  </Text>
+                  <Text as="p" variant="headingXl">{formatPercent(detail.aiEfficiency.bgToOrderPercent)}</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {detail.aiEfficiency.bgUses} {lang === "tr" ? "arka plan silme" : "background removals"} · {detail.aiEfficiency.ordersWithBgSession} {lang === "tr" ? "siparişe dönen" : "converted orders"}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {detail.aiEfficiency.bgCustomers} {lang === "tr" ? "müşteri kullandı" : "customers used it"}
+                  </Text>
+                </BlockStack>
+              </Box>
+            </Card>
+          </InlineGrid>
+
+          <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text as="h3" variant="headingSm">
+                    {lang === "tr" ? "En Çok Tasarlanan Ürünler" : "Top Designed Products"}
+                  </Text>
+                  {detail.topProducts.length === 0 ? <EmptyMetric lang={lang} /> : (
+                    <BlockStack gap="200">
+                      {detail.topProducts.map((item) => (
+                        <InlineStack key={`${item.productId}-${item.productName}`} align="space-between" blockAlign="center">
+                          <BlockStack gap="050">
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">{item.productName}</Text>
+                            <Text as="p" variant="bodySm" tone="subdued">{item.quantity} {lang === "tr" ? "adet" : "units"}</Text>
+                          </BlockStack>
+                          <Badge tone="info">{item.orders} {lang === "tr" ? "sipariş" : "orders"}</Badge>
+                        </InlineStack>
+                      ))}
+                    </BlockStack>
+                  )}
+                </BlockStack>
+              </Box>
+            </Card>
+
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text as="h3" variant="headingSm">
+                    {lang === "tr" ? "En Çok Kullanılan Şablonlar" : "Most Used Templates"}
+                  </Text>
+                  {detail.topTemplates.length === 0 ? <EmptyMetric lang={lang} /> : (
+                    <BlockStack gap="200">
+                      {detail.topTemplates.map((item) => (
+                        <InlineStack key={`${item.templateKind}-${item.templateId}`} align="space-between" blockAlign="center">
+                          <BlockStack gap="050">
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">{item.templateName}</Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {item.templateKind === "shop"
+                                ? (lang === "tr" ? "Mağaza görsel şablonu" : "Store image template")
+                                : (lang === "tr" ? "Yazı şablonu" : "Text template")}
+                            </Text>
+                          </BlockStack>
+                          <Badge tone="success">{item.uses} {lang === "tr" ? "kullanım" : "uses"}</Badge>
+                        </InlineStack>
+                      ))}
+                    </BlockStack>
+                  )}
+                </BlockStack>
+              </Box>
+            </Card>
+          </InlineGrid>
+
+          <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text as="h3" variant="headingSm">
+                    {lang === "tr" ? "Üretim Durum Dağılımı" : "Production Status Breakdown"}
+                  </Text>
+                  {detail.productionStatus.length === 0 ? <EmptyMetric lang={lang} /> : (
+                    <BlockStack gap="200">
+                      {detail.productionStatus.map((item) => {
+                        const total = detail.productionStatus.reduce((sum, s) => sum + s.count, 0);
+                        const p = total ? Math.round((item.count / total) * 100) : 0;
+                        return (
+                          <BlockStack gap="100" key={item.status}>
+                            <InlineStack align="space-between">
+                              <Text as="p" variant="bodySm">{statusLabel(item.status, lang)}</Text>
+                              <Text as="p" variant="bodySm" tone="subdued">{item.count} · {p}%</Text>
+                            </InlineStack>
+                            <ProgressBar progress={p} size="small" />
+                          </BlockStack>
+                        );
+                      })}
+                    </BlockStack>
+                  )}
+                </BlockStack>
+              </Box>
+            </Card>
+
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text as="h3" variant="headingSm">
+                    {lang === "tr" ? "Baskı Dosyası Sağlığı" : "Print File Health"}
+                  </Text>
+                  <InlineGrid columns={2} gap="300">
+                    {[
+                      { label: lang === "tr" ? "Tasarım kaydı yok" : "Missing design", value: detail.fileHealth.missingDesign },
+                      { label: lang === "tr" ? "Baskı dosyası yok" : "Missing print file", value: detail.fileHealth.missingPrintFile },
+                      { label: lang === "tr" ? "Önizleme yok" : "Missing preview", value: detail.fileHealth.missingPreview },
+                      { label: lang === "tr" ? "Katman verisi eksik" : "Missing layer data", value: detail.fileHealth.incompleteDesignData },
+                    ].map((item) => (
+                      <BlockStack gap="050" key={item.label}>
+                        <Text as="p" variant="headingLg" tone={item.value > 0 ? "caution" : "success"}>{item.value}</Text>
+                        <Text as="p" variant="bodySm" tone="subdued">{item.label}</Text>
+                      </BlockStack>
+                    ))}
+                  </InlineGrid>
+                  {(detail.fileHealth.missingDesign + detail.fileHealth.missingPrintFile + detail.fileHealth.missingPreview) > 0 && (
+                    <Button onClick={() => navigate("/app/orders")}>
+                      {lang === "tr" ? "Siparişleri Kontrol Et" : "Check Orders"}
+                    </Button>
+                  )}
+                </BlockStack>
+              </Box>
+            </Card>
+          </InlineGrid>
+
+          <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="200">
+                  <Text as="h3" variant="headingSm">
+                    {lang === "tr" ? "Gelir Etkisi" : "Revenue Impact"}
+                  </Text>
+                  <InlineGrid columns={2} gap="300">
+                    <BlockStack gap="050">
+                      <Text as="p" variant="headingLg">{detail.revenueImpact.customOrders}</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">{lang === "tr" ? "özel tasarım siparişi" : "custom design orders"}</Text>
+                    </BlockStack>
+                    <BlockStack gap="050">
+                      <Text as="p" variant="headingLg">{detail.revenueImpact.customUnits}</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">{lang === "tr" ? "özel ürün adedi" : "custom units"}</Text>
+                    </BlockStack>
+                  </InlineGrid>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {lang === "tr"
+                      ? "Sipariş tutarı Shopify’dan henüz DB’ye yazılmıyor; bu yüzden burada hacim etkisi gösteriliyor."
+                      : "Order value is not stored in the app DB yet, so this shows volume impact for now."}
+                  </Text>
+                </BlockStack>
+              </Box>
+            </Card>
+
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text as="h3" variant="headingSm">
+                    {lang === "tr" ? "Son Aktiviteler" : "Recent Activity"}
+                  </Text>
+                  {detail.recentActivity.length === 0 ? <EmptyMetric lang={lang} /> : (
+                    <BlockStack gap="200">
+                      {detail.recentActivity.map((item, index) => (
+                        <InlineStack key={`${item.type}-${item.createdAt}-${index}`} align="space-between" blockAlign="start">
+                          <BlockStack gap="050">
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">{item.label}</Text>
+                            <Text as="p" variant="bodySm" tone="subdued">{item.detail || item.type}</Text>
+                          </BlockStack>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {new Date(item.createdAt).toLocaleDateString(lang === "tr" ? "tr-TR" : "en-US", { day: "2-digit", month: "short" })}
+                          </Text>
+                        </InlineStack>
+                      ))}
+                    </BlockStack>
+                  )}
+                </BlockStack>
+              </Box>
+            </Card>
+          </InlineGrid>
+        </BlockStack>
 
         {/* Tasarım & AI analitiği */}
         <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">

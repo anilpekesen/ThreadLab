@@ -858,7 +858,7 @@ const TEXT_TEMPLATES: Template[] = [
 
 interface Props {
   onApply: (tpl: Template) => void;
-  onAddImage: (url: string) => void;
+  onAddImage: (url: string, template?: ShopTemplate) => void;
   shopTemplates?: ShopTemplate[];
 }
 
@@ -921,7 +921,7 @@ export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = []
               {filteredTemplates.map((tpl) => (
                 <button
                   key={tpl.id}
-                  onClick={() => onAddImage(tpl.imageUrl)}
+                  onClick={() => onAddImage(tpl.imageUrl, tpl)}
                   title={tpl.name}
                   className="group flex flex-col items-center gap-1.5 rounded-2xl border-2 border-violet-200 bg-white p-2 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-400 hover:bg-violet-50/40 hover:shadow-md"
                 >

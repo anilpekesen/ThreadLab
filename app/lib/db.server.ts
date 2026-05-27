@@ -177,6 +177,31 @@ async function _runMigrationsLocked() {
       ON customer_bg_quota (shop, updated_at)
   `);
   await query(`
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id            TEXT PRIMARY KEY,
+      shop          TEXT NOT NULL,
+      event_type    TEXT NOT NULL,
+      product_id    TEXT,
+      product_name  TEXT,
+      template_id   TEXT,
+      template_name TEXT,
+      template_kind TEXT,
+      design_token  TEXT,
+      session_id    TEXT,
+      value_numeric NUMERIC,
+      metadata      JSONB NOT NULL DEFAULT '{}',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS analytics_events_shop_type_created
+      ON analytics_events (shop, event_type, created_at DESC)
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS analytics_events_shop_template
+      ON analytics_events (shop, template_kind, template_id)
+  `);
+  await query(`
     ALTER TABLE designs ADD COLUMN IF NOT EXISTS session_id TEXT
   `);
   await query(`
