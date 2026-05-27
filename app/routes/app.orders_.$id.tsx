@@ -222,6 +222,7 @@ export default function OrderDetail() {
   const backPreviewUrl = design?.backPreviewUrl || order.designBackPreviewUrl || "";
   const frontPrintUrl = design?.frontPrintUrl || order.designFrontPrintUrl || order.productionFileUrl || "";
   const backPrintUrl = design?.backPrintUrl || order.designBackPrintUrl || "";
+  const hasDesignFiles = Boolean(frontPreviewUrl || backPreviewUrl || frontPrintUrl || backPrintUrl);
 
   return (
     <Page
@@ -416,9 +417,18 @@ export default function OrderDetail() {
                   })}
                 </Text>
               </InlineStack>
-              {!design && (
+              {!design && !hasDesignFiles && (
                 <Banner tone="warning" title={t("orderDetail.noDesignData")}>
                   <p>Bu sipariş için tasarım dosyası sunucuda mevcut değil. Tasarım token: {order.designToken || "—"}</p>
+                </Banner>
+              )}
+              {!design && hasDesignFiles && (
+                <Banner tone="info" title={lang === "tr" ? "Tasarım katman verisi bulunamadı" : "Design layer data not found"}>
+                  <p>
+                    {lang === "tr"
+                      ? "Önizleme ve baskı dosyaları mevcut; yalnızca düzenlenebilir tasarım katmanları bulunamadı."
+                      : "Preview and print files are available; only editable design layers are missing."}
+                  </p>
                 </Banner>
               )}
             </BlockStack>

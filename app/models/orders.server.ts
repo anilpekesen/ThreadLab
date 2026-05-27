@@ -98,7 +98,7 @@ const ORDER_SELECT = `
     d.front_print_url   AS design_front_print_url,
     d.back_print_url    AS design_back_print_url
   FROM orders o
-  LEFT JOIN designs d ON o.design_token = d.token
+  LEFT JOIN designs d ON o.shop = d.shop AND o.design_token = d.token
 `;
 
 export async function getOrders(shop: string, status?: string): Promise<Order[]> {
