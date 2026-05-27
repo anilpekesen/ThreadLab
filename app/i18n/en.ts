@@ -220,7 +220,7 @@ const en = {
   "templates.quotaWarning": "plan maximum template quota reached.",
   "templates.upgradeForMore": "Upgrade your plan for more templates.",
   "templates.changeImage": "click again to change",
-  "templates.fileSpec": "PNG, JPG, WebP, SVG · max 8 MB",
+  "templates.fileSpec": "PNG, JPG, WebP, SVG · max 20 MB",
   "templates.licenseNote": "Upload PNG, JPG, WebP, or SVG. Make sure you have a valid license for licensed characters.",
   "templates.usageLabel": "Plan:",
   "templates.usageUsed": "used:",

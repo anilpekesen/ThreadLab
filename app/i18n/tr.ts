@@ -220,7 +220,7 @@ const tr = {
   "templates.quotaWarning": "planında maksimum şablon kotasına ulaştınız.",
   "templates.upgradeForMore": "Daha fazla şablon için planınızı yükseltin.",
   "templates.changeImage": "değiştirmek için tekrar tıklayın",
-  "templates.fileSpec": "PNG, JPG, WebP, SVG · maks 8 MB",
+  "templates.fileSpec": "PNG, JPG, WebP, SVG · maks 20 MB",
   "templates.licenseNote": "PNG, JPG, WebP veya SVG yükleyin. Lisanslı karakterler için geçerli lisansınız olduğundan emin olun.",
   "templates.usageLabel": "Plan:",
   "templates.usageUsed": "kullanılan:",
