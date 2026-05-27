@@ -24,6 +24,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const lang: Lang = langMatch?.[1] === "en" ? "en" : "tr";
   const planKey = (sub?.plan_key ?? "Pro") as PlanKey;
   const planFeatures = PLANS[planKey] ?? PLANS["Pro"];
+  const isPaidProductionPlan = (planKey === "Pro" || planKey === "Business")
+    && (sub?.subscription_status === "active" || sub?.subscription_status === "trial");
   return json({
     planKey,
     subscriptionStatus: sub?.subscription_status ?? "none",
@@ -31,11 +33,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shop: session.shop,
     allowProduction: planFeatures.allowProduction,
     allowGangSheet: planFeatures.allowGangSheet,
+    allowPrintQueue: isPaidProductionPlan,
   });
 };
 
 function AppInner() {
-  const { planKey, subscriptionStatus, lang, shop, allowProduction, allowGangSheet } = useLoaderData<typeof loader>();
+  const { planKey, subscriptionStatus, lang, shop, allowProduction, allowGangSheet, allowPrintQueue } = useLoaderData<typeof loader>();
   const { t, setLang } = useTranslation();
   const navigate = useNavigate();
 
@@ -47,7 +50,7 @@ function AppInner() {
     { label: t("nav.orders"), url: "/app/orders", end: false, show: true },
     { label: t("nav.production"), url: "/app/production", end: false, show: allowProduction },
     { label: t("nav.gangSheet"), url: "/app/gang-sheet", end: false, show: allowGangSheet },
-    { label: "Print Queue", url: "/app/print-queue", end: false, show: allowProduction && allowGangSheet },
+    { label: "Print Queue", url: "/app/print-queue", end: false, show: allowPrintQueue },
     { label: t("nav.productTypes"), url: "/app/product-types", end: false, show: true },
     { label: t("nav.templates"), url: "/app/templates", end: false, show: true },
     { label: t("nav.billing"), url: "/app/billing", end: false, show: true },

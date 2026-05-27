@@ -23,7 +23,7 @@ import { authenticate } from "~/lib/authenticate.server";
 import { getOrdersWithPrintFiles, bulkUpdateStatus, fulfillShopifyOrders } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 import { getShopSubscription } from "~/models/billing.server";
-import { PLANS, planKeyFromName } from "~/lib/billing.server";
+import { planKeyFromName } from "~/lib/billing.server";
 
 const SHEET_PRESETS = [
   { label: "DTF Rulo 60cm", value: "dtf60" },
@@ -41,6 +41,11 @@ const STATUS_LABELS: Record<string, string> = {
   ready: "Hazır",
   shipped: "Gönderildi",
 };
+
+function canUsePrintQueue(planKey: string, subscriptionStatus?: string | null): boolean {
+  return (planKey === "Pro" || planKey === "Business")
+    && (subscriptionStatus === "active" || subscriptionStatus === "trial");
+}
 
 interface QueueGroup {
   key: string;
@@ -95,8 +100,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = session.shop;
   const sub = await getShopSubscription(shop);
   const planKey = planKeyFromName(sub?.plan_key) ?? "Pro";
-  const plan = PLANS[planKey];
-  if (!plan.allowProduction || !plan.allowGangSheet) {
+  if (!canUsePrintQueue(planKey, sub?.subscription_status)) {
     return json({ orders: [], locked: true, shop });
   }
 
@@ -106,6 +110,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate(request);
+  const sub = await getShopSubscription(session.shop);
+  const planKey = planKeyFromName(sub?.plan_key) ?? "Pro";
+  if (!canUsePrintQueue(planKey, sub?.subscription_status)) {
+    return json({ ok: false, error: "Pro veya Business planı gerekli" }, { status: 403 });
+  }
   const form = await request.formData();
   const intent = String(form.get("intent") || "");
   const ids = String(form.get("ids") || "").split(",").filter(Boolean);
@@ -200,7 +209,7 @@ export default function PrintQueue() {
     return (
       <Page title="Print Queue">
         <Banner tone="warning" title="Pro veya Business planı gerekli">
-          <p>Print Queue Auto Builder için üretim ve gang sheet özellikleri açık olmalıdır.</p>
+          <p>Print Queue Auto Builder yalnızca aktif Pro ve Business aboneliklerinde kullanılabilir.</p>
           <Button onClick={() => navigate("/app/billing")}>Planı Yükselt</Button>
         </Banner>
       </Page>

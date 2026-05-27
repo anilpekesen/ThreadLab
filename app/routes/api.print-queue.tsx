@@ -1,6 +1,8 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { authenticate } from "~/lib/authenticate.server";
 import { getOrdersByIds } from "~/models/orders.server";
+import { getShopSubscription } from "~/models/billing.server";
+import { planKeyFromName } from "~/lib/billing.server";
 import { query } from "~/lib/db.server";
 import sharp from "sharp";
 import { strToU8, zipSync } from "fflate";
@@ -18,6 +20,11 @@ const CANVAS_LOGICAL_W = 960;
 const CANVAS_LOGICAL_H = 1160;
 
 type Side = "front" | "back";
+
+function canUsePrintQueue(planKey: string, subscriptionStatus?: string | null): boolean {
+  return (planKey === "Pro" || planKey === "Business")
+    && (subscriptionStatus === "active" || subscriptionStatus === "trial");
+}
 
 interface PrintItem {
   buffer: Buffer;
@@ -298,6 +305,12 @@ function summaryHtml(args: {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const shop = session.shop;
+  const sub = await getShopSubscription(shop);
+  const planKey = planKeyFromName(sub?.plan_key) ?? "Pro";
+  if (!canUsePrintQueue(planKey, sub?.subscription_status)) {
+    return new Response("Pro or Business plan required", { status: 403 });
+  }
+
   const url = new URL(request.url);
   const ids = (url.searchParams.get("ids") ?? "").split(",").filter(Boolean);
   if (!ids.length) return new Response("ids required", { status: 400 });
