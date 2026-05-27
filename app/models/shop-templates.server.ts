@@ -70,7 +70,7 @@ export async function addShopTemplate(
 ): Promise<ShopTemplate> {
   await ensureMigrations();
 
-  const ext = MIME_EXT[file.type] ?? MIME_EXT["image/png"];
+  const ext = MIME_EXT[file.type];
   if (!ext) throw new Error("PNG, JPG, WebP veya SVG gerekli");
 
   const buffer = Buffer.from(await file.arrayBuffer());

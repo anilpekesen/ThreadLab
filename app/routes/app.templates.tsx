@@ -28,6 +28,9 @@ const CATEGORY_SUGGESTION_KEYS = [
   "cat.abstract", "cat.textLogo", "cat.animals", "cat.vehicles", "cat.custom",
 ] as const;
 
+const MAX_TEMPLATE_UPLOAD_BYTES = 20 * 1024 * 1024;
+const ALLOWED_TEMPLATE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const shop = session.shop;
@@ -47,8 +50,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const contentType = cloned.headers.get("content-type") ?? "";
 
   if (contentType.includes("multipart/form-data")) {
-    const uploadHandler = unstable_createMemoryUploadHandler({ maxPartSize: 8 * 1024 * 1024 });
-    const form = await unstable_parseMultipartFormData(cloned, uploadHandler);
+    let form: FormData;
+    try {
+      const uploadHandler = unstable_createMemoryUploadHandler({ maxPartSize: MAX_TEMPLATE_UPLOAD_BYTES });
+      form = await unstable_parseMultipartFormData(cloned, uploadHandler);
+    } catch (err) {
+      console.error("[templates] multipart parse failed:", err);
+      return json({ error: "Dosya yüklenemedi. PNG, JPG, WebP veya SVG formatında en fazla 20 MB görsel yükleyin." }, { status: 400 });
+    }
     const intent = String(form.get("intent") || "");
 
     if (intent === "upload") {
@@ -58,6 +67,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       if (!(file instanceof File) || file.size === 0) {
         return json({ error: "Görsel seçilmedi" }, { status: 400 });
+      }
+      if (file.size > MAX_TEMPLATE_UPLOAD_BYTES) {
+        return json({ error: "Görsel 20 MB sınırını aşıyor" }, { status: 400 });
+      }
+      if (!ALLOWED_TEMPLATE_TYPES.has(file.type)) {
+        return json({ error: "PNG, JPG, WebP veya SVG formatında görsel yükleyin" }, { status: 400 });
       }
 
       const quota = await checkTemplateQuota(shop);
