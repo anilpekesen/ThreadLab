@@ -4,7 +4,7 @@ query RunInput {
       id
       quantity
       cost {
-        amountPerQuantity { amount }
+        totalAmount { amount }
       }
       unitPriceWithSurcharge: attribute(key: "_unit_price_with_surcharge") {
         value

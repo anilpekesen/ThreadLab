@@ -8,10 +8,12 @@ export function run(input) {
     const unitTotal = parseFloat(unitTotalStr);
     if (!Number.isFinite(unitTotal) || unitTotal <= 0) continue;
 
-    // Idempotency without a marker: if our re-priced amount already matches the
-    // line's current per-unit cost, the function ran on a previous pass — skip.
-    const currentPerUnit = parseFloat(line.cost?.amountPerQuantity?.amount ?? '0');
-    if (Math.abs(currentPerUnit - unitTotal) < 0.005) continue;
+    // Idempotency without a marker: if line.totalAmount already matches
+    // unitTotal × quantity, the function ran on a previous pass — skip. Using
+    // totalAmount avoids amountPerQuantity edge cases on expanded children.
+    const currentTotal = parseFloat(line.cost?.totalAmount?.amount ?? '0');
+    const expectedTotal = unitTotal * (line.quantity || 0);
+    if (Math.abs(currentTotal - expectedTotal) < 0.005) continue;
 
     // Omit `attributes` so the expanded child inherits the parent's properties
     // (Ön Tasarım, design_token, Beden, etc.) — Cart Transform replaces them
