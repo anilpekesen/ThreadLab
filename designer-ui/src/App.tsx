@@ -1092,24 +1092,32 @@ export default function App() {
         properties['Baskı indirimi'] = formatMoney(pricingSummary.printDiscountSubtotal);
       }
 
-    // Cart Transform approach: add surcharge info as properties on each line item.
-    // Shopify's Cart Transform Function reads these and adds the surcharge as a
-    // child line (customer cannot delete it; removing the parent removes both).
+    // Add the print surcharge as a separate cart line. Cart Transform UPDATE
+    // overrides its unit price using _surcharge_total so the customer pays the
+    // pre-calculated amount regardless of the variant's catalog price.
     if (personalization.surchargeVariantId) {
-      const surchargeGid = `gid://shopify/ProductVariant/${personalization.surchargeVariantId}`;
       const frontUnitAmt = pricingSummary.front.hasContent ? pricingSummary.front.surchargeUnitAmount : 0;
       const backUnitAmt  = pricingSummary.back.hasContent  ? pricingSummary.back.surchargeUnitAmount  : 0;
-
-      for (const item of cartItems) {
-        const frontQty = Math.round(frontUnitAmt * 100) / 100;
-        const backQty  = Math.round(backUnitAmt  * 100) / 100;
-        if (frontQty + backQty === 0) continue;
-        item.properties = {
-          ...(item.properties ?? {}),
-          '_surcharge_variant_gid': surchargeGid,
-          ...(frontQty > 0 ? { '_surcharge_qty_front': frontQty.toFixed(2) } : {}),
-          ...(backQty  > 0 ? { '_surcharge_qty_back':  backQty.toFixed(2)  } : {}),
-        };
+      const unitSurcharge = frontUnitAmt + backUnitAmt;
+      const totalUnits = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+      const totalSurcharge = unitSurcharge * totalUnits;
+      if (totalSurcharge > 0) {
+        for (const item of cartItems) {
+          item.properties = {
+            ...(item.properties ?? {}),
+            '_design_role': 'base',
+            ...(frontUnitAmt > 0 ? { '_surcharge_qty_front': frontUnitAmt.toFixed(2) } : {}),
+            ...(backUnitAmt  > 0 ? { '_surcharge_qty_back':  backUnitAmt.toFixed(2)  } : {}),
+          };
+        }
+        cartItems.push({
+          variantId: String(personalization.surchargeVariantId),
+          quantity: 1,
+          properties: {
+            '_design_role': 'surcharge',
+            '_surcharge_total': totalSurcharge.toFixed(2),
+          },
+        });
       }
     }
 
