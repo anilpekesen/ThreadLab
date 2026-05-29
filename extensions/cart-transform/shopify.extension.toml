@@ -1,11 +1,11 @@
-api_version = "2026-07"
+api_version = "2025-07"
 
 [[extensions]]
 name = "Tasarim Baski Ucret"
 handle = "tasarim-baski-ucret"
 uid = "54ae9f49-a0c9-d3ec-6f5d-867c6357557ea37a6656"
 type = "function"
-api_version = "2026-07"
+api_version = "2025-07"
 
 [[extensions.targeting]]
 target = "purchase.cart-transform.run"
