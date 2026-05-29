@@ -131,18 +131,43 @@
 
       if (!items.length) return;
 
+      var cartItems = items.map(function(item) {
+        var id = parseInt(item.variantId || item.id, 10);
+        var quantity = Math.max(1, parseInt(item.quantity || 1, 10) || 1);
+        return {
+          id: id,
+          quantity: quantity,
+          properties: Object.assign({}, props, item.properties || {}, item.size ? { 'Beden': item.size } : {})
+        };
+      }).filter(function(item) {
+        return Number.isFinite(item.id) && item.id > 0;
+      });
+
+      if (!cartItems.length) {
+        console.error('[PrintLab] Cart add blocked: invalid variant ids', items);
+        alert('Sepete eklenemedi: ürün varyantı bulunamadı.');
+        return;
+      }
+
       fetch('/cart/add.js', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: items.map(function(item) {
-            return {
-              id: parseInt(item.variantId, 10),
-              quantity: item.quantity,
-              properties: Object.assign({}, props, item.properties || {}, item.size ? { 'Beden': item.size } : {})
-            };
-          })
+          items: cartItems
         })
+      }).then(function(res) {
+        if (!res.ok) {
+          return res.text().then(function(text) {
+            var message = text || 'cart_add_failed';
+            try {
+              var json = JSON.parse(text);
+              message = json.description || json.message || json.status || message;
+            } catch (_) {}
+            console.error('[PrintLab] Cart add failed', res.status, message, { items: cartItems });
+            throw new Error(message);
+          });
+        }
+        return res.json();
       }).then(function() {
         // Cart Transform expand strips line item properties from the order.
         // Save key design fields as cart attributes so they survive as note_attributes.
@@ -161,8 +186,8 @@
         });
       }).then(function() {
         window.location.href = '/cart';
-      }).catch(function() {
-        alert('Sepete eklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+      }).catch(function(err) {
+        alert('Sepete eklenirken hata oluştu: ' + (err && err.message ? err.message : 'Bilinmeyen hata'));
       });
     }
   });

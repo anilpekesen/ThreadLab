@@ -140,6 +140,24 @@
         }
         if (!items.length) return;
 
+        var cartItems = items.map(function(item) {
+          var id = parseInt(item.variantId || item.id, 10);
+          var quantity = Math.max(1, parseInt(item.quantity || 1, 10) || 1);
+          return {
+            id: id,
+            quantity: quantity,
+            properties: Object.assign({}, props, item.properties || {}, item.size ? { 'Beden': item.size } : {})
+          };
+        }).filter(function(item) {
+          return Number.isFinite(item.id) && item.id > 0;
+        });
+
+        if (!cartItems.length) {
+          console.error('[PrintLab] Cart add blocked: invalid variant ids', items);
+          window.alert('Sepete eklenemedi: ürün varyantı bulunamadı.');
+          return;
+        }
+
         fetch('/cart/add.js', {
           method: 'POST',
           headers: {
@@ -147,17 +165,21 @@
             'Accept': 'application/json'
           },
           body: JSON.stringify({
-            items: items.map(function(item) {
-              return {
-                id: item.variantId,
-                quantity: item.quantity || 1,
-                properties: Object.assign({}, props, item.properties || {}, item.size ? { 'Beden': item.size } : {})
-              };
-            })
+            items: cartItems
           })
         })
           .then(function(res) {
-            if (!res.ok) throw new Error('cart_add_failed');
+            if (!res.ok) {
+              return res.text().then(function(text) {
+                var message = text || 'cart_add_failed';
+                try {
+                  var json = JSON.parse(text);
+                  message = json.description || json.message || json.status || message;
+                } catch (_) {}
+                console.error('[PrintLab] Cart add failed', res.status, message, { items: cartItems });
+                throw new Error(message);
+              });
+            }
             return res.json();
           })
           .then(function() {
@@ -184,8 +206,8 @@
               window.location.href = '/cart';
             }
           })
-          .catch(function() {
-            window.alert('Ürün sepete eklenemedi. Lütfen tekrar deneyin.');
+          .catch(function(err) {
+            window.alert('Sepete eklenirken hata oluştu: ' + (err && err.message ? err.message : 'Bilinmeyen hata'));
           });
       }
     });
