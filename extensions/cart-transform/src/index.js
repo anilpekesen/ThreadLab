@@ -18,13 +18,16 @@ export function run(input) {
     // Omit `attributes` so the expanded child inherits the parent's properties
     // (Ön Tasarım, design_token, Beden, etc.) — Cart Transform replaces them
     // only when an explicit list is provided.
+    // ExpandedItem.quantity is per *single unit* of the parent line — Shopify
+    // multiplies it by parent.quantity automatically. Always use 1 here, or
+    // the final child quantity becomes parent.qty² and the line total blows up.
     operations.push({
       expand: {
         cartLineId: line.id,
         expandedCartItems: [
           {
             merchandiseId: line.merchandise.id,
-            quantity: line.quantity,
+            quantity: 1,
             price: {
               adjustment: {
                 fixedPricePerUnit: { amount: unitTotal.toFixed(2) },
