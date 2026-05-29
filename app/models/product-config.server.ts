@@ -21,6 +21,12 @@ export interface PricingBand {
   surcharge: number;
 }
 
+export interface VolumeDiscountTier {
+  key: string;
+  minQuantity: number;
+  percentage: number;
+}
+
 export interface ProductConfig {
   isActive: boolean;
   productTitle: string;
@@ -44,6 +50,7 @@ export interface ProductConfig {
     front: PricingBand[];
     back: PricingBand[];
   };
+  volumeDiscounts: VolumeDiscountTier[];
   surchargeVariantId: string;
   updatedAt?: string;
 }
@@ -202,6 +209,23 @@ function normalizeBands(sideBands: unknown): PricingBand[] {
   });
 }
 
+function normalizeVolumeDiscounts(input: unknown): VolumeDiscountTier[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((tier, idx) => {
+      const source = tier as { key?: unknown; minQuantity?: unknown; percentage?: unknown };
+      const minQuantity = Math.max(1, Math.floor(Number(source?.minQuantity || 0)));
+      const percentage = Math.min(100, Math.max(0, Number(source?.percentage || 0)));
+      return {
+        key: String(source?.key || `qty-${minQuantity || idx}`),
+        minQuantity,
+        percentage,
+      };
+    })
+    .filter((tier) => tier.minQuantity > 0 && tier.percentage > 0)
+    .sort((a, b) => a.minQuantity - b.minQuantity);
+}
+
 
 export function defaultPricingBands() {
   const values = [60, 120, 180];
@@ -333,6 +357,7 @@ export function buildDefaultConfig(product: Pick<ShopifyProductSummary, "title" 
     backPrintWidthCm: printDefaults.back.widthCm,
     backPrintHeightCm: printDefaults.back.heightCm,
     pricingBands: defaultPricingBands(),
+    volumeDiscounts: [],
     surchargeVariantId: '',
   };
 }
@@ -372,6 +397,7 @@ export function normalizeProductConfig(
         ? normalizeBands(input?.pricingBands?.back)
         : fallback.pricingBands.back,
     },
+    volumeDiscounts: normalizeVolumeDiscounts((input as { volumeDiscounts?: unknown })?.volumeDiscounts ?? fallback.volumeDiscounts),
     surchargeVariantId: String((input as { surchargeVariantId?: unknown })?.surchargeVariantId || fallback.surchargeVariantId || ''),
     updatedAt: input?.updatedAt || fallback.updatedAt,
   };

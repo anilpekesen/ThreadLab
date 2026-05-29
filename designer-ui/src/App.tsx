@@ -47,7 +47,7 @@ import ImagePanel from '@/components/panels/ImagePanel';
 import TextPanel from '@/components/panels/TextPanel';
 import TemplatesPanel, { type Template } from '@/components/panels/TemplatesPanel';
 import SavedPanel from '@/components/panels/SavedPanel';
-import type { DesignerConfig, PersonalizationConfig, PricingBand, PrintAreaConfig, SavedDesign, Side, SurfaceMode } from '@/types';
+import type { DesignerConfig, PersonalizationConfig, PricingBand, PrintAreaConfig, SavedDesign, Side, SurfaceMode, VolumeDiscountTier } from '@/types';
 import { generateId } from '@/utils/compress';
 
 type Tab = 'image' | 'text' | 'layers' | 'templates' | 'saved' | null;
@@ -143,6 +143,8 @@ interface PricingSummary {
   totalQuantity: number;
   baseUnitPrice: number;
   baseSubtotal: number;
+  volumeDiscountPercentage: number;
+  printDiscountSubtotal: number;
   total: number;
   front: SidePricing;
   back: SidePricing;
@@ -191,6 +193,7 @@ function defaultPersonalization(): PersonalizationConfig {
       front: DEFAULT_PRICING_BANDS,
       back: DEFAULT_PRICING_BANDS,
     },
+    volumeDiscounts: [],
     surchargeVariantId: '',
     removeBgAvailable: false,
   };
@@ -287,6 +290,25 @@ function normalizeBand(band: Partial<PricingBand> | null | undefined, index: num
   };
 }
 
+function normalizeVolumeDiscount(tier: Partial<VolumeDiscountTier> | null | undefined, index: number): VolumeDiscountTier {
+  return {
+    key: String(tier?.key || `volume-${index}`),
+    minQuantity: Math.max(1, Math.floor(Number(tier?.minQuantity || 0))),
+    percentage: Math.min(100, Math.max(0, Number(tier?.percentage || 0))),
+  };
+}
+
+function volumeDiscountForQuantity(tiers: VolumeDiscountTier[], quantity: number): VolumeDiscountTier | null {
+  return tiers
+    .filter((tier) => tier.minQuantity > 0 && tier.percentage > 0 && quantity >= tier.minQuantity)
+    .sort((a, b) => b.minQuantity - a.minQuantity)[0] ?? null;
+}
+
+function applyPercentageDiscount(value: number, percentage: number): number {
+  if (percentage <= 0) return value;
+  return Math.max(0, value * (1 - percentage / 100));
+}
+
 function normalizePrintArea(side: Side, area: Partial<PrintAreaConfig> | null | undefined): PrintAreaConfig {
   const fallback = DEFAULT_PRINT_AREAS[side];
   return {
@@ -310,6 +332,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     settings?: {
       surfaceMode?: SurfaceMode;
       pricingBands?: Record<Side, PricingBand[]>;
+      volumeDiscounts?: VolumeDiscountTier[];
       surchargeVariantId?: string;
       removeBgAvailable?: boolean;
     };
@@ -327,6 +350,10 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     front: (source?.settings?.pricingBands?.front ?? base.pricingBands.front).map((band, index) => normalizeBand(band, index)),
     back: (source?.settings?.pricingBands?.back ?? base.pricingBands.back).map((band, index) => normalizeBand(band, index)),
   };
+  const volumeDiscounts = (source?.settings?.volumeDiscounts ?? base.volumeDiscounts)
+    .map((tier, index) => normalizeVolumeDiscount(tier, index))
+    .filter((tier) => tier.minQuantity > 0 && tier.percentage > 0)
+    .sort((a, b) => a.minQuantity - b.minQuantity);
   return {
     surfaceMode,
     printAreas: {
@@ -334,6 +361,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
       back: areaMap.get('back') ?? base.printAreas.back,
     },
     pricingBands,
+    volumeDiscounts,
     surchargeVariantId: String(source?.settings?.surchargeVariantId || ''),
     removeBgAvailable: Boolean(source?.settings?.removeBgAvailable),
   };
@@ -1045,20 +1073,24 @@ export default function App() {
       if (frontPrintUrl) properties['_front_print_url'] = frontPrintUrl;
       if (backPrintUrl) properties['_back_print_url'] = backPrintUrl;
     if (resolvedSide !== 'front') properties['Arka Tasarım'] = backHas ? 'Var' : 'Yok';
-    if (pricingSummary.front.hasContent) {
-      properties['Ön öğe sayısı'] = String(pricingSummary.front.metrics.objectCount);
-      properties['Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
-      properties['Ön alan'] = `${roundMetric(pricingSummary.front.metrics.areaCm2)} cm²`;
-      properties['Ön alan fiyatı'] = formatMoney(pricingSummary.front.surcharge);
+      if (pricingSummary.front.hasContent) {
+        properties['Ön öğe sayısı'] = String(pricingSummary.front.metrics.objectCount);
+        properties['Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
+        properties['Ön alan'] = `${roundMetric(pricingSummary.front.metrics.areaCm2)} cm²`;
+        properties['Ön alan fiyatı'] = formatMoney(pricingSummary.front.surcharge);
       properties['Ön fiyat bandı'] = pricingSummary.front.band.label;
     }
     if (pricingSummary.back.hasContent) {
       properties['Arka öğe sayısı'] = String(pricingSummary.back.metrics.objectCount);
       properties['Arka ölçü'] = formatMetricSize(pricingSummary.back.metrics);
       properties['Arka alan'] = `${roundMetric(pricingSummary.back.metrics.areaCm2)} cm²`;
-      properties['Arka alan fiyatı'] = formatMoney(pricingSummary.back.surcharge);
-      properties['Arka fiyat bandı'] = pricingSummary.back.band.label;
-    }
+        properties['Arka alan fiyatı'] = formatMoney(pricingSummary.back.surcharge);
+        properties['Arka fiyat bandı'] = pricingSummary.back.band.label;
+      }
+      if (pricingSummary.volumeDiscountPercentage > 0) {
+        properties['Toplu alım indirimi'] = `%${pricingSummary.volumeDiscountPercentage}`;
+        properties['Baskı indirimi'] = formatMoney(pricingSummary.printDiscountSubtotal);
+      }
 
     // Cart Transform approach: add surcharge info as properties on each line item.
     // Shopify's Cart Transform Function reads these and adds the surcharge as a
@@ -1070,14 +1102,14 @@ export default function App() {
 
       for (const item of cartItems) {
         const qty = item.quantity || 1;
-        const frontQty = Math.round(frontUnitAmt * qty);
-        const backQty  = Math.round(backUnitAmt  * qty);
+        const frontQty = Math.round(frontUnitAmt * qty * 100) / 100;
+        const backQty  = Math.round(backUnitAmt  * qty * 100) / 100;
         if (frontQty + backQty === 0) continue;
         item.properties = {
           ...(item.properties ?? {}),
           '_surcharge_variant_gid': surchargeGid,
-          ...(frontQty > 0 ? { '_surcharge_qty_front': String(frontQty) } : {}),
-          ...(backQty  > 0 ? { '_surcharge_qty_back':  String(backQty)  } : {}),
+          ...(frontQty > 0 ? { '_surcharge_qty_front': frontQty.toFixed(2) } : {}),
+          ...(backQty  > 0 ? { '_surcharge_qty_back':  backQty.toFixed(2)  } : {}),
         };
       }
     }
@@ -1389,14 +1421,24 @@ export default function App() {
       : [];
     const frontBand = frontItems[0]?.band ?? pricingBandForMetrics(personalization.pricingBands.front, frontMetrics);
     const backBand = backItems[0]?.band ?? pricingBandForMetrics(personalization.pricingBands.back, backMetrics);
-    const frontSurchargeUnitAmount = frontItems.reduce((sum, item) => sum + item.surchargeUnitAmount, 0);
-    const backSurchargeUnitAmount = backItems.reduce((sum, item) => sum + item.surchargeUnitAmount, 0);
+    const volumeDiscount = volumeDiscountForQuantity(personalization.volumeDiscounts, totalQuantity);
+    const volumeDiscountPercentage = volumeDiscount?.percentage ?? 0;
+    const frontRawSurchargeUnitAmount = frontItems.reduce((sum, item) => sum + item.surchargeUnitAmount, 0);
+    const backRawSurchargeUnitAmount = backItems.reduce((sum, item) => sum + item.surchargeUnitAmount, 0);
+    const frontSurchargeUnitAmount = applyPercentageDiscount(frontRawSurchargeUnitAmount, volumeDiscountPercentage);
+    const backSurchargeUnitAmount = applyPercentageDiscount(backRawSurchargeUnitAmount, volumeDiscountPercentage);
     const frontSurcharge = surchargeToCents(frontSurchargeUnitAmount);
     const backSurcharge = surchargeToCents(backSurchargeUnitAmount);
+    const printDiscountSubtotal = (
+      surchargeToCents(frontRawSurchargeUnitAmount + backRawSurchargeUnitAmount) -
+      surchargeToCents(frontSurchargeUnitAmount + backSurchargeUnitAmount)
+    ) * totalQuantity;
     return {
       totalQuantity,
       baseUnitPrice,
       baseSubtotal,
+      volumeDiscountPercentage,
+      printDiscountSubtotal,
       total: baseSubtotal + (frontSurcharge + backSurcharge) * totalQuantity,
       front: {
         hasContent: frontHasDesign,
@@ -1430,6 +1472,7 @@ export default function App() {
     personalization.printAreas.front,
     personalization.pricingBands.back,
     personalization.pricingBands.front,
+    personalization.volumeDiscounts,
     totalQuantity,
   ]);
 
@@ -2387,6 +2430,12 @@ export default function App() {
                   <div className="flex items-start justify-between gap-1 text-[10px]">
                     <span className="font-semibold text-gray-500">Arka baskı ({pricingSummary.back.metrics.objectCount} öğe)</span>
                     <strong className="font-black text-gray-900">{formatMoney(displayBackSubtotal)}</strong>
+                  </div>
+                )}
+                {pricingSummary.volumeDiscountPercentage > 0 && pricingSummary.printDiscountSubtotal > 0 && (
+                  <div className="flex items-start justify-between gap-1 text-[10px]">
+                    <span className="font-semibold text-emerald-600">Toplu alım indirimi (%{pricingSummary.volumeDiscountPercentage})</span>
+                    <strong className="font-black text-emerald-700">-{formatMoney(pricingSummary.printDiscountSubtotal)}</strong>
                   </div>
                 )}
               </div>

@@ -41,6 +41,12 @@ export interface PricingBand {
   surcharge: number;
 }
 
+export interface VolumeDiscountTier {
+  key: string;
+  minQuantity: number;
+  percentage: number;
+}
+
 export interface PrintAreaConfig {
   side: Side;
   mockupX: number;
@@ -60,6 +66,7 @@ export interface PersonalizationConfig {
   surfaceMode: SurfaceMode;
   printAreas: Record<Side, PrintAreaConfig>;
   pricingBands: Record<Side, PricingBand[]>;
+  volumeDiscounts: VolumeDiscountTier[];
   surchargeVariantId: string;
   removeBgAvailable: boolean;
 }

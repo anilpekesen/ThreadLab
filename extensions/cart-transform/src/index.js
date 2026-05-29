@@ -6,8 +6,8 @@ export function run(input) {
     if (!surchargeGid) continue;
 
     // Stored as total TL amount for this line (e.g. 2 shirts × ₺40 = "80")
-    const frontTotal = Math.max(0, parseInt(line.surchargeQtyFront?.value ?? '0') || 0);
-    const backTotal  = Math.max(0, parseInt(line.surchargeQtyBack?.value  ?? '0') || 0);
+    const frontTotal = Math.max(0, parseFloat(line.surchargeQtyFront?.value ?? '0') || 0);
+    const backTotal  = Math.max(0, parseFloat(line.surchargeQtyBack?.value  ?? '0') || 0);
     if (frontTotal === 0 && backTotal === 0) continue;
 
     const totalAmount = parseFloat(line.cost?.totalAmount?.amount ?? '0');
