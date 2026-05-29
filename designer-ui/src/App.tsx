@@ -379,22 +379,19 @@ function pricingItemsForObjects(
   bands: PricingBand[],
   totalQuantity: number,
 ): PrintObjectPricing[] {
-  return objects
-    .map((obj) => obj.getBoundingRect(true, true))
-    .filter((rect) => rect.width > 0 && rect.height > 0)
-    .map((rect) => {
-      const metrics = metricsFromRect(rect, area, 1);
-      const band = pricingBandForMetrics(bands, metrics);
-      const surchargeUnitAmount = Number(band.surcharge || 0);
-      const surcharge = surchargeToCents(surchargeUnitAmount);
-      return {
-        metrics,
-        band,
-        surcharge,
-        surchargeUnitAmount,
-        subtotal: surcharge * totalQuantity,
-      };
-    });
+  const metrics = metricsFromObjects(objects, area);
+  if (!metrics.objectCount || metrics.widthCm <= 0 || metrics.heightCm <= 0) return [];
+
+  const band = pricingBandForMetrics(bands, metrics);
+  const surchargeUnitAmount = Number(band.surcharge || 0);
+  const surcharge = surchargeToCents(surchargeUnitAmount);
+  return [{
+    metrics,
+    band,
+    surcharge,
+    surchargeUnitAmount,
+    subtotal: surcharge * totalQuantity,
+  }];
 }
 
 function pricingBandForMetrics(bands: PricingBand[], metrics: SideMetrics): PricingBand {
@@ -408,7 +405,7 @@ function pricingBandForMetrics(bands: PricingBand[], metrics: SideMetrics): Pric
 
 function summarizeSidePricing(sideLabel: string, pricing: SidePricing) {
   if (!pricing.hasContent) return `${sideLabel}: tasarım yok`;
-  if (pricing.items.length > 1) return `${sideLabel}: ${pricing.items.length} öğe · ${formatMetricSize(pricing.metrics)}`;
+  if (pricing.metrics.objectCount > 1) return `${sideLabel}: ${pricing.metrics.objectCount} öğe · ${formatMetricSize(pricing.metrics)} · ${pricing.band.label}`;
   return `${sideLabel}: ${formatMetricSize(pricing.metrics)} · ${pricing.band.label}`;
 }
 
@@ -1049,18 +1046,18 @@ export default function App() {
       if (backPrintUrl) properties['_back_print_url'] = backPrintUrl;
     if (resolvedSide !== 'front') properties['Arka Tasarım'] = backHas ? 'Var' : 'Yok';
     if (pricingSummary.front.hasContent) {
-      properties['Ön öğe sayısı'] = String(pricingSummary.front.items.length);
+      properties['Ön öğe sayısı'] = String(pricingSummary.front.metrics.objectCount);
       properties['Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
       properties['Ön alan'] = `${roundMetric(pricingSummary.front.metrics.areaCm2)} cm²`;
       properties['Ön alan fiyatı'] = formatMoney(pricingSummary.front.surcharge);
-      properties['Ön fiyat bandı'] = pricingSummary.front.items.map((item) => item.band.label).join(', ');
+      properties['Ön fiyat bandı'] = pricingSummary.front.band.label;
     }
     if (pricingSummary.back.hasContent) {
-      properties['Arka öğe sayısı'] = String(pricingSummary.back.items.length);
+      properties['Arka öğe sayısı'] = String(pricingSummary.back.metrics.objectCount);
       properties['Arka ölçü'] = formatMetricSize(pricingSummary.back.metrics);
       properties['Arka alan'] = `${roundMetric(pricingSummary.back.metrics.areaCm2)} cm²`;
       properties['Arka alan fiyatı'] = formatMoney(pricingSummary.back.surcharge);
-      properties['Arka fiyat bandı'] = pricingSummary.back.items.map((item) => item.band.label).join(', ');
+      properties['Arka fiyat bandı'] = pricingSummary.back.band.label;
     }
 
     // Cart Transform approach: add surcharge info as properties on each line item.
@@ -2382,13 +2379,13 @@ export default function App() {
                 </div>
                 {pricingSummary.front.hasContent && (
                   <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">Ön baskı ({pricingSummary.front.items.length} öğe)</span>
+                    <span className="font-semibold text-gray-500">Ön baskı ({pricingSummary.front.metrics.objectCount} öğe)</span>
                     <strong className="font-black text-gray-900">{formatMoney(displayFrontSubtotal)}</strong>
                   </div>
                 )}
                 {pricingSummary.back.hasContent && (
                   <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">Arka baskı ({pricingSummary.back.items.length} öğe)</span>
+                    <span className="font-semibold text-gray-500">Arka baskı ({pricingSummary.back.metrics.objectCount} öğe)</span>
                     <strong className="font-black text-gray-900">{formatMoney(displayBackSubtotal)}</strong>
                   </div>
                 )}
