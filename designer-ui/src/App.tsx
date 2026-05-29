@@ -1479,7 +1479,8 @@ export default function App() {
     new Intl.NumberFormat(config?.locale ?? 'tr-TR', {
       style: 'currency',
       currency: config?.currency ?? 'TRY',
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(amountInCents / 100)
   ), [config?.currency, config?.locale]);
 

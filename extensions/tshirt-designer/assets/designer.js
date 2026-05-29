@@ -207,7 +207,7 @@
 
     function money(n) {
       return new Intl.NumberFormat(cfg.locale, {
-        style: 'currency', currency: cfg.currency, maximumFractionDigits: 0,
+        style: 'currency', currency: cfg.currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
       }).format(n);
     }
 
