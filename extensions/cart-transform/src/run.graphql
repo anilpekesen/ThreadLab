@@ -2,8 +2,17 @@ query RunInput {
   cart {
     lines {
       id
+      quantity
+      cost {
+        amountPerQuantity { amount }
+      }
       unitPriceWithSurcharge: attribute(key: "_unit_price_with_surcharge") {
         value
+      }
+      merchandise {
+        ... on ProductVariant {
+          id
+        }
       }
     }
   }
