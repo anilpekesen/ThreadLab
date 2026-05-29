@@ -1092,32 +1092,25 @@ export default function App() {
         properties['Baskı indirimi'] = formatMoney(pricingSummary.printDiscountSubtotal);
       }
 
-    // Add the print surcharge as a separate cart line. Cart Transform UPDATE
-    // overrides its unit price using _surcharge_total so the customer pays the
-    // pre-calculated amount regardless of the variant's catalog price.
-    if (personalization.surchargeVariantId) {
+    // Fold the print surcharge into the t-shirt line's unit price via Cart
+    // Transform UPDATE. No separate surcharge line item — single cart row whose
+    // price already includes base + surcharge.
+    {
       const frontUnitAmt = pricingSummary.front.hasContent ? pricingSummary.front.surchargeUnitAmount : 0;
       const backUnitAmt  = pricingSummary.back.hasContent  ? pricingSummary.back.surchargeUnitAmount  : 0;
-      const unitSurcharge = frontUnitAmt + backUnitAmt;
-      const totalUnits = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-      const totalSurcharge = unitSurcharge * totalUnits;
-      if (totalSurcharge > 0) {
+      const surchargeUnit = frontUnitAmt + backUnitAmt;
+      if (surchargeUnit > 0) {
+        const baseUnitTl = pricingSummary.baseUnitPrice / 100;
+        const totalUnitTl = baseUnitTl + surchargeUnit;
         for (const item of cartItems) {
           item.properties = {
             ...(item.properties ?? {}),
             '_design_role': 'base',
+            '_unit_price_with_surcharge': totalUnitTl.toFixed(2),
             ...(frontUnitAmt > 0 ? { '_surcharge_qty_front': frontUnitAmt.toFixed(2) } : {}),
             ...(backUnitAmt  > 0 ? { '_surcharge_qty_back':  backUnitAmt.toFixed(2)  } : {}),
           };
         }
-        cartItems.push({
-          variantId: String(personalization.surchargeVariantId),
-          quantity: 1,
-          properties: {
-            '_design_role': 'surcharge',
-            '_surcharge_total': totalSurcharge.toFixed(2),
-          },
-        });
       }
     }
 

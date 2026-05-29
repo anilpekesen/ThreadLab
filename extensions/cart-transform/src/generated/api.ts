@@ -2790,4 +2790,4 @@ export enum WeightUnit {
 export type RunInputQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type RunInputQuery = { __typename?: 'Input', cart: { __typename?: 'Cart', lines: Array<{ __typename?: 'CartLine', id: string, designRole?: { __typename?: 'Attribute', value?: string | null } | null, surchargeTotal?: { __typename?: 'Attribute', value?: string | null } | null }> } };
+export type RunInputQuery = { __typename?: 'Input', cart: { __typename?: 'Cart', lines: Array<{ __typename?: 'CartLine', id: string, unitPriceWithSurcharge?: { __typename?: 'Attribute', value?: string | null } | null }> } };

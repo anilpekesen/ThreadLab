@@ -2,10 +2,7 @@ query RunInput {
   cart {
     lines {
       id
-      designRole: attribute(key: "_design_role") {
-        value
-      }
-      surchargeTotal: attribute(key: "_surcharge_total") {
+      unitPriceWithSurcharge: attribute(key: "_unit_price_with_surcharge") {
         value
       }
     }
