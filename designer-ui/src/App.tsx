@@ -1101,9 +1101,8 @@ export default function App() {
       const backUnitAmt  = pricingSummary.back.hasContent  ? pricingSummary.back.surchargeUnitAmount  : 0;
 
       for (const item of cartItems) {
-        const qty = item.quantity || 1;
-        const frontQty = Math.round(frontUnitAmt * qty * 100) / 100;
-        const backQty  = Math.round(backUnitAmt  * qty * 100) / 100;
+        const frontQty = Math.round(frontUnitAmt * 100) / 100;
+        const backQty  = Math.round(backUnitAmt  * 100) / 100;
         if (frontQty + backQty === 0) continue;
         item.properties = {
           ...(item.properties ?? {}),

@@ -18,9 +18,9 @@ function run(input) {
   for (const line of input.cart.lines) {
     const surchargeGid = line.surchargeVariantGid?.value ?? null;
     if (!surchargeGid) continue;
-    const frontTotal = Math.max(0, parseFloat(line.surchargeQtyFront?.value ?? "0") || 0);
-    const backTotal = Math.max(0, parseFloat(line.surchargeQtyBack?.value ?? "0") || 0);
-    if (frontTotal === 0 && backTotal === 0) continue;
+    const frontPerUnit = Math.max(0, parseFloat(line.surchargeQtyFront?.value ?? "0") || 0);
+    const backPerUnit = Math.max(0, parseFloat(line.surchargeQtyBack?.value ?? "0") || 0);
+    if (frontPerUnit === 0 && backPerUnit === 0) continue;
     const totalAmount = parseFloat(line.cost?.totalAmount?.amount ?? "0");
     const perUnitPrice = line.quantity > 0 ? (totalAmount / line.quantity).toFixed(2) : totalAmount.toFixed(2);
     const expandedCartItems = [
@@ -34,24 +34,24 @@ function run(input) {
         }
       }
     ];
-    if (frontTotal > 0) {
+    if (frontPerUnit > 0) {
       expandedCartItems.push({
         merchandiseId: surchargeGid,
-        quantity: 1,
+        quantity: line.quantity,
         price: {
           adjustment: {
-            fixedPricePerUnit: { amount: frontTotal.toFixed(2) }
+            fixedPricePerUnit: { amount: frontPerUnit.toFixed(2) }
           }
         }
       });
     }
-    if (backTotal > 0) {
+    if (backPerUnit > 0) {
       expandedCartItems.push({
         merchandiseId: surchargeGid,
-        quantity: 1,
+        quantity: line.quantity,
         price: {
           adjustment: {
-            fixedPricePerUnit: { amount: backTotal.toFixed(2) }
+            fixedPricePerUnit: { amount: backPerUnit.toFixed(2) }
           }
         }
       });
