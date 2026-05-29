@@ -6,6 +6,7 @@ import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import trTranslations from "@shopify/polaris/locales/tr.json";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "~/lib/authenticate.server";
+import { ensureCartTransformRegistered } from "~/lib/cart-transform.server";
 import { getShopSubscription } from "~/models/billing.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
 import { LanguageProvider, useTranslation, type Lang } from "~/i18n";
@@ -17,7 +18,8 @@ export const links = () => [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate(request);
+  const { admin, session } = await authenticate(request);
+  ensureCartTransformRegistered(admin, session.shop);
   const sub = await getShopSubscription(session.shop);
   const cookieHeader = request.headers.get("Cookie") ?? "";
   const langMatch = cookieHeader.match(/(?:^|; )dk_lang=([^;]*)/);
