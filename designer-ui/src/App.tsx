@@ -1092,21 +1092,21 @@ export default function App() {
         properties['Baskı indirimi'] = formatMoney(pricingSummary.printDiscountSubtotal);
       }
 
-    // Fold the print surcharge into the t-shirt line's unit price via Cart
-    // Transform UPDATE. No separate surcharge line item — single cart row whose
-    // price already includes base + surcharge.
+    // Fold print surcharge into the t-shirt unit price via Cart Transform
+    // UPDATE: we send the combined per-unit total (base + front + back) as
+    // _unit_price_with_surcharge, and the function rewrites the line's unit
+    // price to that value. No separate surcharge cart line.
     {
       const frontUnitAmt = pricingSummary.front.hasContent ? pricingSummary.front.surchargeUnitAmount : 0;
       const backUnitAmt  = pricingSummary.back.hasContent  ? pricingSummary.back.surchargeUnitAmount  : 0;
-      const surchargeUnit = frontUnitAmt + backUnitAmt;
-      if (surchargeUnit > 0) {
-        const baseUnitTl = pricingSummary.baseUnitPrice / 100;
-        const totalUnitTl = baseUnitTl + surchargeUnit;
+      const surchargeUnitTl = frontUnitAmt + backUnitAmt;
+      if (surchargeUnitTl > 0) {
+        const baseUnitTl = (pricingSummary.baseUnitPrice ?? 0) / 100;
+        const unitTotalTl = baseUnitTl + surchargeUnitTl;
         for (const item of cartItems) {
           item.properties = {
             ...(item.properties ?? {}),
-            '_design_role': 'base',
-            '_unit_price_with_surcharge': totalUnitTl.toFixed(2),
+            '_unit_price_with_surcharge': unitTotalTl.toFixed(2),
             ...(frontUnitAmt > 0 ? { '_surcharge_qty_front': frontUnitAmt.toFixed(2) } : {}),
             ...(backUnitAmt  > 0 ? { '_surcharge_qty_back':  backUnitAmt.toFixed(2)  } : {}),
           };
