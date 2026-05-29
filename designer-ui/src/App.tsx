@@ -1092,21 +1092,24 @@ export default function App() {
         properties['Baskı indirimi'] = formatMoney(pricingSummary.printDiscountSubtotal);
       }
 
-    // Fold print surcharge into the t-shirt unit price via Cart Transform
-    // UPDATE: we send the combined per-unit total (base + front + back) as
-    // _unit_price_with_surcharge, and the function rewrites the line's unit
-    // price to that value. No separate surcharge cart line.
-    {
+    // Cart Transform splits the line into two children: the t-shirt at its
+    // base unit price, and the surcharge variant at the combined front+back
+    // per-unit surcharge. The surcharge child is hidden on /cart via CSS
+    // (cart-protection.js) and shown on /checkout as a separate line.
+    if (personalization.surchargeVariantId) {
       const frontUnitAmt = pricingSummary.front.hasContent ? pricingSummary.front.surchargeUnitAmount : 0;
       const backUnitAmt  = pricingSummary.back.hasContent  ? pricingSummary.back.surchargeUnitAmount  : 0;
       const surchargeUnitTl = frontUnitAmt + backUnitAmt;
       if (surchargeUnitTl > 0) {
         const baseUnitTl = (pricingSummary.baseUnitPrice ?? 0) / 100;
-        const unitTotalTl = baseUnitTl + surchargeUnitTl;
+        const surchargeGid = `gid://shopify/ProductVariant/${personalization.surchargeVariantId}`;
         for (const item of cartItems) {
           item.properties = {
             ...(item.properties ?? {}),
-            '_unit_price_with_surcharge': unitTotalTl.toFixed(2),
+            '_design_role': 'pending_expand',
+            '_base_unit_price': baseUnitTl.toFixed(2),
+            '_surcharge_unit_total': surchargeUnitTl.toFixed(2),
+            '_surcharge_variant_gid': surchargeGid,
             ...(frontUnitAmt > 0 ? { '_surcharge_qty_front': frontUnitAmt.toFixed(2) } : {}),
             ...(backUnitAmt  > 0 ? { '_surcharge_qty_back':  backUnitAmt.toFixed(2)  } : {}),
           };

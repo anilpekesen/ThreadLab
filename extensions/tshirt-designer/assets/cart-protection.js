@@ -74,11 +74,27 @@
     }
   }, true);
 
-  // Hide remove buttons for legacy surcharge items
+  // Hide the entire surcharge row on the cart page so customers see only the
+  // base t-shirt line; checkout still renders both lines.
   function hideRemoveButtons() {
     _cartItems.forEach(function (item, idx) {
       if (!isSurcharge(item)) return;
       var line = idx + 1;
+      var key = item.key;
+      var selectors = [
+        'tr[id="CartItem-' + line + '"]',
+        'tr.cart-item[data-line="' + line + '"]',
+        'cart-item[data-index="' + line + '"]',
+        '.cart-item[data-line="' + line + '"]',
+        '[data-cart-item-key="' + key + '"]',
+        '[data-item-key="' + key + '"]',
+        '[data-key="' + key + '"]',
+      ];
+      selectors.forEach(function (sel) {
+        document.querySelectorAll(sel).forEach(function (el) {
+          el.style.setProperty('display', 'none', 'important');
+        });
+      });
       var btn = document.querySelector('cart-remove-button[data-index="' + line + '"]');
       if (btn) btn.style.setProperty('display', 'none', 'important');
       document.querySelectorAll('a[href*="/cart/change"]').forEach(function (el) {

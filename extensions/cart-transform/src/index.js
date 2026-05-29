@@ -1,26 +1,47 @@
+// Property aliases (must match run.graphql).
+const PROP_KEYS = [
+  ['a01', 'Beden'],
+  ['a02', 'Renk'],
+  ['a03', 'Ön Tasarım'],
+  ['a04', 'Arka Tasarım'],
+  ['a05', 'design_token'],
+  ['a06', 'Toplam adet'],
+  ['a07', 'Tişört birim fiyatı'],
+  ['a08', 'Tişört ara toplamı'],
+  ['a09', 'Toplam fiyat'],
+  ['a10', 'Ön ölçü'],
+  ['a11', 'Ön alan'],
+  ['a12', 'Ön alan fiyatı'],
+  ['a13', 'Ön fiyat bandı'],
+  ['a14', 'Arka ölçü'],
+  ['a15', 'Arka alan'],
+  ['a16', 'Arka alan fiyatı'],
+  ['a17', 'Arka fiyat bandı'],
+  ['a18', 'Toplu alım indirimi'],
+  ['a19', 'Baskı indirimi'],
+];
+
 export function run(input) {
   const operations = [];
 
   for (const line of input.cart.lines) {
-    const unitTotalStr = line.unitPriceWithSurcharge?.value;
-    if (!unitTotalStr) continue;
+    const role = line.designRole?.value;
+    if (role === 'base_expanded' || role === 'surcharge_child') continue;
+    if (role !== 'pending_expand') continue;
 
-    const unitTotal = parseFloat(unitTotalStr);
-    if (!Number.isFinite(unitTotal) || unitTotal <= 0) continue;
+    const baseUnit = parseFloat(line.baseUnit?.value ?? '0');
+    const surchargeUnit = parseFloat(line.surchargeUnit?.value ?? '0');
+    const surchargeGid = line.surchargeGid?.value;
+    if (!Number.isFinite(baseUnit) || baseUnit <= 0) continue;
+    if (!Number.isFinite(surchargeUnit) || surchargeUnit <= 0) continue;
+    if (!surchargeGid) continue;
 
-    // Idempotency without a marker: if line.totalAmount already matches
-    // unitTotal × quantity, the function ran on a previous pass — skip. Using
-    // totalAmount avoids amountPerQuantity edge cases on expanded children.
-    const currentTotal = parseFloat(line.cost?.totalAmount?.amount ?? '0');
-    const expectedTotal = unitTotal * (line.quantity || 0);
-    if (Math.abs(currentTotal - expectedTotal) < 0.005) continue;
+    const baseAttrs = [{ key: '_design_role', value: 'base_expanded' }];
+    for (const [alias, key] of PROP_KEYS) {
+      const v = line[alias]?.value;
+      if (v != null && v !== '') baseAttrs.push({ key, value: v });
+    }
 
-    // Omit `attributes` so the expanded child inherits the parent's properties
-    // (Ön Tasarım, design_token, Beden, etc.) — Cart Transform replaces them
-    // only when an explicit list is provided.
-    // ExpandedItem.quantity is per *single unit* of the parent line — Shopify
-    // multiplies it by parent.quantity automatically. Always use 1 here, or
-    // the final child quantity becomes parent.qty² and the line total blows up.
     operations.push({
       expand: {
         cartLineId: line.id,
@@ -30,9 +51,20 @@ export function run(input) {
             quantity: 1,
             price: {
               adjustment: {
-                fixedPricePerUnit: { amount: unitTotal.toFixed(2) },
+                fixedPricePerUnit: { amount: baseUnit.toFixed(2) },
               },
             },
+            attributes: baseAttrs,
+          },
+          {
+            merchandiseId: surchargeGid,
+            quantity: 1,
+            price: {
+              adjustment: {
+                fixedPricePerUnit: { amount: surchargeUnit.toFixed(2) },
+              },
+            },
+            attributes: [{ key: '_design_role', value: 'surcharge_child' }],
           },
         ],
       },
