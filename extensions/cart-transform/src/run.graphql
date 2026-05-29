@@ -2,23 +2,11 @@ query RunInput {
   cart {
     lines {
       id
-      quantity
-      cost {
-        totalAmount { amount currencyCode }
-      }
-      surchargeVariantGid: attribute(key: "_surcharge_variant_gid") {
+      designRole: attribute(key: "_design_role") {
         value
       }
-      surchargeQtyFront: attribute(key: "_surcharge_qty_front") {
+      surchargeTotal: attribute(key: "_surcharge_total") {
         value
-      }
-      surchargeQtyBack: attribute(key: "_surcharge_qty_back") {
-        value
-      }
-      merchandise {
-        ... on ProductVariant {
-          id
-        }
       }
     }
   }

@@ -1,4 +1,4 @@
-// v40
+// v41
 // cache-bust-line-2
 // cache-bust-line-3
 // cache-bust-line-4
@@ -2933,9 +2933,6 @@
         if (design && design.token) properties.design_token = design.token;
         if (design && design.downloadUrl) properties['Tasarımı indir'] = design.downloadUrl;
         if (design && design.editUrl) properties['Tasarımı düzenle'] = design.editUrl;
-        // Surcharge is handled via cart transform (expand operation).
-        // Each base product line carries per-unit surcharge amounts. The
-        // transform multiplies them by quantity once.
         var frontUnitSurcharge = (cfg.surchargeVariantId && pricing.front.hasContent && pricing.front.surcharge > 0)
           ? pricing.front.surcharge : 0;
         var backUnitSurcharge  = (cfg.surchargeVariantId && pricing.back.hasContent  && pricing.back.surcharge  > 0)
@@ -2944,9 +2941,8 @@
         var items = lines.map(function (line) {
           var lineProps = Object.assign({}, properties, { 'Beden': line.size, '_design_role': 'base' });
           if (cfg.surchargeVariantId && (frontUnitSurcharge > 0 || backUnitSurcharge > 0)) {
-            lineProps['_surcharge_variant_gid'] = 'gid://shopify/ProductVariant/' + cfg.surchargeVariantId;
-            lineProps['_surcharge_qty_front']   = String(Math.round(frontUnitSurcharge * 100) / 100);
-            lineProps['_surcharge_qty_back']    = String(Math.round(backUnitSurcharge  * 100) / 100);
+            lineProps['_surcharge_qty_front'] = String(Math.round(frontUnitSurcharge * 100) / 100);
+            lineProps['_surcharge_qty_back']  = String(Math.round(backUnitSurcharge  * 100) / 100);
           }
           return {
             id: String(baseVariantIdForSize(line.size)),
@@ -2954,6 +2950,18 @@
             properties: lineProps,
           };
         });
+
+        var totalSurcharge = (frontUnitSurcharge + backUnitSurcharge) * totalSelectedQuantity();
+        if (cfg.surchargeVariantId && totalSurcharge > 0) {
+          items.push({
+            id: String(cfg.surchargeVariantId),
+            quantity: 1,
+            properties: {
+              '_design_role': 'surcharge',
+              '_surcharge_total': totalSurcharge.toFixed(2),
+            },
+          });
+        }
 
         fetch('/cart/add.js', {
           method: 'POST',

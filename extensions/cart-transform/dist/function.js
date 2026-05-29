@@ -1,4 +1,4 @@
-// ../../node_modules/@shopify/shopify_function/run.ts
+// node_modules/@shopify/shopify_function/run.ts
 function run_default(userfunction) {
   try {
     ShopifyFunction;
@@ -12,54 +12,21 @@ function run_default(userfunction) {
   ShopifyFunction.writeOutput(output_obj);
 }
 
-// src/index.js
+// extensions/cart-transform/src/index.js
 function run(input) {
   const operations = [];
   for (const line of input.cart.lines) {
-    const surchargeGid = line.surchargeVariantGid?.value ?? null;
-    if (!surchargeGid) continue;
-    const frontPerUnit = Math.max(0, parseFloat(line.surchargeQtyFront?.value ?? "0") || 0);
-    const backPerUnit = Math.max(0, parseFloat(line.surchargeQtyBack?.value ?? "0") || 0);
-    if (frontPerUnit === 0 && backPerUnit === 0) continue;
-    const totalAmount = parseFloat(line.cost?.totalAmount?.amount ?? "0");
-    const perUnitPrice = line.quantity > 0 ? (totalAmount / line.quantity).toFixed(2) : totalAmount.toFixed(2);
-    const expandedCartItems = [
-      {
-        merchandiseId: line.merchandise.id,
-        quantity: line.quantity,
-        price: {
-          adjustment: {
-            fixedPricePerUnit: { amount: perUnitPrice }
-          }
-        }
-      }
-    ];
-    if (frontPerUnit > 0) {
-      expandedCartItems.push({
-        merchandiseId: surchargeGid,
-        quantity: line.quantity,
-        price: {
-          adjustment: {
-            fixedPricePerUnit: { amount: frontPerUnit.toFixed(2) }
-          }
-        }
-      });
-    }
-    if (backPerUnit > 0) {
-      expandedCartItems.push({
-        merchandiseId: surchargeGid,
-        quantity: line.quantity,
-        price: {
-          adjustment: {
-            fixedPricePerUnit: { amount: backPerUnit.toFixed(2) }
-          }
-        }
-      });
-    }
+    if (line.designRole?.value !== "surcharge") continue;
+    const total = Math.max(0, parseFloat(line.surchargeTotal?.value ?? "0") || 0);
+    if (total === 0) continue;
     operations.push({
-      expand: {
+      update: {
         cartLineId: line.id,
-        expandedCartItems
+        price: {
+          adjustment: {
+            fixedPricePerUnit: { amount: total.toFixed(2) }
+          }
+        }
       }
     });
   }
