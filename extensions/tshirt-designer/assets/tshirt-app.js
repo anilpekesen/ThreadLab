@@ -2957,7 +2957,7 @@
             id: String(cfg.surchargeVariantId),
             quantity: 1,
             properties: {
-              '_design_role': 'surcharge',
+              '_design_role': 'pending_surcharge',
               '_surcharge_total': totalSurcharge.toFixed(2),
             },
           });
