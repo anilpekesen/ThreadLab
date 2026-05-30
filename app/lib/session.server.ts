@@ -7,9 +7,9 @@ const sessionStorage = createCookieSessionStorage({
     name: "__printlab_session",
     httpOnly: true,
     path: "/",
-    sameSite: "lax",
+    sameSite: "none",
     secrets: [process.env.SESSION_SECRET ?? "printlab-secret-key-2026"],
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" || process.env.SHOPIFY_APP_URL?.startsWith("https://"),
     maxAge: 60 * 60 * 24 * 30,
   },
 });

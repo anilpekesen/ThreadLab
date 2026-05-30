@@ -20,8 +20,11 @@ function getStateCookie(request: Request): string | null {
 }
 
 function makeStateCookie(state: string, maxAge: number): string {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return `__printlab_oauth_state=${encodeURIComponent(state)}; Max-Age=${maxAge}; Path=/; HttpOnly; SameSite=Lax${secure}`;
+  const secure = process.env.NODE_ENV === "production" || process.env.SHOPIFY_APP_URL?.startsWith("https://")
+    ? "; Secure"
+    : "";
+  const sameSite = secure ? "None" : "Lax";
+  return `__printlab_oauth_state=${encodeURIComponent(state)}; Max-Age=${maxAge}; Path=/; HttpOnly; SameSite=${sameSite}${secure}`;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
