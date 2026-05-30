@@ -10,6 +10,7 @@ import {
   Card,
   InlineStack,
   Page,
+  Select,
   Text,
   TextField,
   Banner,
@@ -25,11 +26,81 @@ export const headers = () => ({
   "Pragma": "no-cache",
 });
 
+type SurchargeVariantOption = {
+  label: string;
+  value: string;
+};
+
+async function loadSurchargeVariantOptions(
+  admin: Awaited<ReturnType<typeof authenticate>>["admin"],
+): Promise<SurchargeVariantOption[]> {
+  try {
+    const response = await admin.graphql(`#graphql
+      query PrintLabSurchargeVariantOptions {
+        products(first: 50, sortKey: UPDATED_AT, reverse: true) {
+          nodes {
+            title
+            status
+            variants(first: 20) {
+              nodes {
+                id
+                title
+                sku
+                price
+              }
+            }
+          }
+        }
+      }
+    `);
+    const data = await response.json() as {
+      data?: {
+        products?: {
+          nodes?: Array<{
+            title: string;
+            status?: string;
+            variants?: {
+              nodes?: Array<{
+                id: string;
+                title: string;
+                sku?: string | null;
+                price?: string | null;
+              }>;
+            };
+          }>;
+        };
+      };
+    };
+
+    const options: SurchargeVariantOption[] = [];
+    for (const product of data.data?.products?.nodes ?? []) {
+      for (const variant of product.variants?.nodes ?? []) {
+        const variantId = variant.id.split("/").pop() ?? "";
+        if (!variantId) continue;
+        const variantTitle = variant.title && variant.title !== "Default Title"
+          ? ` / ${variant.title}`
+          : "";
+        const sku = variant.sku ? ` / SKU: ${variant.sku}` : "";
+        const status = product.status && product.status !== "ACTIVE" ? ` / ${product.status}` : "";
+        const price = variant.price ? ` / ${variant.price}` : "";
+        options.push({
+          value: variantId,
+          label: `${product.title}${variantTitle}${price}${sku}${status} (#${variantId})`,
+        });
+      }
+    }
+    return options;
+  } catch (_e) {
+    return [];
+  }
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate(request);
-  const [globalSettings, shopSettings] = await Promise.all([
+  const [globalSettings, shopSettings, surchargeVariantOptions] = await Promise.all([
     getGlobalSettings(),
     getShopSettings(session.shop),
+    loadSurchargeVariantOptions(admin),
   ]);
   const settings = { ...globalSettings, ...shopSettings };
   const url = new URL(request.url);
@@ -116,7 +187,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=mainSection`
     : null;
 
-  return json({ settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl });
+  return json({ settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, surchargeVariantOptions });
 };
 
 async function writeSurchargeMetafield(
@@ -332,7 +403,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl } = useLoaderData<typeof loader>();
+  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, surchargeVariantOptions } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const fetcher = useFetcher<{ error?: string; success?: string }>();
   const { t, lang } = useTranslation();
@@ -341,6 +412,11 @@ export default function SettingsRoute() {
 
   const [surchargeVariantId, setSurchargeVariantId] = useState(settings.surchargeVariantId || "");
   const [customerBgLimit, setCustomerBgLimit] = useState(String(settings.customerBgLimit ?? 5));
+  const selectedVariantExists = surchargeVariantOptions.some((option) => option.value === surchargeVariantId);
+  const variantSelectOptions = [
+    { label: lang === "tr" ? "Ürün / varyant seçin" : "Select product / variant", value: "" },
+    ...surchargeVariantOptions,
+  ];
 
   return (
     <Page title={t("settings.title")}>
@@ -460,15 +536,28 @@ export default function SettingsRoute() {
 
             <Card>
               <Box padding="400">
-                <TextField
-                  label={t("settings.variantIdLabel")}
-                  name="surchargeVariantId"
-                  value={surchargeVariantId}
-                  onChange={setSurchargeVariantId}
-                  autoComplete="off"
-                  helpText="Shopify'da mevcut ₺1 fiyatlı bir variant varsa buraya ID'sini girebilirsiniz."
-                  placeholder="12345678901234"
-                />
+                <BlockStack gap="300">
+                  <Select
+                    label={lang === "tr" ? "Baskı ücreti ürünü / varyantı" : "Print fee product / variant"}
+                    options={variantSelectOptions}
+                    value={selectedVariantExists ? surchargeVariantId : ""}
+                    onChange={(value) => {
+                      if (value) setSurchargeVariantId(value);
+                    }}
+                    helpText={lang === "tr"
+                      ? "Shopify ürünlerinizden ilgili varyantı seçin; Variant ID otomatik doldurulur."
+                      : "Choose the related variant from your Shopify products; the Variant ID is filled automatically."}
+                  />
+                  <TextField
+                    label={t("settings.variantIdLabel")}
+                    name="surchargeVariantId"
+                    value={surchargeVariantId}
+                    onChange={setSurchargeVariantId}
+                    autoComplete="off"
+                    helpText={t("settings.variantIdHelp")}
+                    placeholder={t("settings.variantIdPlaceholder")}
+                  />
+                </BlockStack>
               </Box>
             </Card>
 
