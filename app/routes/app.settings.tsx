@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, useLoaderData, useNavigation, useFetcher } from "@remix-run/react";
+import { Form, useLoaderData, useNavigation } from "@remix-run/react";
 import { useTranslation } from "~/i18n";
 import { PageHelper } from "~/components/PageHelper";
 import {
@@ -14,7 +14,6 @@ import {
   Text,
   TextField,
   Banner,
-  Badge,
 } from "@shopify/polaris";
 import { useState } from "react";
 import { authenticate } from "~/lib/authenticate.server";
@@ -405,10 +404,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function SettingsRoute() {
   const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, surchargeVariantOptions } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
-  const fetcher = useFetcher<{ error?: string; success?: string }>();
   const { t, lang } = useTranslation();
   const isSaving = navigation.state === "submitting";
-  const isCreating = fetcher.state === "submitting";
 
   const [surchargeVariantId, setSurchargeVariantId] = useState(settings.surchargeVariantId || "");
   const [customerBgLimit, setCustomerBgLimit] = useState(String(settings.customerBgLimit ?? 5));
@@ -428,8 +425,6 @@ export default function SettingsRoute() {
         ]} />
         {saved && <Banner tone="success" title={t("settings.saved")} />}
         {created && <Banner tone="success" title={t("settings.created")} />}
-        {fetcher.data?.error && <Banner tone="critical" title={`Hata: ${fetcher.data.error}`} />}
-        {fetcher.data?.success && <Banner tone="success" title={fetcher.data.success} />}
 
         {cartTransformStatus === "ok" && (
           <Banner tone="success" title={t("settings.cartTransformOk")} />
@@ -446,89 +441,6 @@ export default function SettingsRoute() {
         {(cartTransformStatus === "error" || cartTransformStatus?.startsWith("error:")) && (
           <Banner tone="critical" title={`Cart Transform Hatası: ${cartTransformStatus}`} />
         )}
-
-        {/* Baskı Ek Ücreti — fetcher forms are standalone, NOT inside the outer Form */}
-        <Card>
-          <Box padding="400">
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">{t("settings.surchargeTitle")}</Text>
-              <Text as="p" tone="subdued">
-                Shopify, sepet fiyatlarını yalnızca gerçek ürün variant&apos;larıyla kabul eder.
-                Baskı boyutuna göre ek ücret eklemek için ₺1 fiyatlı bir &quot;Baskı Ücreti&quot; ürünü gerekir.
-                Tasarımın tutarı kadar adet eklenerek ücret yansıtılır (₺40 baskı = 40 adet × ₺1).
-              </Text>
-
-              {settings.surchargeVariantId ? (
-                <InlineStack gap="200" blockAlign="center">
-                  <Badge tone="success">Aktif</Badge>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    Variant ID: {settings.surchargeVariantId}
-                  </Text>
-                </InlineStack>
-              ) : (
-                <Banner tone="warning" title={t("settings.surchargeWarningTitle")}>
-                  <p>{t("settings.surchargeWarningDesc")}</p>
-                </Banner>
-              )}
-
-              <InlineStack gap="200" wrap>
-                <fetcher.Form method="post">
-                  <input type="hidden" name="intent" value="createSurchargeProduct" />
-                  <Button
-                    variant={settings.surchargeVariantId ? "plain" : "primary"}
-                    submit
-                    loading={isCreating}
-                  >
-                    {settings.surchargeVariantId ? t("settings.reCreate") : t("settings.autoCreate")}
-                  </Button>
-                </fetcher.Form>
-                {settings.surchargeVariantId && (
-                  <fetcher.Form method="post">
-                    <input type="hidden" name="intent" value="fixSurchargeVariant" />
-                    <Button variant="secondary" submit loading={isCreating}>
-                      {t("settings.removeStockLimit")}
-                    </Button>
-                  </fetcher.Form>
-                )}
-              </InlineStack>
-
-              {/* App Embed aktivasyon talimatı */}
-              <BlockStack gap="300">
-                <Text as="p" variant="bodyMd" fontWeight="bold">
-                  {t("settings.embedGuideTitle")}
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {t("settings.embedGuideDesc")}
-                </Text>
-                <BlockStack gap="200">
-                  <Text as="p" variant="bodySm">
-                    <strong>1.</strong> {t("settings.embedStep1")}
-                  </Text>
-                  <Text as="p" variant="bodySm">
-                    <strong>2.</strong> {t("settings.embedStep2")}
-                  </Text>
-                  <Text as="p" variant="bodySm">
-                    <strong>3.</strong> {t("settings.embedStep3")}
-                  </Text>
-                  <Text as="p" variant="bodySm">
-                    <strong>4.</strong> {t("settings.embedStep4")}
-                  </Text>
-                  <Text as="p" variant="bodySm">
-                    <strong>5.</strong> {t("settings.embedStep5")}
-                  </Text>
-                </BlockStack>
-                <div style={{ maxWidth: 320, borderRadius: 8, overflow: "hidden", border: "1px solid #e1e3e5", marginTop: 4 }}>
-                  <img
-                    src="/baski-ucreti-koruma-embed.png"
-                    alt="Baskı Ücreti Koruma App Embed aktivasyonu"
-                    style={{ width: "100%", display: "block" }}
-                  />
-                </div>
-              </BlockStack>
-            </BlockStack>
-          </Box>
-        </Card>
-
 
         {/* Outer Form — only text inputs + save button, no nested fetcher forms */}
         <Form method="post">
