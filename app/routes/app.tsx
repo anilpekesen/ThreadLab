@@ -1,7 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { NavLink, Outlet, useLoaderData, useNavigate, useRouteError } from "@remix-run/react";
-import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import trTranslations from "@shopify/polaris/locales/tr.json";
@@ -12,7 +11,6 @@ import { getShopSubscription } from "~/models/billing.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
 import { LanguageProvider, useTranslation, type Lang } from "~/i18n";
 import appLayoutStyles from "~/styles/app-layout.css?url";
-import { useEffect, useState } from "react";
 
 export const links = () => [
   { rel: "stylesheet", href: polarisStyles },
@@ -45,14 +43,9 @@ function AppInner() {
   const { planKey, subscriptionStatus, lang, shop, allowProduction, allowGangSheet, allowPrintQueue } = useLoaderData<typeof loader>();
   const { t, setLang } = useTranslation();
   const navigate = useNavigate();
-  const [isEmbeddedFrame, setIsEmbeddedFrame] = useState(false);
 
   const isActive = subscriptionStatus === "active" || subscriptionStatus === "trial";
   const shopName = shop.replace(".myshopify.com", "");
-
-  useEffect(() => {
-    setIsEmbeddedFrame(window.top !== window.self);
-  }, []);
 
   const navItems = [
     { label: t("nav.home"), url: "/app", end: true, show: true },
@@ -68,41 +61,32 @@ function AppInner() {
 
   return (
     <PolarisAppProvider i18n={lang === "en" ? enTranslations : trTranslations}>
-      <NavMenu>
-        {navItems.map((item) => (
-          <a key={item.url} href={item.url}>
-            {item.label}
-          </a>
-        ))}
-      </NavMenu>
       <div className="app-shell">
-        {!isEmbeddedFrame && (
-          <nav className="app-sidebar">
-            <div className="app-sidebar-logo">
-              <a href="/app">
-                <img src="/logo.png" alt="PrintLabApp" />
-              </a>
-            </div>
+        <nav className="app-sidebar">
+          <div className="app-sidebar-logo">
+            <a href="/app">
+              <img src="/logo.png" alt="PrintLabApp" />
+            </a>
+          </div>
 
-            <div className="app-nav">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.url}
-                  to={item.url}
-                  end={item.end}
-                  className={({ isActive: a }) => `app-nav-link${a ? " active" : ""}`}
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </div>
+          <div className="app-nav">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.url}
+                to={item.url}
+                end={item.end}
+                className={({ isActive: a }) => `app-nav-link${a ? " active" : ""}`}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
 
-            <div className="app-sidebar-footer">
-              <div className="app-sidebar-shop">{shopName}</div>
-              <span className="app-sidebar-plan">{planKey}</span>
-            </div>
-          </nav>
-        )}
+          <div className="app-sidebar-footer">
+            <div className="app-sidebar-shop">{shopName}</div>
+            <span className="app-sidebar-plan">{planKey}</span>
+          </div>
+        </nav>
 
         <div className="app-main">
           <header className="app-topbar">
