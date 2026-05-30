@@ -1,0 +1,267 @@
+// Google Drive integration for admin order exports.
+// Uses OAuth 2.0 with the `drive.file` scope so we only touch files this app
+// created — no broad Drive access, no Google verification needed for that
+// scope.
+
+import {
+  getDriveConnection,
+  updateDriveAccessToken,
+  updateRootFolderId,
+} from "~/models/shop-google-drive.server";
+
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const USERINFO_SCOPE = "https://www.googleapis.com/auth/userinfo.email";
+const ROOT_FOLDER_NAME = "PrintLab Tasarımları";
+
+function env(key: string): string {
+  const v = process.env[key];
+  if (!v) throw new Error(`Missing env var: ${key}`);
+  return v;
+}
+
+export function buildAuthUrl(state: string): string {
+  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  url.searchParams.set("client_id", env("GOOGLE_CLIENT_ID"));
+  url.searchParams.set("redirect_uri", env("GOOGLE_REDIRECT_URI"));
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", `${DRIVE_SCOPE} ${USERINFO_SCOPE}`);
+  url.searchParams.set("access_type", "offline");
+  url.searchParams.set("prompt", "consent"); // force refresh_token even on re-auth
+  url.searchParams.set("include_granted_scopes", "true");
+  url.searchParams.set("state", state);
+  return url.toString();
+}
+
+interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;
+  scope: string;
+  token_type: string;
+}
+
+export async function exchangeCodeForToken(code: string): Promise<TokenResponse> {
+  const body = new URLSearchParams({
+    code,
+    client_id: env("GOOGLE_CLIENT_ID"),
+    client_secret: env("GOOGLE_CLIENT_SECRET"),
+    redirect_uri: env("GOOGLE_REDIRECT_URI"),
+    grant_type: "authorization_code",
+  });
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Google token exchange failed: ${res.status} ${text}`);
+  }
+  return res.json() as Promise<TokenResponse>;
+}
+
+export async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; expiresAt: Date }> {
+  const body = new URLSearchParams({
+    refresh_token: refreshToken,
+    client_id: env("GOOGLE_CLIENT_ID"),
+    client_secret: env("GOOGLE_CLIENT_SECRET"),
+    grant_type: "refresh_token",
+  });
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Google refresh failed: ${res.status} ${text}`);
+  }
+  const data = (await res.json()) as TokenResponse;
+  return {
+    accessToken: data.access_token,
+    expiresAt: new Date(Date.now() + data.expires_in * 1000),
+  };
+}
+
+export async function getUserEmail(accessToken: string): Promise<string> {
+  const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`userinfo failed: ${res.status}`);
+  const data = (await res.json()) as { email?: string };
+  return data.email ?? "";
+}
+
+export async function getValidAccessToken(shop: string): Promise<string> {
+  const conn = await getDriveConnection(shop);
+  if (!conn) throw new Error("Google Drive not connected for this shop.");
+
+  const expiresSoon = !conn.accessTokenExpiresAt
+    || conn.accessTokenExpiresAt.getTime() - Date.now() < 60_000;
+  if (conn.accessToken && !expiresSoon) return conn.accessToken;
+
+  const refreshed = await refreshAccessToken(conn.refreshToken);
+  await updateDriveAccessToken(shop, refreshed.accessToken, refreshed.expiresAt);
+  return refreshed.accessToken;
+}
+
+async function driveJson<T>(
+  accessToken: string,
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const res = await fetch(`https://www.googleapis.com${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...(init.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Drive API ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+interface DriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  webViewLink?: string;
+}
+
+async function findFolderByName(
+  accessToken: string,
+  name: string,
+  parentId?: string,
+): Promise<string | null> {
+  const q = [
+    `name = '${name.replace(/'/g, "\\'")}'`,
+    `mimeType = 'application/vnd.google-apps.folder'`,
+    `trashed = false`,
+    parentId ? `'${parentId}' in parents` : null,
+  ].filter(Boolean).join(" and ");
+
+  const params = new URLSearchParams({
+    q,
+    spaces: "drive",
+    fields: "files(id,name)",
+    pageSize: "1",
+  });
+  const data = await driveJson<{ files: DriveFile[] }>(
+    accessToken,
+    `/drive/v3/files?${params.toString()}`,
+  );
+  return data.files[0]?.id ?? null;
+}
+
+async function createFolder(
+  accessToken: string,
+  name: string,
+  parentId?: string,
+): Promise<string> {
+  const body = {
+    name,
+    mimeType: "application/vnd.google-apps.folder",
+    ...(parentId ? { parents: [parentId] } : {}),
+  };
+  const data = await driveJson<DriveFile>(accessToken, "/drive/v3/files?fields=id", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return data.id;
+}
+
+export async function ensureRootFolder(shop: string, accessToken: string): Promise<string> {
+  const conn = await getDriveConnection(shop);
+  if (conn?.rootFolderId) return conn.rootFolderId;
+
+  // Try to find an existing PrintLab folder created by this app (drive.file
+  // scope only sees its own files, so this is reliable).
+  let id = await findFolderByName(accessToken, ROOT_FOLDER_NAME);
+  if (!id) id = await createFolder(accessToken, ROOT_FOLDER_NAME);
+
+  await updateRootFolderId(shop, id);
+  return id;
+}
+
+export async function ensureSubfolder(
+  accessToken: string,
+  parentId: string,
+  name: string,
+): Promise<string> {
+  const existing = await findFolderByName(accessToken, name, parentId);
+  if (existing) return existing;
+  return createFolder(accessToken, name, parentId);
+}
+
+export async function uploadBytes(
+  accessToken: string,
+  folderId: string,
+  name: string,
+  mimeType: string,
+  bytes: Uint8Array,
+): Promise<DriveFile> {
+  // Multipart upload: metadata + binary in one request.
+  const boundary = "boundary-" + Math.random().toString(36).slice(2);
+  const metadata = JSON.stringify({ name, parents: [folderId] });
+
+  const head = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`;
+  const tail = `\r\n--${boundary}--`;
+
+  const headBytes = new TextEncoder().encode(head);
+  const tailBytes = new TextEncoder().encode(tail);
+  const body = new Uint8Array(headBytes.length + bytes.length + tailBytes.length);
+  body.set(headBytes, 0);
+  body.set(bytes, headBytes.length);
+  body.set(tailBytes, headBytes.length + bytes.length);
+
+  const res = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Drive upload ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<DriveFile>;
+}
+
+export async function uploadFromUrl(
+  accessToken: string,
+  folderId: string,
+  name: string,
+  url: string,
+  fallbackMime = "application/octet-stream",
+): Promise<DriveFile> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Source fetch failed (${res.status}): ${url}`);
+  const mime = res.headers.get("content-type")?.split(";")[0]?.trim() || fallbackMime;
+  const buf = new Uint8Array(await res.arrayBuffer());
+  return uploadBytes(accessToken, folderId, name, mime, buf);
+}
+
+export async function uploadText(
+  accessToken: string,
+  folderId: string,
+  name: string,
+  text: string,
+  mimeType = "text/plain; charset=utf-8",
+): Promise<DriveFile> {
+  return uploadBytes(accessToken, folderId, name, mimeType, new TextEncoder().encode(text));
+}
+
+export async function getFolderWebUrl(folderId: string): Promise<string> {
+  return `https://drive.google.com/drive/folders/${folderId}`;
+}

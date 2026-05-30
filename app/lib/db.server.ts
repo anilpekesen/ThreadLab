@@ -300,6 +300,19 @@ async function _runMigrationsLocked() {
   // ── Soft delete for product_categories (prevents slot-cycling exploit) ────
   await query(`ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL`);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS shop_google_drive (
+      shop                     TEXT PRIMARY KEY,
+      refresh_token            TEXT NOT NULL,
+      access_token             TEXT,
+      access_token_expires_at  TIMESTAMPTZ,
+      root_folder_id           TEXT,
+      connected_email          TEXT,
+      connected_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at               TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+
   // ── Clean up duplicate orders caused by empty variant_id migration ───────
   // Old records have variant_id=''. After per-variant migration, real variant
   // records were inserted alongside them creating duplicates. Delete the old

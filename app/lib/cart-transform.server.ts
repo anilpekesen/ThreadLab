@@ -5,7 +5,12 @@
 // Called from the app layout loader so every admin page load self-heals
 // stale registrations after a function redeploy.
 
-type Admin = { graphql: (query: string, options?: unknown) => Promise<Response> };
+type Admin = {
+  graphql: (
+    query: string,
+    options?: { variables?: Record<string, unknown> },
+  ) => Promise<Response>;
+};
 
 const checkedShops = new Map<string, number>();
 const CACHE_MS = 6 * 60 * 60 * 1000; // 6h

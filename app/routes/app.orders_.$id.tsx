@@ -21,6 +21,15 @@ import { authenticate } from "~/lib/authenticate.server";
 import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
+import { getDriveConnection } from "~/models/shop-google-drive.server";
+import {
+  getValidAccessToken,
+  ensureRootFolder,
+  ensureSubfolder,
+  uploadFromUrl,
+  uploadText,
+  getFolderWebUrl,
+} from "~/lib/google-drive.server";
 
 function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHref?: string }) {
   const { t } = useTranslation();
@@ -167,21 +176,75 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!order) throw new Response("Sipariş bulunamadı", { status: 404 });
 
   const orderShop = order.shop || session.shop;
-  const [design, siblings] = await Promise.all([
+  const [design, siblings, driveConn] = await Promise.all([
     order.designToken ? getDesignByToken(orderShop, order.designToken) : null,
     getSiblingOrders(orderShop, order.shopifyOrderId, order.id),
+    getDriveConnection(session.shop),
   ]);
   const frontObjects = design ? extractObjects(design.designJson, "front") : [];
   const backObjects = design ? extractObjects(design.designJson, "back") : [];
 
-  return json({ order, siblings, design, frontObjects, backObjects, shop: session.shop });
+  return json({
+    order,
+    siblings,
+    design,
+    frontObjects,
+    backObjects,
+    shop: session.shop,
+    driveConnected: Boolean(driveConn),
+  });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate(request);
   const form = await request.formData();
-  const status = form.get("status") as string;
+  const intent = form.get("intent");
   const appOrderId = params.id ?? "";
+
+  if (intent === "googleDriveExport") {
+    const order = await getOrder(appOrderId);
+    if (!order) return json({ ok: false, error: "Sipariş bulunamadı" }, { status: 404 });
+    const orderShop = order.shop || session.shop;
+    const design = order.designToken ? await getDesignByToken(orderShop, order.designToken) : null;
+
+    const frontPreview = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
+    const backPreview = design?.backPreviewUrl || order.designBackPreviewUrl || "";
+    const frontPrint = design?.frontPrintUrl || order.designFrontPrintUrl || order.productionFileUrl || "";
+    const backPrint = design?.backPrintUrl || order.designBackPrintUrl || "";
+
+    if (!frontPreview && !backPreview && !frontPrint && !backPrint && !design) {
+      return json({ ok: false, error: "Yüklenecek tasarım dosyası bulunamadı" }, { status: 400 });
+    }
+
+    try {
+      const accessToken = await getValidAccessToken(session.shop);
+      const rootId = await ensureRootFolder(session.shop, accessToken);
+      const folderName = `Sipariş ${order.orderNumber || order.shopifyOrderId} — ${order.customerName || "Müşteri"}`;
+      const folderId = await ensureSubfolder(accessToken, rootId, folderName);
+
+      const tasks: Promise<unknown>[] = [];
+      if (frontPrint) tasks.push(uploadFromUrl(accessToken, folderId, "front-print.png", frontPrint, "image/png"));
+      if (backPrint) tasks.push(uploadFromUrl(accessToken, folderId, "back-print.png", backPrint, "image/png"));
+      if (frontPreview) tasks.push(uploadFromUrl(accessToken, folderId, "front-mockup.png", frontPreview, "image/png"));
+      if (backPreview) tasks.push(uploadFromUrl(accessToken, folderId, "back-mockup.png", backPreview, "image/png"));
+      if (design?.designJson) {
+        tasks.push(uploadText(accessToken, folderId, "design.json", JSON.stringify(design.designJson, null, 2), "application/json"));
+      }
+
+      await Promise.all(tasks);
+      return json({
+        ok: true,
+        folderUrl: await getFolderWebUrl(folderId),
+        uploaded: tasks.length,
+      });
+    } catch (err) {
+      console.error("[google-drive] export failed", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      return json({ ok: false, error: msg }, { status: 500 });
+    }
+  }
+
+  const status = form.get("status") as string;
 
   if (status === "shipped") {
     // Mark all variants of this Shopify order as shipped (not just this one row)
@@ -206,10 +269,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function OrderDetail() {
-  const { order, siblings = [], design, frontObjects = [], backObjects = [], shop } = useLoaderData<typeof loader>();
+  const { order, siblings = [], design, frontObjects = [], backObjects = [], shop, driveConnected } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
+  const driveFetcher = useFetcher<{ ok?: boolean; error?: string; folderUrl?: string; uploaded?: number }>();
   const { t, lang } = useTranslation();
+  const driveSubmitting = driveFetcher.state !== "idle";
+  const driveResult = driveFetcher.data;
 
   const next = NEXT_STATUS[order.productionStatus];
   const shopDomain = shop.replace(".myshopify.com", "");
@@ -243,6 +309,54 @@ export default function OrderDetail() {
       }
     >
       <BlockStack gap="500">
+
+        {/* Google Drive Export */}
+        <Card>
+          <Box padding="400">
+            <InlineStack align="space-between" blockAlign="center" gap="400" wrap={false}>
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingMd">
+                  {lang === "tr" ? "Google Drive'a Yedekle" : "Back up to Google Drive"}
+                </Text>
+                <Text as="p" tone="subdued" variant="bodySm">
+                  {lang === "tr"
+                    ? "Baskı PNG'leri, mockup'lar ve design.json kendi Drive klasörünüze yüklenir."
+                    : "Print PNGs, mockups and design.json are uploaded to your own Drive folder."}
+                </Text>
+                {driveResult?.ok && driveResult.folderUrl && (
+                  <Text as="p" variant="bodySm" tone="success">
+                    {lang === "tr" ? "Yüklendi · " : "Uploaded · "}
+                    <a href={driveResult.folderUrl} target="_blank" rel="noopener noreferrer">
+                      {lang === "tr" ? "Drive'da Aç" : "Open in Drive"}
+                    </a>
+                  </Text>
+                )}
+                {driveResult && driveResult.ok === false && driveResult.error && (
+                  <Text as="p" variant="bodySm" tone="critical">
+                    {driveResult.error}
+                  </Text>
+                )}
+              </BlockStack>
+              {driveConnected ? (
+                <Button
+                  variant="primary"
+                  loading={driveSubmitting}
+                  onClick={() => {
+                    const fd = new FormData();
+                    fd.set("intent", "googleDriveExport");
+                    driveFetcher.submit(fd, { method: "post" });
+                  }}
+                >
+                  {lang === "tr" ? "Drive'a Aktar" : "Export to Drive"}
+                </Button>
+              ) : (
+                <Button url="/app/settings">
+                  {lang === "tr" ? "Drive Bağla" : "Connect Drive"}
+                </Button>
+              )}
+            </InlineStack>
+          </Box>
+        </Card>
 
         {/* Önizleme: Ön ve Arka */}
         <Grid>

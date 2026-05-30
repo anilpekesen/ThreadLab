@@ -19,6 +19,10 @@ import { useState } from "react";
 import { authenticate } from "~/lib/authenticate.server";
 import { getGlobalSettings, saveGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server";
+import {
+  getDriveConnection,
+  deleteDriveConnection,
+} from "~/models/shop-google-drive.server";
 
 export const headers = () => ({
   "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -102,9 +106,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     loadSurchargeVariantOptions(admin),
   ]);
   const settings = { ...globalSettings, ...shopSettings };
+  const driveConnection = await getDriveConnection(session.shop);
   const url = new URL(request.url);
   const saved = url.searchParams.get("saved") === "1";
   const created = url.searchParams.get("created") === "1";
+  const gdriveConnected = url.searchParams.get("gdrive_connected") === "1";
+  const gdriveError = url.searchParams.get("gdrive_error");
 
   // Auto-register Cart Transform function; re-register if function ID changed after deploy
   let cartTransformStatus = "unknown";
@@ -169,7 +176,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=mainSection`
     : null;
 
-  return json({ settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, surchargeVariantOptions });
+  return json({
+    settings,
+    saved,
+    created,
+    cartTransformStatus,
+    newAppsSectionUrl,
+    mainSectionUrl,
+    surchargeVariantOptions,
+    drive: driveConnection
+      ? { connectedEmail: driveConnection.connectedEmail, connectedAt: driveConnection.connectedAt.toISOString() }
+      : null,
+    gdriveConnected,
+    gdriveError,
+  });
 };
 
 async function writeSurchargeMetafield(
@@ -341,6 +361,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  if (intent === "disconnectGoogleDrive") {
+    await deleteDriveConnection(session.shop);
+    return redirect("/app/settings?saved=1");
+  }
+
   if (intent === "fixSurchargeVariant") {
     const settings = await getShopSettings(session.shop);
     const variantId = settings.surchargeVariantId;
@@ -385,7 +410,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, surchargeVariantOptions } = useLoaderData<typeof loader>();
+  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, surchargeVariantOptions, drive, gdriveConnected, gdriveError } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const { t, lang } = useTranslation();
   const isSaving = navigation.state === "submitting";
@@ -489,6 +514,52 @@ export default function SettingsRoute() {
             </InlineStack>
           </BlockStack>
         </Form>
+
+        {/* Google Drive */}
+        {gdriveConnected && <Banner tone="success" title={lang === "tr" ? "Google Drive bağlandı" : "Google Drive connected"} />}
+        {gdriveError && <Banner tone="critical" title={(lang === "tr" ? "Google Drive bağlantı hatası: " : "Google Drive connection error: ") + gdriveError} />}
+
+        <Card>
+          <Box padding="400">
+            <BlockStack gap="300">
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingMd">
+                  {lang === "tr" ? "Google Drive Entegrasyonu" : "Google Drive Integration"}
+                </Text>
+                <Text as="p" tone="subdued" variant="bodySm">
+                  {lang === "tr"
+                    ? "Sipariş detayında 'Drive'a aktar' butonuyla baskı dosyalarını (PNG'ler, mockup, design.json) kendi Drive hesabınıza yedekleyin. Sadece bu uygulamanın oluşturduğu dosyalara erişim alır — diğer Drive dosyalarınız gizli kalır."
+                    : "Use the 'Export to Drive' button on order detail pages to back up print files (PNGs, mockup, design.json) to your own Drive. Only files this app creates are accessible — your other Drive files remain private."}
+                </Text>
+              </BlockStack>
+              {drive ? (
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodyMd">
+                    {lang === "tr" ? "Bağlı hesap: " : "Connected as: "}
+                    <strong>{drive.connectedEmail || "—"}</strong>
+                  </Text>
+                  <InlineStack gap="200">
+                    <Button url="/auth/google">
+                      {lang === "tr" ? "Hesabı Değiştir" : "Switch account"}
+                    </Button>
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="disconnectGoogleDrive" />
+                      <Button submit tone="critical" variant="plain">
+                        {lang === "tr" ? "Bağlantıyı Kaldır" : "Disconnect"}
+                      </Button>
+                    </Form>
+                  </InlineStack>
+                </BlockStack>
+              ) : (
+                <InlineStack>
+                  <Button url="/auth/google" variant="primary">
+                    {lang === "tr" ? "Google Drive Bağla" : "Connect Google Drive"}
+                  </Button>
+                </InlineStack>
+              )}
+            </BlockStack>
+          </Box>
+        </Card>
 
         {/* Tema Kurulumu */}
         <Card>
