@@ -67,6 +67,8 @@ export default function ProductsIndexRoute() {
         <PageHelper sections={[
           { titleKey: "helper.products.1.title", bodyKey: "helper.products.1.body" },
           { titleKey: "helper.products.2.title", bodyKey: "helper.products.2.body" },
+          { titleKey: "helper.products.3.title", bodyKey: "helper.products.3.body" },
+          { titleKey: "helper.products.4.title", bodyKey: "helper.products.4.body" },
         ]} />
         <Card>
           <Box padding="400">

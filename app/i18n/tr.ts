@@ -242,57 +242,101 @@ const tr = {
   "products.typeSettings": "Ürün tipi ayarları",
   "products.typeSettingsDesc": "Bu ürün için hangi yüzlerde çalışacağı, varsayılan yerleşim ve baskı sınırları burada belirlenir.",
 
-  // Helper — Products
-  "helper.products.1.title": "Bu sayfa ne işe yarar?",
-  "helper.products.1.body": "Shopify mağazanızdaki ürünleri DesignKit'e tanıtırsınız. Her ürün için baskı yüzü (ön/arka), baskı alanı boyutu ve diğer kısıtlamalar ayrı ayrı ayarlanır. Müşteri o ürün için tasarım ekranını açtığında, buradaki ayarlar geçerli olur.",
-  "helper.products.2.title": "Hangi ürünleri eklemeliyim?",
-  "helper.products.2.body": "Yalnızca müşterilerin üzerine tasarım yapabileceği ürünleri ekleyin: tişört, sweatshirt, kupa vb. Standart ürünlerin (aksesuar, kargo ücreti vb.) buraya eklenmesine gerek yoktur.",
-
   // Helper toggle
   "helper.show": "Bu sayfa nasıl çalışır?",
   "helper.hide": "Kapat",
 
-  // Page helpers — Dashboard
+  // ── Page helpers — Dashboard ─────────────────────────────────────────────
   "helper.dashboard.1.title": "Bu sayfa ne gösteriyor?",
-  "helper.dashboard.1.body": "Mağazanıza ait siparişlerin anlık özetini görürsünüz: toplam sipariş sayısı, bugünkü siparişler, üretimi bekleyen siparişler ve hazır/gönderilen siparişler. Her 30 saniyede bir otomatik güncellenir.",
-  "helper.dashboard.2.title": "Eksik Ek Ücret nedir?",
-  "helper.dashboard.2.body": "Müşteri tasarım yapıp sepete eklediğinde, baskı maliyeti otomatik olarak 'Baskı Ücreti' ürünü üzerinden sepete yansıtılır. Eğer bu ürün Shopify'da eksikse veya App Embed aktif değilse, sipariş baskı ücretinden yoksun gelir. 'Eksik Ek Ücret' sayısı 0'ın üstündeyse Ayarlar sayfasını kontrol edin.",
+  "helper.dashboard.1.body": "Mağazanızdaki PrintLab faaliyetlerinin canlı özetidir. Üst sıradaki kartlar 'bugün gelen sipariş', 'üretim bekleyen', 'hazır/gönderilen' ve 'eksik baskı ücreti' rakamlarını gösterir. Altında son 7 günün grafiği ve son siparişlerin kısa listesi yer alır. Sayfa her 30 saniyede bir arka planda yenilenir — manuel refresh gerekmez.",
+  "helper.dashboard.2.title": "Hangi sayıyı ne zaman önemsemeli?",
+  "helper.dashboard.2.body": "• 'Üretim Bekleyen' yüksekse, Siparişler sayfasından bir an önce 'Hazırlanıyor' aşamasına çekmeniz gerekir.\n• 'Eksik Ek Ücret' 0'dan büyük olmamalı — varsa müşteri baskı ücreti ödemeden sipariş geçirmiş demektir; Ayarlar sayfasında Variant ID'nin ve Cart Transform'un aktif olduğunu kontrol edin.\n• Bugünkü sipariş sayısı uzun süre 0 kalırsa tema kurulum eksik olabilir; aşağıdaki Tema Kurulumu bölümüne bakın.",
   "helper.dashboard.3.title": "Tema Kurulumu ne zaman yapılır?",
-  "helper.dashboard.3.body": "DesignKit tasarım aracını ürün sayfanıza eklemeniz gerekir. 'Apps section olarak ekle' butonu sizi doğru tema editörü konumuna götürür. Bu işlem bir kez yapılır ve mağaza teması değiştiğinde tekrarlanması gerekebilir.",
+  "helper.dashboard.3.body": "DesignKit tasarım aracı, ürün sayfanıza bir 'App block' olarak eklenmelidir. Sağ üstteki 'Tema Editörü' butonu sizi doğru konuma götürür. Bu işlem bir kez yapılır; ancak mağaza temanızı değiştirdiğinizde yeni temada bloğu yeniden eklemeniz gerekir. Blok ekli değilse müşteriler tasarım butonunu göremez ve sipariş gelmez.",
+  "helper.dashboard.4.title": "Sipariş listesi neden boş olabilir?",
+  "helper.dashboard.4.body": "Yeni kurulumda hiç sipariş görünmüyorsa muhtemel nedenler: (1) App Embed tema editöründen aktive edilmemiş, (2) Ayarlar > Baskı Ücreti Variant'ı ayarlanmamış, (3) Cart Transform durumu kırmızı/sarı banner gösteriyor. Bu üçü tamam olduktan sonra ilk gerçek siparişi vermeniz dakikalar içinde burada görünür.",
+  "helper.dashboard.5.title": "Genel kurallar",
+  "helper.dashboard.5.body": "Üretim sırası: önce Ayarlar sayfasından kurulum tamamlanır, sonra Ürün Tipleri tanımlanır, sonra Ürünler eklenir, ardından Şablonlar yüklenir. Bu sırayı takip etmezseniz müşteri tasarım açtığında bazı seçenekler boş gelebilir. Plan limitiniz dolduğunda yeni siparişler reddedilir — bu durumu burada görmezsiniz, Faturalama sayfasından takip edin.",
 
-  // Page helpers — Orders
-  "helper.orders.1.title": "Bu sayfada ne yapabilirsiniz?",
-  "helper.orders.1.body": "Tasarımlı tüm siparişler burada listelenir. Siparişleri Bekliyor → Hazırlanıyor → Basıldı → Hazır → Gönderildi şeklinde aşama aşama ilerletebilirsiniz. Shopify'da sipariş 'fulfilled' olarak işaretlendiğinde durum otomatik olarak 'Gönderildi'ye geçer.",
-  "helper.orders.2.title": "Shopify'dan Senkronize Et ne işe yarar?",
-  "helper.orders.2.body": "Sayfa her açıldığında Shopify'dan en son siparişler çekilir. Aralarında eksik sipariş olduğunu fark ederseniz 'Shopify'dan Senkronize Et' butonuna tıklayın; tüm siparişler yeniden taranır.",
-  "helper.orders.3.title": "Baskı Ücreti Eksik uyarısı ne anlama geliyor?",
-  "helper.orders.3.body": "Bu uyarı, o siparişin sepetine 'Baskı Ücreti' ürününün eklenmediğini gösterir. Olası nedenler: App Embed devre dışı, Variant ID ayarlanmamış veya Cart Transform fonksiyonu kayıtsız. Ayarlar sayfasından durumu kontrol edin.",
+  // ── Page helpers — Orders ────────────────────────────────────────────────
+  "helper.orders.1.title": "Bu liste neyi gösteriyor?",
+  "helper.orders.1.body": "Sadece üzerinde PrintLab tasarımı bulunan Shopify siparişleri burada listelenir. Standart (tasarımsız) ürün siparişleri görünmez — Shopify Admin'den takip edilir. Aynı sipariş içinde birden fazla beden/varyant varsa tek satırda gruplanır; sağdaki rozetler her varyantı ve adetini gösterir.",
+  "helper.orders.2.title": "Durum akışı nasıl ilerler?",
+  "helper.orders.2.body": "Bekliyor → Hazırlanıyor → Basıldı → Hazır → Gönderildi. Her satırın sağındaki 'sonraki aşama' butonuyla manuel ilerletebilir, üst kısımdaki checkbox + toplu işlemle birden fazla sipariş için aynı anda durum güncelleyebilirsiniz. 'Gönderildi'ye geçtiğinizde Shopify tarafında otomatik 'fulfilled' işaretlenir ve müşteriye kargo bildirimi gider.\n\nUYARI: 'Gönderildi'den geri dönüş yoktur. Yanlış işaretleme yaparsanız Shopify Admin'den manuel düzeltmeniz gerekir.",
+  "helper.orders.3.title": "Shopify'dan Senkronize Et nedir?",
+  "helper.orders.3.body": "Sayfa her açıldığında son siparişler otomatik çekilir. Ancak eski/eksik bir sipariş görmüyorsanız (örneğin webhook gecikmesi veya app kurulumundan önce verilmiş sipariş) sağ üstteki 'Eski siparişleri çek' butonu, son 60 güne kadar tüm siparişleri yeniden tarar. Bu işlem 5-15 saniye sürebilir.",
+  "helper.orders.4.title": "'Baskı Ücreti Eksik' uyarısı",
+  "helper.orders.4.body": "Bu kırmızı rozet, o siparişin sepetine baskı ücretinin EKLENMEDİĞİNİ gösterir — yani müşteri baskı maliyetini ödemeden tasarım sipariş etmiş demektir. Olası nedenler:\n• Ayarlar > Variant ID boş veya silinmiş\n• App Embed devre dışı\n• Cart Transform 'function_not_found' hatası veriyor\nBu siparişleri üretmeden önce müşteriden ek ödeme talep etmeniz veya farkı sineye çekmeniz gerekir. Sorunu Ayarlar sayfasından çözdükten sonra yeni siparişlerde tekrarlanmaz.",
+  "helper.orders.5.title": "Google Drive'a yedekleme",
+  "helper.orders.5.body": "Her siparişin detay sayfasında 'Drive'a Aktar' butonu vardır. Tıkladığınızda baskı PNG'leri, mockup'lar, design.json (tasarımı yeniden açabilmek için) ve sipariş özeti kendi Drive klasörünüze yüklenir. Yüklenmiş siparişlerin yanında listede ✓ Drive rozeti çıkar; rozete tıklayarak klasörü tek hamlede açabilirsiniz. Sipariş arşivi/kaynak yedeği için önerilir.",
+  "helper.orders.6.title": "Genel kurallar ve dikkat",
+  "helper.orders.6.body": "• Baskı dosyalarını üretime göndermeden önce 'Ön/Arka İndir' butonlarıyla yüksek çözünürlüklü versiyonu alın.\n• Tek tıkla 'Basıldı'ya geçirmek için, doğru fiziksel ürünün önünüzde olduğundan emin olun.\n• Bir siparişi iptal etmek için bunun Shopify Admin'den yapılması gerekir; PrintLab tarafında sadece durum geriye alınabilir, sipariş silinemez.\n• Filtreleme: üstteki durum chip'leri sadece o aşamadaki siparişleri gösterir; toplu işlemler bu filtrede çalışır.",
 
-  // Page helpers — Settings
-  "helper.settings.1.title": "Baskı Ek Ücreti neden gerekli?",
-  "helper.settings.1.body": "Shopify, sepete yalnızca gerçek ürün variant'ları aracılığıyla fiyat eklenebilmesine izin verir. Bu yüzden '₺1 fiyatlı Baskı Ücreti' adında bir ürün oluşturulur; baskı maliyeti kadar bu üründen sepete eklenir. Örneğin ₺45 baskı = 45 adet × ₺1. 'Otomatik oluştur' butonu bu ürünü Shopify'da sizin adınıza oluşturur ve Variant ID'yi kaydeder.",
-  "helper.settings.2.title": "Variant ID (manuel giriş) ne zaman kullanılır?",
-  "helper.settings.2.body": "Mağazanızda zaten ₺1 fiyatlı bir ürün variant'ı varsa (önceki kurulumdan kalan veya elle oluşturduğunuz) bu alana ID'sini girebilirsiniz; yeni ürün oluşturmaya gerek kalmaz. Variant ID'yi bulmak için: Shopify Admin → Ürünler → ilgili ürün → varyant üzerine tıkla → tarayıcı URL'sindeki /variants/XXXXXXXX sayısını buraya yapıştırın.",
-  "helper.settings.3.title": "Cart Transform ve App Embed arasındaki fark nedir?",
-  "helper.settings.3.body": "Cart Transform, Shopify Functions altyapısında çalışan bir sunucu tarafı fonksiyondur; sepete ürün ekler. App Embed ise mağaza temanıza eklenen bir JavaScript parçasıdır; tasarım verilerini Cart Transform'a iletir. İkisinin de aktif olması gerekir. Cart Transform bu sayfada otomatik kaydedilir; App Embed'i ise tema editöründen manuel açmanız gerekir (aşağıdaki görsele bakın).",
+  // ── Page helpers — Settings ──────────────────────────────────────────────
+  "helper.settings.1.title": "Baskı Ücreti Variant'ı neden gerekli?",
+  "helper.settings.1.body": "Shopify, sepete keyfi para eklemenize izin vermez — her ek tutar gerçek bir variant üzerinden geçmek zorundadır. Bu yüzden Shopify'da '₺1 fiyatlı Baskı Ücreti' adında özel bir ürün oluşturulur. Müşteri tasarım yapıp sepete eklediğinde baskı maliyeti kadar (örnek: ₺45) bu üründen otomatik 1 adet eklenir ve Cart Transform fonksiyonu birim fiyatı toplam baskı tutarıyla günceller.\n\nKurmak için: 'Otomatik Oluştur' butonu ürünü Shopify'da sizin adınıza yaratır ve Variant ID'yi kaydeder. Bu en hızlı yoldur.",
+  "helper.settings.2.title": "Variant ID'yi manuel girmek",
+  "helper.settings.2.body": "Mağazanızda zaten uygun bir baskı ücreti variant'ı varsa (önceki kurulumdan kalan veya elle oluşturduğunuz) yukarıdaki seçim kutusundan seçin ya da ID'yi elle yapıştırın. Variant ID'yi bulmak için: Shopify Admin → Ürünler → ilgili ürün → varyanta tıkla → URL'deki /variants/XXXXXXXX sayısı sizin Variant ID'nizdir. Yeni ürün oluşturmaya gerek yok.\n\nDİKKAT: Variant'ın fiyatı ₺1, envanteri 'satışa devam et' (CONTINUE), 'kargo gerektiriyor' kapalı olmalıdır. 'Variant'ı Düzelt' butonu bu üç ayarı tek tıkla doğrular.",
+  "helper.settings.3.title": "Cart Transform & App Embed — ikisi de gerekli",
+  "helper.settings.3.body": "Bu iki bileşen birlikte çalışır:\n\n• Cart Transform: Shopify Functions altyapısında çalışan sunucu tarafı fonksiyondur. Baskı ücretinin sepete doğru tutarla yansımasını sağlar. Bu sayfayı her açışınızda otomatik olarak mağazanıza kaydedilir; üstteki yeşil banner 'Aktif ✓' demelidir.\n\n• App Embed: Mağaza temanıza eklenen JavaScript bloğudur. Designer'dan gelen tasarım verisini Cart Transform'a iletir. Tema editöründen manuel olarak aktive etmeniz gerekir — aşağıdaki 'Tema Kurulumu' bölümünden yapın.\n\nİKİSİNDEN biri eksikse: sepete baskı ücreti hiç eklenmez veya yanlış tutar eklenir.",
+  "helper.settings.4.title": "Müşteri arka plan kaldırma limiti",
+  "helper.settings.4.body": "Müşteriler tasarım yaparken AI ile arka plan kaldırabilir (Photoroom altyapısı). Maliyetinizi koruma için, sipariş vermeden BİR MÜŞTERİNİN kaç kez bu özelliği kullanabileceğini sınırlayabilirsiniz. Müşteri sipariş verdiğinde sayaç sıfırlanır. Önerilen değer: 5. Çok düşük yaparsanız (1-2) gerçek müşteriler tıkanır; çok yüksek yaparsanız (50+) bot/spam ile API kotanız tükenir.",
+  "helper.settings.5.title": "Google Drive entegrasyonu",
+  "helper.settings.5.body": "Sipariş bazlı baskı dosyalarını kendi Google Drive hesabınıza otomatik yedekleyebilirsiniz. 'Google Drive Bağla' butonu yeni sekmede Google izin penceresini açar (Shopify admin iframe içinde Google'ı bloklar; bu yüzden yeni sekme şart). Bağladıktan sonra her siparişin detayında 'Drive'a Aktar' butonu görünür ve klasör yapısı 'PrintLab Tasarımları / Sipariş <no> — <müşteri>' biçiminde oluşur.\n\nGÜVENLİK: PrintLab yalnızca kendisinin oluşturduğu dosyalara erişebilir (drive.file scope) — diğer Drive dosyalarınız erişilemezdir.",
+  "helper.settings.6.title": "Tema kurulumu adım adım",
+  "helper.settings.6.body": "1. 'Yeni Apps Section Ekle' veya 'Ana Bölüme Ekle' butonuna basın — tema editörü doğru konumda açılır.\n2. Sağda açılan blok ayarlarında ön/arka tişört görselini yükleyin.\n3. Varsayılan renk kodunu (hex) girin — müşteri seçim yapmadan göreceği renk.\n4. 'Kaydet' deyin, ürün sayfasını ziyaretçi olarak ziyaret edip butonun çıktığını doğrulayın.\n\nNOT: Eski 'variant ID / fiyat' alanları artık kullanılmıyor — fiyat ve variant ayarları bu sayfadan ve Ürünler sayfasından merkezi olarak yönetilir.",
 
-  // Page helpers — Billing
-  "helper.billing.1.title": "Planlar arasındaki fark nedir?",
-  "helper.billing.1.body": "Her plan, aylık işleyebileceğiniz sipariş sayısını, tanımlayabileceğiniz ürün tipi sayısını, arka plan kaldırma kotasını ve şablon limitini belirler. Limitinize ulaştığınızda yeni siparişler veya tasarımlar reddedilir — plan yükselterek limiti artırabilirsiniz.",
+  // ── Page helpers — Billing ───────────────────────────────────────────────
+  "helper.billing.1.title": "Planlar nasıl farklılaşır?",
+  "helper.billing.1.body": "Dört plan vardır: Starter (₺9.99), Growth (₺19.99), Pro (₺39.99), Business (₺79.99) — aylık. Her plan dört ana limiti belirler:\n• Aylık işlenebilen sipariş sayısı\n• Tanımlanabilen ürün tipi sayısı (tişört, çanta vb.)\n• AI arka plan kaldırma kotası\n• Yüklenebilen şablon sayısı\n\nLimitlerin tam değerleri sağdaki plan kartlarında listelenmiştir.",
   "helper.billing.2.title": "Ücretsiz deneme nasıl çalışır?",
-  "helper.billing.2.body": "Her plan için 14 günlük ücretsiz deneme hakkı vardır. Deneme süresi içinde tüm özellikleri kullanabilirsiniz; ücretlendirme 14. günden sonra başlar. Deneme süresi dolmadan iptal ederseniz ücret alınmaz.",
+  "helper.billing.2.body": "Her plan 14 günlük ücretsiz denemeyle başlar. Bu süre içinde planın tüm özelliklerini sınırsız (plan limitleri dahilinde) kullanabilirsiniz. 15. günden itibaren otomatik aylık ücretlendirme başlar — Shopify aboneliği üzerinden faturalandırılır, Shopify aylık mağaza faturanıza eklenir.\n\nDeneme bitmeden iptal ederseniz hiçbir ücret alınmaz. İptal sonrası uygulama Starter benzeri kısıtlı moda düşer ama tüm verileriniz korunur.",
+  "helper.billing.3.title": "Limit aşıldığında ne olur?",
+  "helper.billing.3.body": "• Sipariş limiti aşılırsa: yeni tasarımlı siparişler PrintLab'e düşmez ancak Shopify'da görünür — yani siparişi alırsınız ama PrintLab arşivinden takip edemezsiniz. Plan yükseltince eski siparişleri 'Eski siparişleri çek' ile geri çekebilirsiniz.\n• Ürün tipi / şablon limiti: yeni ekleme engellenir, mevcutlar çalışmaya devam eder.\n• BG removal kotası: müşteri o ay için bu özelliği kullanamaz, sepete normal ekleyebilir.\n\nLimite YAKLAŞTIĞINIZDA (~%80) üstte bir banner çıkar.",
+  "helper.billing.4.title": "Plan değiştirme ve iade",
+  "helper.billing.4.body": "İstediğiniz an plan yükseltebilirsiniz — yükseltme anında etkin olur, fark gün sayısına göre Shopify tarafından hesaplanır. Düşürme bir sonraki fatura döneminin başında geçerli olur (mevcut dönem kayıp olmaz). PrintLab Türkiye'den iade vermez; iade talepleri için Shopify Help Center üzerinden başvurmanız gerekir.\n\nABONELİK Shopify altında çalışır — uygulama silinirse abonelik de otomatik iptal olur.",
 
-  // Page helpers — Templates
+  // ── Page helpers — Templates ─────────────────────────────────────────────
   "helper.templates.1.title": "Şablonlar ne işe yarar?",
-  "helper.templates.1.body": "Şablonlar, müşterilerin tasarım ekranını açtığında hazır olarak göreceği tasarım veya görsellerdir. Örneğin markanızın logosunu ya da hazır baskı tasarımlarını şablon olarak yükleyebilirsiniz. Müşteriler bu şablonları başlangıç noktası olarak kullanır.",
-  "helper.templates.2.title": "Şablon sayısı sınırı neden var?",
-  "helper.templates.2.body": "Şablon sayısı planınıza bağlıdır. Starter planında şablon özelliği yoktur; Growth ve üstü planlarda belirli kotalar geçerlidir. Kotayı aşmak için planınızı yükseltin.",
+  "helper.templates.1.body": "Şablonlar, müşterilerin tasarım ekranını açtığında hazır olarak göreceği görsel/tasarım örnekleridir. Marka logonuz, hazır baskı tasarımları, tema mevsim görselleri (sevgililer günü, ramazan vb.) ekleyebilirsiniz. Müşteri ya direkt şablonu kullanır ya da üzerine ek metin/görsel ekleyerek kişiselleştirir. 'Sıfırdan tasarla'ya göre dönüşüm oranını ciddi şekilde artırır.",
+  "helper.templates.2.title": "Şablon kategorileri ve düzeni",
+  "helper.templates.2.body": "Şablonları kategorilere ayırarak müşteriye düzenli sunabilirsiniz: 'Sevgililer Günü', 'Doğum Günü', 'Markamız' vb. Tasarım ekranında kategoriler sekme olarak görünür. Sıralama önemli — en popüler/dönüşüm getiren şablonları kategori başına alın. Bir kategoride 6-12 şablon optimaldir; çok fazla şablon müşteriyi yorar.",
+  "helper.templates.3.title": "Plan limiti ve format kuralları",
+  "helper.templates.3.body": "Starter planında şablon özelliği YOK. Growth ve üzeri planlarda her plan için belirli kota vardır (sağ üstteki sayaç gösterir). Kotaya yaklaştığınızda banner çıkar.\n\nFORMAT KURALLARI:\n• Şeffaf arka planlı PNG önerilir (JPG da olur ama arka plan görünür kalır)\n• En az 2000×2000 px (baskı kalitesi için)\n• Maksimum 5 MB / dosya\n• Renk profili: sRGB (CMYK destekli değil, baskı sırasında dönüşüm tedarikçinizde yapılır)",
+  "helper.templates.4.title": "Pratik öneriler",
+  "helper.templates.4.body": "• Mevsimlik şablonlar ekleyin (Yılbaşı, Sevgililer Günü, Anneler Günü). Hemen sonra kaldırın.\n• Marka logonuzu 'Markamız' kategorisinde tek başına bırakın — kurumsal müşteriler için cazip.\n• Şablon dosya adlarını anlamlı verin ('aşk-kalp-01.png' gibi); admin paneli sıralama burada kolaylaşır.\n• En çok kullanılan 3-5 şablonu en üste alın; PrintLab tasarım ekranında karuselin başında çıkarlar.",
 
-  // Page helpers — Product Types
+  // ── Page helpers — Products (list) ───────────────────────────────────────
+  "helper.products.1.title": "Bu sayfa ne işe yarar?",
+  "helper.products.1.body": "Shopify mağazanızdaki ürünleri PrintLab'e tanıtırsınız. Buraya eklenen her ürün için müşteri tasarım butonunu görür ve tasarım ekranını açabilir. Eklenmemiş ürünlere tasarım butonu çıkmaz — onlar standart Shopify ürünü olarak satılmaya devam eder.",
+  "helper.products.2.title": "Hangi ürünleri eklemeli?",
+  "helper.products.2.body": "Yalnızca müşterinin üzerine tasarım yapabileceği ürünler: tişört, sweatshirt, kupa, çanta, mouse pad vb. EKLEMEYİN:\n• Aksesuar / standart ürünler (tasarımsız satışlar)\n• Kargo ücreti, hediye paketi gibi yardımcı ürünler\n• Baskı Ücreti variant'ı (otomatik oluşturulduğu için)\n• Dijital ürünler (e-kitap, ses dosyası vb.)\n\nEklediğiniz her ürün için bir 'ürün tipi' atanır (tişört / kupa vb.) — ürün tipi tasarım ekranının davranışını belirler.",
+  "helper.products.3.title": "Doğru kurulum sırası",
+  "helper.products.3.body": "1. ÖNCE Ürün Tipleri sayfasında ihtiyacınız olan kategorileri tanımlayın (Tişört, Kupa vb. + her birine baskı alanı).\n2. SONRA bu sayfada Shopify ürününüzü ekleyip uygun ürün tipini seçin — ayarlar otomatik miras alınır.\n3. SON OLARAK ürünün detay sayfasına girip varsa özel ayarları (örnek: o ürüne özel baskı bandı limitleri, mockup görselleri) değiştirin.\n\nÜrün tipini sonradan değiştirebilirsiniz ama mevcut ayarların üzerine yazılır.",
+  "helper.products.4.title": "Sık karşılaşılan sorunlar",
+  "helper.products.4.body": "• Tasarım butonu çıkmıyor: Ürün ekledikten sonra App Embed'in aktif olduğunu (Ayarlar > Tema Kurulumu) ve ürünün 'Aktif' işaretli olduğunu kontrol edin.\n• Yanlış mockup görseli: Bu sayfadaki listeden ürünü açın, 'Tişört Görseli' alanından gerçek mockup'ı yükleyin — varsayılan Shopify ana görseli kullanılır, çoğu zaman ters yön çıkar.\n• 'Bu ürünün varyantı yok' hatası: Shopify'da ürünün en az 1 varyantının olması gerekir; tek varyantlı ürünler de desteklenir.",
+
+  // ── Page helpers — Product detail ────────────────────────────────────────
+  "helper.productDetail.1.title": "Bu sayfada ne ayarlıyorsunuz?",
+  "helper.productDetail.1.body": "Tek bir Shopify ürünü için PrintLab özelliklerini yapılandırırsınız: mockup görselleri, varsayılan renk, baskı alanı, hangi varyantların hangi bedene karşılık geldiği. Ürün tipinden miras alınan ayarları burada override edebilirsiniz.\n\nDeğişiklikler kaydedildikten sonra tasarım ekranını yenileyen müşteriler yeni ayarları görür — eski sekmelerini yenilemeleri gerekir.",
+  "helper.productDetail.2.title": "Mockup ve renk ayarları",
+  "helper.productDetail.2.body": "Ön/Arka tişört görseli, müşterinin tasarım önizlemesinde göreceği baz görseldir. İdeal görsel: ürünün ON YÜZÜ, düz şekilde fotoğraflanmış, beyaz/şeffaf arka plan, en az 1500×1500 px. Birden fazla renk satıyorsanız her renk için ayrı görsel ekleyebilirsiniz — yoksa varsayılan renk için tek görsel yeterli.\n\nVarsayılan renk kodu: müşteri renk seçimi yapmadığında gösterilecek hex değer (#ffffff = beyaz, #000000 = siyah).",
+  "helper.productDetail.3.title": "Baskı alanı kuralları",
+  "helper.productDetail.3.body": "Baskı alanı, müşterinin tasarımının düşeceği dikdörtgendir. Çok geniş = baskı dosyası sınırı aşılır, çok dar = küçük tasarım. Önerilen oranlar:\n• Tişört ön/arka: 30×40 cm (3000×4000 px @ 100dpi)\n• Tişört cep alanı: 10×10 cm\n• Kupa: 22×9 cm (yan yüzey)\n• Tote çanta: 25×30 cm\n\nFarklı bedenlerin baskı alanı farklı olabilir (XL ile S için aynı oran ama farklı px). Tek alan tanımlasanız tüm bedenler için aynı oran kullanılır.",
+  "helper.productDetail.4.title": "Beden / varyant eşleştirme",
+  "helper.productDetail.4.body": "Shopify ürününüzde S/M/L/XL gibi varyantlar varsa, PrintLab bu varyantları otomatik tanır. Beden seçimi tasarım ekranında müşteriye sunulur — seçtiği bedenin variant ID'si sepete eklenir.\n\nUYARI: Renk varyantları beden varyantlarından ayrı yönetilir. 'Beyaz S' ve 'Siyah S' Shopify'da iki ayrı variant ise PrintLab tek ürün gibi davranır ama farklı mockup görsel atamak isterseniz renk başına ayrı upload yapabilirsiniz.",
+  "helper.productDetail.5.title": "Aktif/pasif durumu",
+  "helper.productDetail.5.body": "'Aktif' kapalıyken ürün PrintLab tarafından IGNORE edilir — müşteri ürün sayfasında tasarım butonu görmez, ürün standart Shopify ürünü gibi davranır. Geçici olarak tasarım özelliğini kapatmak istediğinizde bu seçeneği kullanın; ayarları kaybetmezsiniz.\n\nÜrünü Shopify'dan da silerseniz PrintLab'deki kaydı 30 gün arşivde durur, sonra silinir.",
+
+  // ── Page helpers — Product Types ─────────────────────────────────────────
   "helper.productTypes.1.title": "Ürün tipi nedir?",
-  "helper.productTypes.1.body": "Ürün tipi, mağazanızda sattığınız baskılı ürün kategorisidir: tişört, kupa, çanta vb. Her ürün tipine baskı alanı, ön/arka yüz seçeneği ve Shopify ürünleri atanır. Tasarım ekranı bu ayarlara göre yapılandırılır.",
-  "helper.productTypes.2.title": "Baskı Yüzü seçimi ne anlama gelir?",
-  "helper.productTypes.2.body": "Sadece Ön: müşteri yalnızca ürünün ön yüzüne tasarım yapabilir. Ön + Arka: hem ön hem arka yüze ayrı tasarım yapılabilir. Arka yüz desteği Growth ve üzeri planlarda mevcuttur. Ürün tipine atanan Shopify ürünleri bu ayarı devralır.",
+  "helper.productTypes.1.body": "Ürün tipi, baskılı ürünlerinizin kategori şablonudur (Tişört, Kupa, Tote Çanta, Sweatshirt vb.). Her ürün tipinde şu özellikler tanımlanır:\n• Hangi yüzlere baskı yapılabilir (sadece ön / ön+arka)\n• Baskı alanı boyutu ve konumu (px cinsinden)\n• Bu tipe atanan Shopify ürünleri\n• Fiyatlandırma bandları (10×10 cm = ₺20, 21×29 = ₺30 vb.)\n\nBir ürün tipi oluşturup birçok Shopify ürününe atayabilirsiniz — tüm tişörtleriniz aynı tipi paylaşır.",
+  "helper.productTypes.2.title": "Baskı yüzü seçimi",
+  "helper.productTypes.2.body": "• Sadece Ön: Müşteri yalnızca ürünün ön yüzüne tasarım yapabilir. Tek baskı = düşük maliyet. Tişört, çanta için tipiktir.\n• Ön + Arka: Hem ön hem arka yüze AYRI tasarım yapılabilir. İki baskı maliyeti birden alınır; müşteri arka yüzü boş bırakırsa sadece ön yüz fiyatlanır.\n\nDİKKAT: Arka yüz desteği Growth ve üzeri planlarda mevcuttur. Starter planda her ürün otomatik 'sadece ön' olur.",
+  "helper.productTypes.3.title": "Ürün tipine ürün atama",
+  "helper.productTypes.3.body": "Bir ürün tipini düzenlerken o tipe atanan Shopify ürünlerini görür ve listede yönetebilirsiniz. Atama iki yönlü çalışır:\n• Bu sayfadan: ürün tipini açıp ürünleri çoklu seçimle atayabilirsiniz.\n• Ürünler sayfasından: ürünü açıp dropdown'dan ürün tipini seçebilirsiniz.\n\nBir ürün AYNI ANDA tek bir ürün tipine ait olabilir. Atama değiştirildiğinde eski tipin ayarları (mockup, baskı alanı) yeni tip ayarlarıyla DEĞİŞMEZ — ürün kendi özel ayarlarını korur, sadece miras kaynağı değişir.",
+  "helper.productTypes.4.title": "Plan limiti ve önerileri",
+  "helper.productTypes.4.body": "Tanımlayabileceğiniz ürün tipi sayısı planınıza bağlıdır:\n• Starter: 1 ürün tipi\n• Growth: 5\n• Pro: 15\n• Business: Sınırsız\n\nÖNERİ: Aynı kalıba sahip tüm ürünler için TEK ürün tipi oluşturun (örnek: tüm tişörtler için 'Tişört' tipi). Farklı baskı alanı veya yüzeye sahipse (kapüşonlu sweatshirt'in baskı alanı kapüşonsuzdan farklı olabilir) ayrı tip yapın.",
 
   // Product types
   "productTypes.title": "Ürün Tipleri",

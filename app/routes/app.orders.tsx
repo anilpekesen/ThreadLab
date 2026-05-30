@@ -346,6 +346,9 @@ export default function Orders() {
           { titleKey: "helper.orders.1.title", bodyKey: "helper.orders.1.body" },
           { titleKey: "helper.orders.2.title", bodyKey: "helper.orders.2.body" },
           { titleKey: "helper.orders.3.title", bodyKey: "helper.orders.3.body" },
+          { titleKey: "helper.orders.4.title", bodyKey: "helper.orders.4.body" },
+          { titleKey: "helper.orders.5.title", bodyKey: "helper.orders.5.body" },
+          { titleKey: "helper.orders.6.title", bodyKey: "helper.orders.6.body" },
         ]} />
         {/* İstatistik kartları */}
         <Grid>

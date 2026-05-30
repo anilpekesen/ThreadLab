@@ -430,6 +430,9 @@ export default function SettingsRoute() {
           { titleKey: "helper.settings.1.title", bodyKey: "helper.settings.1.body" },
           { titleKey: "helper.settings.2.title", bodyKey: "helper.settings.2.body" },
           { titleKey: "helper.settings.3.title", bodyKey: "helper.settings.3.body" },
+          { titleKey: "helper.settings.4.title", bodyKey: "helper.settings.4.body" },
+          { titleKey: "helper.settings.5.title", bodyKey: "helper.settings.5.body" },
+          { titleKey: "helper.settings.6.title", bodyKey: "helper.settings.6.body" },
         ]} />
         {saved && <Banner tone="success" title={t("settings.saved")} />}
         {created && <Banner tone="success" title={t("settings.created")} />}

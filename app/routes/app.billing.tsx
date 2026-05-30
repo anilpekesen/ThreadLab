@@ -309,6 +309,8 @@ export default function BillingPage() {
         <PageHelper sections={[
           { titleKey: "helper.billing.1.title", bodyKey: "helper.billing.1.body" },
           { titleKey: "helper.billing.2.title", bodyKey: "helper.billing.2.body" },
+          { titleKey: "helper.billing.3.title", bodyKey: "helper.billing.3.body" },
+          { titleKey: "helper.billing.4.title", bodyKey: "helper.billing.4.body" },
         ]} />
 
         {actionData?.error && (

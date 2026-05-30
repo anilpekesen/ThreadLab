@@ -242,57 +242,101 @@ const en = {
   "products.typeSettings": "Product type settings",
   "products.typeSettingsDesc": "The print surfaces, default layout, and print constraints for this product are defined here.",
 
-  // Helper — Products
-  "helper.products.1.title": "What is this page for?",
-  "helper.products.1.body": "You introduce products from your Shopify store to DesignKit. For each product, the print surface (front/back), print area size, and other constraints are configured separately. When a customer opens the design screen for that product, these settings apply.",
-  "helper.products.2.title": "Which products should I add?",
-  "helper.products.2.body": "Only add products that customers can design on: t-shirts, sweatshirts, mugs, etc. Standard products (accessories, shipping fees, etc.) do not need to be added here.",
-
   // Helper toggle
   "helper.show": "How does this page work?",
   "helper.hide": "Close",
 
-  // Page helpers — Dashboard
+  // ── Page helpers — Dashboard ─────────────────────────────────────────────
   "helper.dashboard.1.title": "What does this page show?",
-  "helper.dashboard.1.body": "You see a real-time summary of your store's orders: total orders, today's orders, orders pending production, and orders that are ready or shipped. The page auto-refreshes every 30 seconds.",
-  "helper.dashboard.2.title": "What is Missing Surcharge?",
-  "helper.dashboard.2.body": "When a customer designs and adds a product to the cart, the print cost is automatically added to the cart via the 'Print Fee' product. If this product is missing in Shopify or the App Embed is not active, the order arrives without a print fee. If 'Missing Surcharge' is above 0, check the Settings page.",
-  "helper.dashboard.3.title": "When should Theme Setup be done?",
-  "helper.dashboard.3.body": "You need to add the DesignKit design tool to your product pages. The 'Add as apps section' button takes you directly to the right spot in the theme editor. This is done once and may need to be repeated if you change your store theme.",
+  "helper.dashboard.1.body": "A live summary of PrintLab activity in your store. The cards at the top show 'orders today', 'pending production', 'ready/shipped', and 'missing print fee' counts. Below them you see the last 7 days' chart and a short list of recent orders. The page silently refreshes every 30 seconds — no manual reload needed.",
+  "helper.dashboard.2.title": "Which number should I act on, and when?",
+  "helper.dashboard.2.body": "• If 'Pending Production' is high, jump to the Orders page and move them to 'Preparing'.\n• 'Missing Surcharge' should always be 0 — anything above means a customer placed a design order without paying the print fee. Open Settings and confirm the Variant ID is set and Cart Transform is active.\n• If today's order count stays at 0 for long, your theme setup may be incomplete — see the Theme Setup section below.",
+  "helper.dashboard.3.title": "When is Theme Setup done?",
+  "helper.dashboard.3.body": "The DesignKit design tool must be added to your product page as an 'App block'. The 'Theme Editor' button in the top right takes you straight to the right spot. This is a one-time action — but if you change your store theme later, you must re-add the block in the new theme. Without the block, customers won't see the design button and no orders will come in.",
+  "helper.dashboard.4.title": "Why might the order list be empty?",
+  "helper.dashboard.4.body": "On a fresh install, the most likely reasons are: (1) App Embed not activated in the theme editor, (2) Settings > Print Fee Variant not set, (3) Cart Transform banner showing red/yellow. Once these three are green, your first real order will appear here within minutes of placing it.",
+  "helper.dashboard.5.title": "General rules",
+  "helper.dashboard.5.body": "Setup order matters: complete Settings first, then define Product Types, then add Products, then upload Templates. Skipping the order can leave the design screen with empty options. Plan limits aren't shown on this page — track them on Billing. When you hit a limit, new orders are rejected silently.",
 
-  // Page helpers — Orders
-  "helper.orders.1.title": "What can you do on this page?",
-  "helper.orders.1.body": "All orders with custom designs are listed here. You can advance orders through stages: Pending → Preparing → Printed → Ready → Shipped. When an order is marked as 'fulfilled' in Shopify, the status automatically moves to 'Shipped'.",
-  "helper.orders.2.title": "What does 'Sync from Shopify' do?",
-  "helper.orders.2.body": "The latest orders are fetched from Shopify every time the page opens. If you notice missing orders, click 'Sync from Shopify' to rescan all orders.",
-  "helper.orders.3.title": "What does the 'Print Fee Missing' warning mean?",
-  "helper.orders.3.body": "This warning means the 'Print Fee' product was not added to that order's cart. Possible causes: App Embed is disabled, Variant ID is not configured, or the Cart Transform function is not registered. Check the Settings page.",
+  // ── Page helpers — Orders ────────────────────────────────────────────────
+  "helper.orders.1.title": "What does this list show?",
+  "helper.orders.1.body": "Only Shopify orders that contain a PrintLab design. Plain (non-design) product orders don't appear here — track those in Shopify Admin. Multiple sizes/variants from the same order are grouped into a single row; the badges on the right list each variant with its quantity.",
+  "helper.orders.2.title": "How does the status flow work?",
+  "helper.orders.2.body": "Pending → Preparing → Printed → Ready → Shipped. Use the 'next stage' button on each row to advance manually, or check the boxes and use the bulk action above to move many orders at once. Marking 'Shipped' automatically marks the order as 'fulfilled' in Shopify, which triggers the customer's shipping notification.\n\nWARNING: 'Shipped' is one-way. If you mark wrong, you'll have to undo it manually from Shopify Admin.",
+  "helper.orders.3.title": "What does 'Sync from Shopify' do?",
+  "helper.orders.3.body": "The latest orders are auto-fetched every time the page opens. But if you notice a missing/older order (webhook delay, or placed before the app was installed), the 'Pull old orders' button in the top right rescans up to the last 60 days. It takes 5–15 seconds.",
+  "helper.orders.4.title": "The 'Missing Print Fee' warning",
+  "helper.orders.4.body": "This red badge means the print fee was NOT added to that order's cart — i.e. the customer placed a design order without paying for the print. Likely causes:\n• Settings > Variant ID empty or deleted\n• App Embed disabled\n• Cart Transform reporting 'function_not_found'\nBefore producing these orders you'll need to charge the customer separately or absorb the difference. Fix the root cause in Settings — it won't repeat on new orders.",
+  "helper.orders.5.title": "Google Drive backup",
+  "helper.orders.5.body": "Every order detail page has an 'Export to Drive' button. Clicking it uploads the print PNGs, mockups, design.json (so the design can be reopened), and an order summary to your own Drive folder. Uploaded orders get a ✓ Drive badge in this list — click the badge to open the folder. Recommended for order archive / source backup.",
+  "helper.orders.6.title": "Rules and things to watch",
+  "helper.orders.6.body": "• Always download the high-resolution print files via the 'Download Front/Back' buttons before sending to production.\n• Confirm you have the physical product in front of you before clicking 'Printed'.\n• To cancel an order, do it from Shopify Admin — PrintLab can only revert the status; it can't delete an order.\n• Filtering: the status chips at the top filter the list; bulk actions only apply to the visible filtered set.",
 
-  // Page helpers — Settings
-  "helper.settings.1.title": "Why is the Print Surcharge needed?",
-  "helper.settings.1.body": "Shopify only allows prices to be added to a cart through real product variants. So a '₺1-priced Print Fee' product is created; units equal to the print cost are added to the cart. For example, ₺45 print = 45 units × ₺1. The 'Create automatically' button creates this product in Shopify on your behalf and saves the Variant ID.",
-  "helper.settings.2.title": "When is Variant ID (manual entry) used?",
-  "helper.settings.2.body": "If your store already has a ₺1-priced product variant (left over from a previous setup or created manually), you can enter its ID here — no need to create a new product. To find the Variant ID: Shopify Admin → Products → open the product → click the variant → the /variants/XXXXXXXX number in the browser URL is the Variant ID.",
-  "helper.settings.3.title": "What is the difference between Cart Transform and App Embed?",
-  "helper.settings.3.body": "Cart Transform is a server-side function running on Shopify Functions infrastructure; it adds the product to the cart. App Embed is a JavaScript snippet added to your store theme; it passes design data to the Cart Transform. Both must be active. Cart Transform is registered automatically on this page; App Embed must be manually enabled in the theme editor (see screenshot below).",
+  // ── Page helpers — Settings ──────────────────────────────────────────────
+  "helper.settings.1.title": "Why do we need a Print Fee Variant?",
+  "helper.settings.1.body": "Shopify doesn't let you add arbitrary money to a cart — every extra amount must go through a real variant. So a special Shopify product named 'Print Fee' priced at ₺1 is created. When a customer adds a designed item, one unit of the Print Fee is added alongside, and the Cart Transform function rewrites that unit's price to the full print cost (e.g. ₺45).\n\nSetup: the 'Create automatically' button creates the product on your behalf and saves the Variant ID. This is the fastest path.",
+  "helper.settings.2.title": "Entering a Variant ID manually",
+  "helper.settings.2.body": "If your store already has a suitable print fee variant (leftover from previous setup or hand-made), pick it from the dropdown above or paste the ID. To find it: Shopify Admin → Products → open the product → click the variant → the /variants/XXXXXXXX number in the URL is the Variant ID. No new product creation needed.\n\nIMPORTANT: the variant must have price ₺1, inventory policy 'continue selling' (CONTINUE), and 'requires shipping' OFF. The 'Fix Variant' button enforces these three settings in one click.",
+  "helper.settings.3.title": "Cart Transform & App Embed — both required",
+  "helper.settings.3.body": "These two work together:\n\n• Cart Transform: server-side function on Shopify Functions infrastructure. Makes sure the print fee lands in the cart with the correct total. It's auto-registered every time you open this page — the green banner at the top should read 'Active ✓'.\n\n• App Embed: JavaScript block added to your store theme. Passes the design payload from the designer into the Cart Transform. You enable it manually from the theme editor — use the 'Theme Setup' section below.\n\nIf EITHER is missing: the print fee won't be added, or will be added with the wrong amount.",
+  "helper.settings.4.title": "Customer background removal limit",
+  "helper.settings.4.body": "Customers can remove backgrounds with AI while designing (Photoroom-powered). To protect your API budget, you can cap how many times a SINGLE customer can use this feature before placing an order. The counter resets when they order. Recommended value: 5. Setting it too low (1–2) blocks real customers; too high (50+) invites bots that drain your quota.",
+  "helper.settings.5.title": "Google Drive integration",
+  "helper.settings.5.body": "Back up each order's print files to your own Google Drive. The 'Connect Google Drive' button opens the Google consent screen in a new tab (Google blocks itself in the Shopify admin iframe, so the new tab is mandatory). Once connected, each order detail page gets an 'Export to Drive' button, and the folder structure is 'PrintLab Designs / Order <number> — <customer>'.\n\nSECURITY: PrintLab can only access files it has created itself (drive.file scope) — your other Drive files stay private.",
+  "helper.settings.6.title": "Theme setup step by step",
+  "helper.settings.6.body": "1. Click 'Add Apps Section' or 'Add to Main Section' — the theme editor opens at the right spot.\n2. In the block settings on the right, upload the front/back t-shirt image.\n3. Set the default color hex (the color shown before the customer picks one).\n4. Save, then open the product page as a visitor and confirm the design button shows up.\n\nNOTE: The old 'variant ID / price' fields in the block are deprecated — price and variant settings are now managed centrally from this page and the Products page.",
 
-  // Page helpers — Billing
-  "helper.billing.1.title": "What is the difference between plans?",
-  "helper.billing.1.body": "Each plan determines the number of orders you can process per month, the number of product types you can define, your background removal quota, and your template limit. When you reach your limit, new orders or designs are rejected — upgrade your plan to increase limits.",
+  // ── Page helpers — Billing ───────────────────────────────────────────────
+  "helper.billing.1.title": "How do the plans differ?",
+  "helper.billing.1.body": "Four monthly plans: Starter ($9.99), Growth ($19.99), Pro ($39.99), Business ($79.99). Each plan caps four things:\n• Orders processed per month\n• Product types you can define (t-shirt, bag, etc.)\n• AI background removal quota\n• Templates you can upload\n\nExact numbers are listed on the plan cards on the right.",
   "helper.billing.2.title": "How does the free trial work?",
-  "helper.billing.2.body": "Each plan comes with a 14-day free trial. You can use all features during the trial period; billing starts after day 14. If you cancel before the trial ends, you are not charged.",
+  "helper.billing.2.body": "Every plan starts with a 14-day free trial. You get the full plan (within its limits) for free. From day 15 onward, monthly billing kicks in through your Shopify subscription — it appears on your regular Shopify monthly invoice.\n\nIf you cancel before the trial ends, you're not charged anything. After cancellation the app drops to a Starter-like restricted mode, but all your data is preserved.",
+  "helper.billing.3.title": "What happens when you hit a limit?",
+  "helper.billing.3.body": "• Order limit exceeded: new design orders don't enter PrintLab (still visible in Shopify), so you'll fulfill the order but can't track it from the PrintLab archive. Upgrading the plan and clicking 'Pull old orders' brings them back.\n• Product type / template limit: new additions are blocked, existing ones keep working.\n• BG removal quota: customers can't use that feature for the rest of the month, but they can still add items to cart normally.\n\nA banner appears when you're close to a limit (~80%).",
+  "helper.billing.4.title": "Plan changes and refunds",
+  "helper.billing.4.body": "Upgrades take effect immediately and the difference is prorated by Shopify based on remaining days. Downgrades take effect at the start of the next billing cycle — you don't lose the current period. PrintLab itself doesn't issue refunds; refund requests go through Shopify Help Center.\n\nThe subscription runs through Shopify — uninstalling the app auto-cancels the subscription.",
 
-  // Page helpers — Templates
-  "helper.templates.1.title": "What are templates used for?",
-  "helper.templates.1.body": "Templates are designs or images customers see ready-made when they open the design screen. For example, you can upload your brand logo or ready-made print designs as templates. Customers use these as a starting point for their designs.",
-  "helper.templates.2.title": "Why is there a template count limit?",
-  "helper.templates.2.body": "The number of templates depends on your plan. The Starter plan has no template feature; Growth and above have specific quotas. Upgrade your plan to increase the quota.",
+  // ── Page helpers — Templates ─────────────────────────────────────────────
+  "helper.templates.1.title": "What are templates for?",
+  "helper.templates.1.body": "Templates are ready-made visuals customers see when they open the design screen: brand logo, ready prints, seasonal artwork (Valentine's, Mother's Day, etc.). Customers either use a template as-is or personalize it with extra text/images. Compared to 'design from scratch', templates dramatically boost conversion.",
+  "helper.templates.2.title": "Categories and ordering",
+  "helper.templates.2.body": "Group templates into categories to present them cleanly: 'Valentine's Day', 'Birthday', 'Our Brand', etc. Categories appear as tabs in the design screen. Order matters — put the best converters per category first. 6–12 templates per category is ideal; too many overwhelm the customer.",
+  "helper.templates.3.title": "Plan limits and format rules",
+  "helper.templates.3.body": "Starter plan does NOT include templates. Growth and above have quotas (counter visible top right). A banner appears as you approach the cap.\n\nFORMAT RULES:\n• Transparent PNG recommended (JPG works too but keeps the background)\n• At least 2000×2000 px (for print quality)\n• Max 5 MB per file\n• Color profile: sRGB (CMYK not supported, your printer converts later)",
+  "helper.templates.4.title": "Practical advice",
+  "helper.templates.4.body": "• Add seasonal templates (NYE, Valentine's, Mother's Day) and remove them right after.\n• Keep your brand logo alone in a 'Our Brand' category — appealing to corporate customers.\n• Use meaningful file names ('love-heart-01.png') so the admin sort stays manageable.\n• Move your top 3–5 templates to the top — they show up first in the carousel on the design screen.",
 
-  // Page helpers — Product Types
+  // ── Page helpers — Products (list) ───────────────────────────────────────
+  "helper.products.1.title": "What is this page for?",
+  "helper.products.1.body": "Register your Shopify products with PrintLab. Customers see the design button only on products listed here — un-registered products keep selling as plain Shopify items.",
+  "helper.products.2.title": "Which products should I add?",
+  "helper.products.2.body": "Only products customers can design on: t-shirts, sweatshirts, mugs, bags, mouse pads, etc. DO NOT add:\n• Accessories / plain products (non-design sales)\n• Shipping fees, gift wrap, helper SKUs\n• The Print Fee variant (managed automatically)\n• Digital products (e-books, audio, etc.)\n\nEach added product gets a 'product type' (t-shirt / mug / etc.) — the type drives the design screen's behavior.",
+  "helper.products.3.title": "Correct setup order",
+  "helper.products.3.body": "1. FIRST define your categories on the Product Types page (T-shirt, Mug, etc. + their print areas).\n2. THEN add the Shopify product here and pick the matching product type — settings inherit automatically.\n3. FINALLY open the product detail and override anything specific (custom print bands, mockup images, etc.).\n\nYou can change a product's type later, but doing so overwrites the current settings.",
+  "helper.products.4.title": "Common issues",
+  "helper.products.4.body": "• Design button missing: confirm App Embed is active (Settings > Theme Setup) and the product is marked 'Active'.\n• Wrong mockup image: open the product from this list, upload the real mockup under 'T-shirt Image' — the default Shopify main image is used, often oriented incorrectly.\n• 'No variants' error: the Shopify product must have at least 1 variant; single-variant products are supported.",
+
+  // ── Page helpers — Product detail ────────────────────────────────────────
+  "helper.productDetail.1.title": "What do you configure here?",
+  "helper.productDetail.1.body": "PrintLab settings for a single Shopify product: mockup images, default color, print area, which variants map to which sizes. You can override settings inherited from the product type here.\n\nChanges take effect for customers who refresh the design screen — open tabs need a reload.",
+  "helper.productDetail.2.title": "Mockup and color settings",
+  "helper.productDetail.2.body": "The front/back t-shirt image is the base the customer sees in the design preview. Ideal image: the FRONT of the product, flat-photographed, white/transparent background, at least 1500×1500 px. If you sell multiple colors, upload one per color — or upload a single image if a default color is enough.\n\nDefault color hex: the color shown before the customer picks (#ffffff = white, #000000 = black).",
+  "helper.productDetail.3.title": "Print area rules",
+  "helper.productDetail.3.body": "The print area is the rectangle the customer's design lands in. Too wide = print file exceeds limits, too narrow = tiny artwork. Recommended ratios:\n• T-shirt front/back: 30×40 cm (3000×4000 px @ 100dpi)\n• T-shirt pocket area: 10×10 cm\n• Mug: 22×9 cm (side surface)\n• Tote bag: 25×30 cm\n\nDifferent sizes may use different absolute pixel sizes (same ratio, scaled). If you define one area, it applies to all sizes uniformly.",
+  "helper.productDetail.4.title": "Size / variant mapping",
+  "helper.productDetail.4.body": "If your Shopify product has size variants (S/M/L/XL), PrintLab auto-detects them. The size picker is shown to the customer in the design screen — the selected size's variant ID is added to the cart.\n\nWARNING: Color and size variants are managed separately. 'White S' and 'Black S' are two distinct variants in Shopify but PrintLab treats them as one product — though you can upload per-color mockup images if needed.",
+  "helper.productDetail.5.title": "Active/inactive toggle",
+  "helper.productDetail.5.body": "When 'Active' is off, PrintLab IGNORES the product — no design button on the storefront, the product behaves like a plain Shopify item. Use this to temporarily disable the design feature without losing settings.\n\nIf you delete the product from Shopify, the PrintLab record is kept for 30 days in archive, then purged.",
+
+  // ── Page helpers — Product Types ─────────────────────────────────────────
   "helper.productTypes.1.title": "What is a product type?",
-  "helper.productTypes.1.body": "A product type is a category of printed products you sell: t-shirt, mug, bag, etc. Each product type has a print area, front/back surface options, and assigned Shopify products. The design screen is configured based on these settings.",
-  "helper.productTypes.2.title": "What does Print Surface selection mean?",
-  "helper.productTypes.2.body": "Front Only: customers can only design the front of the product. Front + Back: separate designs can be made for both front and back. Back surface support is available on Growth and higher plans. Shopify products assigned to this product type inherit this setting.",
+  "helper.productTypes.1.body": "A product type is the category template for your printed products (T-shirt, Mug, Tote Bag, Sweatshirt, etc.). Each type defines:\n• Which surfaces can be printed (front only / front+back)\n• Print area size and position (in px)\n• The Shopify products assigned to this type\n• Pricing bands (10×10 cm = ₺20, 21×29 cm = ₺30, etc.)\n\nYou create one product type and assign it to many Shopify products — all your t-shirts share the same type.",
+  "helper.productTypes.2.title": "Print surface selection",
+  "helper.productTypes.2.body": "• Front Only: customer can only design the front. Single print = low cost. Typical for t-shirts and bags.\n• Front + Back: separate designs for front AND back. Both print costs apply; if the customer leaves the back empty, only the front is charged.\n\nNOTE: Back surface support is available on Growth and higher plans. On Starter, every product is automatically 'front only'.",
+  "helper.productTypes.3.title": "Assigning products to a type",
+  "helper.productTypes.3.body": "Editing a product type shows the Shopify products assigned to it, and you can manage them from the list. Assignment is two-way:\n• From this page: open a type and multi-select products to assign.\n• From the Products page: open a product and pick the type from the dropdown.\n\nA product belongs to ONE type at a time. Changing the assignment does NOT overwrite the product's specific settings (mockup, print area) — the product keeps its own settings; only the inheritance source changes.",
+  "helper.productTypes.4.title": "Plan limits and tips",
+  "helper.productTypes.4.body": "Product type limits by plan:\n• Starter: 1 product type\n• Growth: 5\n• Pro: 15\n• Business: Unlimited\n\nTIP: Create ONE product type for all products with the same template (e.g. one 'T-shirt' type for all your t-shirts). Create a separate type only if the print area or surfaces differ (a hooded sweatshirt may have a different print area than a non-hooded one).",
 
   // Product types
   "productTypes.title": "Product Types",

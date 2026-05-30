@@ -190,6 +190,8 @@ export default function Index() {
           { titleKey: "helper.dashboard.1.title", bodyKey: "helper.dashboard.1.body" },
           { titleKey: "helper.dashboard.2.title", bodyKey: "helper.dashboard.2.body" },
           { titleKey: "helper.dashboard.3.title", bodyKey: "helper.dashboard.3.body" },
+          { titleKey: "helper.dashboard.4.title", bodyKey: "helper.dashboard.4.body" },
+          { titleKey: "helper.dashboard.5.title", bodyKey: "helper.dashboard.5.body" },
         ]} />
 
         {/* Plan durumu */}

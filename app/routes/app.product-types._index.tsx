@@ -133,6 +133,8 @@ export default function ProductTypesIndex() {
         <PageHelper sections={[
           { titleKey: "helper.productTypes.1.title", bodyKey: "helper.productTypes.1.body" },
           { titleKey: "helper.productTypes.2.title", bodyKey: "helper.productTypes.2.body" },
+          { titleKey: "helper.productTypes.3.title", bodyKey: "helper.productTypes.3.body" },
+          { titleKey: "helper.productTypes.4.title", bodyKey: "helper.productTypes.4.body" },
         ]} />
 
         {/* Plan kullanım */}

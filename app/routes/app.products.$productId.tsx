@@ -841,8 +841,11 @@ export default function ProductSettingsRoute() {
     >
       <BlockStack gap="500">
         <PageHelper sections={[
-          { titleKey: "helper.products.1.title", bodyKey: "helper.products.1.body" },
-          { titleKey: "helper.products.2.title", bodyKey: "helper.products.2.body" },
+          { titleKey: "helper.productDetail.1.title", bodyKey: "helper.productDetail.1.body" },
+          { titleKey: "helper.productDetail.2.title", bodyKey: "helper.productDetail.2.body" },
+          { titleKey: "helper.productDetail.3.title", bodyKey: "helper.productDetail.3.body" },
+          { titleKey: "helper.productDetail.4.title", bodyKey: "helper.productDetail.4.body" },
+          { titleKey: "helper.productDetail.5.title", bodyKey: "helper.productDetail.5.body" },
         ]} />
         <Card>
           <Box padding="400">

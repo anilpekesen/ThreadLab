@@ -259,6 +259,8 @@ export default function TemplatesRoute() {
         <PageHelper sections={[
           { titleKey: "helper.templates.1.title", bodyKey: "helper.templates.1.body" },
           { titleKey: "helper.templates.2.title", bodyKey: "helper.templates.2.body" },
+          { titleKey: "helper.templates.3.title", bodyKey: "helper.templates.3.body" },
+          { titleKey: "helper.templates.4.title", bodyKey: "helper.templates.4.body" },
         ]} />
         {uploadSuccess && <Banner tone="success" title={t("common.success")} onDismiss={() => {}} />}
         {uploadError && <Banner tone="critical" title={String(uploadError)} onDismiss={() => {}} />}
