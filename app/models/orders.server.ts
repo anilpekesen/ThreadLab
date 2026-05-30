@@ -29,6 +29,8 @@ export interface Order {
   missingSurcharge?: boolean;
   createdAt: string;
   updatedAt?: string;
+  driveFolderId?: string | null;
+  driveUploadedAt?: string | null;
   // Joined from designs table
   designFrontPreviewUrl?: string;
   designBackPreviewUrl?: string;
@@ -55,6 +57,8 @@ type DbRow = {
   missing_surcharge: boolean;
   created_at: Date;
   updated_at: Date | null;
+  drive_folder_id?: string | null;
+  drive_uploaded_at?: Date | null;
   design_front_preview_url?: string | null;
   design_back_preview_url?: string | null;
   design_front_print_url?: string | null;
@@ -81,6 +85,8 @@ function rowToOrder(row: DbRow): Order {
     missingSurcharge: row.missing_surcharge,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at?.toISOString(),
+    driveFolderId: row.drive_folder_id ?? null,
+    driveUploadedAt: row.drive_uploaded_at ? row.drive_uploaded_at.toISOString() : null,
     designFrontPreviewUrl: row.design_front_preview_url || undefined,
     designBackPreviewUrl: row.design_back_preview_url || undefined,
     designFrontPrintUrl: row.design_front_print_url || undefined,
@@ -93,6 +99,7 @@ const ORDER_SELECT = `
     o.product_id, o.product_name, o.variant_id, o.variant_title, o.quantity,
     o.design_token, o.preview_url,
     o.production_file_url, o.production_status, o.missing_surcharge, o.created_at, o.updated_at,
+    o.drive_folder_id, o.drive_uploaded_at,
     d.front_preview_url AS design_front_preview_url,
     d.back_preview_url  AS design_back_preview_url,
     d.front_print_url   AS design_front_print_url,
@@ -100,6 +107,13 @@ const ORDER_SELECT = `
   FROM orders o
   LEFT JOIN designs d ON o.shop = d.shop AND o.design_token = d.token
 `;
+
+export async function setOrderDriveUpload(orderId: string, folderId: string): Promise<void> {
+  await query(
+    `UPDATE orders SET drive_folder_id = $2, drive_uploaded_at = now() WHERE id = $1`,
+    [orderId, folderId],
+  );
+}
 
 export async function getOrders(shop: string, status?: string): Promise<Order[]> {
   await ensureMigrations();

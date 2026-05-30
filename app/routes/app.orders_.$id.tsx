@@ -18,7 +18,7 @@ import {
   Box, Divider, Grid, Thumbnail, Banner,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
-import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders } from "~/models/orders.server";
+import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders, setOrderDriveUpload } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
 import { getDriveConnection } from "~/models/shop-google-drive.server";
@@ -222,6 +222,54 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const folderName = `Sipariş ${order.orderNumber || order.shopifyOrderId} — ${order.customerName || "Müşteri"}`;
       const folderId = await ensureSubfolder(accessToken, rootId, folderName);
 
+      const orderSnapshot = {
+        id: order.id,
+        shop: order.shop,
+        shopifyOrderId: order.shopifyOrderId,
+        orderNumber: order.orderNumber,
+        customer: {
+          name: order.customerName,
+          email: order.customerEmail,
+        },
+        product: {
+          id: order.productId,
+          name: order.productName,
+          variantId: order.variantId,
+          variantTitle: order.variantTitle,
+          quantity: order.quantity,
+        },
+        designToken: order.designToken,
+        productionStatus: order.productionStatus,
+        missingSurcharge: order.missingSurcharge ?? false,
+        createdAt: order.createdAt,
+        files: {
+          frontPrint: frontPrint || null,
+          backPrint: backPrint || null,
+          frontMockup: frontPreview || null,
+          backMockup: backPreview || null,
+        },
+        exportedAt: new Date().toISOString(),
+      };
+
+      const summaryLines = [
+        `SİPARİŞ ÖZETİ`,
+        `─────────────`,
+        `Sipariş No        : ${order.orderNumber || order.shopifyOrderId}`,
+        `Müşteri           : ${order.customerName || "-"}`,
+        `E-posta           : ${order.customerEmail || "-"}`,
+        ``,
+        `Ürün              : ${order.productName || "-"}`,
+        `Varyant           : ${order.variantTitle || "-"}`,
+        `Adet              : ${order.quantity ?? 1}`,
+        ``,
+        `Tasarım Token     : ${order.designToken || "-"}`,
+        `Üretim Durumu     : ${order.productionStatus || "-"}`,
+        order.missingSurcharge ? `⚠ Baskı ücreti eksik (sipariş ödemesinde surcharge eklenmemiş).` : ``,
+        ``,
+        `Sipariş Tarihi    : ${new Date(order.createdAt).toLocaleString("tr-TR")}`,
+        `Aktarma Tarihi    : ${new Date().toLocaleString("tr-TR")}`,
+      ].filter(Boolean).join("\n");
+
       const tasks: Promise<unknown>[] = [];
       if (frontPrint) tasks.push(uploadFromUrl(accessToken, folderId, "front-print.png", frontPrint, "image/png"));
       if (backPrint) tasks.push(uploadFromUrl(accessToken, folderId, "back-print.png", backPrint, "image/png"));
@@ -230,8 +278,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       if (design?.designJson) {
         tasks.push(uploadText(accessToken, folderId, "design.json", JSON.stringify(design.designJson, null, 2), "application/json"));
       }
+      tasks.push(uploadText(accessToken, folderId, "order.json", JSON.stringify(orderSnapshot, null, 2), "application/json"));
+      tasks.push(uploadText(accessToken, folderId, "siparis-ozeti.txt", summaryLines, "text/plain; charset=utf-8"));
 
       await Promise.all(tasks);
+      await setOrderDriveUpload(order.id, folderId);
+
       return json({
         ok: true,
         folderUrl: await getFolderWebUrl(folderId),
@@ -311,52 +363,74 @@ export default function OrderDetail() {
       <BlockStack gap="500">
 
         {/* Google Drive Export */}
-        <Card>
-          <Box padding="400">
-            <InlineStack align="space-between" blockAlign="center" gap="400" wrap={false}>
-              <BlockStack gap="100">
-                <Text as="h2" variant="headingMd">
-                  {lang === "tr" ? "Google Drive'a Yedekle" : "Back up to Google Drive"}
-                </Text>
-                <Text as="p" tone="subdued" variant="bodySm">
-                  {lang === "tr"
-                    ? "Baskı PNG'leri, mockup'lar ve design.json kendi Drive klasörünüze yüklenir."
-                    : "Print PNGs, mockups and design.json are uploaded to your own Drive folder."}
-                </Text>
-                {driveResult?.ok && driveResult.folderUrl && (
-                  <Text as="p" variant="bodySm" tone="success">
-                    {lang === "tr" ? "Yüklendi · " : "Uploaded · "}
-                    <a href={driveResult.folderUrl} target="_blank" rel="noopener noreferrer">
-                      {lang === "tr" ? "Drive'da Aç" : "Open in Drive"}
-                    </a>
-                  </Text>
-                )}
-                {driveResult && driveResult.ok === false && driveResult.error && (
-                  <Text as="p" variant="bodySm" tone="critical">
-                    {driveResult.error}
-                  </Text>
-                )}
-              </BlockStack>
-              {driveConnected ? (
-                <Button
-                  variant="primary"
-                  loading={driveSubmitting}
-                  onClick={() => {
-                    const fd = new FormData();
-                    fd.set("intent", "googleDriveExport");
-                    driveFetcher.submit(fd, { method: "post" });
-                  }}
-                >
-                  {lang === "tr" ? "Drive'a Aktar" : "Export to Drive"}
-                </Button>
-              ) : (
-                <Button url="/app/settings">
-                  {lang === "tr" ? "Drive Bağla" : "Connect Drive"}
-                </Button>
-              )}
-            </InlineStack>
-          </Box>
-        </Card>
+        {(() => {
+          const liveFolderUrl = driveResult?.ok ? driveResult.folderUrl : null;
+          const persistedFolderUrl = order.driveFolderId
+            ? `https://drive.google.com/drive/folders/${order.driveFolderId}`
+            : null;
+          const uploadedFolderUrl = liveFolderUrl || persistedFolderUrl;
+          const uploadedAt = driveResult?.ok ? new Date().toISOString() : order.driveUploadedAt;
+          const isUploaded = Boolean(uploadedFolderUrl);
+          const formattedDate = uploadedAt ? new Date(uploadedAt).toLocaleString("tr-TR") : "";
+
+          return (
+            <Card>
+              <Box padding="400">
+                <InlineStack align="space-between" blockAlign="center" gap="400" wrap={false}>
+                  <BlockStack gap="100">
+                    <InlineStack gap="200" blockAlign="center">
+                      <Text as="h2" variant="headingMd">
+                        {lang === "tr" ? "Google Drive'a Yedekle" : "Back up to Google Drive"}
+                      </Text>
+                      {isUploaded && (
+                        <Badge tone="success">
+                          {lang === "tr" ? "✓ Yüklendi" : "✓ Uploaded"}
+                        </Badge>
+                      )}
+                    </InlineStack>
+                    <Text as="p" tone="subdued" variant="bodySm">
+                      {lang === "tr"
+                        ? "Baskı PNG'leri, mockup'lar, design.json, order.json ve sipariş özeti Drive klasörünüze yüklenir."
+                        : "Print PNGs, mockups, design.json, order.json and order summary upload to your Drive folder."}
+                    </Text>
+                    {isUploaded && (
+                      <Text as="p" variant="bodySm" tone="success">
+                        {formattedDate && (lang === "tr" ? `Aktarıldı: ${formattedDate} · ` : `Uploaded: ${formattedDate} · `)}
+                        <a href={uploadedFolderUrl!} target="_blank" rel="noopener noreferrer">
+                          {lang === "tr" ? "Drive'da Aç" : "Open in Drive"}
+                        </a>
+                      </Text>
+                    )}
+                    {driveResult && driveResult.ok === false && driveResult.error && (
+                      <Text as="p" variant="bodySm" tone="critical">
+                        {driveResult.error}
+                      </Text>
+                    )}
+                  </BlockStack>
+                  {driveConnected ? (
+                    <Button
+                      variant={isUploaded ? "secondary" : "primary"}
+                      loading={driveSubmitting}
+                      onClick={() => {
+                        const fd = new FormData();
+                        fd.set("intent", "googleDriveExport");
+                        driveFetcher.submit(fd, { method: "post" });
+                      }}
+                    >
+                      {isUploaded
+                        ? (lang === "tr" ? "Tekrar Yükle" : "Re-upload")
+                        : (lang === "tr" ? "Drive'a Aktar" : "Export to Drive")}
+                    </Button>
+                  ) : (
+                    <Button url="/app/settings">
+                      {lang === "tr" ? "Drive Bağla" : "Connect Drive"}
+                    </Button>
+                  )}
+                </InlineStack>
+              </Box>
+            </Card>
+          );
+        })()}
 
         {/* Önizleme: Ön ve Arka */}
         <Grid>

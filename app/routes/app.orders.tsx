@@ -114,6 +114,7 @@ interface OrderGroup {
   frontPrintUrl: string;
   backPrintUrl: string;
   hasMissingSurcharge: boolean;
+  driveFolderId: string | null;
   ids: string[];
   representativeId: string;
 }
@@ -137,6 +138,7 @@ function groupOrders(orders: Order[]): OrderGroup[] {
         frontPrintUrl: o.designFrontPrintUrl || o.productionFileUrl || "",
         backPrintUrl: o.designBackPrintUrl || "",
         hasMissingSurcharge: false,
+        driveFolderId: null,
         ids: [],
         representativeId: o.id,
       });
@@ -146,6 +148,7 @@ function groupOrders(orders: Order[]): OrderGroup[] {
     g.totalQty += o.quantity ?? 1;
     g.variants.push({ id: o.id, variantTitle: o.variantTitle, quantity: o.quantity ?? 1 });
     if (o.missingSurcharge) g.hasMissingSurcharge = true;
+    if (o.driveFolderId && !g.driveFolderId) g.driveFolderId = o.driveFolderId;
     if ((STATUS_PRIORITY[o.productionStatus] ?? 99) < (STATUS_PRIORITY[g.status] ?? 99)) {
       g.status = o.productionStatus;
     }
@@ -265,6 +268,17 @@ export default function Orders() {
             </Badge>
             {g.hasMissingSurcharge && (
               <Badge tone="critical">{t("orders.missingSurcharge")}</Badge>
+            )}
+            {g.driveFolderId && (
+              <a
+                href={`https://drive.google.com/drive/folders/${g.driveFolderId}`}
+                target="_blank"
+                rel="noreferrer"
+                title={lang === "tr" ? "Drive'a yüklendi — klasörü aç" : "Uploaded to Drive — open folder"}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Badge tone="success">✓ Drive</Badge>
+              </a>
             )}
           </InlineStack>
         </IndexTable.Cell>

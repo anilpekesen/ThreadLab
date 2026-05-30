@@ -301,6 +301,12 @@ async function _runMigrationsLocked() {
   await query(`ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL`);
 
   await query(`
+    ALTER TABLE orders
+      ADD COLUMN IF NOT EXISTS drive_folder_id TEXT,
+      ADD COLUMN IF NOT EXISTS drive_uploaded_at TIMESTAMPTZ
+  `);
+
+  await query(`
     CREATE TABLE IF NOT EXISTS shop_google_drive (
       shop                     TEXT PRIMARY KEY,
       refresh_token            TEXT NOT NULL,
