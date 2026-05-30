@@ -213,20 +213,40 @@ export async function getDashboardAnalyticsDetail(shop: string): Promise<Dashboa
       [shop, thirtyDaysAgo],
     ),
     query<{ type: string; label: string; detail: string; created_at: Date }>(
-      `SELECT 'order' AS type, order_number AS label, product_name AS detail, created_at
-       FROM orders
-       WHERE shop = $1 AND design_token != ''
+      `SELECT type, label, detail, created_at
+       FROM (
+         SELECT DISTINCT ON (shopify_order_id, design_token)
+          'order' AS type,
+          COALESCE(NULLIF(order_number, ''), 'Order received') AS label,
+          COALESCE(NULLIF(product_name, ''), 'Custom product') AS detail,
+          created_at
+         FROM orders
+         WHERE shop = $1 AND design_token != ''
+         ORDER BY shopify_order_id, design_token, created_at DESC
+       ) latest_orders
        ORDER BY created_at DESC
        LIMIT 5`,
       [shop],
     ),
     query<{ type: string; label: string; detail: string; created_at: Date }>(
       `SELECT event_type AS type,
-        COALESCE(NULLIF(template_name, ''), NULLIF(design_token, ''), event_type) AS label,
+        CASE
+          WHEN event_type = 'template_applied' THEN COALESCE(NULLIF(template_name, ''), 'Template applied')
+          WHEN event_type = 'cart_add' THEN 'Added to cart'
+          WHEN event_type = 'design_created' THEN 'Design created'
+          ELSE event_type
+        END AS label,
         COALESCE(NULLIF(product_name, ''), NULLIF(template_kind, ''), '') AS detail,
         created_at
        FROM analytics_events
        WHERE shop = $1
+         AND event_type IN ('template_applied', 'cart_add')
+         AND NOT EXISTS (
+           SELECT 1 FROM orders o
+           WHERE o.shop = analytics_events.shop
+             AND o.design_token = analytics_events.design_token
+             AND o.design_token != ''
+         )
        ORDER BY created_at DESC
        LIMIT 8`,
       [shop],

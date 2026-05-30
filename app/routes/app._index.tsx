@@ -136,6 +136,32 @@ function statusLabel(status: string, lang: string): string {
   return (lang === "tr" ? tr : en)[status] ?? status;
 }
 
+function activityLabel(type: string, fallback: string, lang: string): string {
+  const tr: Record<string, string> = {
+    order: "Sipariş alındı",
+    cart_add: "Sepete eklendi",
+    template_applied: "Şablon kullanıldı",
+    design_created: "Tasarım oluşturuldu",
+  };
+  const en: Record<string, string> = {
+    order: "Order received",
+    cart_add: "Added to cart",
+    template_applied: "Template used",
+    design_created: "Design created",
+  };
+  return (lang === "tr" ? tr : en)[type] ?? fallback ?? type;
+}
+
+function activityDetail(type: string, label: string, detail: string, lang: string): string {
+  const cleanDetail = detail && !detail.startsWith("d_") ? detail : "";
+  if (type === "order") return cleanDetail || (lang === "tr" ? "Özel tasarım siparişi" : "Custom design order");
+  if (type === "template_applied") {
+    const template = label && !label.startsWith("d_") ? label : (lang === "tr" ? "Şablon" : "Template");
+    return cleanDetail ? `${template} · ${cleanDetail}` : template;
+  }
+  return cleanDetail || (lang === "tr" ? "Tasarım aktivitesi" : "Design activity");
+}
+
 function EmptyMetric({ lang }: { lang: string }) {
   return (
     <Text as="p" variant="bodySm" tone="subdued">
@@ -495,8 +521,12 @@ export default function Index() {
                       {detail.recentActivity.map((item, index) => (
                         <InlineStack key={`${item.type}-${item.createdAt}-${index}`} align="space-between" blockAlign="start">
                           <BlockStack gap="050">
-                            <Text as="p" variant="bodyMd" fontWeight="semibold">{item.label}</Text>
-                            <Text as="p" variant="bodySm" tone="subdued">{item.detail || item.type}</Text>
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">
+                              {activityLabel(item.type, item.label, lang)}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {activityDetail(item.type, item.label, item.detail, lang)}
+                            </Text>
                           </BlockStack>
                           <Text as="p" variant="bodySm" tone="subdued">
                             {new Date(item.createdAt).toLocaleDateString(lang === "tr" ? "tr-TR" : "en-US", { day: "2-digit", month: "short" })}
