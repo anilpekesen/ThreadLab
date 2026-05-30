@@ -78,6 +78,11 @@ export interface TokenData {
 }
 
 export async function exchangeCodeForToken(shop: string, code: string): Promise<TokenData> {
+  // `expiring: true` requests Shopify's rotating offline tokens (refresh-token
+  // based) instead of the legacy permanent tokens. Required since the legacy
+  // tokens are being deprecated; otherwise our shops would land on the new
+  // install path with a token that immediately falls into "Deprecated offline
+  // token usage detected" reports.
   const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -85,6 +90,7 @@ export async function exchangeCodeForToken(shop: string, code: string): Promise<
       client_id: process.env.SHOPIFY_API_KEY,
       client_secret: process.env.SHOPIFY_API_SECRET,
       code,
+      expiring: true,
     }),
   });
 
