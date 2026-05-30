@@ -58,7 +58,7 @@ export function buildAuthUrl(shop: string, state: string): string {
   const redirectUri = `${process.env.SHOPIFY_APP_URL}/auth/callback`;
   const scopes =
     process.env.SCOPES ??
-    "read_products,write_products,read_orders,write_orders,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders,write_app_proxy,write_cart_transforms,write_script_tags";
+    "read_products,write_products,read_orders,write_orders,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders,write_app_proxy,write_cart_transforms";
 
   return (
     `https://${shop}/admin/oauth/authorize?` +

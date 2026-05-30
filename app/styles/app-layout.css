@@ -1,9 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 .app-shell {
-  display: flex;
   height: 100vh;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: #f7f8fa;
 }
 
@@ -104,7 +101,7 @@
 }
 
 .app-main {
-  flex: 1;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -117,14 +114,25 @@
   border-bottom: 1px solid #e5e7eb;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   padding: 0 20px;
   gap: 10px;
   flex-shrink: 0;
 }
 
+.app-topbar-brand {
+  display: flex;
+  align-items: center;
+  margin-right: auto;
+}
+
+.app-topbar-brand img {
+  height: 32px;
+  width: auto;
+}
+
 .app-topbar-upgrade {
-  background: #4f46e5;
+  background: #303030;
   border: none;
   border-radius: 7px;
   cursor: pointer;
@@ -137,7 +145,7 @@
 }
 
 .app-topbar-upgrade:hover {
-  background: #4338ca;
+  background: #1f1f1f;
 }
 
 .app-lang-switcher {
@@ -162,7 +170,7 @@
 }
 
 .app-lang-btn.active {
-  background: #4f46e5;
+  background: #303030;
   color: #fff;
 }
 

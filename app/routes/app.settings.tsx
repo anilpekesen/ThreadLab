@@ -106,23 +106,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const saved = url.searchParams.get("saved") === "1";
   const created = url.searchParams.get("created") === "1";
 
-  // Clean up any previously registered ScriptTags (ScriptTags are deprecated)
-  try {
-    const stRes = await admin.graphql(`#graphql
-      { scriptTags(first: 20) { nodes { id src } } }
-    `);
-    const stData = await stRes.json() as {
-      data?: { scriptTags?: { nodes?: Array<{ id: string; src: string }> } };
-    };
-    for (const tag of stData.data?.scriptTags?.nodes ?? []) {
-      await admin.graphql(`#graphql
-        mutation { scriptTagDelete(id: "${tag.id}") { deletedScriptTagId userErrors { message } } }
-      `).catch(() => {});
-    }
-  } catch (_e) {
-    // silent
-  }
-
   // Auto-register Cart Transform function; re-register if function ID changed after deploy
   let cartTransformStatus = "unknown";
   try {
