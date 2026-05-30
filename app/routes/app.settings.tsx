@@ -539,7 +539,7 @@ export default function SettingsRoute() {
                     <strong>{drive.connectedEmail || "—"}</strong>
                   </Text>
                   <InlineStack gap="200">
-                    <Button url="/auth/google">
+                    <Button url="/auth/google" target="_blank">
                       {lang === "tr" ? "Hesabı Değiştir" : "Switch account"}
                     </Button>
                     <Form method="post">
@@ -552,7 +552,7 @@ export default function SettingsRoute() {
                 </BlockStack>
               ) : (
                 <InlineStack>
-                  <Button url="/auth/google" variant="primary">
+                  <Button url="/auth/google" target="_blank" variant="primary">
                     {lang === "tr" ? "Google Drive Bağla" : "Connect Google Drive"}
                   </Button>
                 </InlineStack>
