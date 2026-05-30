@@ -1092,28 +1092,34 @@ export default function App() {
         properties['Baskı indirimi'] = formatMoney(pricingSummary.printDiscountSubtotal);
       }
 
-    // Cart Transform splits the line into two children: the t-shirt at its
-    // base unit price, and the surcharge variant at the combined front+back
-    // per-unit surcharge. The surcharge child is hidden on /cart via CSS
-    // (cart-protection.js) and shown on /checkout as a separate line.
+    // Add a single surcharge cart line (quantity 1) priced at the combined
+    // total across all selected sizes. T-shirt lines stay at their original
+    // catalog price. Cart Transform expands the surcharge line into one child
+    // at the precomputed total, so checkout reads
+    // "Tasarım Baskı Ücreti × 1 — <total> TL".
+    // cart-protection.js hides the surcharge row on /cart.
     if (personalization.surchargeVariantId) {
       const frontUnitAmt = pricingSummary.front.hasContent ? pricingSummary.front.surchargeUnitAmount : 0;
       const backUnitAmt  = pricingSummary.back.hasContent  ? pricingSummary.back.surchargeUnitAmount  : 0;
       const surchargeUnitTl = frontUnitAmt + backUnitAmt;
-      if (surchargeUnitTl > 0) {
-        const baseUnitTl = (pricingSummary.baseUnitPrice ?? 0) / 100;
-        const surchargeGid = `gid://shopify/ProductVariant/${personalization.surchargeVariantId}`;
+      const totalQty = cartItems.reduce((sum, it) => sum + it.quantity, 0);
+      const surchargeTotal = surchargeUnitTl * totalQty;
+      if (surchargeTotal > 0) {
         for (const item of cartItems) {
           item.properties = {
             ...(item.properties ?? {}),
-            '_design_role': 'pending_expand',
-            '_base_unit_price': baseUnitTl.toFixed(2),
-            '_surcharge_unit_total': surchargeUnitTl.toFixed(2),
-            '_surcharge_variant_gid': surchargeGid,
             ...(frontUnitAmt > 0 ? { '_surcharge_qty_front': frontUnitAmt.toFixed(2) } : {}),
             ...(backUnitAmt  > 0 ? { '_surcharge_qty_back':  backUnitAmt.toFixed(2)  } : {}),
           };
         }
+        cartItems.push({
+          variantId: String(personalization.surchargeVariantId),
+          quantity: 1,
+          properties: {
+            '_design_role': 'pending_surcharge',
+            '_surcharge_total': surchargeTotal.toFixed(2),
+          },
+        });
       }
     }
 
