@@ -13,20 +13,69 @@ function run_default(userfunction) {
 }
 
 // extensions/cart-transform/src/index.js
+var PROP_KEYS = [
+  ["a01", "Beden"],
+  ["a02", "Renk"],
+  ["a03", "\xD6n Tasar\u0131m"],
+  ["a04", "Arka Tasar\u0131m"],
+  ["a05", "design_token"],
+  ["a06", "Toplam adet"],
+  ["a07", "Ti\u015F\xF6rt birim fiyat\u0131"],
+  ["a08", "Ti\u015F\xF6rt ara toplam\u0131"],
+  ["a09", "Toplam fiyat"],
+  ["a10", "\xD6n \xF6l\xE7\xFC"],
+  ["a11", "\xD6n alan"],
+  ["a12", "\xD6n alan fiyat\u0131"],
+  ["a13", "\xD6n fiyat band\u0131"],
+  ["a14", "Arka \xF6l\xE7\xFC"],
+  ["a15", "Arka alan"],
+  ["a16", "Arka alan fiyat\u0131"],
+  ["a17", "Arka fiyat band\u0131"],
+  ["a18", "Toplu al\u0131m indirimi"],
+  ["a19", "Bask\u0131 indirimi"]
+];
 function run(input) {
   const operations = [];
   for (const line of input.cart.lines) {
-    if (line.designRole?.value !== "surcharge") continue;
-    const total = Math.max(0, parseFloat(line.surchargeTotal?.value ?? "0") || 0);
-    if (total === 0) continue;
+    const role = line.designRole?.value;
+    if (role === "base_expanded" || role === "surcharge_child") continue;
+    if (role !== "pending_expand") continue;
+    const baseUnit = parseFloat(line.baseUnit?.value ?? "0");
+    const surchargeUnit = parseFloat(line.surchargeUnit?.value ?? "0");
+    const surchargeGid = line.surchargeGid?.value;
+    if (!Number.isFinite(baseUnit) || baseUnit <= 0) continue;
+    if (!Number.isFinite(surchargeUnit) || surchargeUnit <= 0) continue;
+    if (!surchargeGid) continue;
+    const baseAttrs = [{ key: "_design_role", value: "base_expanded" }];
+    for (const [alias, key] of PROP_KEYS) {
+      const v = line[alias]?.value;
+      if (v != null && v !== "") baseAttrs.push({ key, value: v });
+    }
     operations.push({
-      update: {
+      expand: {
         cartLineId: line.id,
-        price: {
-          adjustment: {
-            fixedPricePerUnit: { amount: total.toFixed(2) }
+        expandedCartItems: [
+          {
+            merchandiseId: line.merchandise.id,
+            quantity: 1,
+            price: {
+              adjustment: {
+                fixedPricePerUnit: { amount: baseUnit.toFixed(2) }
+              }
+            },
+            attributes: baseAttrs
+          },
+          {
+            merchandiseId: surchargeGid,
+            quantity: 1,
+            price: {
+              adjustment: {
+                fixedPricePerUnit: { amount: surchargeUnit.toFixed(2) }
+              }
+            },
+            attributes: [{ key: "_design_role", value: "surcharge_child" }]
           }
-        }
+        ]
       }
     });
   }
