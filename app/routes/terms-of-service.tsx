@@ -127,8 +127,8 @@ const html = `<!DOCTYPE html>
       <div class="warning"><p>⚠️ Fikri mülkiyet hakkı ihlali içeren sipariş/ürün tespitinde ya da yetkili bildirim alınmasında söz konusu sipariş veya ürün önceden bildirim yapılmaksızın durdurulabilir.</p></div>
 
       <h2>13. İletişim</h2>
-      <p>Sorularınız için: <a href="mailto:anpekesen@gmail.com">anpekesen@gmail.com</a></p>
-      <p>Telif hakkı bildirimi için: <a href="mailto:anpekesen@gmail.com">anpekesen@gmail.com</a> (Konu: DMCA / Telif Bildirimi)</p>
+      <p>Sorularınız için: <a href="mailto:support@printlabapp.com">support@printlabapp.com</a> veya <a href="mailto:info@printlabapp.com">info@printlabapp.com</a></p>
+      <p>Telif hakkı bildirimi için: <a href="mailto:support@printlabapp.com">support@printlabapp.com</a> (Konu: DMCA / Telif Bildirimi)</p>
     </div>
 
     <!-- ENGLISH -->
@@ -199,8 +199,8 @@ const html = `<!DOCTYPE html>
       <div class="warning"><p>⚠️ If an order or product is found to contain intellectual property infringement, or upon receipt of an authorised notice, the relevant order or product may be suspended without prior notice.</p></div>
 
       <h2>13. Contact</h2>
-      <p>For inquiries: <a href="mailto:anpekesen@gmail.com">anpekesen@gmail.com</a></p>
-      <p>For copyright notices: <a href="mailto:anpekesen@gmail.com">anpekesen@gmail.com</a> (Subject: DMCA / Copyright Notice)</p>
+      <p>For inquiries: <a href="mailto:support@printlabapp.com">support@printlabapp.com</a> or <a href="mailto:info@printlabapp.com">info@printlabapp.com</a></p>
+      <p>For copyright notices: <a href="mailto:support@printlabapp.com">support@printlabapp.com</a> (Subject: DMCA / Copyright Notice)</p>
     </div>
 
   </div>

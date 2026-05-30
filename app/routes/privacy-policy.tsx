@@ -62,7 +62,7 @@ const html = `<!DOCTYPE html>
     <div data-lang="tr" class="visible">
       <span class="badge">Gizlilik</span>
       <h1>Gizlilik Politikası</h1>
-      <p class="meta">Son güncelleme: 27 Mayıs 2026 &nbsp;·&nbsp; Sürüm 1.1</p>
+      <p class="meta">Son güncelleme: 31 Mayıs 2026 &nbsp;·&nbsp; Sürüm 1.2</p>
 
       <div class="box"><p>Bu politika, PrintLab uygulamasının Shopify mağazanıza yüklenmesiyle toplanan ve işlenen verileri açıklar.</p></div>
 
@@ -96,38 +96,52 @@ const html = `<!DOCTYPE html>
         <li><strong>Shopify:</strong> E-ticaret altyapısı — <a href="https://www.shopify.com/legal/privacy" target="_blank">Shopify Gizlilik Politikası</a></li>
         <li><strong>Cloudflare R2:</strong> Tasarım görselleri ve baskı dosyalarının depolanması — <a href="https://www.cloudflare.com/privacypolicy/" target="_blank">Cloudflare Gizlilik Politikası</a></li>
         <li><strong>Photoroom (isteğe bağlı):</strong> Arka plan kaldırma özelliği — <a href="https://www.photoroom.com/privacy" target="_blank">Photoroom Gizlilik Politikası</a></li>
+        <li><strong>Google Drive (isteğe bağlı):</strong> Mağaza sahibinin sipariş baskı dosyalarını kendi Drive hesabına yedeklemesi — <a href="https://policies.google.com/privacy" target="_blank">Google Gizlilik Politikası</a></li>
       </ul>
 
-      <h2>5. Veri Güvenliği</h2>
-      <p>Veriler şifreli HTTPS bağlantısı üzerinden iletilir. Depolama sunucuları güvenlik duvarı ve erişim kontrolü ile korunmaktadır. Üretim dosyaları rastgele oluşturulan benzersiz URL'ler aracılığıyla erişilebilir durumdadır.</p>
+      <h2>5. Google Kullanıcı Verilerinin Kullanımı</h2>
+      <p>PrintLab, mağaza sahibi tarafından isteğe bağlı olarak bağlanan Google Drive entegrasyonu için <strong>yalnızca <code>drive.file</code></strong> scope'unu kullanır. Bu, Google'ın Drive için en sınırlı izin seviyesidir.</p>
+      <ul>
+        <li><strong>Neye erişiriz:</strong> Yalnızca PrintLab uygulamasının kendisi tarafından oluşturulan dosya ve klasörlere — sipariş başına oluşturulan baskı PNG'leri, mockup'lar, design.json ve sipariş özeti</li>
+        <li><strong>Neye erişemeyiz:</strong> Mağaza sahibinin Drive'ındaki diğer hiçbir dosyayı okuyamaz, listeleyemez, indiremez veya değiştiremeyiz</li>
+        <li><strong>Klasör yapısı:</strong> <code>PrintLab Tasarımları / Sipariş &lt;no&gt; — &lt;müşteri&gt;</code></li>
+        <li><strong>Saklanan tokens:</strong> Refresh token, kısa ömürlü access token ve bağlı hesabın e-posta adresi — şifreli olarak veritabanında tutulur</li>
+        <li><strong>Asla yapmadıklarımız:</strong> Google'dan aldığımız hiçbir veri üçüncü taraflara satılmaz, paylaşılmaz, reklam için kullanılmaz veya AI/ML modellerinin eğitiminde kullanılmaz</li>
+        <li><strong>Bağlantıyı kaldırma:</strong> PrintLab Ayarlar &gt; Google Drive &gt; "Bağlantıyı Kaldır" veya <a href="https://myaccount.google.com/permissions" target="_blank">myaccount.google.com/permissions</a> üzerinden anında iptal edebilirsiniz</li>
+      </ul>
+      <p>PrintLab'ın Google Kullanıcı Verisi kullanımı <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank">Google API Hizmetleri Kullanıcı Verisi Politikası</a>'na uygundur — bu, Sınırlı Kullanım gerekliliklerini içerir.</p>
 
-      <h2>6. Veri Transferi</h2>
-      <p>Verileriniz Türkiye'de barındırılan sunucularda ve Cloudflare'in küresel ağında işlenmektedir. Cloudflare, GDPR uyumlu veri işleme anlaşmalarına sahiptir.</p>
+      <h2>6. Veri Güvenliği</h2>
+      <p>Veriler şifreli HTTPS bağlantısı üzerinden iletilir. Depolama sunucuları güvenlik duvarı ve erişim kontrolü ile korunmaktadır. Üretim dosyaları rastgele oluşturulan benzersiz URL'ler aracılığıyla erişilebilir durumdadır. Google Drive ve Shopify token'ları PostgreSQL'de yalnızca uygulama servis hesabının erişebildiği sütunlarda saklanır.</p>
 
-      <h2>7. Haklarınız</h2>
+      <h2>7. Veri Transferi</h2>
+      <p>Verileriniz Avrupa'da barındırılan sunucularda (Contabo VPS) ve Cloudflare'in küresel ağında işlenmektedir. Cloudflare, GDPR uyumlu veri işleme anlaşmalarına sahiptir.</p>
+
+      <h2>8. Haklarınız</h2>
       <p>Aşağıdaki haklara sahipsiniz:</p>
       <ul>
         <li>Hakkınızdaki verilere erişim talep etme</li>
         <li>Yanlış verilerin düzeltilmesini isteme</li>
         <li>Verilerinizin silinmesini talep etme</li>
         <li>Veri işlemeye itiraz etme</li>
+        <li>Google Drive bağlantısını anında iptal etme</li>
       </ul>
 
-      <h2>8. Çerezler</h2>
+      <h2>9. Çerezler</h2>
       <p>Uygulama, oturum yönetimi için Shopify'ın standart kimlik doğrulama mekanizmasını kullanır. Tasarım editörü, çalışma durumunu korumak için yerel depolama (localStorage) kullanabilir; bu veriler sunucuya gönderilmez.</p>
 
-      <h2>9. Değişiklikler</h2>
+      <h2>10. Değişiklikler</h2>
       <p>Bu politikada yapılan önemli değişiklikler, uygulama içi bildirim veya e-posta yoluyla duyurulacaktır.</p>
 
-      <h2>10. İletişim</h2>
-      <p>Gizlilik ile ilgili sorularınız için: <a href="mailto:anpekesen@gmail.com">anpekesen@gmail.com</a></p>
+      <h2>11. İletişim</h2>
+      <p>Gizlilik ile ilgili sorularınız için: <a href="mailto:support@printlabapp.com">support@printlabapp.com</a> veya <a href="mailto:info@printlabapp.com">info@printlabapp.com</a></p>
     </div>
 
     <!-- ENGLISH -->
     <div data-lang="en">
       <span class="badge">Privacy</span>
       <h1>Privacy Policy</h1>
-      <p class="meta">Last updated: May 27, 2026 &nbsp;·&nbsp; Version 1.1</p>
+      <p class="meta">Last updated: May 31, 2026 &nbsp;·&nbsp; Version 1.2</p>
 
       <div class="box"><p>This policy explains the data collected and processed when the PrintLab application is installed on your Shopify store.</p></div>
 
@@ -161,31 +175,45 @@ const html = `<!DOCTYPE html>
         <li><strong>Shopify:</strong> E-commerce infrastructure — <a href="https://www.shopify.com/legal/privacy" target="_blank">Shopify Privacy Policy</a></li>
         <li><strong>Cloudflare R2:</strong> Storage for design images and production files — <a href="https://www.cloudflare.com/privacypolicy/" target="_blank">Cloudflare Privacy Policy</a></li>
         <li><strong>Photoroom (optional):</strong> Background removal feature — <a href="https://www.photoroom.com/privacy" target="_blank">Photoroom Privacy Policy</a></li>
+        <li><strong>Google Drive (optional):</strong> Lets merchants back up their order print files to their own Drive account — <a href="https://policies.google.com/privacy" target="_blank">Google Privacy Policy</a></li>
       </ul>
 
-      <h2>5. Data Security</h2>
-      <p>Data is transmitted over encrypted HTTPS connections. Storage servers are protected by firewalls and access controls. Production files are accessible via randomly generated unique URLs.</p>
+      <h2>5. Use of Google User Data</h2>
+      <p>For the optional Google Drive integration, PrintLab requests <strong>only the <code>drive.file</code> scope</strong> — Google's most restricted Drive permission.</p>
+      <ul>
+        <li><strong>What we can access:</strong> Only files and folders the PrintLab app itself created — the per-order print PNGs, mockups, design.json, and order summary</li>
+        <li><strong>What we cannot access:</strong> Any other file in the merchant's Drive. We cannot read, list, download, or modify them in any way</li>
+        <li><strong>Folder structure:</strong> <code>PrintLab Designs / Order &lt;number&gt; — &lt;customer&gt;</code></li>
+        <li><strong>Tokens stored:</strong> Refresh token, short-lived access token, and the connected Google account email — stored encrypted in our database</li>
+        <li><strong>Things we never do:</strong> Data received from Google is not sold, shared with third parties, used for advertising, or used to train any AI/ML model</li>
+        <li><strong>Disconnecting:</strong> Revoke instantly via PrintLab Settings &gt; Google Drive &gt; "Disconnect" or via <a href="https://myaccount.google.com/permissions" target="_blank">myaccount.google.com/permissions</a></li>
+      </ul>
+      <p>PrintLab's use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
 
-      <h2>6. Data Transfers</h2>
-      <p>Your data is processed on servers hosted in Turkey and on Cloudflare's global network. Cloudflare maintains GDPR-compliant data processing agreements.</p>
+      <h2>6. Data Security</h2>
+      <p>Data is transmitted over encrypted HTTPS connections. Storage servers are protected by firewalls and access controls. Production files are accessible via randomly generated unique URLs. Google Drive and Shopify tokens are stored in PostgreSQL columns accessible only to the application service account.</p>
 
-      <h2>7. Your Rights</h2>
+      <h2>7. Data Transfers</h2>
+      <p>Your data is processed on servers hosted in Europe (Contabo VPS) and on Cloudflare's global network. Cloudflare maintains GDPR-compliant data processing agreements.</p>
+
+      <h2>8. Your Rights</h2>
       <p>You have the right to:</p>
       <ul>
         <li>Request access to data held about you</li>
         <li>Request correction of inaccurate data</li>
         <li>Request deletion of your data</li>
         <li>Object to data processing</li>
+        <li>Revoke the Google Drive connection at any time</li>
       </ul>
 
-      <h2>8. Cookies</h2>
+      <h2>9. Cookies</h2>
       <p>The application uses Shopify's standard authentication mechanism for session management. The design editor may use localStorage to preserve working state; this data is not sent to our servers.</p>
 
-      <h2>9. Changes</h2>
+      <h2>10. Changes</h2>
       <p>Material changes to this policy will be communicated via in-app notification or email.</p>
 
-      <h2>10. Contact</h2>
-      <p>For privacy-related inquiries: <a href="mailto:anpekesen@gmail.com">anpekesen@gmail.com</a></p>
+      <h2>11. Contact</h2>
+      <p>For privacy-related inquiries: <a href="mailto:support@printlabapp.com">support@printlabapp.com</a> or <a href="mailto:info@printlabapp.com">info@printlabapp.com</a></p>
     </div>
 
   </div>

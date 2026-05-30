@@ -48,6 +48,7 @@ const T = {
         { t: "Shopify yerel entegrasyon", p: "App Proxy ile mağaza sayfanıza yerleşir. Sepet ve checkout doğrudan Shopify'da." },
         { t: "Çoklu ürün şablonları", p: "T-shirt, kupa, totebag, telefon kılıfı. Mockup ve baskı alanı her ürün için ayrı." },
         { t: "300 DPI baskı PDF", p: "Her sipariş için baskıya hazır PDF + JPG önizleme. CDN üzerinden anında erişim." },
+        { t: "Google Drive yedekleme", p: "Sipariş başına baskı PNG'leri, mockup ve design.json kendi Drive klasörünüze yüklenir. Drive'ınızdaki diğer dosyalar gizli kalır (drive.file scope)." },
       ],
     },
     showcase: {
@@ -134,6 +135,7 @@ const T = {
         { t: "Native Shopify integration", p: "Embedded via App Proxy. Cart and checkout stay inside Shopify." },
         { t: "Multi-product templates", p: "T-shirts, mugs, tote bags, phone cases. Separate mockup and print area per product." },
         { t: "300 DPI print PDF", p: "Print-ready PDF + JPG preview for every order. Instant access via CDN." },
+        { t: "Google Drive backup", p: "One-click export of per-order print PNGs, mockup and design.json into your own Drive folder. Other files in your Drive stay private (drive.file scope)." },
       ],
     },
     showcase: {
@@ -199,6 +201,7 @@ function buildHtml(lang: Lang): string {
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6 5 .4-3.8 3.3 1.2 4.9L12 13.8 7.7 16.2l1.2-4.9L5.1 8l5-.4z" opacity="0"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>`,
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/></svg>`,
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.71 3.5l-5 8.66 2.79 4.84h10L20.29 12.34 15.29 3.5z"/><path d="M2.71 12.16h13.29M7.71 3.5l5 8.66"/></svg>`,
   ];
   const featureColors = [
     "--fi-bg:var(--violet-50,#f5f3ff);--fi-fg:var(--accent-bg-removal)",
@@ -207,6 +210,7 @@ function buildHtml(lang: Lang): string {
     "--fi-bg:#ecfdf5;--fi-fg:#059669",
     "--fi-bg:#eef2ff;--fi-fg:var(--brand-indigo-600)",
     "--fi-bg:#fff7ed;--fi-fg:#c2410c",
+    "--fi-bg:#dbeafe;--fi-fg:#1d4ed8",
   ];
 
   const checkIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
