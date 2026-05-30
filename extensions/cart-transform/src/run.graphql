@@ -3,7 +3,28 @@ query RunInput {
     lines {
       id
       designRole: attribute(key: "_design_role") { value }
-      surchargeTotal: attribute(key: "_surcharge_total") { value }
+      baseUnit: attribute(key: "_base_unit_price") { value }
+      surchargeUnit: attribute(key: "_surcharge_unit_total") { value }
+      surchargeGid: attribute(key: "_surcharge_variant_gid") { value }
+      a01: attribute(key: "Beden") { value }
+      a02: attribute(key: "Renk") { value }
+      a03: attribute(key: "Ön Tasarım") { value }
+      a04: attribute(key: "Arka Tasarım") { value }
+      a05: attribute(key: "design_token") { value }
+      a06: attribute(key: "Toplam adet") { value }
+      a07: attribute(key: "Tişört birim fiyatı") { value }
+      a08: attribute(key: "Tişört ara toplamı") { value }
+      a09: attribute(key: "Toplam fiyat") { value }
+      a10: attribute(key: "Ön ölçü") { value }
+      a11: attribute(key: "Ön alan") { value }
+      a12: attribute(key: "Ön alan fiyatı") { value }
+      a13: attribute(key: "Ön fiyat bandı") { value }
+      a14: attribute(key: "Arka ölçü") { value }
+      a15: attribute(key: "Arka alan") { value }
+      a16: attribute(key: "Arka alan fiyatı") { value }
+      a17: attribute(key: "Arka fiyat bandı") { value }
+      a18: attribute(key: "Toplu alım indirimi") { value }
+      a19: attribute(key: "Baskı indirimi") { value }
       merchandise {
         ... on ProductVariant { id }
       }

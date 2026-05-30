@@ -18,7 +18,7 @@
 
   function isSurcharge(item) {
     var role = (item.properties || {})['_design_role'];
-    return role === 'surcharge' || role === 'surcharge_child' || role === 'pending_surcharge';
+    return role === 'surcharge' || role === 'surcharge_child';
   }
 
   function isLegacySurchargeRemoval(url, opts) {
