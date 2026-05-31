@@ -1,8 +1,8 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const url = new URL(request.url);
-  const origin = `${url.protocol}//${url.host}`;
+const SITE_ORIGIN = "https://printlabapp.com";
+
+export const loader = async (_args: LoaderFunctionArgs) => {
   const pages = [
     { path: "/home", changefreq: "weekly", priority: "1.0" },
     { path: "/privacy-policy", changefreq: "monthly", priority: "0.4" },
@@ -12,7 +12,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${pages.map((page) => `  <url>
-    <loc>${origin}${page.path}</loc>
+    <loc>${SITE_ORIGIN}${page.path}</loc>
     <changefreq>${page.changefreq}</changefreq>
     <priority>${page.priority}</priority>
   </url>`).join("\n")}

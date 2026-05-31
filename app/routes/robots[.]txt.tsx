@@ -1,13 +1,13 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const url = new URL(request.url);
-  const origin = `${url.protocol}//${url.host}`;
+const SITE_ORIGIN = "https://printlabapp.com";
+
+export const loader = async (_args: LoaderFunctionArgs) => {
   const body = [
     "User-agent: *",
     "Allow: /",
     "",
-    `Sitemap: ${origin}/sitemap.xml`,
+    `Sitemap: ${SITE_ORIGIN}/sitemap.xml`,
   ].join("\n");
 
   return new Response(body, {
