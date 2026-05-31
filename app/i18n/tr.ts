@@ -36,6 +36,7 @@ const tr = {
   "common.success": "Başarılı",
   "common.active": "Aktif",
   "common.passive": "Pasif",
+  "common.noPlan": "Plan yok",
   "common.unlimited": "Sınırsız",
   "common.order": "Sipariş",
   "common.orders": "Siparişler",

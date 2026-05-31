@@ -36,6 +36,7 @@ const en = {
   "common.success": "Success",
   "common.active": "Active",
   "common.passive": "Inactive",
+  "common.noPlan": "No plan",
   "common.unlimited": "Unlimited",
   "common.order": "Order",
   "common.orders": "Orders",

@@ -26,15 +26,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const lang: Lang = langMatch?.[1] === "en" ? "en" : "tr";
   const planKey = (sub?.plan_key ?? "Pro") as PlanKey;
   const planFeatures = PLANS[planKey] ?? PLANS["Pro"];
-  const isPaidProductionPlan = (planKey === "Pro" || planKey === "Business")
-    && (sub?.subscription_status === "active" || sub?.subscription_status === "trial");
+  const hasActiveSubscription = sub?.subscription_status === "active" || sub?.subscription_status === "trial";
+  const isPaidProductionPlan = hasActiveSubscription && (planKey === "Pro" || planKey === "Business");
   return json({
     planKey,
     subscriptionStatus: sub?.subscription_status ?? "none",
     lang,
     shop: session.shop,
-    allowProduction: planFeatures.allowProduction,
-    allowGangSheet: planFeatures.allowGangSheet,
+    allowProduction: hasActiveSubscription && planFeatures.allowProduction,
+    allowGangSheet: hasActiveSubscription && planFeatures.allowGangSheet,
     allowPrintQueue: isPaidProductionPlan,
   });
 };
@@ -46,6 +46,7 @@ function AppInner() {
 
   const isActive = subscriptionStatus === "active" || subscriptionStatus === "trial";
   const shopName = shop.replace(".myshopify.com", "");
+  const planLabel = isActive ? planKey : t("common.noPlan");
 
   const navItems = [
     { label: t("nav.home"), url: "/app", end: true, show: true },
@@ -84,7 +85,7 @@ function AppInner() {
 
           <div className="app-sidebar-footer">
             <div className="app-sidebar-shop">{shopName}</div>
-            <span className="app-sidebar-plan">{planKey}</span>
+            <span className="app-sidebar-plan">{planLabel}</span>
           </div>
         </nav>
 

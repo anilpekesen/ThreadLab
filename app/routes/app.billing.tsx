@@ -335,6 +335,8 @@ export default function BillingPage() {
   const isLoading = nav.state === "submitting";
   const isActive = analytics.subscriptionStatus === "active";
   const isTrial = analytics.subscriptionStatus === "trial";
+  const hasSubscription = isActive || isTrial;
+  const currentPlanLabel = hasSubscription ? analytics.planKey : t("common.noPlan");
 
   return (
     <Page title={t("billing.title")}>
@@ -365,13 +367,17 @@ export default function BillingPage() {
                 <BlockStack gap="100">
                   <Text as="h2" variant="headingMd">{t("billing.currentSubscription")}</Text>
                   <InlineStack gap="200" blockAlign="center">
-                    <Badge tone={PLAN_BADGE[analytics.planKey] ?? "attention"}>{analytics.planKey}</Badge>
+                    <Badge tone={hasSubscription ? (PLAN_BADGE[analytics.planKey] ?? "attention") : "attention"}>{currentPlanLabel}</Badge>
                     {isActive && <Badge tone="success">{t("billing.active")}</Badge>}
                     {isTrial && <Badge tone="info">{t("billing.trial")}</Badge>}
                     {!isActive && !isTrial && <Badge tone="attention">{t("billing.inactive")}</Badge>}
                   </InlineStack>
                 </BlockStack>
-                <Text as="p" variant="headingLg">${PLANS[analytics.planKey].price}<Text as="span" variant="bodySm" tone="subdued">{t("billing.perMonth")}</Text></Text>
+                {hasSubscription ? (
+                  <Text as="p" variant="headingLg">${PLANS[analytics.planKey].price}<Text as="span" variant="bodySm" tone="subdued">{t("billing.perMonth")}</Text></Text>
+                ) : (
+                  <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.planInactive")}</Text>
+                )}
               </InlineStack>
 
               {analytics.bgQuota !== 0 && (

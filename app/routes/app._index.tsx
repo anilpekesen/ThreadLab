@@ -175,8 +175,9 @@ export default function Index() {
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
   const { t, lang } = useTranslation();
-  const plan = PLANS[analytics.planKey];
   const isActive = analytics.subscriptionStatus === "active" || analytics.subscriptionStatus === "trial";
+  const plan = isActive ? PLANS[analytics.planKey] : null;
+  const planLabel = isActive ? analytics.planKey : t("common.noPlan");
 
   useEffect(() => {
     const id = setInterval(revalidate, AUTO_REFRESH_MS);
@@ -201,12 +202,12 @@ export default function Index() {
               <BlockStack gap="100">
                 <InlineStack gap="200" blockAlign="center">
                   <Text as="h2" variant="headingMd">{t("dashboard.activePlan")}</Text>
-                  <Badge tone={PLAN_BADGE_TONE[analytics.planKey] ?? "attention"}>{analytics.planKey}</Badge>
+                  <Badge tone={isActive ? (PLAN_BADGE_TONE[analytics.planKey] ?? "attention") : "attention"}>{planLabel}</Badge>
                   {!isActive && <Badge tone="warning">{t("common.passive")}</Badge>}
                 </InlineStack>
                 <Text as="p" tone="subdued" variant="bodySm">
                   {isActive
-                    ? `${plan.maxMonthlyOrders === -1 ? t("common.unlimited") : plan.maxMonthlyOrders} ${t("dashboard.ordersPerMonth")} · ${plan.maxProductTypes === -1 ? t("common.unlimited") : plan.maxProductTypes} ${t("dashboard.productTypes")}`
+                    ? `${plan!.maxMonthlyOrders === -1 ? t("common.unlimited") : plan!.maxMonthlyOrders} ${t("dashboard.ordersPerMonth")} · ${plan!.maxProductTypes === -1 ? t("common.unlimited") : plan!.maxProductTypes} ${t("dashboard.productTypes")}`
                     : t("dashboard.planInactive")}
                 </Text>
               </BlockStack>
