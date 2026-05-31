@@ -198,6 +198,7 @@ function defaultPersonalization(): PersonalizationConfig {
     volumeDiscounts: [],
     surchargeVariantId: '',
     removeBgAvailable: false,
+    variantMockups: {},
   };
 }
 
@@ -348,6 +349,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     };
     printAreas?: PrintAreaConfig[];
     product?: { surfaceMode?: SurfaceMode };
+    variantMockups?: Record<string, { front?: string; back?: string }>;
   } | null;
   const base = defaultPersonalization();
   const surfaceMode = source?.settings?.surfaceMode || source?.product?.surfaceMode || base.surfaceMode;
@@ -374,6 +376,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     volumeDiscounts,
     surchargeVariantId: String(source?.settings?.surchargeVariantId || ''),
     removeBgAvailable: Boolean(source?.settings?.removeBgAvailable),
+    variantMockups: source?.variantMockups ?? {},
   };
 }
 
@@ -755,6 +758,19 @@ export default function App() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personalization.printAreas.front.mockupImageUrl, personalization.printAreas.back.mockupImageUrl]);
+
+  // Renk değişince o rengin mockup görselini yükle
+  useEffect(() => {
+    if (!selectedColor || !config) return;
+    const mockup = personalization.variantMockups?.[selectedColor];
+    if (!mockup?.front && !mockup?.back) return;
+    setConfig({
+      ...config,
+      ...(mockup.front ? { frontImage: mockup.front } : {}),
+      ...(mockup.back ? { backImage: mockup.back } : {}),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedColor, personalization.variantMockups]);
 
   useEffect(() => {
     if (personalization.surfaceMode === 'front_only' && activeSide !== 'front') {

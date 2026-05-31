@@ -69,6 +69,7 @@ export interface PersonalizationConfig {
   volumeDiscounts: VolumeDiscountTier[];
   surchargeVariantId: string;
   removeBgAvailable: boolean;
+  variantMockups?: Record<string, { front?: string; back?: string }>;
 }
 
 export interface UploadedImage {
