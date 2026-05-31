@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useActionData, Form, useNavigation } from "@remix-run/react";
+import { useEffect } from "react";
 import { useTranslation } from "~/i18n";
 import { PageHelper } from "~/components/PageHelper";
 import {
@@ -289,16 +290,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         returnUrl,
         isBillingTestCharge(shop),
       );
-      return redirect(confirmationUrl);
+      return json({ redirectUrl: confirmationUrl });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Bilinmeyen hata";
       console.error("[billing] subscription create error:", message);
       if (shouldUseManagedPricingFallback(message)) {
         const managedPricingUrl = buildManagedPricingUrl(shop);
-        if ("redirect" in authContext && typeof authContext.redirect === "function") {
-          return authContext.redirect(managedPricingUrl, { target: "_top" });
-        }
-        return redirect(managedPricingUrl);
+        return json({ redirectUrl: managedPricingUrl });
       }
       return json({ error: `Shopify aboneliği oluşturulamadı: ${message}` }, { status: 500 });
     }
@@ -329,14 +327,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function BillingPage() {
   const { analytics, isTest, blockedReasons } = useLoaderData<typeof loader>();
-  const actionData = useActionData<{ error?: string }>();
+  const actionData = useActionData<{ error?: string; redirectUrl?: string }>();
   const nav = useNavigation();
   const { t, lang } = useTranslation();
-  const isLoading = nav.state === "submitting";
+  const isLoading = nav.state === "submitting" || Boolean(actionData?.redirectUrl);
   const isActive = analytics.subscriptionStatus === "active";
   const isTrial = analytics.subscriptionStatus === "trial";
   const hasSubscription = isActive || isTrial;
   const currentPlanLabel = hasSubscription ? analytics.planKey : t("common.noPlan");
+
+  useEffect(() => {
+    if (!actionData?.redirectUrl) return;
+    if (window.top && window.top !== window.self) {
+      window.top.location.href = actionData.redirectUrl;
+      return;
+    }
+    window.location.href = actionData.redirectUrl;
+  }, [actionData?.redirectUrl]);
 
   return (
     <Page title={t("billing.title")}>
