@@ -264,9 +264,9 @@ function buildHtml(lang: Lang): string {
   <title>${pageTitle}</title>
   <meta name="description" content="${metaDescription}" />
   <meta name="keywords" content="${metaKeywords}" />
-  <link rel="canonical" href="https://printlabapp.com/" />
+  <link rel="canonical" href="https://printlabapp.com/home" />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://printlabapp.com/" />
+  <meta property="og:url" content="https://printlabapp.com/home" />
   <meta property="og:title" content="${pageTitle}" />
   <meta property="og:description" content="${metaDescription}" />
   <meta property="og:image" content="https://printlabapp.com/logo.png" />
@@ -277,7 +277,7 @@ function buildHtml(lang: Lang): string {
   <meta name="twitter:image" content="https://printlabapp.com/logo.png" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"PrintLab","applicationCategory":"BusinessApplication","operatingSystem":"Shopify","url":"https://printlabapp.com","description":"${metaDescription}","sameAs":["${SHOPIFY_APP_URL}"],"offers":{"@type":"AggregateOffer","lowPrice":"9.99","highPrice":"99.99","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"PrintLab","url":"https://printlabapp.com","logo":"https://printlabapp.com/logo.png"}}
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"PrintLab","applicationCategory":"BusinessApplication","operatingSystem":"Shopify","url":"https://printlabapp.com/home","description":"${metaDescription}","sameAs":["${SHOPIFY_APP_URL}"],"offers":{"@type":"AggregateOffer","lowPrice":"9.99","highPrice":"99.99","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"PrintLab","url":"https://printlabapp.com","logo":"https://printlabapp.com/logo.png"}}
   </script>
   <link rel="stylesheet" href="/landing-tokens.css" />
   <link rel="stylesheet" href="/landing.css" />

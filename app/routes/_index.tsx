@@ -15,6 +15,5 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect(`/app${url.search}`);
   }
 
-  // Installation must originate from Shopify's surface
-  throw redirect("https://apps.shopify.com/printlab");
+  throw redirect("/home");
 };
