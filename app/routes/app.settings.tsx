@@ -123,11 +123,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     `);
     const data = await res.json() as {
+      errors?: Array<{ message?: string }>;
       data?: {
         cartTransforms?: { nodes?: Array<{ id: string; functionId: string }> };
         shopifyFunctions?: { nodes?: Array<{ id: string; title: string; apiType: string }> };
       };
     };
+    if (data.errors?.length) {
+      throw new Error(data.errors.map((e) => e.message).filter(Boolean).join(", "));
+    }
     const transforms = data.data?.cartTransforms?.nodes ?? [];
     const functions = data.data?.shopifyFunctions?.nodes ?? [];
 
@@ -155,16 +159,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           }}
         `);
         const regData = await regRes.json() as {
+          errors?: Array<{ message?: string }>;
           data?: { cartTransformCreate?: { cartTransform?: { id: string }; userErrors?: Array<{ message: string }> } };
         };
+        if (regData.errors?.length) {
+          throw new Error(regData.errors.map((e) => e.message).filter(Boolean).join(", "));
+        }
         const regErrors = regData.data?.cartTransformCreate?.userErrors ?? [];
         cartTransformStatus = regErrors.length
           ? `error: ${regErrors.map((e) => e.message).join(", ")}`
           : "re_registered_ok";
       }
     }
-  } catch (_e) {
-    cartTransformStatus = "error";
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[settings] cart transform status error:", message);
+    cartTransformStatus = `error: ${message}`;
   }
 
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
@@ -184,6 +194,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     newAppsSectionUrl,
     mainSectionUrl,
     surchargeVariantOptions,
+    shop: session.shop,
     drive: driveConnection
       ? { connectedEmail: driveConnection.connectedEmail, connectedAt: driveConnection.connectedAt.toISOString() }
       : null,
@@ -410,7 +421,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, surchargeVariantOptions, drive, gdriveConnected, gdriveError } = useLoaderData<typeof loader>();
+  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, surchargeVariantOptions, shop, drive, gdriveConnected, gdriveError } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const { t, lang } = useTranslation();
   const isSaving = navigation.state === "submitting";
@@ -542,7 +553,7 @@ export default function SettingsRoute() {
                     <strong>{drive.connectedEmail || "—"}</strong>
                   </Text>
                   <InlineStack gap="200">
-                    <Button url="/auth/google" target="_blank">
+                    <Button url={`/auth/google?shop=${encodeURIComponent(shop)}`} target="_blank">
                       {lang === "tr" ? "Hesabı Değiştir" : "Switch account"}
                     </Button>
                     <Form method="post">
@@ -555,7 +566,7 @@ export default function SettingsRoute() {
                 </BlockStack>
               ) : (
                 <InlineStack>
-                  <Button url="/auth/google" target="_blank" variant="primary">
+                  <Button url={`/auth/google?shop=${encodeURIComponent(shop)}`} target="_blank" variant="primary">
                     {lang === "tr" ? "Google Drive Bağla" : "Connect Google Drive"}
                   </Button>
                 </InlineStack>
