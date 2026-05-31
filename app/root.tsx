@@ -23,7 +23,7 @@ export default function App() {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         {apiKey && <meta name="shopify-api-key" content={apiKey} />}
-        {apiKey && <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" />}
+        {apiKey && <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key={apiKey} />}
         <link rel="preconnect" href="https://cdn.shopify.com/" />
         <Meta />
         <Links />

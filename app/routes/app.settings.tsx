@@ -493,7 +493,7 @@ export default function SettingsRoute() {
                     Bir müşteri sipariş vermeden kaç kez arka plan kaldırabilir? Sipariş verdikten sonra limiti sıfırlanır.
                     Kötüye kullanımı önlemek için bu değeri düşük tutmanızı öneririz (varsayılan: 5).
                   </Text>
-                  <div style={{ maxWidth: 200 }}>
+                  <div style={{ width: "100%", maxWidth: 200 }}>
                     <TextField
                       label="Sipariş vermeden maksimum kullanım"
                       name="customerBgLimit"

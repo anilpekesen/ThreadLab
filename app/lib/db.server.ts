@@ -37,6 +37,40 @@ export async function runMigrations() {
 
 async function _runMigrationsLocked() {
   await query(`
+    CREATE TABLE IF NOT EXISTS shopify_sessions (
+      id TEXT PRIMARY KEY,
+      shop TEXT NOT NULL,
+      state TEXT NOT NULL DEFAULT '',
+      "isOnline" BOOLEAN NOT NULL DEFAULT FALSE,
+      scope TEXT,
+      expires INTEGER,
+      "accessToken" TEXT,
+      "refreshToken" TEXT,
+      "refreshTokenExpires" BIGINT,
+      "userId" BIGINT,
+      "firstName" TEXT,
+      "lastName" TEXT,
+      email TEXT,
+      "accountOwner" BOOLEAN,
+      locale TEXT,
+      collaborator BOOLEAN,
+      "emailVerified" BOOLEAN
+    )
+  `);
+  await query(`
+    ALTER TABLE shopify_sessions
+      ADD COLUMN IF NOT EXISTS "refreshToken" TEXT,
+      ADD COLUMN IF NOT EXISTS "refreshTokenExpires" BIGINT,
+      ADD COLUMN IF NOT EXISTS "userId" BIGINT,
+      ADD COLUMN IF NOT EXISTS "firstName" TEXT,
+      ADD COLUMN IF NOT EXISTS "lastName" TEXT,
+      ADD COLUMN IF NOT EXISTS email TEXT,
+      ADD COLUMN IF NOT EXISTS "accountOwner" BOOLEAN,
+      ADD COLUMN IF NOT EXISTS locale TEXT,
+      ADD COLUMN IF NOT EXISTS collaborator BOOLEAN,
+      ADD COLUMN IF NOT EXISTS "emailVerified" BOOLEAN
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS bg_removal_usage (
       shop        TEXT NOT NULL,
       month       TEXT NOT NULL,

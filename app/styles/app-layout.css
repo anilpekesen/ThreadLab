@@ -168,3 +168,63 @@
   flex: 1;
   overflow-y: auto;
 }
+
+@media (max-width: 960px) {
+  .app-shell {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .app-sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .app-sidebar-logo {
+    padding: 14px 16px 10px;
+  }
+
+  .app-sidebar-logo img {
+    height: 36px;
+    max-width: 156px;
+  }
+
+  .app-nav {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px 12px 12px;
+    scrollbar-width: thin;
+  }
+
+  .app-nav-link {
+    flex: 0 0 auto;
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+
+  .app-sidebar-footer {
+    display: none;
+  }
+
+  .app-topbar {
+    height: auto;
+    min-height: 52px;
+    justify-content: space-between;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+  }
+
+  .app-main {
+    overflow: visible;
+  }
+
+  .app-content {
+    overflow-x: hidden;
+  }
+}

@@ -75,8 +75,8 @@ export default function ProductsIndexRoute() {
             <BlockStack gap="300">
               <Text as="p" tone="subdued">{t("products.desc")}</Text>
               <Form method="get">
-                <InlineStack gap="200" blockAlign="end">
-                  <div style={{ minWidth: 280 }}>
+                <InlineStack gap="200" blockAlign="end" wrap>
+                  <div style={{ flex: "1 1 280px", minWidth: 0 }}>
                     <TextField
                       label={t("products.searchPlaceholder")}
                       labelHidden

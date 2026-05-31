@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 function getBgSessionId(): string {
   const key = 'dk_bg_session';
@@ -43,12 +43,14 @@ import {
 } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
 import CanvasArea, { type CanvasAreaHandle } from '@/components/canvas/CanvasArea';
-import ImagePanel from '@/components/panels/ImagePanel';
-import TextPanel from '@/components/panels/TextPanel';
-import TemplatesPanel, { type Template } from '@/components/panels/TemplatesPanel';
-import SavedPanel from '@/components/panels/SavedPanel';
+import type { Template } from '@/components/panels/TemplatesPanel';
 import type { DesignerConfig, PersonalizationConfig, PricingBand, PrintAreaConfig, SavedDesign, Side, SurfaceMode, VolumeDiscountTier } from '@/types';
 import { generateId } from '@/utils/compress';
+
+const ImagePanel = lazy(() => import('@/components/panels/ImagePanel'));
+const TextPanel = lazy(() => import('@/components/panels/TextPanel'));
+const TemplatesPanel = lazy(() => import('@/components/panels/TemplatesPanel'));
+const SavedPanel = lazy(() => import('@/components/panels/SavedPanel'));
 
 type Tab = 'image' | 'text' | 'layers' | 'templates' | 'saved' | null;
 
@@ -307,6 +309,14 @@ function volumeDiscountForQuantity(tiers: VolumeDiscountTier[], quantity: number
 function applyPercentageDiscount(value: number, percentage: number): number {
   if (percentage <= 0) return value;
   return Math.max(0, value * (1 - percentage / 100));
+}
+
+function PanelLoading() {
+  return (
+    <div className="flex min-h-[180px] items-center justify-center text-sm font-medium text-gray-400">
+      Yükleniyor...
+    </div>
+  );
 }
 
 function normalizePrintArea(side: Side, area: Partial<PrintAreaConfig> | null | undefined): PrintAreaConfig {
@@ -1792,21 +1802,25 @@ export default function App() {
                 {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-6">
                   {activeTab === 'image' && (
-                    <ImagePanel
-                      onAddImage={handleAddImage}
-                      onRemoveBg={handleRemoveBg}
-                      canRemoveBg={personalization.removeBgAvailable}
-                      activeSource={imageActiveSource}
-                    />
+                    <Suspense fallback={<PanelLoading />}>
+                      <ImagePanel
+                        onAddImage={handleAddImage}
+                        onRemoveBg={handleRemoveBg}
+                        canRemoveBg={personalization.removeBgAvailable}
+                        activeSource={imageActiveSource}
+                      />
+                    </Suspense>
                   )}
 
                   {activeTab === 'text' && (
-                    <TextPanel
-                      value={textDraft}
-                      onChange={setTextDraft}
-                      onSubmit={handleSubmitText}
-                      isEditing={isEditingText}
-                    />
+                    <Suspense fallback={<PanelLoading />}>
+                      <TextPanel
+                        value={textDraft}
+                        onChange={setTextDraft}
+                        onSubmit={handleSubmitText}
+                        isEditing={isEditingText}
+                      />
+                    </Suspense>
                   )}
 
                   {activeTab === 'layers' && (
@@ -1875,15 +1889,19 @@ export default function App() {
                   )}
 
                   {activeTab === 'templates' && (
-                    <TemplatesPanel
-                      onApply={handleApplyTemplate}
-                      onAddImage={handleAddImage}
-                      shopTemplates={shopTemplates}
-                    />
+                    <Suspense fallback={<PanelLoading />}>
+                      <TemplatesPanel
+                        onApply={handleApplyTemplate}
+                        onAddImage={handleAddImage}
+                        shopTemplates={shopTemplates}
+                      />
+                    </Suspense>
                   )}
 
                   {activeTab === 'saved' && (
-                    <SavedPanel onLoad={handleLoadSaved} />
+                    <Suspense fallback={<PanelLoading />}>
+                      <SavedPanel onLoad={handleLoadSaved} />
+                    </Suspense>
                   )}
                 </div>
             </div>

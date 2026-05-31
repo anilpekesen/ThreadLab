@@ -11,6 +11,15 @@ export default defineConfig({
   build: {
     outDir: '../public/designer-app',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'zustand'],
+          'vendor-fabric': ['fabric'],
+          'vendor-ui': ['lucide-react', 'motion', 'clsx'],
+        },
+      },
+    },
   },
   server: {
     port: 5173,
