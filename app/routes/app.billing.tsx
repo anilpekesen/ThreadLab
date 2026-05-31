@@ -16,6 +16,7 @@ import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/mod
 
 const PLAN_ORDER: PlanKey[] = ["Starter", "Growth", "Pro", "Business"];
 const TRIAL_DAYS = 14;
+const MANAGED_PRICING_APP_HANDLE = process.env.SHOPIFY_APP_HANDLE ?? "printlab";
 
 function isBillingTestCharge(shop: string): boolean {
   if (process.env.SHOPIFY_BILLING_TEST === "true") return true;
@@ -114,6 +115,7 @@ async function createShopifySubscription(
   );
 
   const data = (await resp.json()) as {
+    errors?: { message?: string; extensions?: { code?: string } }[];
     data?: {
       appSubscriptionCreate?: {
         confirmationUrl?: string;
@@ -123,6 +125,14 @@ async function createShopifySubscription(
   };
 
   const result = data.data?.appSubscriptionCreate;
+  if (data.errors?.length) {
+    throw new Error(
+      data.errors
+        .map((error) => [error.message, error.extensions?.code].filter(Boolean).join(" ["))
+        .map((msg) => (msg.endsWith("[") ? msg.slice(0, -1) : msg))
+        .join(", "),
+    );
+  }
   if (result?.userErrors?.length) {
     throw new Error(result.userErrors.map((e) => e.message).join(", "));
   }
@@ -130,6 +140,21 @@ async function createShopifySubscription(
     throw new Error("No confirmation URL returned from Shopify");
   }
   return result.confirmationUrl;
+}
+
+function buildManagedPricingUrl(shop: string): string {
+  const storeHandle = shop.replace(/\.myshopify\.com$/i, "");
+  return `https://admin.shopify.com/store/${storeHandle}/charges/${MANAGED_PRICING_APP_HANDLE}/pricing_plans`;
+}
+
+function shouldUseManagedPricingFallback(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("managed pricing") ||
+    lower.includes("shopify app pricing") ||
+    lower.includes("billing api") ||
+    lower.includes("no confirmation url returned from shopify")
+  );
 }
 
 async function cancelShopifySubscription(
@@ -227,7 +252,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate(request);
+  const authContext = await authenticate(request);
+  const { session } = authContext;
   const shop = session.shop;
   const form = await request.formData();
   const intent = form.get("intent") as string;
@@ -267,6 +293,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Bilinmeyen hata";
       console.error("[billing] subscription create error:", message);
+      if (shouldUseManagedPricingFallback(message)) {
+        const managedPricingUrl = buildManagedPricingUrl(shop);
+        if ("redirect" in authContext && typeof authContext.redirect === "function") {
+          return authContext.redirect(managedPricingUrl, { target: "_top" });
+        }
+        return redirect(managedPricingUrl);
+      }
       return json({ error: `Shopify aboneliği oluşturulamadı: ${message}` }, { status: 500 });
     }
   }
