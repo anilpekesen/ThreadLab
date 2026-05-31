@@ -1,6 +1,22 @@
-import { RemixBrowser } from "@remix-run/react";
-import { startTransition, StrictMode } from "react";
+import { RemixBrowser, useLocation, useMatches } from "@remix-run/react";
+import * as Sentry from "@sentry/remix";
+import { startTransition, StrictMode, useEffect } from "react";
 import { hydrateRoot } from "react-dom/client";
+
+Sentry.init({
+  dsn: import.meta.env.VITE_SENTRY_DSN,
+  tracesSampleRate: 0.1,
+  environment: import.meta.env.MODE ?? "production",
+  integrations: [
+    Sentry.browserTracingIntegration({
+      useEffect,
+      useLocation,
+      useMatches,
+    }),
+  ],
+  replaysSessionSampleRate: 0,
+  replaysOnErrorSampleRate: 0,
+});
 
 // When a new deploy changes asset hashes, SPA navigation tries to load
 // old chunk filenames that no longer exist → blank page.

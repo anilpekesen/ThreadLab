@@ -7,6 +7,8 @@ import { getOrderByShopifyId, updateOrderStatus } from "~/models/orders.server";
 import { resetCustomerBgQuota } from "~/models/customer-bg-quota.server";
 import { getSessionForDesignToken } from "~/models/designs.server";
 import { query } from "~/lib/db.server";
+import { upsertShopSubscription } from "~/models/billing.server";
+import { PLAN_NAMES } from "~/lib/plans";
 
 async function deleteShopData(shop: string): Promise<void> {
   const tables = [
@@ -208,6 +210,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     deleteShopData(shop).catch((err) =>
       console.error(`[webhook] shop_redact data deletion failed for ${shop}:`, err),
     );
+    return json({ ok: true });
+  }
+
+  // ── App subscription updated (trial end / cancel / reactivate) ───────
+  if (topic === "APP_SUBSCRIPTIONS_UPDATE" || topic === "app_subscriptions/update") {
+    const body = payload as {
+      app_subscription?: {
+        admin_graphql_api_id?: string;
+        name?: string;
+        status?: string;
+      };
+    };
+    const sub = body.app_subscription;
+    const status = sub?.status?.toUpperCase();
+    const planName = sub?.name ?? "";
+    const subscriptionId = sub?.admin_graphql_api_id ?? null;
+
+    if (PLAN_NAMES.includes(planName as never) && status) {
+      const subscriptionStatus =
+        status === "ACTIVE" ? "active" :
+        status === "TRIAL" ? "trial" :
+        "cancelled";
+      upsertShopSubscription(shop, {
+        planKey: planName as never,
+        shopifySubscriptionId: subscriptionId,
+        subscriptionStatus,
+      }).catch((err) =>
+        console.error(`[webhook] app_subscriptions/update upsert failed for ${shop}:`, err),
+      );
+      console.log(`[webhook] app_subscriptions/update shop=${shop} plan=${planName} status=${subscriptionStatus}`);
+    }
     return json({ ok: true });
   }
 

@@ -87,9 +87,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = session.shop;
 
   const sub = await getShopSubscription(shop);
-  const planKey = planKeyFromName(sub?.plan_key) ?? "Pro";
+  const planKey = planKeyFromName(sub?.plan_key) ?? "Starter";
   const plan = PLANS[planKey];
-  if (!plan.allowGangSheet) {
+  const hasActiveSubscription = sub?.subscription_status === "active" || sub?.subscription_status === "trial";
+  if (!hasActiveSubscription || !plan.allowGangSheet) {
     return json({ printableOrders: [], shop, locked: true });
   }
 

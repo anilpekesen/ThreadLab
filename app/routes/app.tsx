@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { NavLink, Outlet, useLoaderData, useNavigate, useRouteError } from "@remix-run/react";
+import * as Sentry from "@sentry/remix";
 import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import trTranslations from "@shopify/polaris/locales/tr.json";
@@ -132,6 +133,7 @@ export default function App() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
+  Sentry.captureException(error);
   console.error("[app.tsx ErrorBoundary]", error);
   return (
     <div style={{ padding: 40, textAlign: "center", fontFamily: "system-ui, sans-serif" }}>
