@@ -577,18 +577,18 @@ function PrintAreaEditor({
           <Text as="h3" variant="headingSm">{title}</Text>
 
           {imageOptions.length > 0 && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {imageOptions.map((url, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => selectImage(url)}
                   style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 8,
+                    width: 80,
+                    height: 80,
+                    borderRadius: 10,
                     overflow: "hidden",
-                    border: activeImage === url ? "2.5px solid #0f766e" : "2px solid #e5e7eb",
+                    border: activeImage === url ? "3px solid #0f766e" : "2px solid #e5e7eb",
                     cursor: "pointer",
                     padding: 0,
                     background: "none",
@@ -824,6 +824,15 @@ export default function ProductSettingsRoute() {
       )]
     : [];
 
+  const [selectedColor, setSelectedColor] = useState<string>(uniqueColors[0] ?? "");
+
+  function handleColorChange(color: string) {
+    setSelectedColor(color);
+    const mockup = variantMockups[color];
+    if (mockup?.front) setFrontArea((prev) => ({ ...prev, mockupImageUrl: mockup.front! }));
+    if (mockup?.back) setBackArea((prev) => ({ ...prev, mockupImageUrl: mockup.back! }));
+  }
+
   // Liquid mantığıyla aynı: option3'e göre ön/arka variant görselini seç
   const designerFrontImage = (() => {
     const v = product.variants.find((variant) => {
@@ -927,6 +936,39 @@ export default function ProductSettingsRoute() {
                     ayarlayabilirsin.
                   </Text>
 
+                  <input type="hidden" name="variantMockups" value={JSON.stringify(variantMockups)} />
+
+                  {uniqueColors.length > 0 && (
+                    <BlockStack gap="150">
+                      <Text as="p" variant="bodySm" fontWeight="semibold">
+                        Renk seç — seçili rengin mockup görseli editörde görünür:
+                      </Text>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {uniqueColors.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => handleColorChange(color)}
+                            style={{
+                              padding: "6px 16px",
+                              borderRadius: 20,
+                              border: selectedColor === color ? "2px solid #0f766e" : "2px solid #d1d5db",
+                              background: selectedColor === color ? "#f0fdf9" : "white",
+                              color: selectedColor === color ? "#0f766e" : "#374151",
+                              fontWeight: selectedColor === color ? "600" : "400",
+                              cursor: "pointer",
+                              fontSize: 13,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {color}
+                            {(variantMockups[color]?.front) ? " ✓" : ""}
+                          </button>
+                        ))}
+                      </div>
+                    </BlockStack>
+                  )}
+
                   <input type="hidden" name="frontAreaId" value={frontArea.id} />
                   <input type="hidden" name="frontAreaName" value={frontArea.name} />
                   <input type="hidden" name="frontAreaMockupX" value={frontArea.mockupX} />
@@ -947,7 +989,15 @@ export default function ProductSettingsRoute() {
                   <PrintAreaEditor
                     title="On yuz"
                     area={frontArea}
-                    onChange={(nextArea) => setFrontArea(nextArea)}
+                    onChange={(nextArea) => {
+                      setFrontArea(nextArea);
+                      if (selectedColor && nextArea.mockupImageUrl !== frontArea.mockupImageUrl) {
+                        setVariantMockups((prev) => ({
+                          ...prev,
+                          [selectedColor]: { ...prev[selectedColor], front: nextArea.mockupImageUrl },
+                        }));
+                      }
+                    }}
                     imageUrl={frontArea.mockupImageUrl || designerFrontImage}
                     imageOptions={product.images}
                   />
@@ -974,7 +1024,15 @@ export default function ProductSettingsRoute() {
                       <PrintAreaEditor
                         title="Arka yuz"
                         area={backArea}
-                        onChange={(nextArea) => setBackArea(nextArea)}
+                        onChange={(nextArea) => {
+                          setBackArea(nextArea);
+                          if (selectedColor && nextArea.mockupImageUrl !== backArea.mockupImageUrl) {
+                            setVariantMockups((prev) => ({
+                              ...prev,
+                              [selectedColor]: { ...prev[selectedColor], back: nextArea.mockupImageUrl },
+                            }));
+                          }
+                        }}
                         imageUrl={backArea.mockupImageUrl || designerBackImage}
                         imageOptions={product.images}
                       />
@@ -1238,96 +1296,6 @@ export default function ProductSettingsRoute() {
                 </BlockStack>
               </Box>
             </Card>
-
-            {uniqueColors.length > 0 && (
-              <Card>
-                <Box padding="400">
-                  <BlockStack gap="400">
-                    <BlockStack gap="100">
-                      <Text as="h2" variant="headingMd">Renk bazlı mockup görselleri</Text>
-                      <Text as="p" tone="subdued" variant="bodySm">
-                        Her renk için ön {surfaceMode === "front_back" ? "ve arka yüz mockup görselini" : "yüz mockup görselini"} seçin.
-                        Müşteri renk değiştirdiğinde designer otomatik güncellenir.
-                        {colorOptionName && <> (Renk seçeneği: <strong>{colorOptionName}</strong>)</>}
-                      </Text>
-                    </BlockStack>
-                    <input type="hidden" name="variantMockups" value={JSON.stringify(variantMockups)} />
-                    {uniqueColors.map((color) => (
-                      <Card key={color}>
-                        <Box padding="300">
-                          <BlockStack gap="200">
-                            <Text as="h3" variant="headingSm">{color}</Text>
-                            <InlineGrid columns={{ xs: 1, md: surfaceMode === "front_back" ? 2 : 1 }} gap="300">
-                              <BlockStack gap="150">
-                                <Text as="p" variant="bodySm" fontWeight="semibold">Ön yüz</Text>
-                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                  {product.images.map((url, i) => (
-                                    <button
-                                      key={i}
-                                      type="button"
-                                      onClick={() =>
-                                        setVariantMockups((prev) => ({
-                                          ...prev,
-                                          [color]: { ...prev[color], front: url },
-                                        }))
-                                      }
-                                      style={{
-                                        width: 52, height: 52, borderRadius: 8, overflow: "hidden",
-                                        border: variantMockups[color]?.front === url
-                                          ? "2.5px solid #0f766e" : "2px solid #e5e7eb",
-                                        cursor: "pointer", padding: 0, background: "none", flexShrink: 0,
-                                      }}
-                                    >
-                                      <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                    </button>
-                                  ))}
-                                </div>
-                                {variantMockups[color]?.front
-                                  ? <Text as="p" variant="bodySm" tone="success">✓ Seçildi</Text>
-                                  : <Text as="p" variant="bodySm" tone="subdued">Seçilmedi</Text>
-                                }
-                              </BlockStack>
-
-                              {surfaceMode === "front_back" && (
-                                <BlockStack gap="150">
-                                  <Text as="p" variant="bodySm" fontWeight="semibold">Arka yüz</Text>
-                                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                    {product.images.map((url, i) => (
-                                      <button
-                                        key={i}
-                                        type="button"
-                                        onClick={() =>
-                                          setVariantMockups((prev) => ({
-                                            ...prev,
-                                            [color]: { ...prev[color], back: url },
-                                          }))
-                                        }
-                                        style={{
-                                          width: 52, height: 52, borderRadius: 8, overflow: "hidden",
-                                          border: variantMockups[color]?.back === url
-                                            ? "2.5px solid #0f766e" : "2px solid #e5e7eb",
-                                          cursor: "pointer", padding: 0, background: "none", flexShrink: 0,
-                                        }}
-                                      >
-                                        <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                      </button>
-                                    ))}
-                                  </div>
-                                  {variantMockups[color]?.back
-                                    ? <Text as="p" variant="bodySm" tone="success">✓ Seçildi</Text>
-                                    : <Text as="p" variant="bodySm" tone="subdued">Seçilmedi</Text>
-                                  }
-                                </BlockStack>
-                              )}
-                            </InlineGrid>
-                          </BlockStack>
-                        </Box>
-                      </Card>
-                    ))}
-                  </BlockStack>
-                </Box>
-              </Card>
-            )}
 
             <InlineStack gap="200">
               <Button submit variant="primary">Kaydet</Button>
