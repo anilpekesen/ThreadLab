@@ -9,7 +9,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
 };
 
-const SHOPIFY_APP_URL = "https://apps.shopify.com/printlabapp";
+const SHOPIFY_APP_URL = "https://apps.shopify.com/printlab?locale=tr";
+const DEMO_CONTACT_URL = "mailto:info@printlabapp.com?subject=PrintLab%20Demo";
 
 const T = {
   tr: {
@@ -19,12 +20,12 @@ const T = {
       faq: "SSS", login: "Giriş yap", cta: "Shopify'a ekle",
     },
     hero: {
-      eyebrow: "SHOPIFY APP · TÜRKİYE",
+      eyebrow: "SHOPIFY ÜRÜN KİŞİSELLEŞTİRME UYGULAMASI",
       title: `Müşterileriniz <span class="title-accent">kendi tasarımını</span> yapsın, siz baskıya yollayın.`,
-      sub: "PrintLab, Shopify mağazanızın ürün sayfasına gömülen bir kişiselleştirme tasarımcısıdır. T-shirt, kupa, totebag — müşteri görsel ekler, yazı yazar, sepete atar. Siz yalnızca basın.",
+      sub: "PrintLab, Shopify mağazaları için ürün kişiselleştirme ve baskı tasarım aracıdır. T-shirt, sweatshirt, kupa, tote bag ve benzeri ürünlerde müşteri ürün sayfasında tasarım yapar, siz baskıya hazır siparişi alırsınız.",
       cta1: "14 gün ücretsiz başla", cta2: "2 dakikalık demo izle",
       b1: "Kurulum 5 dakika", b2: "Kredi kartı gerekmiyor", b3: "Türkçe destek",
-      trustLabel: "Shopify mağazaları için baskı yönetimi",
+      trustLabel: "Shopify mağazaları için kişiselleştirme ve baskı yönetimi",
     },
     how: {
       eyebrow: "NASIL ÇALIŞIR",
@@ -40,7 +41,7 @@ const T = {
     features: {
       eyebrow: "ÖZELLİKLER",
       title: "Bir tasarım aracından beklediğiniz<br/>her şey, üstüne biraz daha.",
-      sub: "Fabric.js üzerinde inşa edildi. Mobil için optimize. Shopify ile yerel entegrasyon.",
+      sub: "Shopify ürün tasarım aracı olarak çalışır. Mobil için optimize edildi, Shopify ile yerel entegre olur, baskı üretim akışını bozmadan ilerler.",
       f: [
         { t: "AI ile arka plan kaldırma", p: "Müşteri görsel yükler, \"Arka planı temizleyelim mi?\" diye sorarız. 1.5 sn'de çıktı." },
         { t: "24+ tasarım fontu", p: "Anton, Bebas, Pacifico, Permanent Marker, kendi yüklediğiniz TTF'ler. Canlı önizleme." },
@@ -77,7 +78,7 @@ const T = {
       eyebrow: "SIKÇA SORULAN",
       title: "Önce buralara bakın.",
       items: [
-        { q: "PrintLab Shopify'da nasıl çalışıyor?", a: "PrintLab, Shopify App Proxy üzerinden mağazanızın <code>/apps/tshirt-designer</code> yoluna gömülür. Müşteri ürün sayfasından doğrudan tasarımcıya erişir, sepete eklediğinde varyant otomatik oluşturulur." },
+        { q: "PrintLab Shopify'da nasıl çalışıyor?", a: "PrintLab, Shopify App Proxy üzerinden mağazanızın <code>/apps/tshirt-designer</code> yoluna gömülen bir Shopify kişiselleştirme uygulamasıdır. Müşteri ürün sayfasından doğrudan tasarımcıya erişir, tasarımını yapar ve sepete eklediğinde varyant otomatik oluşturulur." },
         { q: "Baskıya hazır dosyaları nasıl alıyorum?", a: "Her sipariş tamamlandığında 300 DPI çözünürlükte PDF ve önizleme JPG'si otomatik oluşur, CDN üzerinde saklanır. Admin panelinden tek tıkla indirebilirsiniz." },
         { q: "Kendi mockup'larımı yükleyebilir miyim?", a: "Growth ve üzeri planlarında evet. Mockup PNG'sini yükler, baskı alanını sürükle-bırakla çizer, güvenli alan ve ölçü etiketini ayarlarsınız." },
         { q: "Türkçe dışında dil desteği var mı?", a: "Şu anda Türkçe ve İngilizce. Admin paneli her iki dili destekler; müşteri tasarımcısı da Türkçe/İngilizce." },
@@ -106,12 +107,12 @@ const T = {
       faq: "FAQ", login: "Sign in", cta: "Add to Shopify",
     },
     hero: {
-      eyebrow: "SHOPIFY APP",
+      eyebrow: "SHOPIFY PRODUCT PERSONALIZATION APP",
       title: `Let your customers <span class="title-accent">create their own design</span> — you send it to print.`,
-      sub: "PrintLab is a customization designer embedded directly on your Shopify product pages. T-shirts, mugs, tote bags — customers add images, write text, add to cart. You just print.",
+      sub: "PrintLab is a Shopify product personalization and print designer app embedded directly on your product pages. For t-shirts, sweatshirts, mugs, tote bags, and more, customers personalize the product and you receive a print-ready order.",
       cta1: "Start free for 14 days", cta2: "Watch 2-min demo",
       b1: "5-minute setup", b2: "No credit card required", b3: "English support",
-      trustLabel: "Print order management for Shopify stores",
+      trustLabel: "Product personalization and print workflow for Shopify stores",
     },
     how: {
       eyebrow: "HOW IT WORKS",
@@ -127,7 +128,7 @@ const T = {
     features: {
       eyebrow: "FEATURES",
       title: "Everything you'd expect from a design tool,<br/>and then some.",
-      sub: "Built on Fabric.js. Optimized for mobile. Native Shopify integration.",
+      sub: "Built as a Shopify product customizer with mobile-first UX, native Shopify integration, and structured output for print production teams.",
       f: [
         { t: "AI background removal", p: "Customer uploads an image, we ask \"Remove the background?\" Result in 1.5 seconds." },
         { t: "24+ design fonts", p: "Anton, Bebas, Pacifico, Permanent Marker, your own uploaded TTF files. Live preview." },
@@ -164,7 +165,7 @@ const T = {
       eyebrow: "FAQ",
       title: "Check here first.",
       items: [
-        { q: "How does PrintLab work on Shopify?", a: "PrintLab embeds into your store via Shopify App Proxy at <code>/apps/tshirt-designer</code>. Customers access the designer directly from the product page; a variant is created automatically when they add to cart." },
+        { q: "How does PrintLab work on Shopify?", a: "PrintLab is a Shopify product personalization app embedded into your store via Shopify App Proxy at <code>/apps/tshirt-designer</code>. Customers access the designer directly from the product page, personalize the item, and a variant is created automatically when they add to cart." },
         { q: "How do I get print-ready files?", a: "A 300 DPI PDF and a preview JPG are generated automatically for every completed order and stored on CDN. Download with one click from your admin panel." },
         { q: "Can I upload my own mockups?", a: "Yes, on Growth and above. Upload your PNG mockup, draw the print area with drag & drop, and set the safe zone and dimension labels." },
         { q: "What languages does PrintLab support?", a: "Turkish and English are fully supported right now. The admin panel and the customer designer both have TR/EN language switching." },
@@ -193,6 +194,15 @@ type Lang = "tr" | "en";
 function buildHtml(lang: Lang): string {
   const t = T[lang];
   const other = lang === "tr" ? "en" : "tr";
+  const pageTitle = lang === "tr"
+    ? "PrintLab | Shopify Kişiselleştirme Tasarım Aracı"
+    : "PrintLab | Shopify Product Personalization Designer";
+  const metaDescription = lang === "tr"
+    ? "PrintLab, Shopify mağazaları için ürün kişiselleştirme ve baskı tasarım uygulamasıdır. T-shirt, sweatshirt, kupa ve tote bag ürünlerinde müşteri tasarlar, siz baskıya hazır siparişi alırsınız."
+    : "PrintLab is a Shopify product personalization and print designer app. Let customers customize t-shirts, sweatshirts, mugs, and tote bags directly on your product pages.";
+  const metaKeywords = lang === "tr"
+    ? "shopify kişiselleştirme uygulaması, shopify ürün tasarım aracı, shopify tişört tasarım uygulaması, shopify baskı tasarım aracı, print on demand shopify"
+    : "shopify product personalization app, shopify product customizer, shopify t-shirt designer app, shopify print designer, print on demand personalization";
 
   const featureIcons = [
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6 5 .4-3.8 3.3 1.2 4.9L12 13.8 7.7 16.2l1.2-4.9L5.1 8l5-.4z"/></svg>`,
@@ -251,17 +261,23 @@ function buildHtml(lang: Lang): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PrintLabApp — ${lang === "tr" ? "Shopify mağazanız için kişiselleştirme tasarımcısı" : "Customization designer for your Shopify store"}</title>
-  <meta name="description" content="${lang === "tr" ? "PrintLab, Shopify mağazanızın ürün sayfasına gömülen bir kişiselleştirme tasarımcısıdır. T-shirt, kupa, totebag — müşteri görsel ekler, siz baskıya yollarsınız." : "PrintLab is a customization designer embedded in your Shopify product pages. Customers design, you print. Print-ready files with every order."}" />
+  <title>${pageTitle}</title>
+  <meta name="description" content="${metaDescription}" />
+  <meta name="keywords" content="${metaKeywords}" />
   <link rel="canonical" href="https://printlabapp.com/" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://printlabapp.com/" />
-  <meta property="og:title" content="PrintLabApp" />
+  <meta property="og:title" content="${pageTitle}" />
+  <meta property="og:description" content="${metaDescription}" />
   <meta property="og:image" content="https://printlabapp.com/logo.png" />
-  <meta property="og:site_name" content="PrintLabApp" />
+  <meta property="og:site_name" content="PrintLab" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${pageTitle}" />
+  <meta name="twitter:description" content="${metaDescription}" />
+  <meta name="twitter:image" content="https://printlabapp.com/logo.png" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"PrintLabApp","applicationCategory":"BusinessApplication","operatingSystem":"Shopify","url":"https://printlabapp.com","offers":{"@type":"AggregateOffer","lowPrice":"9.99","highPrice":"99.99","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"PrintLabApp","url":"https://printlabapp.com","logo":"https://printlabapp.com/logo.png"}}
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"PrintLab","applicationCategory":"BusinessApplication","operatingSystem":"Shopify","url":"https://printlabapp.com","description":"${metaDescription}","sameAs":["${SHOPIFY_APP_URL}"],"offers":{"@type":"AggregateOffer","lowPrice":"9.99","highPrice":"99.99","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"PrintLab","url":"https://printlabapp.com","logo":"https://printlabapp.com/logo.png"}}
   </script>
   <link rel="stylesheet" href="/landing-tokens.css" />
   <link rel="stylesheet" href="/landing.css" />
@@ -277,8 +293,8 @@ function buildHtml(lang: Lang): string {
 <!-- ===== Nav ===== -->
 <header class="nav">
   <div class="nav-inner">
-    <a class="nav-logo" href="/" aria-label="PrintLabApp">
-      <img src="/logo.png" alt="PrintLabApp" height="36" />
+    <a class="nav-logo" href="/" aria-label="PrintLab">
+      <img src="/logo.png" alt="PrintLab" height="36" />
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="#ozellikler">${t.nav.features}</a>
@@ -563,7 +579,7 @@ function buildHtml(lang: Lang): string {
     <p>${t.cta.sub}</p>
     <div class="cta-actions">
       <a class="btn btn-primary btn-lg" href="${SHOPIFY_APP_URL}">${t.cta.btn1} ${arrowIcon}</a>
-      <a class="btn btn-ghost-light btn-lg" href="/app">${t.cta.btn2}</a>
+      <a class="btn btn-ghost-light btn-lg" href="${DEMO_CONTACT_URL}">${t.cta.btn2}</a>
     </div>
   </div>
 </section>
@@ -572,7 +588,7 @@ function buildHtml(lang: Lang): string {
 <footer class="footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <img src="/logo.png" alt="PrintLabApp" height="36" />
+      <img src="/logo.png" alt="PrintLab" height="36" />
       <p>${t.footer.tagline}</p>
     </div>
     <div class="footer-cols">
@@ -581,13 +597,13 @@ function buildHtml(lang: Lang): string {
         <a href="#ozellikler">${t.footer.features}</a>
         <a href="#fiyatlandirma">${t.footer.pricing}</a>
         <a href="#nasil">${t.footer.demo}</a>
-        <a href="#">${t.footer.roadmap}</a>
+        <a href="#cta">${t.footer.roadmap}</a>
       </div>
       <div>
         <h5>${t.footer.company}</h5>
-        <a href="#">${t.footer.about}</a>
-        <a href="#">${t.footer.blog}</a>
-        <a href="#">${t.footer.contact}</a>
+        <a href="#nasil">${t.footer.about}</a>
+        <a href="#ozellikler">${t.footer.blog}</a>
+        <a href="${DEMO_CONTACT_URL}">${t.footer.contact}</a>
       </div>
       <div>
         <h5>${t.footer.legal}</h5>
