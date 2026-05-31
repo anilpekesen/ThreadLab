@@ -16,6 +16,7 @@ import {
   Banner,
 } from "@shopify/polaris";
 import { useState } from "react";
+import * as Sentry from "@sentry/remix";
 import { authenticate } from "~/lib/authenticate.server";
 import { getGlobalSettings, saveGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server";
@@ -93,7 +94,8 @@ async function loadSurchargeVariantOptions(
       }
     }
     return options;
-  } catch (_e) {
+  } catch (err) {
+    Sentry.captureException(err, { tags: { route: "settings", fn: "loadSurchargeVariantOptions" } });
     return [];
   }
 }
@@ -174,6 +176,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[settings] cart transform status error:", message);
+    Sentry.captureException(error, { tags: { route: "settings", fn: "cartTransformStatus" } });
     cartTransformStatus = `error: ${message}`;
   }
 

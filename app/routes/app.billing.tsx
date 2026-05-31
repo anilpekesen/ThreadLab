@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useActionData, Form, useNavigation } from "@remix-run/react";
+import * as Sentry from "@sentry/remix";
 import { useEffect } from "react";
 import { useTranslation } from "~/i18n";
 import { PageHelper } from "~/components/PageHelper";
@@ -60,6 +61,7 @@ async function checkShopifySubscription(
     }
   } catch (err) {
     console.error("[billing] checkShopifySubscription error:", err);
+    Sentry.captureException(err, { tags: { fn: "checkShopifySubscription" } });
   }
   return { hasActivePayment: false, subscriptionId: null, planName: null };
 }
@@ -294,6 +296,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Bilinmeyen hata";
       console.error("[billing] subscription create error:", message);
+      Sentry.captureException(err, { tags: { fn: "subscriptionCreate", plan: planKey } });
       if (shouldUseManagedPricingFallback(message)) {
         const managedPricingUrl = buildManagedPricingUrl(shop);
         return json({ redirectUrl: managedPricingUrl });
@@ -311,6 +314,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Bilinmeyen hata";
       console.error("[billing] subscription cancel error:", message);
+      Sentry.captureException(err, { tags: { fn: "subscriptionCancel" } });
       return json({ error: `Shopify aboneliği iptal edilemedi: ${message}` }, { status: 500 });
     }
     const sub = await getShopSubscription(shop);
