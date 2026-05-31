@@ -45,5 +45,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       removeBgAvailable,
     },
     printAreas: config.printAreas,
+    variantMockups: config.settings.variantMockups ?? {},
   });
 };

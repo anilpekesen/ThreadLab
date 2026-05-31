@@ -52,6 +52,7 @@ export interface ProductConfig {
   };
   volumeDiscounts: VolumeDiscountTier[];
   surchargeVariantId: string;
+  variantMockups?: Record<string, { front?: string; back?: string }>;
   updatedAt?: string;
 }
 
@@ -399,6 +400,7 @@ export function normalizeProductConfig(
     },
     volumeDiscounts: normalizeVolumeDiscounts((input as { volumeDiscounts?: unknown })?.volumeDiscounts ?? fallback.volumeDiscounts),
     surchargeVariantId: String((input as { surchargeVariantId?: unknown })?.surchargeVariantId || fallback.surchargeVariantId || ''),
+    variantMockups: (input as { variantMockups?: unknown })?.variantMockups as Record<string, { front?: string; back?: string }> | undefined ?? fallback.variantMockups,
     updatedAt: input?.updatedAt || fallback.updatedAt,
   };
 }

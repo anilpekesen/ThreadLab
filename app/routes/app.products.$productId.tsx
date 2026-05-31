@@ -783,6 +783,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     fallback,
   );
 
+  const variantMockupsRaw = String(form.get("variantMockups") || "{}");
+  let parsedVariantMockups: Record<string, { front?: string; back?: string }> = {};
+  try { parsedVariantMockups = JSON.parse(variantMockupsRaw); } catch { /* ignore bad JSON */ }
+  normalized.variantMockups = parsedVariantMockups;
+
   await saveProductConfig(shop, productId, normalized);
   await saveProductPrintAreas(shop, productId, printAreas);
   return redirect(`/app/products/${encodeURIComponent(productToken)}?saved=1`);
@@ -803,6 +808,21 @@ export default function ProductSettingsRoute() {
   const [volumeDiscounts, setVolumeDiscounts] = useState<VolumeDiscountState[]>(toVolumeDiscountState(config));
   const [frontArea, setFrontArea] = useState<AreaState>(toAreaState(printAreas, "front"));
   const [backArea, setBackArea] = useState<AreaState>(toAreaState(printAreas, "back"));
+  const [variantMockups, setVariantMockups] = useState<Record<string, { front?: string; back?: string }>>(
+    config.variantMockups ?? {}
+  );
+
+  const colorOptionNames = ["renk", "color", "colour"];
+  const colorOptionName = product.variants[0]?.selectedOptions.find(
+    (opt) => colorOptionNames.some((k) => opt.name.toLowerCase().includes(k))
+  )?.name ?? product.variants[0]?.selectedOptions[0]?.name ?? "";
+  const uniqueColors = colorOptionName
+    ? [...new Set(
+        product.variants
+          .map((v) => v.selectedOptions.find((o) => o.name === colorOptionName)?.value)
+          .filter((v): v is string => Boolean(v))
+      )]
+    : [];
 
   // Liquid mantığıyla aynı: option3'e göre ön/arka variant görselini seç
   const designerFrontImage = (() => {
@@ -1218,6 +1238,96 @@ export default function ProductSettingsRoute() {
                 </BlockStack>
               </Box>
             </Card>
+
+            {uniqueColors.length > 0 && (
+              <Card>
+                <Box padding="400">
+                  <BlockStack gap="400">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">Renk bazlı mockup görselleri</Text>
+                      <Text as="p" tone="subdued" variant="bodySm">
+                        Her renk için ön {surfaceMode === "front_back" ? "ve arka yüz mockup görselini" : "yüz mockup görselini"} seçin.
+                        Müşteri renk değiştirdiğinde designer otomatik güncellenir.
+                        {colorOptionName && <> (Renk seçeneği: <strong>{colorOptionName}</strong>)</>}
+                      </Text>
+                    </BlockStack>
+                    <input type="hidden" name="variantMockups" value={JSON.stringify(variantMockups)} />
+                    {uniqueColors.map((color) => (
+                      <Card key={color}>
+                        <Box padding="300">
+                          <BlockStack gap="200">
+                            <Text as="h3" variant="headingSm">{color}</Text>
+                            <InlineGrid columns={{ xs: 1, md: surfaceMode === "front_back" ? 2 : 1 }} gap="300">
+                              <BlockStack gap="150">
+                                <Text as="p" variant="bodySm" fontWeight="semibold">Ön yüz</Text>
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                  {product.images.map((url, i) => (
+                                    <button
+                                      key={i}
+                                      type="button"
+                                      onClick={() =>
+                                        setVariantMockups((prev) => ({
+                                          ...prev,
+                                          [color]: { ...prev[color], front: url },
+                                        }))
+                                      }
+                                      style={{
+                                        width: 52, height: 52, borderRadius: 8, overflow: "hidden",
+                                        border: variantMockups[color]?.front === url
+                                          ? "2.5px solid #0f766e" : "2px solid #e5e7eb",
+                                        cursor: "pointer", padding: 0, background: "none", flexShrink: 0,
+                                      }}
+                                    >
+                                      <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    </button>
+                                  ))}
+                                </div>
+                                {variantMockups[color]?.front
+                                  ? <Text as="p" variant="bodySm" tone="success">✓ Seçildi</Text>
+                                  : <Text as="p" variant="bodySm" tone="subdued">Seçilmedi</Text>
+                                }
+                              </BlockStack>
+
+                              {surfaceMode === "front_back" && (
+                                <BlockStack gap="150">
+                                  <Text as="p" variant="bodySm" fontWeight="semibold">Arka yüz</Text>
+                                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                    {product.images.map((url, i) => (
+                                      <button
+                                        key={i}
+                                        type="button"
+                                        onClick={() =>
+                                          setVariantMockups((prev) => ({
+                                            ...prev,
+                                            [color]: { ...prev[color], back: url },
+                                          }))
+                                        }
+                                        style={{
+                                          width: 52, height: 52, borderRadius: 8, overflow: "hidden",
+                                          border: variantMockups[color]?.back === url
+                                            ? "2.5px solid #0f766e" : "2px solid #e5e7eb",
+                                          cursor: "pointer", padding: 0, background: "none", flexShrink: 0,
+                                        }}
+                                      >
+                                        <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                      </button>
+                                    ))}
+                                  </div>
+                                  {variantMockups[color]?.back
+                                    ? <Text as="p" variant="bodySm" tone="success">✓ Seçildi</Text>
+                                    : <Text as="p" variant="bodySm" tone="subdued">Seçilmedi</Text>
+                                  }
+                                </BlockStack>
+                              )}
+                            </InlineGrid>
+                          </BlockStack>
+                        </Box>
+                      </Card>
+                    ))}
+                  </BlockStack>
+                </Box>
+              </Card>
+            )}
 
             <InlineStack gap="200">
               <Button submit variant="primary">Kaydet</Button>
