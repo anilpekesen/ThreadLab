@@ -1769,54 +1769,60 @@ export default function App() {
 
           {activeTab && (
             <>
-            {/* Backdrop — fixed so it covers the whole viewport including top bar */}
+            {/* Backdrop */}
             <div
-              className="fixed inset-0 z-40 bg-black/30"
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]"
               onClick={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
             />
-            <div className="fixed bottom-0 left-0 z-50 flex w-full flex-col rounded-t-[32px] bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.18)]" style={{ maxHeight: 'min(88vh, 700px)' }}>
+            {/* Panel: bottom-sheet on mobile, centered modal on desktop */}
+            <div className={cn(
+              "fixed z-50 flex flex-col bg-white",
+              "bottom-0 left-0 w-full rounded-t-3xl shadow-[0_-8px_32px_rgba(0,0,0,0.16)]",
+              "md:bottom-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[500px] md:rounded-2xl md:shadow-[0_8px_48px_rgba(0,0,0,0.18)]"
+            )} style={{ maxHeight: 'min(88vh, 680px)' }}>
 
-                {/* Drag handle — shrink-0, never scrolls */}
-                <div className="flex shrink-0 justify-center pt-3 pb-1">
+                {/* Drag handle — mobile only */}
+                <div className="flex shrink-0 justify-center pt-3 pb-1 md:hidden">
                   <div className="h-1 w-10 rounded-full bg-gray-200" />
                 </div>
 
-                {/* Fixed header — always visible, never scrolls */}
-                <div className="shrink-0 border-b border-gray-100 px-4 md:px-6">
+                {/* Header */}
+                <div className="shrink-0 border-b border-gray-100">
                   {activeTab === 'image' ? (
-                    <div className="flex items-center gap-2 py-2">
-                      <div className="flex flex-1 gap-1.5">
+                    <div className="flex items-center gap-3 px-4 py-2.5 md:px-5 md:py-3.5">
+                      <div className="flex flex-1 gap-1">
                         {(['upload', 'qr'] as const).map((id) => (
                           <button
                             key={id}
                             onClick={() => setImageActiveSource(id)}
-                            className={`rounded-full px-4 py-2 text-sm font-bold transition-colors ${
+                            className={cn(
+                              'rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors',
                               imageActiveSource === id
-                                ? 'bg-blue-600 text-white shadow-sm'
-                                : 'bg-gray-100 text-gray-500 active:bg-gray-200'
-                            }`}
+                                ? 'bg-gray-900 text-white'
+                                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                            )}
                           >
-                            {id === 'upload' ? '🖼 Yükle' : '📎 QR Kod'}
+                            {id === 'upload' ? 'Görsel Yükle' : 'QR Kod'}
                           </button>
                         ))}
                       </div>
                       <button
                         onClick={() => { setActiveTab(null); }}
-                        className="flex shrink-0 items-center gap-1 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"
+                        className="flex shrink-0 h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200"
                       >
-                        <X className="h-4 w-4" />Kapat
+                        <X className="h-4 w-4" />
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between py-3">
-                      <p className="text-base font-bold text-gray-800">
+                    <div className="flex items-center justify-between px-4 py-3 md:px-5 md:py-3.5">
+                      <p className="text-sm font-semibold text-gray-800">
                         {activeTab === 'text' ? (isEditingText ? 'Yazıyı Düzenle' : 'Yazı Ekle') : activeTab === 'layers' ? 'Katmanlar' : activeTab === 'templates' ? 'Şablonlar' : 'Kayıtlı Tasarımlar'}
                       </p>
                       <button
                         onClick={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
-                        className="flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200"
                       >
-                        <X className="h-4 w-4" />Kapat
+                        <X className="h-4 w-4" />
                       </button>
                     </div>
                   )}
