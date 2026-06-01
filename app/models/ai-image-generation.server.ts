@@ -10,6 +10,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getUploadsDir } from "~/lib/storage.server";
 import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
+import { logAiPrompt } from "~/models/ai-prompt-logs.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const IMAGE_MODEL = "google/nano-banana/text-to-image";
@@ -246,6 +247,9 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
     const rawUrl = await generateImage(apiKey, enhancedPrompt);
     const finalUrl = await persistRemoteImage(rawUrl, request.url, "ai-gen");
 
+    logAiPrompt({ shop, userPrompt, finalPrompt: enhancedPrompt, resultUrl: finalUrl, success: true })
+      .catch((e) => console.error("[ai-log]", e));
+
     // Müşteri kalan kotasını hesapla (response'a ekle)
     let customerRemaining: number | null = null;
     if (sessionId) {
@@ -262,6 +266,8 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
   } catch (err) {
     const message = err instanceof Error ? err.message : "Bilinmeyen hata";
     console.error("[ai-generate]", message);
+    logAiPrompt({ shop, userPrompt, finalPrompt: enhancedPrompt, success: false, errorMsg: message })
+      .catch((e) => console.error("[ai-log]", e));
     return json({ error: `Görsel oluşturulamadı: ${message}` }, { status: 500 });
   }
 }

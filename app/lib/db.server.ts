@@ -423,4 +423,20 @@ async function _runMigrationsLocked() {
           AND pc.deleted_at IS NULL
       )
   `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS ai_prompt_logs (
+      id            TEXT PRIMARY KEY,
+      shop          TEXT NOT NULL,
+      user_prompt   TEXT NOT NULL,
+      final_prompt  TEXT NOT NULL DEFAULT '',
+      result_url    TEXT NOT NULL DEFAULT '',
+      success       BOOLEAN NOT NULL DEFAULT TRUE,
+      error_msg     TEXT,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS ai_prompt_logs_shop_created
+      ON ai_prompt_logs (shop, created_at DESC)
+  `);
 }
