@@ -90,6 +90,21 @@ export async function getAiGenStats(shop: string) {
 
 // Tüketmeden kota bilgisi döndür (GET endpoint için)
 export async function getAiQuotaInfo(shop: string, sessionId: string) {
+  // Dev mağazası için serbest
+  if (isDevShop(shop)) {
+    return {
+      isTrial: false,
+      isActive: true,
+      planKey: "Business" as PlanKey,
+      shopQuota: 99999,
+      shopCount: 0,
+      shopRemaining: 99999,
+      customerCount: 0,
+      customerLimit: 99999,
+      customerRemaining: 99999,
+    };
+  }
+
   const sub = await getShopSubscription(shop);
   const planKey = (sub?.plan_key ?? "Starter") as PlanKey;
   const status = sub?.subscription_status ?? "none";
