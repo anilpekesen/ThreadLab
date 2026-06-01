@@ -795,6 +795,37 @@ async function uploadBlob(blob: Blob, side: string): Promise<string | null> {
   }
 }
 
+async function imageHasTransparentBg(blob: Blob): Promise<boolean> {
+  const url = URL.createObjectURL(blob);
+  try {
+    return await new Promise<boolean>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const W = Math.min(img.naturalWidth, 120);
+          const H = Math.min(img.naturalHeight, 120);
+          const canvas = document.createElement('canvas');
+          canvas.width = W;
+          canvas.height = H;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(false); return; }
+          ctx.drawImage(img, 0, 0, W, H);
+          const data = ctx.getImageData(0, 0, W, H).data;
+          let transparent = 0;
+          for (let i = 3; i < data.length; i += 4) {
+            if (data[i] < 32) transparent++;
+          }
+          resolve(transparent / (W * H) > 0.20);
+        } catch { resolve(false); }
+      };
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 async function dataUrlToServerUrl(dataUrl: string, side: string): Promise<string> {
   if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
   const blob = await fetch(dataUrl).then((r) => r.blob());
@@ -1269,6 +1300,18 @@ export default function App() {
         ? `/api/img-proxy?url=${encodeURIComponent(dataUrl)}`
         : dataUrl;
       const blob = await fetch(fetchUrl).then((r) => r.blob());
+
+      // Arka plan zaten kaldırılmışsa API'ye gönderme
+      if (await imageHasTransparentBg(blob)) {
+        const serverUrl = await uploadBlob(blob, 'user-upload');
+        if (serverUrl) return serverUrl;
+        return await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(blob);
+        });
+      }
+
       const form = new FormData();
       form.append('image_file', blob, 'design-image.png');
       form.append('productId', config?.productId || '');
