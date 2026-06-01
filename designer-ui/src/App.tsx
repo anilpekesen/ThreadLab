@@ -1539,7 +1539,7 @@ export default function App() {
       {toast && (
         <div
           className={cn(
-            'fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2 flex items-center gap-3 rounded-xl px-5 py-3.5 shadow-xl text-white text-sm font-medium pointer-events-none',
+            'fixed top-4 left-1/2 z-[9999] -translate-x-1/2 flex items-center gap-3 rounded-xl px-5 py-3.5 shadow-xl text-white text-sm font-medium pointer-events-none',
             'animate-[fadeInUp_0.2s_ease-out]',
             toast.type === 'error'   && 'bg-red-500',
             toast.type === 'warning' && 'bg-amber-500',
@@ -1924,6 +1924,20 @@ export default function App() {
             </>
           )}
 
+          {selectedObj && (toolbarPos || mobileToolbar) && !activeTab && !showPreview && (
+            <div
+              className="fixed inset-0 z-[99]"
+              onClick={() => {
+                const cv = getActiveCanvasHandle()?.getCanvas();
+                cv?.discardActiveObject();
+                cv?.renderAll();
+                setSelectedObj(null);
+                setObjState(null);
+                setToolbarPos(null);
+                setShowTextColorPalette(false);
+              }}
+            />
+          )}
           {selectedObj && (toolbarPos || mobileToolbar) && !activeTab && !showPreview && (
             <div
               className="fixed z-[100] flex items-center justify-center"
