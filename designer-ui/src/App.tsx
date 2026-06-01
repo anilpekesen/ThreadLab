@@ -2366,7 +2366,7 @@ export default function App() {
             </>
           )}
 
-          {selectedObj && (toolbarPos || mobileToolbar) && !activeTab && !showPreview && (
+          {selectedObj && (toolbarPos || mobileToolbar) && !activeTab && !showPreview && !(mobileToolbar && isActiveSelection(selectedObj)) && (
             <div
               className="pointer-events-none fixed z-[100] flex items-center justify-center"
               style={mobileToolbar
