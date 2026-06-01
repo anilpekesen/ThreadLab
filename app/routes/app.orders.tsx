@@ -10,8 +10,17 @@ import {
   Grid,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
-import { getOrders, bulkUpdateStatus, fulfillShopifyOrders, syncOrdersFromAdmin } from "~/models/orders.server";
+import { getOrders, bulkUpdateStatus, fulfillShopifyOrders, syncOrdersFromAdmin, getOrderByShopifyId, setOrderDriveUpload } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
+import { getDriveConnection } from "~/models/shop-google-drive.server";
+import { getDesignByToken } from "~/models/designs.server";
+import {
+  getValidAccessToken,
+  ensureRootFolder,
+  ensureSubfolder,
+  uploadFromUrl,
+  uploadText,
+} from "~/lib/google-drive.server";
 
 const STATUSES = [
   { labelKey: "status.all" as const, value: "" },
@@ -60,12 +69,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const status = url.searchParams.get("status");
   const activeStatus = status ?? "";
 
-  const [allOrders, orders] = await Promise.all([
+  const [allOrders, orders, driveConn] = await Promise.all([
     getOrders(session.shop),
     activeStatus ? getOrders(session.shop, activeStatus) : getOrders(session.shop),
+    getDriveConnection(session.shop),
   ]);
   const stats = summarizeGroupedStats(groupOrders(allOrders));
-  return json({ orders, status: activeStatus, stats, shop: session.shop });
+  return json({ orders, status: activeStatus, stats, shop: session.shop, driveConnected: Boolean(driveConn) });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -81,6 +91,55 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const msg = err instanceof Error ? err.message : String(err);
       return json({ ok: false, error: msg });
     }
+  }
+
+  if (intent === "bulkDriveExport") {
+    const shopifyOrderIds = ((form.get("shopifyOrderIds") as string) || "").split(",").filter(Boolean);
+    let success = 0, failed = 0;
+    const errors: string[] = [];
+
+    let accessToken: string;
+    let rootId: string;
+    try {
+      accessToken = await getValidAccessToken(session.shop);
+      rootId = await ensureRootFolder(session.shop, accessToken);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return json({ ok: false, bulkDrive: true, success: 0, failed: shopifyOrderIds.length, errors: [msg] });
+    }
+
+    for (const shopifyOrderId of shopifyOrderIds) {
+      try {
+        const order = await getOrderByShopifyId(session.shop, shopifyOrderId);
+        if (!order) { failed++; errors.push(`#${shopifyOrderId}: bulunamadı`); continue; }
+
+        const design = order.designToken ? await getDesignByToken(order.shop || session.shop, order.designToken) : null;
+        const frontPrint = design?.frontPrintUrl || order.designFrontPrintUrl || order.productionFileUrl || "";
+        const backPrint = design?.backPrintUrl || order.designBackPrintUrl || "";
+        const frontPreview = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
+        const backPreview = design?.backPreviewUrl || order.designBackPreviewUrl || "";
+
+        const folderName = `Sipariş ${order.orderNumber || shopifyOrderId} — ${order.customerName || "Müşteri"}`;
+        const folderId = order.driveFolderId || await ensureSubfolder(accessToken, rootId, folderName);
+
+        const tasks: Promise<unknown>[] = [];
+        if (frontPrint) tasks.push(uploadFromUrl(accessToken, folderId, "front-print.png", frontPrint, "image/png"));
+        if (backPrint) tasks.push(uploadFromUrl(accessToken, folderId, "back-print.png", backPrint, "image/png"));
+        if (frontPreview) tasks.push(uploadFromUrl(accessToken, folderId, "front-mockup.png", frontPreview, "image/png"));
+        if (backPreview) tasks.push(uploadFromUrl(accessToken, folderId, "back-mockup.png", backPreview, "image/png"));
+        if (design?.designJson) tasks.push(uploadText(accessToken, folderId, "design.json", JSON.stringify(design.designJson, null, 2), "application/json"));
+
+        await Promise.all(tasks);
+        await setOrderDriveUpload(order.id, folderId);
+        success++;
+      } catch (err) {
+        failed++;
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`#${shopifyOrderId}: ${msg}`);
+      }
+    }
+
+    return json({ ok: failed === 0, bulkDrive: true, success, failed, errors });
   }
 
   const id = form.get("id") as string;
@@ -196,13 +255,16 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
 }
 
 export default function Orders() {
-  const { orders, status, stats, shop } = useLoaderData<typeof loader>();
+  const { orders, status, stats, shop, driveConnected } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher<{ ok: boolean; synced?: number; error?: string }>();
   const syncFetcher = useFetcher<{ ok: boolean; synced?: number; error?: string }>();
+  const driveFetcher = useFetcher<{ ok: boolean; bulkDrive?: boolean; success?: number; failed?: number; errors?: string[] }>();
   const { t, lang } = useTranslation();
   const isSyncing = syncFetcher.state !== "idle";
   const syncResult = syncFetcher.data as { ok: boolean; synced?: number; error?: string } | undefined;
+  const isDriveExporting = driveFetcher.state !== "idle";
+  const driveResult = driveFetcher.data?.bulkDrive ? driveFetcher.data : null;
 
   const groups = useMemo(() => groupOrders(orders), [orders]);
 
@@ -356,6 +418,14 @@ export default function Orders() {
               : `Hata: ${syncResult.error}`}
           </Banner>
         )}
+        {driveResult && (
+          <Banner tone={driveResult.ok ? "success" : (driveResult.success ? "warning" : "critical")}>
+            {driveResult.ok
+              ? `${driveResult.success} sipariş Drive'a başarıyla yüklendi.`
+              : `${driveResult.success ?? 0} başarılı, ${driveResult.failed ?? 0} başarısız.${driveResult.errors?.length ? " " + driveResult.errors.join(" | ") : ""}`
+            }
+          </Banner>
+        )}
         <PageHelper sections={[
           { titleKey: "helper.orders.1.title", bodyKey: "helper.orders.1.body" },
           { titleKey: "helper.orders.2.title", bodyKey: "helper.orders.2.body" },
@@ -421,6 +491,25 @@ export default function Orders() {
               itemCount={groups.length}
               selectedItemsCount={allResourcesSelected ? "All" : selectedResources.length}
               onSelectionChange={handleSelectionChange}
+              promotedBulkActions={driveConnected ? [
+                {
+                  content: isDriveExporting ? "Yükleniyor..." : "Drive'a Aktar",
+                  onAction: () => {
+                    const selected = allResourcesSelected
+                      ? groups
+                      : groups.filter((g) => selectedResources.includes(g.shopifyOrderId));
+                    const fd = new FormData();
+                    fd.set("intent", "bulkDriveExport");
+                    fd.set("shopifyOrderIds", selected.map((g) => g.shopifyOrderId).join(","));
+                    driveFetcher.submit(fd, { method: "post" });
+                  },
+                },
+              ] : [
+                {
+                  content: "Drive Bağla",
+                  onAction: () => navigate("/app/settings"),
+                },
+              ]}
               headings={[
                 { title: "" },
                 { title: t("common.order") },
