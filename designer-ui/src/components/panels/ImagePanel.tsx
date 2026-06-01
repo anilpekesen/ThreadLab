@@ -280,6 +280,7 @@ function AiPanel({ onAddImage, shop, uploadEndpoint }: { onAddImage: (url: strin
   const [result, setResult] = useState('');
   const [enhancedPrompt, setEnhancedPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
 
@@ -288,9 +289,13 @@ function AiPanel({ onAddImage, shop, uploadEndpoint }: { onAddImage: (url: strin
   async function handleGenerate() {
     if (!prompt.trim()) return;
     setLoading(true);
+    setLoadingStep('Görsel oluşturuluyor…');
     setError('');
     setResult('');
     setEnhancedPrompt('');
+
+    // Adım göstergesini 10 saniye sonra güncelle (bg removal aşamasına geçildiğini göster)
+    const stepTimer = setTimeout(() => setLoadingStep('Arka plan kaldırılıyor…'), 10_000);
     try {
       const res = await fetch(`${appUrl}/apps/tshirt-designer/generate-image?shop=${encodeURIComponent(shop ?? '')}`, {
         method: 'POST',
@@ -304,9 +309,11 @@ function AiPanel({ onAddImage, shop, uploadEndpoint }: { onAddImage: (url: strin
       setResult(data.url);
       setEnhancedPrompt(data.enhancedPrompt ?? '');
     } catch {
-      setError('Bağlantı hatası, tekrar deneyin');
+      setError('Bağlantı hatası — lütfen tekrar deneyin');
     } finally {
+      clearTimeout(stepTimer);
       setLoading(false);
+      setLoadingStep('');
     }
   }
 
@@ -378,7 +385,7 @@ function AiPanel({ onAddImage, shop, uploadEndpoint }: { onAddImage: (url: strin
         {loading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Oluşturuluyor… (~15-30 sn)
+            {loadingStep || 'Görsel oluşturuluyor…'}
           </>
         ) : (
           <>✦ Görsel Oluştur</>
