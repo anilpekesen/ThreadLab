@@ -1530,9 +1530,13 @@ export default function App() {
     syncLayers();
   }, [getActiveCanvasHandle, syncLayers]);
 
-  const applyUrlToImageObject = useCallback(async (selectedImage: fabric.Image, url: string): Promise<boolean> => {
-    const scaledWidth = selectedImage.getScaledWidth();
-    const scaledHeight = selectedImage.getScaledHeight();
+  const applyUrlToImageObject = useCallback(async (
+    selectedImage: fabric.Image,
+    url: string,
+    targetVisualSize?: { w: number; h: number },
+  ): Promise<boolean> => {
+    const scaledWidth = targetVisualSize?.w ?? selectedImage.getScaledWidth();
+    const scaledHeight = targetVisualSize?.h ?? selectedImage.getScaledHeight();
     const signX = (selectedImage.scaleX ?? 1) < 0 ? -1 : 1;
     const signY = (selectedImage.scaleY ?? 1) < 0 ? -1 : 1;
     const proxiedUrl = url.startsWith('https://assets.printlabapp.com/')
@@ -1597,12 +1601,19 @@ export default function App() {
     const state = cropModalState;
     if (!selectedImage || !state) return;
     try {
-      const croppedDataUrl = await cropImageDataUrl(state.src, rect);
+      const origW = selectedImage.getScaledWidth();
+      const origH = selectedImage.getScaledHeight();
+      const normalizedRect = normalizeCropRect(rect);
+      const croppedDataUrl = await cropImageDataUrl(state.src, normalizedRect);
       const blob = await fetch(croppedDataUrl).then((r) => r.blob());
       const serverUrl = await uploadBlob(blob, 'cropped-image');
       const finalUrl = serverUrl ?? croppedDataUrl;
       addUploadedImage({ id: generateId(), dataUrl: finalUrl, serverUrl: finalUrl, name: 'Kırpılmış', addedAt: Date.now() });
-      await applyUrlToImageObject(selectedImage, finalUrl);
+      // Target visual size = original size × crop fraction (prevents stretching)
+      await applyUrlToImageObject(selectedImage, finalUrl, {
+        w: origW * normalizedRect.width,
+        h: origH * normalizedRect.height,
+      });
       setCropModalState(null);
       cropTargetRef.current = null;
     } catch {
