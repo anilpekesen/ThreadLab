@@ -103,8 +103,8 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
       {/* Upload tab */}
       {activeSource === 'upload' && (
         <>
-          {/* Copyright consent — must be accepted before any upload action */}
-          <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border-2 p-4 transition-all ${consentAccepted ? 'border-green-300 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+          {/* Copyright consent — sticky so it's always visible while scrolling */}
+          <label className={`sticky top-0 z-10 flex cursor-pointer items-start gap-3 rounded-2xl border-2 p-4 transition-all shadow-sm ${consentAccepted ? 'border-green-300 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
             <input
               type="checkbox"
               checked={consentAccepted}

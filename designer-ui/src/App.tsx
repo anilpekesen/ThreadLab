@@ -1774,7 +1774,7 @@ export default function App() {
               className="absolute inset-0 z-40 bg-black/30"
               onClick={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
             />
-            <div className="absolute bottom-0 left-0 z-50 flex w-full flex-col rounded-t-[32px] bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.18)]" style={{ maxHeight: '62vh' }}>
+            <div className="absolute bottom-0 left-0 z-50 flex w-full flex-col rounded-t-[32px] bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.18)]" style={{ maxHeight: 'min(88vh, 700px)' }}>
 
                 {/* Drag handle — shrink-0, never scrolls */}
                 <div className="flex shrink-0 justify-center pt-3 pb-1">
