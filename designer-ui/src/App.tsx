@@ -870,7 +870,7 @@ export default function App() {
       const text = obj as fabric.Text;
       setObjState({
         type: 'text',
-        color: typeof text.fill === 'string' ? text.fill : '#111827',
+        color: typeof text.fill === 'string' ? text.fill : '#6b7280',
         fontSize: text.fontSize ?? 40,
         fontFamily: text.fontFamily ?? 'Inter',
         isBold: text.fontWeight === 'bold',
@@ -913,7 +913,7 @@ export default function App() {
       getActiveCanvasHandle()?.addText(value, {
         fontFamily: 'Inter',
         fontSize: 40,
-        fill: '#111827',
+        fill: '#6b7280',
         textAlign: 'center',
       });
     }

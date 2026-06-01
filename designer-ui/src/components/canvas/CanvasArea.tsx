@@ -748,7 +748,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
               {Math.round(printArea.realWidthMm / 10)} × {Math.round(printArea.realHeightMm / 10)} CM
             </div>
             <div
-              className="pointer-events-none absolute z-10 rounded-[14px] border-2 border-dashed border-sky-400 bg-sky-100/20"
+              className="pointer-events-none absolute z-10 rounded-[14px] border-2 border-dashed border-sky-400"
               style={{
                 left: areaRect.left,
                 top: areaRect.top,
