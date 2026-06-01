@@ -874,6 +874,7 @@ export default function App() {
   const [objState, setObjState] = useState<ObjectState | null>(null);
   const [zoom, setZoom] = useState(getAutoZoom);
   const [layers, setLayers] = useState<fabric.Object[]>([]);
+  const [isMobileLayout, setIsMobileLayout] = useState(() => isMobileViewport());
   const [interactionMode, setInteractionMode] = useState<InteractionMode>(() => isMobileViewport() ? 'navigation' : 'selection');
   const [sceneOffset, setSceneOffset] = useState({ x: 0, y: 0 });
   const [isDraggingScene, setIsDraggingScene] = useState(false);
@@ -1989,22 +1990,28 @@ export default function App() {
   const totalLabel = isTurkish ? 'Toplam' : 'Total';
 
   const reversedLayers = [...layers].reverse();
-  const mobileToolbar = zoom < 100 || (typeof window !== 'undefined' && window.innerWidth < 860);
+  const mobileToolbar = zoom < 100 || isMobileLayout;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const syncInteractionMode = () => {
-      setInteractionMode((current) => {
-        if (window.innerWidth < 860) {
-          return current === 'selection' ? current : 'navigation';
-        }
-        return current === 'navigation' ? 'selection' : current;
-      });
+    let lastMobile = isMobileViewport();
+
+    const syncViewportState = () => {
+      const nextMobile = isMobileViewport();
+      setIsMobileLayout(nextMobile);
+      if (nextMobile !== lastMobile && !nextMobile) {
+        setSceneOffset({ x: 0, y: 0 });
+        setIsDraggingScene(false);
+      }
+      if (nextMobile !== lastMobile && nextMobile) {
+        setInteractionMode((current) => current === 'selection' ? current : 'navigation');
+      }
+      lastMobile = nextMobile;
     };
 
-    syncInteractionMode();
-    window.addEventListener('resize', syncInteractionMode);
-    return () => window.removeEventListener('resize', syncInteractionMode);
+    syncViewportState();
+    window.addEventListener('resize', syncViewportState);
+    return () => window.removeEventListener('resize', syncViewportState);
   }, []);
 
   return (
@@ -2030,7 +2037,7 @@ export default function App() {
       )}
       <div className={cn(
         "flex h-full min-h-0 w-full max-w-none flex-1 flex-col bg-white shadow-none layout:flex-row layout:justify-center layout:overflow-hidden",
-        interactionMode === 'navigation' ? "overflow-y-auto" : "overflow-hidden",
+        isMobileLayout && interactionMode === 'navigation' ? "overflow-y-auto" : "overflow-hidden",
       )}>
         <div className="flex min-h-0 h-screen w-full flex-col layout:h-full layout:min-w-0 layout:w-auto layout:flex-[0_1_980px] xl:flex-[0_1_1040px]">
         <div className="hidden md:flex items-center justify-between border-b border-gray-100 bg-white px-3 py-2.5 md:px-4 md:py-3">
@@ -2113,7 +2120,7 @@ export default function App() {
                     side="front"
                     zoom={zoom}
                     printArea={personalization.printAreas.front}
-                    allowPageScroll={interactionMode === 'navigation'}
+                    allowPageScroll={isMobileLayout && interactionMode === 'navigation'}
                     onObjectSelected={handleObjectSelected}
                     onDesignChange={handleDesignChange}
                   />
@@ -2125,7 +2132,7 @@ export default function App() {
                       side="back"
                       zoom={zoom}
                       printArea={personalization.printAreas.back}
-                      allowPageScroll={interactionMode === 'navigation'}
+                      allowPageScroll={isMobileLayout && interactionMode === 'navigation'}
                       onObjectSelected={handleObjectSelected}
                       onDesignChange={handleDesignChange}
                     />
