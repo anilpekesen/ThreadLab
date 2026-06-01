@@ -10,7 +10,7 @@ import {
   Grid,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
-import { getOrders, bulkUpdateStatus, getDashboardStats, fulfillShopifyOrders, syncOrdersFromAdmin } from "~/models/orders.server";
+import { getOrders, bulkUpdateStatus, fulfillShopifyOrders, syncOrdersFromAdmin } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 
 const STATUSES = [
@@ -60,10 +60,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const status = url.searchParams.get("status");
   const activeStatus = status ?? "";
 
-  const [orders, stats] = await Promise.all([
-    getOrders(session.shop, activeStatus || undefined),
-    getDashboardStats(session.shop),
+  const [allOrders, orders] = await Promise.all([
+    getOrders(session.shop),
+    activeStatus ? getOrders(session.shop, activeStatus) : getOrders(session.shop),
   ]);
+  const stats = summarizeGroupedStats(groupOrders(allOrders));
   return json({ orders, status: activeStatus, stats, shop: session.shop });
 };
 
@@ -163,6 +164,19 @@ function groupOrders(orders: Order[]): OrderGroup[] {
     }
   }
   return Array.from(map.values());
+}
+
+function summarizeGroupedStats(groups: OrderGroup[]) {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  return {
+    total: groups.length,
+    today: groups.filter((group) => new Date(group.createdAt) >= todayStart).length,
+    pendingProduction: groups.filter((group) => group.status === "pending").length,
+    ready: groups.filter((group) => group.status === "ready" || group.status === "shipped").length,
+    missingSurcharge: groups.filter((group) => group.hasMissingSurcharge).length,
+  };
 }
 
 function StatCard({ label, value, tone }: { label: string; value: number; tone?: string }) {

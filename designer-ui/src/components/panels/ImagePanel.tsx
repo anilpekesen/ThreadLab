@@ -22,7 +22,12 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
   const [imageUrl, setImageUrl] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(() => {
-    try { return localStorage.getItem(CONSENT_KEY) === '1'; } catch { return false; }
+    try {
+      const stored = localStorage.getItem(CONSENT_KEY);
+      return stored == null ? true : stored === '1';
+    } catch {
+      return true;
+    }
   });
 
   useEffect(() => {
@@ -96,47 +101,60 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
 
           <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
 
-          {/* Upload alanı — desktop: drag zone, mobile: büyük buton */}
-          <div
-            onDrop={consentAccepted ? (e) => { e.preventDefault(); setIsDragOver(false); handleFiles(e.dataTransfer.files); } : undefined}
-            onDragOver={consentAccepted ? (e) => { e.preventDefault(); setIsDragOver(true); } : undefined}
-            onDragLeave={() => setIsDragOver(false)}
-            onClick={() => consentAccepted && fileRef.current?.click()}
-            className={`group relative cursor-pointer rounded-xl border-2 border-dashed transition-all ${
-              !consentAccepted
-                ? 'cursor-not-allowed border-gray-100 opacity-40'
-                : isDragOver
-                ? 'border-blue-400 bg-blue-50'
-                : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50/50'
-            }`}
-          >
-            {/* Desktop görünümü */}
-            <div className="hidden flex-col items-center gap-3 px-6 py-8 text-center md:flex">
-              <div className={`rounded-xl p-3 transition-colors ${isDragOver ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-500'}`}>
-                <Upload className="h-6 w-6" />
+            <div className="rounded-2xl border border-gray-200 bg-gradient-to-b from-white to-gray-50/80 p-3 md:p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Gorsel ekle</p>
+                </div>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-semibold text-gray-400">PNG · JPG · WebP</span>
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-700">Görsel sürükleyin veya <span className="text-blue-600">seçin</span></p>
-                <p className="mt-1 text-xs text-gray-400">PNG, JPG, WebP · Maks 10MB</p>
-              </div>
+
+            <div className="grid gap-2 md:hidden">
+              <button
+                type="button"
+                disabled={!consentAccepted}
+                onClick={() => fileRef.current?.click()}
+                className="flex min-h-[58px] items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 text-left text-white disabled:opacity-40"
+              >
+                <div className="rounded-xl bg-white/12 p-2.5">
+                  <ImagePlus className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Galeriden sec</p>
+                  <p className="text-xs text-white/70">Bir veya birden fazla gorsel</p>
+                </div>
+              </button>
             </div>
 
-            {/* Mobil görünümü */}
-            <div className="flex items-center gap-3 px-4 py-4 md:hidden">
-              <div className={`flex-none rounded-lg p-2.5 transition-colors ${consentAccepted ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
-                <ImagePlus className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-800">Galeriden seç</p>
-                <p className="text-xs text-gray-400">PNG, JPG, WebP</p>
+            <div
+              onDrop={consentAccepted ? (e) => { e.preventDefault(); setIsDragOver(false); handleFiles(e.dataTransfer.files); } : undefined}
+              onDragOver={consentAccepted ? (e) => { e.preventDefault(); setIsDragOver(true); } : undefined}
+              onDragLeave={() => setIsDragOver(false)}
+              onClick={() => consentAccepted && fileRef.current?.click()}
+              className={`group relative mt-1 hidden cursor-pointer rounded-2xl border-2 border-dashed transition-all md:block ${
+                !consentAccepted
+                  ? 'cursor-not-allowed border-gray-100 opacity-40'
+                  : isDragOver
+                  ? 'border-blue-400 bg-blue-50'
+                  : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50/50'
+              }`}
+            >
+              <div className="flex flex-col items-center gap-3 px-6 py-9 text-center">
+                <div className={`rounded-2xl p-3 transition-colors ${isDragOver ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-500'}`}>
+                  <Upload className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Gorseli surukle birak veya <span className="text-blue-600">bilgisayardan sec</span></p>
+                  <p className="mt-1 text-xs text-gray-400">Yuksek cozunurluk daha iyi baski sonucu verir</p>
+                </div>
               </div>
             </div>
           </div>
 
           {/* URL ile ekle */}
-          <div className="rounded-xl border border-gray-100 bg-gray-50/70">
+          <div className="rounded-2xl border border-gray-100 bg-gray-50/70">
             {/* Mobil: accordion */}
-            <button type="button" onClick={() => setShowUrlInput((v) => !v)} className="flex w-full items-center gap-2 px-3.5 py-2.5 md:hidden">
+            <button type="button" onClick={() => setShowUrlInput((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 md:hidden">
               <Link2 className="h-3.5 w-3.5 text-gray-400" />
               <span className="flex-1 text-left text-xs font-medium text-gray-500">URL ile ekle</span>
               <span className="text-[10px] text-gray-400">{showUrlInput ? '▲' : '▼'}</span>
@@ -144,7 +162,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
 
             {/* Desktop: her zaman görünür */}
             <div className={`${showUrlInput ? 'block' : 'hidden'} md:block`}>
-              <div className="flex gap-2 p-3">
+              <div className="flex flex-col gap-2 p-3 md:flex-row">
                 <input
                   type="url"
                   value={imageUrl}
@@ -157,7 +175,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                 <button
                   disabled={urlLoading || !consentAccepted || !imageUrl.trim()}
                   onClick={handleAddFromUrl}
-                  className="flex items-center gap-1.5 rounded-lg bg-gray-800 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-gray-700 disabled:opacity-30"
+                  className="flex items-center justify-center gap-1.5 rounded-xl bg-gray-800 px-3.5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-gray-700 disabled:opacity-30 md:px-4"
                 >
                   {urlLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Ekle'}
                 </button>
@@ -210,10 +228,13 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
           {/* Yüklenen görseller */}
           {uploadedImages.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Yüklenenler</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Yuklenenler</p>
+                <span className="text-[10px] text-gray-400">{uploadedImages.length} gorsel</span>
+              </div>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                 {uploadedImages.map((img) => (
-                  <div key={img.id} className="group relative overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
+                  <div key={img.id} className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
                     <div className="aspect-square">
                       <img src={img.dataUrl} alt={img.name} className="h-full w-full object-cover" />
                     </div>
@@ -232,7 +253,9 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                       </button>
                     </div>
                     {/* Touch actions — mobile */}
-                    <div className="flex gap-1 p-1.5 md:hidden">
+                    <div className="space-y-1.5 p-2 md:hidden">
+                      <p className="truncate px-1 text-[11px] font-medium text-gray-600">{img.name}</p>
+                      <div className="flex gap-1">
                       <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)} className="flex-1 rounded-lg bg-gray-900 py-1.5 text-[11px] font-semibold text-white">
                         Ekle
                       </button>
@@ -244,6 +267,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                       <button onClick={() => removeUploadedImage(img.id)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-100 text-red-500">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -258,7 +282,14 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
       )}
 
       {activeSource === 'ai' && (
-        <AiPanel onAddImage={onAddImage} shop={shop} uploadEndpoint={uploadEndpoint} sessionId={sessionId} />
+        <AiPanel
+          onAddImage={onAddImage}
+          onRemoveBg={onRemoveBg}
+          canRemoveBg={canRemoveBg}
+          shop={shop}
+          uploadEndpoint={uploadEndpoint}
+          sessionId={sessionId}
+        />
       )}
     </div>
   );
@@ -267,6 +298,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
 // ─── Yapay Zeka Görseli ──────────────────────────────────────────────────────
 
 const STYLE_PRESETS = [
+  { label: 'Amblem / Streetwear', hint: 'streetwear emblem graphic, dramatic mascot logo, apparel print design' },
   { label: 'Vektör illüstrasyon', hint: 'vector illustration style, flat design' },
   { label: 'Anime / Manga', hint: 'anime illustration style, manga art' },
   { label: 'Gerçekçi', hint: 'realistic, highly detailed, photorealistic' },
@@ -284,7 +316,22 @@ interface QuotaInfo {
   customerLimit: number;
 }
 
-function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: (url: string) => void; shop?: string; uploadEndpoint?: string; sessionId?: string }) {
+function AiPanel({
+  onAddImage,
+  onRemoveBg,
+  canRemoveBg,
+  shop,
+  uploadEndpoint,
+  sessionId,
+}: {
+  onAddImage: (url: string) => void;
+  onRemoveBg: (url: string) => Promise<string>;
+  canRemoveBg: boolean;
+  shop?: string;
+  uploadEndpoint?: string;
+  sessionId?: string;
+}) {
+  const { uploadedImages, addUploadedImage, removeUploadedImage } = useDesignerStore();
   const [prompt, setPrompt] = useState('');
   const [styleIdx, setStyleIdx] = useState(0);
   const [result, setResult] = useState('');
@@ -293,9 +340,18 @@ function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: 
   const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [removingBg, setRemovingBg] = useState(false);
   const [quota, setQuota] = useState<QuotaInfo | null>(null);
 
   const appUrl = uploadEndpoint?.split('/apps/')[0] ?? '';
+  const aiImages = uploadedImages.filter((img) => img.name.startsWith('AI Tasarim'));
+
+  const saveAiImage = useCallback((url: string, name: string) => {
+    const alreadyExists = uploadedImages.some((img) => (img.serverUrl ?? img.dataUrl) === url);
+    if (alreadyExists) return;
+    addUploadedImage({ id: generateId(), dataUrl: url, serverUrl: url, name, addedAt: Date.now() });
+  }, [addUploadedImage, uploadedImages]);
 
   // Panel açılınca kota bilgisini çek
   useEffect(() => {
@@ -321,14 +377,23 @@ function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: `${prompt.trim()}, ${STYLE_PRESETS[styleIdx].hint}`,
+          prompt: prompt.trim(),
+          styleHint: STYLE_PRESETS[styleIdx].hint,
           sessionId: sessionId ?? '',
         }),
       });
-      const data = await res.json() as { url?: string; enhancedPrompt?: string; error?: string; customerRemaining?: number; shopRemaining?: number };
+      const rawText = await res.text();
+      const data = (() => {
+        try {
+          return JSON.parse(rawText) as { url?: string; enhancedPrompt?: string; error?: string; customerRemaining?: number; shopRemaining?: number };
+        } catch {
+          return { error: rawText || 'Gorsel olusturulamadi' };
+        }
+      })();
       if (!res.ok || !data.url) { setError(data.error ?? 'Görsel oluşturulamadı'); return; }
       setResult(data.url);
       setEnhancedPrompt(data.enhancedPrompt ?? '');
+      saveAiImage(data.url, 'AI Tasarim');
       if (data.customerRemaining !== undefined || data.shopRemaining !== undefined) {
         setQuota((prev) => prev ? {
           ...prev,
@@ -349,9 +414,43 @@ function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: 
     if (!result) return;
     setAdding(true);
     try {
+      saveAiImage(result, 'AI Tasarim');
       onAddImage(result);
+      setError('');
+    } catch {
+      setError('AI gorseli tisorte eklenemedi. Lutfen tekrar deneyin.');
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function handleSaveToUploads() {
+    if (!result) return;
+    setSaving(true);
+    try {
+      saveAiImage(result, 'AI Tasarim');
+      setError('');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleMakeTransparent() {
+    if (!result || !canRemoveBg) return;
+    setRemovingBg(true);
+    setError('');
+    try {
+      const cleaned = await onRemoveBg(result);
+      if (!cleaned) {
+        setError('Arka plan kaldirilamadi. Lutfen tekrar deneyin.');
+        return;
+      }
+      setResult(cleaned);
+      saveAiImage(cleaned, 'AI Tasarim PNG');
+    } catch {
+      setError('Arka plan kaldirilamadi. Lutfen tekrar deneyin.');
+    } finally {
+      setRemovingBg(false);
     }
   }
 
@@ -379,9 +478,6 @@ function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: 
                 <>
                   <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${quota.customerRemaining > 0 ? 'bg-violet-100 text-violet-700' : 'bg-red-100 text-red-700'}`}>
                     Bu oturumda: {quota.customerRemaining}/{quota.customerLimit} kaldı
-                  </span>
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${quota.shopRemaining > 0 ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-700'}`}>
-                    Mağaza aylık: {quota.shopRemaining}/{quota.shopQuota} kaldı
                   </span>
                 </>
               )}
@@ -417,12 +513,12 @@ function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: 
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Örn: siyah arka planda aslan kafası, Türk bayrağı ile kartal, gülümseyen astronot, çiçekli kuru kafa…"
-          rows={3}
+          placeholder="Orn: Turk bayragi hilal ve yildizi kartalin gogus ve kanatlarina gecmis, tek parca guclu bir amblem, yuksek enerjili streetwear tisort tasarimi"
+          rows={4}
           className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-relaxed outline-none placeholder:text-gray-300 focus:border-violet-400"
         />
         <p className="text-[10px] text-gray-400">
-          Türkçe veya İngilizce yazabilirsin. Detaylı olduğu kadar iyi sonuç verir.
+          Turkce veya Ingilizce yazabilirsin. Nesneleri, kompozisyonu ve hissi birlikte tarif et: tek parca amblem, merkezde, streetwear, baski tasarimi gibi.
         </p>
       </div>
 
@@ -463,8 +559,24 @@ function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: 
 
           <div className="flex gap-2">
             <button
+              onClick={handleSaveToUploads}
+              disabled={saving || removingBg}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+            >
+              {saving ? 'Kaydediliyor...' : 'Yuklenenlere Ekle'}
+            </button>
+            {canRemoveBg && (
+              <button
+                onClick={handleMakeTransparent}
+                disabled={removingBg || adding || saving}
+                className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-40"
+              >
+                {removingBg ? 'PNG Hazirlaniyor...' : 'Seffaf PNG Yap'}
+              </button>
+            )}
+            <button
               onClick={handleAdd}
-              disabled={adding}
+              disabled={adding || removingBg}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
             >
               {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <>✦ Tişörte Ekle</>}
@@ -476,6 +588,71 @@ function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: 
             >
               Yeniden
             </button>
+          </div>
+        </div>
+      )}
+
+      {aiImages.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">AI Gecmisi</p>
+            <span className="text-[10px] text-gray-400">{aiImages.length} gorsel</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+            {aiImages.map((img) => (
+              <div key={img.id} className="group relative overflow-hidden rounded-2xl border border-violet-100 bg-violet-50/40">
+                <div className="aspect-square">
+                  <img src={img.dataUrl} alt={img.name} className="h-full w-full object-cover" />
+                </div>
+                <div className="absolute inset-0 hidden flex-col items-center justify-center gap-1.5 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 md:flex">
+                  <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)} className="w-[80%] rounded-lg bg-white py-1.5 text-xs font-bold text-gray-900 hover:bg-gray-50">
+                    Ekle
+                  </button>
+                  {canRemoveBg && (
+                    <button
+                      onClick={async () => {
+                        const cleaned = await onRemoveBg(img.serverUrl ?? img.dataUrl);
+                        if (cleaned) {
+                          saveAiImage(cleaned, 'AI Tasarim PNG');
+                          onAddImage(cleaned);
+                        }
+                      }}
+                      className="w-[80%] rounded-lg bg-white/20 py-1.5 text-xs font-semibold text-white hover:bg-white/30"
+                    >
+                      Seffaf PNG
+                    </button>
+                  )}
+                  <button onClick={() => removeUploadedImage(img.id)} className="rounded-lg bg-red-500/80 p-1.5 text-white hover:bg-red-500">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+                <div className="space-y-1.5 p-2 md:hidden">
+                  <p className="truncate px-1 text-[11px] font-medium text-gray-600">{img.name}</p>
+                  <div className="flex gap-1">
+                    <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)} className="flex-1 rounded-lg bg-gray-900 py-1.5 text-[11px] font-semibold text-white">
+                      Ekle
+                    </button>
+                    {canRemoveBg && (
+                      <button
+                        onClick={async () => {
+                          const cleaned = await onRemoveBg(img.serverUrl ?? img.dataUrl);
+                          if (cleaned) {
+                            saveAiImage(cleaned, 'AI Tasarim PNG');
+                            onAddImage(cleaned);
+                          }
+                        }}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-600"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button onClick={() => removeUploadedImage(img.id)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-100 text-red-500">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

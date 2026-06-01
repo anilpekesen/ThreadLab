@@ -133,31 +133,6 @@ interface DriveFile {
   webViewLink?: string;
 }
 
-async function findFolderByName(
-  accessToken: string,
-  name: string,
-  parentId?: string,
-): Promise<string | null> {
-  const q = [
-    `name = '${name.replace(/'/g, "\\'")}'`,
-    `mimeType = 'application/vnd.google-apps.folder'`,
-    `trashed = false`,
-    parentId ? `'${parentId}' in parents` : null,
-  ].filter(Boolean).join(" and ");
-
-  const params = new URLSearchParams({
-    q,
-    spaces: "drive",
-    fields: "files(id,name)",
-    pageSize: "1",
-  });
-  const data = await driveJson<{ files: DriveFile[] }>(
-    accessToken,
-    `/drive/v3/files?${params.toString()}`,
-  );
-  return data.files[0]?.id ?? null;
-}
-
 async function createFolder(
   accessToken: string,
   name: string,
@@ -180,11 +155,10 @@ export async function ensureRootFolder(shop: string, accessToken: string): Promi
   const conn = await getDriveConnection(shop);
   if (conn?.rootFolderId) return conn.rootFolderId;
 
-  // Try to find an existing PrintLab folder created by this app (drive.file
-  // scope only sees its own files, so this is reliable).
-  let id = await findFolderByName(accessToken, ROOT_FOLDER_NAME);
-  if (!id) id = await createFolder(accessToken, ROOT_FOLDER_NAME);
-
+  // `drive.file` is intentionally narrow and some Google accounts reject
+  // DriveFiles.List with 403 even though create/upload calls are allowed.
+  // Create the root folder directly and persist the returned id.
+  const id = await createFolder(accessToken, ROOT_FOLDER_NAME);
   await updateRootFolderId(shop, id);
   return id;
 }
@@ -194,8 +168,6 @@ export async function ensureSubfolder(
   parentId: string,
   name: string,
 ): Promise<string> {
-  const existing = await findFolderByName(accessToken, name, parentId);
-  if (existing) return existing;
   return createFolder(accessToken, name, parentId);
 }
 

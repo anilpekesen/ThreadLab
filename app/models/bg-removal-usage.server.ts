@@ -1,5 +1,6 @@
 import { query } from "~/lib/db.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
+import { getTestStoreLimits } from "~/models/test-store-limits.server";
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7); // "2026-05"
@@ -49,12 +50,13 @@ export interface QuotaCheckResult {
 }
 
 export async function checkAndIncrementBgRemoval(shop: string): Promise<QuotaCheckResult> {
+  const testLimits = getTestStoreLimits(shop);
   const [planKey, count] = await Promise.all([
-    getShopPlan(shop),
+    testLimits ? Promise.resolve("Business" as PlanKey) : getShopPlan(shop),
     getBgRemovalCount(shop),
   ]);
 
-  const quota = PLANS[planKey].removeBgMonthlyQuota;
+  const quota = testLimits?.bgMonthlyQuota ?? PLANS[planKey].removeBgMonthlyQuota;
   const allowed = quota < 0 || count < quota;
 
   if (!allowed) {

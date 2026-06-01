@@ -3,6 +3,8 @@ import { getGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings } from "~/models/shop-settings.server";
 import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
 import { checkAndIncrementCustomerBg } from "~/models/customer-bg-quota.server";
+import { getTestStoreLimits } from "~/models/test-store-limits.server";
+import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const WAVESPEED_MODEL = "wavespeed-ai/image-background-remover";
@@ -85,7 +87,8 @@ export async function handleWaveSpeedRemoveBackground(
   let quotaRemaining: number | null = null;
 
   if (sessionId) {
-    const limit = options?.customerBgLimit ?? shopSettings.customerBgLimit;
+    const testLimits = getTestStoreLimits(shop);
+    const limit = testLimits?.bgSessionLimit ?? options?.customerBgLimit ?? shopSettings.customerBgLimit;
     const customerQuota = await checkAndIncrementCustomerBg(shop, sessionId, limit);
 
     if (!customerQuota.allowed) {
@@ -97,6 +100,18 @@ export async function handleWaveSpeedRemoveBackground(
           code: "customer_quota_exceeded",
           count: customerQuota.count,
           limit: customerQuota.limit,
+        },
+        { status: 429 },
+      );
+    }
+    const ipQuota = await checkAndIncrementIpQuota(shop, "bg_remove", request, limit);
+    if (!ipQuota.allowed) {
+      const errTr = "Bu ag uzerinden arka plan kaldirma sinirina ulasildi. Lutfen daha sonra tekrar deneyin.";
+      const errEn = "This network has reached the background removal limit. Please try again later.";
+      return json(
+        {
+          error: lang === "tr" ? errTr : errEn,
+          code: "ip_quota_exceeded",
         },
         { status: 429 },
       );

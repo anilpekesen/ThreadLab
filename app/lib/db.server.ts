@@ -235,6 +235,21 @@ async function _runMigrationsLocked() {
       ON customer_ai_quota (shop, updated_at)
   `);
   await query(`
+    CREATE TABLE IF NOT EXISTS customer_ip_quota (
+      shop        TEXT NOT NULL,
+      feature     TEXT NOT NULL,
+      ip_hash     TEXT NOT NULL,
+      day         TEXT NOT NULL,
+      count       INTEGER NOT NULL DEFAULT 0,
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (shop, feature, ip_hash, day)
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS customer_ip_quota_shop_feature_updated
+      ON customer_ip_quota (shop, feature, updated_at)
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS analytics_events (
       id            TEXT PRIMARY KEY,
       shop          TEXT NOT NULL,
@@ -262,6 +277,10 @@ async function _runMigrationsLocked() {
   await query(`
     DELETE FROM analytics_events
     WHERE created_at < now() - interval '24 months'
+  `);
+  await query(`
+    DELETE FROM customer_ip_quota
+    WHERE updated_at < now() - interval '30 days'
   `);
   await query(`
     ALTER TABLE designs ADD COLUMN IF NOT EXISTS session_id TEXT

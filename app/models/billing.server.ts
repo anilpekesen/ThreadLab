@@ -44,7 +44,7 @@ export async function getAnalytics(shop: string) {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const monthStart = new Date(currentMonth + "-01");
 
-  const [bgMonth, bgTotal, designsAll, designsMonth, sub, customerBgStats] = await Promise.all([
+  const [bgMonth, bgTotal, designsAll, designsMonth, sub, customerBgStats, aiMonth] = await Promise.all([
     query<{ count: string }>(
       "SELECT COALESCE(SUM(count), 0) AS count FROM bg_removal_usage WHERE shop = $1 AND month = $2",
       [shop, currentMonth],
@@ -57,17 +57,26 @@ export async function getAnalytics(shop: string) {
     query<{ count: string }>("SELECT COUNT(*) AS count FROM designs WHERE shop = $1 AND created_at >= $2", [shop, monthStart]),
     getShopSubscription(shop),
     getCustomerBgStats(shop),
+    query<{ count: string }>(
+      "SELECT COALESCE(SUM(count), 0) AS count FROM ai_generation_usage WHERE shop = $1 AND month = $2",
+      [shop, currentMonth],
+    ).catch(() => ({ rows: [{ count: "0" }] })),
   ]);
 
   const planKey: PlanKey = (sub?.plan_key ?? "Pro") as PlanKey;
   const quota = PLANS[planKey].removeBgMonthlyQuota;
   const bgUsed = Number(bgMonth.rows[0].count);
+  const aiQuota = PLANS[planKey].aiImageMonthlyQuota ?? 0;
+  const aiUsed = Number(aiMonth.rows[0].count);
 
   return {
     bgThisMonth: bgUsed,
     bgAllTime: Number(bgTotal.rows[0].count),
     bgQuota: quota,
     bgPercent: quota <= 0 ? 0 : Math.round((bgUsed / quota) * 100),
+    aiThisMonth: aiUsed,
+    aiQuota,
+    aiPercent: aiQuota <= 0 ? 0 : Math.round((aiUsed / aiQuota) * 100),
     designsTotal: Number(designsAll.rows[0].count),
     designsThisMonth: Number(designsMonth.rows[0].count),
     planKey,

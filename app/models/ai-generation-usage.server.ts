@@ -1,8 +1,14 @@
 import { query } from "~/lib/db.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
+import { getShopSettings } from "~/models/shop-settings.server";
+import { getTestStoreLimits } from "~/models/test-store-limits.server";
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
+}
+
+function normalizeShopKey(shop: string) {
+  return shop.trim().toLowerCase().replace(/\.myshopify\.com$/, "");
 }
 
 async function getShopSubscription(shop: string) {
@@ -30,23 +36,40 @@ export interface AiQuotaResult {
   reason?: "trial" | "no_subscription" | "quota_exceeded";
 }
 
-// Test/dev mağazaları tüm kısıtlamalardan muaf
-function isDevShop(shop: string): boolean {
-  const devShops = (process.env.AI_DEV_SHOPS ?? "")
-    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  const shopLower = shop.toLowerCase();
-  // Her zaman muaf: test store'lar
-  if (devShops.includes(shopLower)) return true;
-  // SHOPIFY_BILLING_TEST_STORES ile paylaşılan liste
-  const billingTest = (process.env.SHOPIFY_BILLING_TEST_STORES ?? "")
-    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  return billingTest.includes(shopLower);
+// Sadece açıkça belirtilen mağazalar AI kotasından muaf tutulur.
+function isQuotaBypassShop(shop: string): boolean {
+  const bypassShops = (process.env.AI_DEV_SHOPS ?? process.env.AI_QUOTA_BYPASS_SHOPS ?? "")
+    .split(",").map(normalizeShopKey).filter(Boolean);
+  const shopKey = normalizeShopKey(shop);
+  if (shopKey === "whanotify-dev") return true;
+  return bypassShops.includes(shopKey);
 }
 
 export async function checkAndIncrementAiGeneration(shop: string): Promise<AiQuotaResult> {
-  // Dev/test mağazaları için tüm kontrolleri atla
-  if (isDevShop(shop)) {
+  const testLimits = getTestStoreLimits(shop);
+
+  if (!testLimits && isQuotaBypassShop(shop)) {
     return { allowed: true, count: 0, quota: 99999, planKey: "Business" };
+  }
+
+  if (testLimits) {
+    const quota = testLimits.aiMonthlyQuota;
+    const count = await getAiGenCount(shop);
+
+    if (count >= quota) {
+      return { allowed: false, count, quota, planKey: "Business", reason: "quota_exceeded" };
+    }
+
+    const month = currentMonth();
+    await query(
+      `INSERT INTO ai_generation_usage (shop, month, count, updated_at)
+       VALUES ($1, $2, 1, now())
+       ON CONFLICT (shop, month)
+       DO UPDATE SET count = ai_generation_usage.count + 1, updated_at = now()`,
+      [shop, month],
+    );
+
+    return { allowed: true, count: count + 1, quota, planKey: "Business" };
   }
 
   const sub = await getShopSubscription(shop);
@@ -90,8 +113,41 @@ export async function getAiGenStats(shop: string) {
 
 // Tüketmeden kota bilgisi döndür (GET endpoint için)
 export async function getAiQuotaInfo(shop: string, sessionId: string) {
-  // Dev mağazası için serbest
-  if (isDevShop(shop)) {
+  const testLimits = getTestStoreLimits(shop);
+
+  if (testLimits) {
+    const [shopSettings, shopCount] = await Promise.all([
+      getShopSettings(shop).catch(() => null),
+      getAiGenCount(shop),
+    ]);
+    const customerLimit = shopSettings?.customerAiLimit ?? 3;
+    let customerCount = 0;
+    if (sessionId) {
+      const result = await query<{ count: number }>(
+        "SELECT count FROM customer_ai_quota WHERE shop = $1 AND session_id = $2",
+        [shop, sessionId],
+      );
+      customerCount = result.rows[0]?.count ?? 0;
+    }
+    const shopQuota = testLimits.aiMonthlyQuota;
+    const shopRemaining = Math.max(0, shopQuota - shopCount);
+    const customerRemaining = Math.max(0, customerLimit - customerCount);
+
+    return {
+      isTrial: false,
+      isActive: true,
+      planKey: "Business" as PlanKey,
+      shopQuota,
+      shopCount,
+      shopRemaining,
+      customerCount,
+      customerLimit,
+      customerRemaining,
+      shopSettings,
+    };
+  }
+
+  if (isQuotaBypassShop(shop)) {
     return {
       isTrial: false,
       isActive: true,
@@ -106,6 +162,7 @@ export async function getAiQuotaInfo(shop: string, sessionId: string) {
   }
 
   const sub = await getShopSubscription(shop);
+  const shopSettings = await getShopSettings(shop).catch(() => null);
   const planKey = (sub?.plan_key ?? "Starter") as PlanKey;
   const status = sub?.subscription_status ?? "none";
   const isTrial = status === "trial";
@@ -117,7 +174,7 @@ export async function getAiQuotaInfo(shop: string, sessionId: string) {
 
   // Müşteri kotası
   let customerCount = 0;
-  let customerLimit = 3;
+  let customerLimit = shopSettings?.customerAiLimit ?? 3;
   if (sessionId && isActive) {
     const result = await query<{ count: number }>(
       "SELECT count FROM customer_ai_quota WHERE shop = $1 AND session_id = $2",

@@ -9,7 +9,8 @@ import {
   Badge, Button, InlineStack, ProgressBar, Banner,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
-import { getDashboardStats, getProductionAnalytics } from "~/models/orders.server";
+import { getOrders, getProductionAnalytics } from "~/models/orders.server";
+import type { Order } from "~/models/orders.server";
 import { getAnalytics } from "~/models/billing.server";
 import { getDashboardAnalyticsDetail } from "~/models/analytics.server";
 import { PLANS } from "~/lib/plans";
@@ -23,12 +24,13 @@ export const headers = () => ({
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
-  const [stats, analytics, production] = await Promise.all([
-    getDashboardStats(session.shop),
+  const [orders, analytics, production] = await Promise.all([
+    getOrders(session.shop),
     getAnalytics(session.shop),
     getProductionAnalytics(session.shop),
   ]);
   const detail = await getDashboardAnalyticsDetail(session.shop);
+  const stats = summarizeGroupedStats(groupOrders(orders));
 
   return json({ stats, analytics, production, detail });
 };
@@ -168,6 +170,54 @@ function EmptyMetric({ lang }: { lang: string }) {
       {lang === "tr" ? "Henüz veri yok" : "No data yet"}
     </Text>
   );
+}
+
+interface OrderGroup {
+  shopifyOrderId: string;
+  createdAt: string;
+  status: string;
+}
+
+const STATUS_PRIORITY: Record<string, number> = {
+  pending: 0, preparing: 1, printed: 2, ready: 3, shipped: 4, cancelled: 5,
+};
+
+function groupOrders(orders: Order[]): OrderGroup[] {
+  const map = new Map<string, OrderGroup>();
+
+  for (const order of orders) {
+    const key = order.shopifyOrderId || order.id;
+    if (!map.has(key)) {
+      map.set(key, {
+        shopifyOrderId: key,
+        createdAt: order.createdAt,
+        status: order.productionStatus,
+      });
+      continue;
+    }
+
+    const group = map.get(key)!;
+    if ((STATUS_PRIORITY[order.productionStatus] ?? 99) < (STATUS_PRIORITY[group.status] ?? 99)) {
+      group.status = order.productionStatus;
+    }
+    if (new Date(order.createdAt).getTime() > new Date(group.createdAt).getTime()) {
+      group.createdAt = order.createdAt;
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+function summarizeGroupedStats(groups: OrderGroup[]) {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  return {
+    total: groups.length,
+    today: groups.filter((group) => new Date(group.createdAt) >= todayStart).length,
+    pendingProduction: groups.filter((group) => group.status === "pending").length,
+    ready: groups.filter((group) => group.status === "ready" || group.status === "shipped").length,
+  };
 }
 
 export default function Index() {

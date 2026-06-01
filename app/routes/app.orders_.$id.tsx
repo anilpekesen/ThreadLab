@@ -220,7 +220,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const accessToken = await getValidAccessToken(session.shop);
       const rootId = await ensureRootFolder(session.shop, accessToken);
       const folderName = `Sipariş ${order.orderNumber || order.shopifyOrderId} — ${order.customerName || "Müşteri"}`;
-      const folderId = await ensureSubfolder(accessToken, rootId, folderName);
+      const folderId = order.driveFolderId || await ensureSubfolder(accessToken, rootId, folderName);
 
       const orderSnapshot = {
         id: order.id,

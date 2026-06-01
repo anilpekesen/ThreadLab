@@ -6,29 +6,68 @@ import { checkAndIncrementCustomerAi } from "~/models/customer-ai-quota.server";
 import { uploadToR2 } from "~/lib/r2.server";
 import { query } from "~/lib/db.server";
 import { randomBytes } from "node:crypto";
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
+import { getUploadsDir } from "~/lib/storage.server";
+import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
-const FLUX_MODEL = "wavespeed-ai/flux-dev-ultra-fast";
-const BG_MODEL = "wavespeed-ai/image-background-remover";
-const POLL_MAX_MS = 60_000;
-const POLL_INTERVAL_MS = 1_500;
+const IMAGE_MODEL = "google/nano-banana/text-to-image";
+const POLL_MAX_MS = 42_000;
+const POLL_INTERVAL_MS = 1_200;
 
-export function buildPrintPrompt(userPrompt: string): string {
+function buildConceptHints(prompt: string): string[] {
+  const p = prompt.toLocaleLowerCase("tr-TR");
+  const hints = new Set<string>();
+
+  if (/(turk|türk|turkish flag|bayrak|hilal|yildiz|yıldız)/.test(p)) {
+    hints.add("Turkish flag crescent and star used as core emblem elements");
+  }
+  if (/(kartal|eagle)/.test(p)) {
+    hints.add("powerful eagle mascot with fierce forward energy");
+  }
+  if (/(ic ice|iç içe|birles|birleş|merged|entwined|fused)/.test(p)) {
+    hints.add("requested symbols fused into one single integrated emblem, not separate floating objects");
+  }
+  if (/(amblem|emblem|logo|crest|badge|arma)/.test(p)) {
+    hints.add("badge or crest composition with strong centered hierarchy");
+  }
+  if (/(heyecan|enerji|power|guclu|güçlü|dramatic|aggressive)/.test(p)) {
+    hints.add("high-adrenaline motion, victory mood, emotionally charged impact");
+  }
+  if (/(streetwear|sokak giyimi|urban)/.test(p)) {
+    hints.add("premium streetwear graphic treatment for apparel");
+  }
+
+  return [...hints];
+}
+
+export function buildPrintPrompt(userPrompt: string, styleHint?: string): string {
+  const conceptHints = buildConceptHints(userPrompt);
   return [
-    userPrompt.trim(),
-    "t-shirt graphic design",
-    "vector illustration style",
+    `Primary concept: ${userPrompt.trim()}`,
+    styleHint ? `style direction: ${styleHint}` : "",
+    ...conceptHints,
+    "create a print-ready t-shirt graphic, not a photo, not a mockup",
+    "single strong central composition",
+    "premium apparel artwork, streetwear emblem / poster graphic energy",
+    "clear focal subject with readable silhouette",
+    "integrate requested symbols into one coherent design",
+    "subject should fill most of the canvas",
+    "one dominant subject, one visual story, no clutter",
     "bold clean outlines",
-    "solid vibrant colors",
-    "pure white background",
     "high contrast",
-    "centered composition",
-    "isolated subject on white",
-    "suitable for DTF screen printing",
-    "professional graphic design quality",
+    "limited strong color palette",
     "sharp crisp edges",
-    "no gradients",
-  ].join(", ");
+    "vector-like illustration quality",
+    "isolated on pure white background",
+    "no scenery, no room, no frame, no border",
+    "no text unless explicitly requested",
+    "no collage, no multiple disconnected icons, no stock illustration look",
+    "no photorealistic animal photo, no waving flag scene, no background environment",
+    "suitable for DTF and screen print",
+    "professional apparel graphic design",
+  ].filter(Boolean).join(", ");
 }
 
 async function pollJob(apiKey: string, jobId: string): Promise<string[]> {
@@ -38,7 +77,7 @@ async function pollJob(apiKey: string, jobId: string): Promise<string[]> {
 
   while (status !== "completed" && status !== "failed" && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    const res = await fetch(`${WAVESPEED_BASE}/predictions/${jobId}`, {
+    const res = await fetch(`${WAVESPEED_BASE}/predictions/${jobId}/result`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (res.ok) {
@@ -54,29 +93,26 @@ async function pollJob(apiKey: string, jobId: string): Promise<string[]> {
   return outputs;
 }
 
-// Adım 1: Flux ile görsel üret → WaveSpeed CDN URL döner
-async function generateWithFlux(apiKey: string, prompt: string): Promise<string> {
-  const res = await fetch(`${WAVESPEED_BASE}/${FLUX_MODEL}`, {
+async function generateImage(apiKey: string, prompt: string): Promise<string> {
+  const res = await fetch(`${WAVESPEED_BASE}/${IMAGE_MODEL}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       prompt,
-      width: 1024,
-      height: 1024,
-      num_inference_steps: 8,
-      guidance_scale: 3.5,
-      num_outputs: 1,
-      seed: -1,
+      aspect_ratio: "1:1",
+      output_format: "png",
+      enable_sync_mode: false,
+      enable_base64_output: false,
     }),
   });
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Flux başlatılamadı (${res.status}): ${detail.slice(0, 200)}`);
+    throw new Error(`Model baslatilamadi (${res.status}): ${detail.slice(0, 200)}`);
   }
 
   const body = await res.json() as { code: number; data: { id: string; status: string; outputs: string[] } };
-  if (body.code !== 200) throw new Error(`Flux hata kodu: ${body.code}`);
+  if (body.code !== 200) throw new Error(`Model hata kodu: ${body.code}`);
 
   const job = body.data;
   if (job.status === "completed" && job.outputs?.length) return job.outputs[0];
@@ -84,33 +120,22 @@ async function generateWithFlux(apiKey: string, prompt: string): Promise<string>
   return outputs[0];
 }
 
-// Adım 2: Arka planı kaldır (sync mode) → şeffaf PNG URL döner
-async function removeBackground(apiKey: string, imageUrl: string): Promise<string> {
-  // Görseli indirip base64 yap (WaveSpeed sync mode için)
-  const imgRes = await fetch(imageUrl);
-  if (!imgRes.ok) throw new Error(`Görsel indirilemedi (${imgRes.status})`);
-  const bytes = await imgRes.arrayBuffer();
-  const mime = imgRes.headers.get("content-type") || "image/jpeg";
-  const b64 = `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`;
+async function persistRemoteImage(imageUrl: string, requestUrl: string, prefix: string): Promise<string> {
+  const imageRes = await fetch(imageUrl);
+  if (!imageRes.ok) throw new Error(`Gorsel indirilemedi (${imageRes.status})`);
+  const contentType = (imageRes.headers.get("content-type") || "image/png").split(";")[0].trim();
+  const ext = contentType === "image/jpeg" ? "jpg" : contentType === "image/webp" ? "webp" : "png";
+  const buffer = Buffer.from(await imageRes.arrayBuffer());
 
-  const res = await fetch(`${WAVESPEED_BASE}/${BG_MODEL}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ image: b64, enable_sync_mode: true }),
-  });
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`BG removal başlatılamadı (${res.status}): ${detail.slice(0, 200)}`);
+  try {
+    return await uploadToR2(buffer, ext, prefix);
+  } catch (r2Err) {
+    console.warn("[ai-generate] R2 upload failed, falling back to local storage:", r2Err);
+    const filename = `${prefix.replace(/[^a-z0-9/_-]/gi, "-")}-${randomBytes(8).toString("hex")}.${ext}`;
+    await writeFile(path.join(getUploadsDir(), path.basename(filename)), buffer);
+    const baseUrl = process.env.SHOPIFY_APP_URL || new URL(requestUrl).origin;
+    return `${baseUrl}/uploads/${path.basename(filename)}`;
   }
-
-  const body = await res.json() as { code: number; data: { id: string; status: string; outputs: string[] } };
-  if (body.code !== 200) throw new Error(`BG removal hata kodu: ${body.code}`);
-
-  const job = body.data;
-  if (job.status === "completed" && job.outputs?.length) return job.outputs[0];
-  const outputs = await pollJob(apiKey, job.id);
-  return outputs[0];
 }
 
 export async function handleAiImageGeneration(request: Request, shop: string): Promise<Response> {
@@ -120,10 +145,12 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
 
   let userPrompt = "";
   let sessionId = "";
+  let styleHint = "";
   try {
-    const body = await request.json() as { prompt?: string; sessionId?: string };
+    const body = await request.json() as { prompt?: string; sessionId?: string; styleHint?: string };
     userPrompt = String(body.prompt ?? "").trim();
     sessionId = String(body.sessionId ?? "").trim();
+    styleHint = String(body.styleHint ?? "").trim();
   } catch {
     return json({ error: "Geçersiz istek gövdesi" }, { status: 400 });
   }
@@ -158,6 +185,14 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
         code: "customer_quota_exceeded",
       }, { status: 429 });
     }
+
+    const ipQuota = await checkAndIncrementIpQuota(shop, "ai_generate", request, customerLimit);
+    if (!ipQuota.allowed) {
+      return json({
+        error: "Bu ag uzerinden yapay zeka kullanim sinirina ulasildi. Lutfen daha sonra tekrar deneyin.",
+        code: "ip_quota_exceeded",
+      }, { status: 429 });
+    }
   }
 
   const apiKey = (shopSettings.wavespeedApiKey || process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
@@ -166,33 +201,13 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
     return json({ error: "Yapay zeka servisi yapılandırılmamış." }, { status: 503 });
   }
 
-  const enhancedPrompt = buildPrintPrompt(userPrompt);
+  const enhancedPrompt = buildPrintPrompt(userPrompt, styleHint);
 
   try {
-    // Adım 1: Görsel üret
-    const rawUrl = await generateWithFlux(apiKey, enhancedPrompt);
-
-    // Adım 2: Arka planı kaldır → şeffaf PNG
-    let transparentUrl: string;
-    try {
-      transparentUrl = await removeBackground(apiKey, rawUrl);
-    } catch (bgErr) {
-      console.warn("[ai-generate] BG removal failed, using raw image:", bgErr);
-      transparentUrl = rawUrl; // BG kaldırma başarısız olursa ham görseli kullan
-    }
-
-    // Adım 3: R2'ye şeffaf PNG olarak yükle
-    let finalUrl: string;
-    try {
-      const pngRes = await fetch(transparentUrl);
-      if (!pngRes.ok) throw new Error(`PNG indirilemedi (${pngRes.status})`);
-      const pngBuffer = Buffer.from(await pngRes.arrayBuffer());
-      const filename = `ai-gen/ai-${randomBytes(8).toString("hex")}.png`;
-      finalUrl = await uploadToR2(pngBuffer, filename, "image/png");
-    } catch (r2Err) {
-      console.warn("[ai-generate] R2 upload failed, using WaveSpeed URL:", r2Err);
-      finalUrl = transparentUrl; // R2 başarısız → WaveSpeed CDN URL kullan (birkaç saatliğine erişilebilir)
-    }
+    // Timeout'u dusurmek icin otomatik arka plan kaldirma bu akistan cikartildi.
+    // Gerekirse kullanici sonradan normal remove-background akisini kullanabilir.
+    const rawUrl = await generateImage(apiKey, enhancedPrompt);
+    const finalUrl = await persistRemoteImage(rawUrl, request.url, "ai-gen");
 
     // Müşteri kalan kotasını hesapla (response'a ekle)
     let customerRemaining: number | null = null;
