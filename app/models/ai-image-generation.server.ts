@@ -13,6 +13,7 @@ import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const IMAGE_MODEL = "google/nano-banana/text-to-image";
+const PROMPT_OPTIMIZER_MODEL = "wavespeed-ai/prompt-optimizer";
 const POLL_MAX_MS = 42_000;
 const POLL_INTERVAL_MS = 1_200;
 
@@ -70,13 +71,13 @@ export function buildPrintPrompt(userPrompt: string, styleHint?: string): string
   ].filter(Boolean).join(", ");
 }
 
-async function pollJob(apiKey: string, jobId: string): Promise<string[]> {
-  const deadline = Date.now() + POLL_MAX_MS;
+async function pollJob(apiKey: string, jobId: string, maxMs = POLL_MAX_MS, intervalMs = POLL_INTERVAL_MS): Promise<string[]> {
+  const deadline = Date.now() + maxMs;
   let status = "pending";
   let outputs: string[] = [];
 
   while (status !== "completed" && status !== "failed" && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    await new Promise((r) => setTimeout(r, intervalMs));
     const res = await fetch(`${WAVESPEED_BASE}/predictions/${jobId}/result`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
@@ -91,6 +92,27 @@ async function pollJob(apiKey: string, jobId: string): Promise<string[]> {
     throw new Error("İş tamamlanamadı veya zaman aşımına uğradı");
   }
   return outputs;
+}
+
+async function optimizePrompt(apiKey: string, userPrompt: string): Promise<string> {
+  const res = await fetch(`${WAVESPEED_BASE}/${PROMPT_OPTIMIZER_MODEL}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt: userPrompt }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Prompt optimizer failed (${res.status}): ${detail.slice(0, 200)}`);
+  }
+
+  const body = await res.json() as { code: number; data: { id: string; status: string; outputs: string[] } };
+  if (body.code !== 200) throw new Error(`Optimizer error code: ${body.code}`);
+
+  const job = body.data;
+  if (job.status === "completed" && job.outputs?.length) return job.outputs[0];
+  const outputs = await pollJob(apiKey, job.id, 20_000, 800);
+  return outputs[0];
 }
 
 async function generateImage(apiKey: string, prompt: string): Promise<string> {
@@ -201,7 +223,22 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
     return json({ error: "Yapay zeka servisi yapılandırılmamış." }, { status: 503 });
   }
 
-  const enhancedPrompt = buildPrintPrompt(userPrompt, styleHint);
+  let enhancedPrompt: string;
+  try {
+    const optimized = await optimizePrompt(apiKey, userPrompt);
+    // Optimizer çıktısına baskı kritik kısıtlamalarını ekle
+    enhancedPrompt = [
+      optimized,
+      styleHint ? `style: ${styleHint}` : "",
+      "isolated on pure white background",
+      "no scenery, no background environment, no frame",
+      "suitable for DTF and screen printing",
+    ].filter(Boolean).join(", ");
+    console.log(`[ai-generate] optimized prompt: ${optimized.slice(0, 120)}...`);
+  } catch (optErr) {
+    console.warn("[ai-generate] prompt optimizer failed, using manual build:", optErr instanceof Error ? optErr.message : optErr);
+    enhancedPrompt = buildPrintPrompt(userPrompt, styleHint);
+  }
 
   try {
     // Timeout'u dusurmek icin otomatik arka plan kaldirma bu akistan cikartildi.
