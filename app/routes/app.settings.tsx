@@ -416,11 +416,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const newVariantId = String(form.get("surchargeVariantId") || "").trim();
   const newBgLimit = parseInt(String(form.get("customerBgLimit") || ""), 10);
   const newTermsUrl = String(form.get("termsUrl") || "").trim();
-  await saveShopSettings(session.shop, {
-    surchargeVariantId: newVariantId,
-    ...(newBgLimit > 0 ? { customerBgLimit: newBgLimit } : {}),
-    termsUrl: newTermsUrl,
-  });
+  try {
+    await saveShopSettings(session.shop, {
+      surchargeVariantId: newVariantId,
+      ...(newBgLimit > 0 ? { customerBgLimit: newBgLimit } : {}),
+      termsUrl: newTermsUrl,
+    });
+  } catch (err) {
+    console.error("[settings] saveShopSettings error:", err);
+    return json({ error: "Ayarlar kaydedilemedi, lütfen tekrar deneyin." }, { status: 500 });
+  }
   if (newVariantId) await writeSurchargeMetafield(admin, newVariantId).catch(() => {});
   return redirect("/app/settings?saved=1");
 };

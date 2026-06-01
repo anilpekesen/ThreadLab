@@ -567,6 +567,7 @@ export default function App() {
   const [shopTemplates, setShopTemplates] = useState<import('@/types').ShopTemplate[]>([]);
   const [selectedColor, setSelectedColor] = useState('');
   const [isCartLoading, setIsCartLoading] = useState(false);
+  const [showSizeErrorModal, setShowSizeErrorModal] = useState(false);
   const [noSizeQuantity, setNoSizeQuantity] = useState(1);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'info' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1037,7 +1038,7 @@ export default function App() {
         })
         .filter((item) => item.variantId);
       if (cartItems.length === 0) {
-        showToast('Lütfen en az bir beden için adet seçin', 'warning');
+        setShowSizeErrorModal(true);
         return;
       }
     }
@@ -2126,6 +2127,41 @@ export default function App() {
                   )}
                 </div>
                 </div>
+            </div>
+          )}
+
+          {showSizeErrorModal && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+              <div className="w-full max-w-xs rounded-2xl bg-white shadow-2xl p-6 flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-amber-100 text-xl">⚠️</span>
+                  <p className="font-bold text-gray-900 text-sm leading-snug">Beden seçilmedi</p>
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Lütfen en az bir beden için adet seçin.
+                </p>
+                {personalization.termsUrl && (
+                  <p className="text-[11px] text-gray-400 leading-relaxed border-t border-gray-100 pt-3">
+                    Sipariş vererek{' '}
+                    <a
+                      href={personalization.termsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline text-gray-500"
+                    >
+                      Kullanım Koşulları
+                    </a>
+                    'nı kabul etmiş sayılırsınız.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowSizeErrorModal(false)}
+                  className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors"
+                >
+                  Tamam
+                </button>
+              </div>
             </div>
           )}
 
