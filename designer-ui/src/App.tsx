@@ -1976,7 +1976,7 @@ export default function App() {
       )}
       <div className="flex h-full min-h-0 w-full max-w-none flex-1 flex-col overflow-hidden bg-white shadow-none layout:flex-row layout:justify-center">
         <div className="flex min-h-0 w-full flex-col layout:min-w-0 layout:w-auto layout:flex-[0_1_980px] xl:flex-[0_1_1040px]">
-        <div className="flex items-center justify-between border-b border-gray-100 bg-white px-3 py-2.5 md:px-4 md:py-3">
+        <div className="hidden md:flex items-center justify-between border-b border-gray-100 bg-white px-3 py-2.5 md:px-4 md:py-3">
           <div className="flex items-center gap-2">
             <button className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-medium transition-colors hover:bg-gray-50 md:px-3 md:text-sm">
               <Menu className="h-5 w-5 text-gray-600" />
