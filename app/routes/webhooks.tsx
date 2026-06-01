@@ -39,7 +39,7 @@ async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Pro
 
   const accessToken = await getValidAccessToken(shop);
   const rootId = await ensureRootFolder(shop, accessToken);
-  const folderName = `Sipariş ${order.orderNumber || shopifyOrderId} — ${order.customerName || "Müşteri"}`;
+  const folderName = (order.orderNumber || shopifyOrderId).replace(/^#/, "");
   const folderId = await ensureSubfolder(accessToken, rootId, folderName);
 
   const tasks: Promise<unknown>[] = [];

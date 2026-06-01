@@ -119,7 +119,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const frontPreview = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
         const backPreview = design?.backPreviewUrl || order.designBackPreviewUrl || "";
 
-        const folderName = `Sipariş ${order.orderNumber || shopifyOrderId} — ${order.customerName || "Müşteri"}`;
+        const folderName = (order.orderNumber || shopifyOrderId).replace(/^#/, "");
         const folderId = order.driveFolderId || await ensureSubfolder(accessToken, rootId, folderName);
 
         const tasks: Promise<unknown>[] = [];
