@@ -13,12 +13,14 @@ export interface ShopSettings {
   surchargeVariantId: string;
   customerBgLimit: number;
   wavespeedApiKey: string;
+  termsUrl: string;
 }
 
 const DEFAULTS: ShopSettings = {
   surchargeVariantId: "",
   customerBgLimit: 5,
   wavespeedApiKey: "",
+  termsUrl: "",
 };
 
 export async function getShopSettings(shop: string): Promise<ShopSettings> {
@@ -37,6 +39,7 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
         ? Number(globalFallback?.customerBgLimit)
         : DEFAULTS.customerBgLimit,
       wavespeedApiKey: DEFAULTS.wavespeedApiKey,
+      termsUrl: DEFAULTS.termsUrl,
     };
   }
 
@@ -47,6 +50,7 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
       ? Number(saved.customerBgLimit)
       : DEFAULTS.customerBgLimit,
     wavespeedApiKey: saved.wavespeedApiKey ?? DEFAULTS.wavespeedApiKey,
+    termsUrl: saved.termsUrl ?? DEFAULTS.termsUrl,
   };
 }
 

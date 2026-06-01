@@ -199,6 +199,7 @@ function defaultPersonalization(): PersonalizationConfig {
     surchargeVariantId: '',
     removeBgAvailable: false,
     variantMockups: {},
+    termsUrl: '',
   };
 }
 
@@ -346,6 +347,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
       volumeDiscounts?: VolumeDiscountTier[];
       surchargeVariantId?: string;
       removeBgAvailable?: boolean;
+      termsUrl?: string;
     };
     printAreas?: PrintAreaConfig[];
     product?: { surfaceMode?: SurfaceMode };
@@ -377,6 +379,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     surchargeVariantId: String(source?.settings?.surchargeVariantId || ''),
     removeBgAvailable: Boolean(source?.settings?.removeBgAvailable),
     variantMockups: source?.variantMockups ?? {},
+    termsUrl: String(source?.settings?.termsUrl || ''),
   };
 }
 
@@ -2310,6 +2313,20 @@ export default function App() {
               <ShoppingBag className="h-4 w-4" />
               {isCartLoading ? 'Yükleniyor...' : `Sepete Ekle${totalQuantity > 0 ? ` (${totalQuantity})` : ''}`}
             </button>
+            {personalization.termsUrl && (
+              <p className="text-center text-[10px] text-gray-400 leading-relaxed">
+                Sipariş vererek{' '}
+                <a
+                  href={personalization.termsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-gray-500 hover:text-gray-700"
+                >
+                  Kullanım Koşulları
+                </a>
+                'nı kabul etmiş sayılırsınız.
+              </p>
+            )}
           </div>
         </footer>
         </div>
@@ -2448,6 +2465,20 @@ export default function App() {
               <ShoppingBag className="h-3.5 w-3.5" />
               {isCartLoading ? 'Yükleniyor...' : `Sepete Ekle${totalQuantity > 0 ? ` (${totalQuantity})` : ''}`}
             </button>
+            {personalization.termsUrl && (
+              <p className="text-center text-[9px] text-gray-400 leading-relaxed">
+                Sipariş vererek{' '}
+                <a
+                  href={personalization.termsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-gray-500 hover:text-gray-700"
+                >
+                  Kullanım Koşulları
+                </a>
+                'nı kabul etmiş sayılırsınız.
+              </p>
+            )}
           </div>
 
           {/* TASARIM ALANI — below add-to-cart */}

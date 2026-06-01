@@ -415,9 +415,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const newVariantId = String(form.get("surchargeVariantId") || "").trim();
   const newBgLimit = parseInt(String(form.get("customerBgLimit") || ""), 10);
+  const newTermsUrl = String(form.get("termsUrl") || "").trim();
   await saveShopSettings(session.shop, {
     surchargeVariantId: newVariantId,
     ...(newBgLimit > 0 ? { customerBgLimit: newBgLimit } : {}),
+    termsUrl: newTermsUrl,
   });
   if (newVariantId) await writeSurchargeMetafield(admin, newVariantId).catch(() => {});
   return redirect("/app/settings?saved=1");
@@ -431,6 +433,7 @@ export default function SettingsRoute() {
 
   const [surchargeVariantId, setSurchargeVariantId] = useState(settings.surchargeVariantId || "");
   const [customerBgLimit, setCustomerBgLimit] = useState(String(settings.customerBgLimit ?? 5));
+  const [termsUrl, setTermsUrl] = useState(settings.termsUrl || "");
   const selectedVariantExists = surchargeVariantOptions.some((option) => option.value === surchargeVariantId);
   const variantSelectOptions = [
     { label: lang === "tr" ? "Ürün / varyant seçin" : "Select product / variant", value: "" },
@@ -520,6 +523,35 @@ export default function SettingsRoute() {
                       suffix="adet"
                     />
                   </div>
+                </BlockStack>
+              </Box>
+            </Card>
+
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">Kullanım Koşulları Bağlantısı</Text>
+                  <Text as="p" tone="subdued" variant="bodySm">
+                    Mağazanıza ait kullanım koşulları sayfasının URL'sini girin. Müşteriler tasarım aracında
+                    siparişi sepete eklemeden önce bu bağlantıyı görecek.
+                  </Text>
+                  <TextField
+                    label="Kullanım Koşulları URL"
+                    name="termsUrl"
+                    value={termsUrl}
+                    onChange={setTermsUrl}
+                    autoComplete="off"
+                    placeholder="https://magazaniz.myshopify.com/pages/kullanim-kosullari"
+                    helpText="Boş bırakılırsa tasarım aracında gösterilmez."
+                  />
+                  {termsUrl && (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Önizleme:{" "}
+                      <a href={termsUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb" }}>
+                        {termsUrl}
+                      </a>
+                    </Text>
+                  )}
                 </BlockStack>
               </Box>
             </Card>

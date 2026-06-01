@@ -70,6 +70,7 @@ export interface PersonalizationConfig {
   surchargeVariantId: string;
   removeBgAvailable: boolean;
   variantMockups?: Record<string, { front?: string; back?: string }>;
+  termsUrl?: string;
 }
 
 export interface UploadedImage {

@@ -31,6 +31,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const storefrontSettings = toStorefrontSettings(config.settings);
 
+  const termsUrl = shopSettings?.termsUrl || "";
+
   return json({
     product: {
       id: config.productId,
@@ -43,6 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ...storefrontSettings,
       surchargeVariantId,
       removeBgAvailable,
+      termsUrl,
     },
     printAreas: config.printAreas,
     variantMockups: config.settings.variantMockups ?? {},
