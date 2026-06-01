@@ -2820,7 +2820,7 @@ export default function App() {
               {isCartLoading ? 'Yükleniyor...' : `Sepete Ekle${totalQuantity > 0 ? ` (${totalQuantity})` : ''}`}
             </button>
             {personalization.termsUrl && (
-              <p className="text-center text-[10px] text-gray-400 leading-relaxed">
+              <p className="mt-2 text-center text-[10px] text-gray-400 leading-relaxed">
                 Sipariş vererek{' '}
                 <a
                   href={personalization.termsUrl}
