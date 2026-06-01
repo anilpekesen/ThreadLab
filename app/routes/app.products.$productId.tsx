@@ -48,12 +48,6 @@ type BandState = {
   surcharge: string;
 };
 
-type VolumeDiscountState = {
-  key: string;
-  minQuantity: string;
-  percentage: string;
-};
-
 type AreaState = {
   id: string;
   name: string;
@@ -107,26 +101,6 @@ function parseBandRows(form: FormData, side: "front" | "back") {
   return { bands };
 }
 
-function parseVolumeDiscountRows(form: FormData) {
-  const count = Number(form.get("volumeDiscountCount") || 0);
-  const tiers = [];
-
-  for (let index = 0; index < count; index += 1) {
-    const key = String(form.get(`volumeDiscountKey_${index}`) || "").trim();
-    const minQuantity = Math.floor(Number(form.get(`volumeDiscountMinQuantity_${index}`) || 0));
-    const percentage = Number(form.get(`volumeDiscountPercentage_${index}`) || 0);
-
-    if (!key || minQuantity <= 0 || percentage <= 0) continue;
-    tiers.push({
-      key,
-      minQuantity,
-      percentage: Math.min(100, Math.max(0, percentage)),
-    });
-  }
-
-  return tiers.sort((a, b) => a.minQuantity - b.minQuantity);
-}
-
 function parseAreaRows(form: FormData, surfaceMode: ProductConfig["surfaceMode"]): PrintAreaRecord[] {
   const sides: Array<"front" | "back"> = surfaceMode === "front_only" ? ["front"] : ["front", "back"];
   return sides.map((side) => {
@@ -174,14 +148,6 @@ function toBandState(config: ProductConfig, side: "front" | "back"): BandState[]
   }));
 }
 
-function toVolumeDiscountState(config: ProductConfig): VolumeDiscountState[] {
-  return (config.volumeDiscounts ?? []).map((tier) => ({
-    key: tier.key,
-    minQuantity: String(tier.minQuantity),
-    percentage: String(tier.percentage),
-  }));
-}
-
 function toAreaState(areas: PrintAreaRecord[], side: "front" | "back"): AreaState {
   const area = areas.find((item) => item.side === side);
   return {
@@ -213,17 +179,6 @@ function updateBandArray(
 ) {
   return bands.map((band, currentIndex) =>
     currentIndex === index ? { ...band, [field]: value } : band,
-  );
-}
-
-function updateVolumeDiscountArray(
-  tiers: VolumeDiscountState[],
-  index: number,
-  field: keyof VolumeDiscountState,
-  value: string,
-) {
-  return tiers.map((tier, currentIndex) =>
-    currentIndex === index ? { ...tier, [field]: value } : tier,
   );
 }
 
@@ -717,7 +672,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const config = await getProductConfig(session.shop, product);
   const printAreas = await getProductPrintAreas(session.shop, product.id, config.productType, config.surfaceMode, config);
 
-  return json({ product, config, printAreas });
+  return json({ product, config, printAreas, shop: session.shop });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -753,7 +708,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const frontBands = parseBandRows(form, "front");
   const backBands = parseBandRows(form, "back");
-  const volumeDiscounts = parseVolumeDiscountRows(form);
   const surfaceMode = String(form.get("surfaceMode") || "front_back") as ProductConfig["surfaceMode"];
   const printAreas = parseAreaRows(form, surfaceMode);
   const frontArea = printAreas.find((area) => area.side === "front");
@@ -776,7 +730,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         front: frontBands.bands,
         back: backBands.bands,
       },
-      volumeDiscounts,
+      volumeDiscounts: [],
       surchargeVariantId: String(form.get("surchargeVariantId") || "").trim(),
       updatedAt: new Date().toISOString(),
     },
@@ -794,7 +748,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function ProductSettingsRoute() {
-  const { product, config, printAreas } = useLoaderData<typeof loader>();
+  const { product, config, printAreas, shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const actionData = useActionData<typeof action>();
@@ -805,7 +759,6 @@ export default function ProductSettingsRoute() {
   const [surchargeVariantId, setSurchargeVariantId] = useState(config.surchargeVariantId || "");
   const [frontBands, setFrontBands] = useState<BandState[]>(toBandState(config, "front"));
   const [backBands, setBackBands] = useState<BandState[]>(toBandState(config, "back"));
-  const [volumeDiscounts, setVolumeDiscounts] = useState<VolumeDiscountState[]>(toVolumeDiscountState(config));
   const [frontArea, setFrontArea] = useState<AreaState>(toAreaState(printAreas, "front"));
   const [backArea, setBackArea] = useState<AreaState>(toAreaState(printAreas, "back"));
   const [variantMockups, setVariantMockups] = useState<Record<string, { front?: string; back?: string }>>(
@@ -825,6 +778,7 @@ export default function ProductSettingsRoute() {
     : [];
 
   const [selectedColor, setSelectedColor] = useState<string>(uniqueColors[0] ?? "");
+  const discountsAdminUrl = `https://admin.shopify.com/store/${shop.replace(".myshopify.com", "")}/discounts`;
 
   function handleColorChange(color: string) {
     setSelectedColor(color);
@@ -1231,64 +1185,13 @@ export default function ProductSettingsRoute() {
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">Toplu adet indirimi</Text>
                   <Text as="p" tone="subdued">
-                    Toplam adet bu esiklere ulastiginda baski ucretine indirim uygular. Ornek: 20 adet ve uzeri icin %3.
+                    Toplu adet indirimlerini artık Shopify indirimler ekranından yönetin. Uygulama içindeki indirim kuralı kaldırıldı.
                   </Text>
-                  <input type="hidden" name="volumeDiscountCount" value={String(volumeDiscounts.length)} />
                   <InlineStack gap="200">
-                    <Button
-                      onClick={() =>
-                        setVolumeDiscounts((current) =>
-                          current.concat({
-                            key: `volume-${Date.now()}-${current.length}`,
-                            minQuantity: "20",
-                            percentage: "3",
-                          }),
-                        )
-                      }
-                    >
-                      Indirim esigi ekle
+                    <Button url={discountsAdminUrl} target="_blank">
+                      Shopify indirimlerine git
                     </Button>
                   </InlineStack>
-                  {volumeDiscounts.map((tier, index) => (
-                    <Card key={tier.key}>
-                      <Box padding="300">
-                        <BlockStack gap="300">
-                          <input type="hidden" name={`volumeDiscountKey_${index}`} value={tier.key} />
-                          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
-                            <TextField
-                              label="Minimum adet"
-                              value={tier.minQuantity}
-                              onChange={(value) => setVolumeDiscounts((current) => updateVolumeDiscountArray(current, index, "minQuantity", value))}
-                              autoComplete="off"
-                              type="number"
-                              min={1}
-                              name={`volumeDiscountMinQuantity_${index}`}
-                            />
-                            <TextField
-                              label="Indirim (%)"
-                              value={tier.percentage}
-                              onChange={(value) => setVolumeDiscounts((current) => updateVolumeDiscountArray(current, index, "percentage", value))}
-                              autoComplete="off"
-                              type="number"
-                              min={0}
-                              max={100}
-                              name={`volumeDiscountPercentage_${index}`}
-                            />
-                          </InlineGrid>
-                          <InlineStack gap="200">
-                            <Button
-                              tone="critical"
-                              onClick={() =>
-                                setVolumeDiscounts((current) => current.filter((_, currentIndex) => currentIndex !== index))
-                              }
-                            >
-                              Sil
-                            </Button>
-                          </InlineStack>
-                        </BlockStack>
-                      </Box>
-                    </Card>
-                  ))}
                 </BlockStack>
               </Box>
             </Card>

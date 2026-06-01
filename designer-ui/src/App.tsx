@@ -373,10 +373,6 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     front: (source?.settings?.pricingBands?.front ?? base.pricingBands.front).map((band, index) => normalizeBand(band, index)),
     back: (source?.settings?.pricingBands?.back ?? base.pricingBands.back).map((band, index) => normalizeBand(band, index)),
   };
-  const volumeDiscounts = (source?.settings?.volumeDiscounts ?? base.volumeDiscounts)
-    .map((tier, index) => normalizeVolumeDiscount(tier, index))
-    .filter((tier) => tier.minQuantity > 0 && tier.percentage > 0)
-    .sort((a, b) => a.minQuantity - b.minQuantity);
   return {
     surfaceMode,
     printAreas: {
@@ -384,7 +380,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
       back: areaMap.get('back') ?? base.printAreas.back,
     },
     pricingBands,
-    volumeDiscounts,
+    volumeDiscounts: [],
     surchargeVariantId: String(source?.settings?.surchargeVariantId || ''),
     removeBgAvailable: Boolean(source?.settings?.removeBgAvailable),
     variantMockups: source?.variantMockups ?? {},
