@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ImagePlus, Link2, Loader2, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import QRCode from 'qrcode';
+import { ImagePlus, Link2, Loader2, QrCode, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
 import { compressImage, generateId } from '@/utils/compress';
 import type { UploadedImage } from '@/types';
@@ -250,8 +251,125 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
       )}
 
       {activeSource === 'qr' && (
-        <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-gray-100 px-6 py-12 text-center">
-          <p className="text-sm font-medium text-gray-400">QR Kod üreteci yakında geliyor</p>
+        <QrPanel onAddImage={onAddImage} />
+      )}
+    </div>
+  );
+}
+
+const QR_COLORS = [
+  { label: 'Siyah', fg: '#000000', bg: '#ffffff' },
+  { label: 'Lacivert', fg: '#1e3a5f', bg: '#ffffff' },
+  { label: 'Koyu Yeşil', fg: '#166534', bg: '#ffffff' },
+  { label: 'Bordo', fg: '#7f1d1d', bg: '#ffffff' },
+  { label: 'Beyaz', fg: '#ffffff', bg: '#000000' },
+];
+
+function QrPanel({ onAddImage }: { onAddImage: (url: string) => void }) {
+  const [text, setText] = useState('');
+  const [colorIdx, setColorIdx] = useState(0);
+  const [preview, setPreview] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    if (!text.trim()) { setPreview(''); return; }
+    const color = QR_COLORS[colorIdx];
+    QRCode.toDataURL(text.trim(), {
+      width: 400,
+      margin: 2,
+      color: { dark: color.fg, light: color.bg },
+    }).then(setPreview).catch(() => setPreview(''));
+  }, [text, colorIdx]);
+
+  async function handleAdd() {
+    if (!preview) return;
+    setAdding(true);
+    try {
+      // Upload to server for a permanent URL
+      const blob = await fetch(preview).then((r) => r.blob());
+      const form = new FormData();
+      form.append('image', blob, 'qrcode.png');
+      form.append('side', 'user-upload');
+      const res = await fetch('/apps/tshirt-designer/upload', { method: 'POST', body: form });
+      const data = res.ok ? (await res.json() as { url?: string }) : {};
+      onAddImage(data.url ?? preview);
+    } catch {
+      onAddImage(preview);
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Açıklama */}
+      <div className="flex items-start gap-3 rounded-xl bg-gray-50 p-3.5">
+        <QrCode className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
+        <div>
+          <p className="text-sm font-semibold text-gray-700">QR Kod Tasarıma Ekle</p>
+          <p className="mt-0.5 text-xs text-gray-400">URL, Instagram linki, telefon numarası veya herhangi bir metin girin. QR kodu tişörtün üzerine basılacak.</p>
+        </div>
+      </div>
+
+      {/* Metin girişi */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold text-gray-600">İçerik</label>
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="https://instagram.com/hesabim"
+          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-gray-300 focus:border-gray-400"
+        />
+        <p className="text-[10px] text-gray-400">URL, sosyal medya, telefon no, kısa metin…</p>
+      </div>
+
+      {/* Renk seçimi */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold text-gray-600">Renk</label>
+        <div className="flex gap-2 flex-wrap">
+          {QR_COLORS.map((c, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setColorIdx(i)}
+              title={c.label}
+              className={`flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition-all ${
+                colorIdx === i ? 'border-gray-400 shadow-sm ring-1 ring-gray-300' : 'border-gray-100 hover:border-gray-300'
+              }`}
+              style={{ background: c.bg, color: c.fg }}
+            >
+              <span className="inline-block h-3.5 w-3.5 rounded-sm border border-current/20" style={{ background: c.fg }} />
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Önizleme */}
+      {preview ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+          <p className="self-start text-xs font-semibold text-gray-500">Önizleme</p>
+          <img
+            src={preview}
+            alt="QR Önizleme"
+            className="h-40 w-40 rounded-lg"
+            style={{ imageRendering: 'pixelated' }}
+          />
+          <p className="max-w-[240px] truncate text-center text-[10px] text-gray-400">{text}</p>
+          <button
+            onClick={handleAdd}
+            disabled={adding}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-50"
+          >
+            {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+            {adding ? 'Ekleniyor…' : 'Tişörte Ekle'}
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-gray-100 py-10 text-center text-gray-300">
+          <QrCode className="h-10 w-10" />
+          <p className="text-xs">Yukarıya içerik girin</p>
         </div>
       )}
     </div>
