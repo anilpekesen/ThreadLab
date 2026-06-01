@@ -11,10 +11,12 @@ interface Props {
   onAddImage: (url: string) => void;
   onRemoveBg: (url: string) => Promise<string>;
   canRemoveBg: boolean;
-  activeSource: 'upload' | 'qr';
+  activeSource: 'upload' | 'qr' | 'ai';
+  shop?: string;
+  uploadEndpoint?: string;
 }
 
-export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource }: Props) {
+export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource, shop, uploadEndpoint }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -253,9 +255,178 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
       {activeSource === 'qr' && (
         <QrPanel onAddImage={onAddImage} />
       )}
+
+      {activeSource === 'ai' && (
+        <AiPanel onAddImage={onAddImage} shop={shop} uploadEndpoint={uploadEndpoint} />
+      )}
     </div>
   );
 }
+
+// ─── Yapay Zeka Görseli ──────────────────────────────────────────────────────
+
+const STYLE_PRESETS = [
+  { label: 'Vektör illüstrasyon', hint: 'vector illustration style, flat design' },
+  { label: 'Anime / Manga', hint: 'anime illustration style, manga art' },
+  { label: 'Gerçekçi', hint: 'realistic, highly detailed, photorealistic' },
+  { label: 'Vintage / Retro', hint: 'vintage retro poster art, distressed texture' },
+  { label: 'Minimalist', hint: 'minimalist design, simple shapes, clean' },
+  { label: 'Graffiti', hint: 'graffiti street art style, urban art' },
+];
+
+function AiPanel({ onAddImage, shop, uploadEndpoint }: { onAddImage: (url: string) => void; shop?: string; uploadEndpoint?: string }) {
+  const [prompt, setPrompt] = useState('');
+  const [styleIdx, setStyleIdx] = useState(0);
+  const [result, setResult] = useState('');
+  const [enhancedPrompt, setEnhancedPrompt] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  const appUrl = uploadEndpoint?.split('/apps/')[0] ?? '';
+
+  async function handleGenerate() {
+    if (!prompt.trim()) return;
+    setLoading(true);
+    setError('');
+    setResult('');
+    setEnhancedPrompt('');
+    try {
+      const res = await fetch(`${appUrl}/apps/tshirt-designer/generate-image?shop=${encodeURIComponent(shop ?? '')}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `${prompt.trim()}, ${STYLE_PRESETS[styleIdx].hint}`,
+        }),
+      });
+      const data = await res.json() as { url?: string; enhancedPrompt?: string; error?: string };
+      if (!res.ok || !data.url) { setError(data.error ?? 'Görsel oluşturulamadı'); return; }
+      setResult(data.url);
+      setEnhancedPrompt(data.enhancedPrompt ?? '');
+    } catch {
+      setError('Bağlantı hatası, tekrar deneyin');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAdd() {
+    if (!result) return;
+    setAdding(true);
+    try {
+      onAddImage(result);
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Başlık */}
+      <div className="flex items-start gap-3 rounded-xl bg-violet-50 p-3.5">
+        <span className="mt-0.5 text-lg leading-none">✦</span>
+        <div>
+          <p className="text-sm font-semibold text-violet-800">Yapay Zeka ile Görsel Üret</p>
+          <p className="mt-0.5 text-xs text-violet-600">
+            Fikrini yaz, baskıya hazır görsel oluşturulsun. Prompt'un baskı optimizasyonu için otomatik genişletilir.
+          </p>
+        </div>
+      </div>
+
+      {/* Stil seçimi */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold text-gray-600">Stil</label>
+        <div className="flex flex-wrap gap-1.5">
+          {STYLE_PRESETS.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setStyleIdx(i)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                styleIdx === i
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Prompt girişi */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold text-gray-600">Ne görmek istiyorsun?</label>
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="Örn: siyah arka planda aslan kafası, Türk bayrağı ile kartal, gülümseyen astronot, çiçekli kuru kafa…"
+          rows={3}
+          className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-relaxed outline-none placeholder:text-gray-300 focus:border-violet-400"
+        />
+        <p className="text-[10px] text-gray-400">
+          Türkçe veya İngilizce yazabilirsin. Detaylı olduğu kadar iyi sonuç verir.
+        </p>
+      </div>
+
+      {/* Oluştur butonu */}
+      <button
+        onClick={handleGenerate}
+        disabled={loading || !prompt.trim()}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Oluşturuluyor… (~15-30 sn)
+          </>
+        ) : (
+          <>✦ Görsel Oluştur</>
+        )}
+      </button>
+
+      {/* Hata */}
+      {error && (
+        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs text-red-600">{error}</div>
+      )}
+
+      {/* Sonuç */}
+      {result && (
+        <div className="flex flex-col gap-3 rounded-xl border border-violet-100 bg-violet-50/40 p-3">
+          <img src={result} alt="AI görseli" className="w-full rounded-lg object-contain" style={{ maxHeight: 300 }} />
+
+          {enhancedPrompt && (
+            <details className="group">
+              <summary className="cursor-pointer text-[10px] font-medium text-violet-500 hover:text-violet-700">
+                Kullanılan prompt'u gör ▾
+              </summary>
+              <p className="mt-1.5 rounded-lg bg-white p-2.5 text-[10px] leading-relaxed text-gray-500">{enhancedPrompt}</p>
+            </details>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleAdd}
+              disabled={adding}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+            >
+              {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <>✦ Tişörte Ekle</>}
+            </button>
+            <button
+              onClick={handleGenerate}
+              disabled={loading}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+            >
+              Yeniden
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── QR Kod ──────────────────────────────────────────────────────────────────
 
 const QR_COLORS = [
   { label: 'Siyah', fg: '#000000', bg: '#ffffff' },

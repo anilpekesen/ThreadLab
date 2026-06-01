@@ -545,7 +545,7 @@ export default function App() {
   const restoredCanvasRef = useRef<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<Tab>(null);
-  const [imageActiveSource, setImageActiveSource] = useState<'upload' | 'qr'>('upload');
+  const [imageActiveSource, setImageActiveSource] = useState<'upload' | 'qr' | 'ai'>('upload');
   const [selectedObj, setSelectedObj] = useState<fabric.Object | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
   const [zoom, setZoom] = useState(getAutoZoom);
@@ -1790,19 +1790,23 @@ export default function App() {
                 <div className="shrink-0 border-b border-gray-100">
                   {activeTab === 'image' ? (
                     <div className="flex items-center gap-3 px-4 py-2.5 md:px-5 md:py-3.5">
-                      <div className="flex flex-1 gap-1">
-                        {(['upload', 'qr'] as const).map((id) => (
+                      <div className="flex flex-1 gap-1 flex-wrap">
+                        {([
+                          { id: 'upload', label: 'Görsel Yükle' },
+                          { id: 'qr',     label: 'QR Kod' },
+                          { id: 'ai',     label: '✦ Yapay Zeka' },
+                        ] as const).map(({ id, label }) => (
                           <button
                             key={id}
                             onClick={() => setImageActiveSource(id)}
                             className={cn(
-                              'rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors',
+                              'rounded-lg px-3 py-2 text-xs font-semibold transition-colors whitespace-nowrap',
                               imageActiveSource === id
-                                ? 'bg-gray-900 text-white'
+                                ? id === 'ai' ? 'bg-violet-600 text-white' : 'bg-gray-900 text-white'
                                 : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
                             )}
                           >
-                            {id === 'upload' ? 'Görsel Yükle' : 'QR Kod'}
+                            {label}
                           </button>
                         ))}
                       </div>
@@ -1837,6 +1841,8 @@ export default function App() {
                         onRemoveBg={handleRemoveBg}
                         canRemoveBg={personalization.removeBgAvailable}
                         activeSource={imageActiveSource}
+                        shop={config?.shop}
+                        uploadEndpoint={config?.uploadEndpoint}
                       />
                     </Suspense>
                   )}
