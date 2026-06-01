@@ -69,3 +69,40 @@ export async function getAiGenStats(shop: string) {
   );
   return result.rows;
 }
+
+// Tüketmeden kota bilgisi döndür (GET endpoint için)
+export async function getAiQuotaInfo(shop: string, sessionId: string) {
+  const sub = await getShopSubscription(shop);
+  const planKey = (sub?.plan_key ?? "Starter") as PlanKey;
+  const status = sub?.subscription_status ?? "none";
+  const isTrial = status === "trial";
+  const isActive = status === "active";
+
+  const shopQuota = PLANS[planKey].aiImageMonthlyQuota ?? 0;
+  const shopCount = isActive ? await getAiGenCount(shop) : 0;
+  const shopRemaining = isActive ? Math.max(0, shopQuota - shopCount) : 0;
+
+  // Müşteri kotası
+  let customerCount = 0;
+  let customerLimit = 3;
+  if (sessionId && isActive) {
+    const result = await query<{ count: number }>(
+      "SELECT count FROM customer_ai_quota WHERE shop = $1 AND session_id = $2",
+      [shop, sessionId],
+    );
+    customerCount = result.rows[0]?.count ?? 0;
+  }
+  const customerRemaining = Math.max(0, customerLimit - customerCount);
+
+  return {
+    isTrial,
+    isActive,
+    planKey,
+    shopQuota,
+    shopCount,
+    shopRemaining,
+    customerCount,
+    customerLimit,
+    customerRemaining,
+  };
+}

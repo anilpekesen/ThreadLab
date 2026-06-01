@@ -4,6 +4,7 @@ import { getShopSettings } from "~/models/shop-settings.server";
 import { checkAndIncrementAiGeneration } from "~/models/ai-generation-usage.server";
 import { checkAndIncrementCustomerAi } from "~/models/customer-ai-quota.server";
 import { uploadToR2 } from "~/lib/r2.server";
+import { query } from "~/lib/db.server";
 import { randomBytes } from "node:crypto";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
@@ -193,7 +194,19 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
       finalUrl = transparentUrl; // R2 başarısız → WaveSpeed CDN URL kullan (birkaç saatliğine erişilebilir)
     }
 
-    return json({ url: finalUrl, enhancedPrompt });
+    // Müşteri kalan kotasını hesapla (response'a ekle)
+    let customerRemaining: number | null = null;
+    if (sessionId) {
+      const countRes = await query<{ count: number }>(
+        "SELECT count FROM customer_ai_quota WHERE shop = $1 AND session_id = $2",
+        [shop, sessionId],
+      ).catch(() => null);
+      const count = countRes?.rows[0]?.count ?? 0;
+      const limit = shopSettings.customerAiLimit ?? 3;
+      customerRemaining = Math.max(0, limit - count);
+    }
+
+    return json({ url: finalUrl, enhancedPrompt, shopRemaining: shopQuota.quota - shopQuota.count, customerRemaining });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Bilinmeyen hata";
     console.error("[ai-generate]", message);

@@ -412,6 +412,25 @@ export default function BillingPage() {
                 </>
               )}
 
+              {analytics.aiQuota > 0 && (
+                <>
+                  <Divider />
+                  <BlockStack gap="100">
+                    <InlineStack align="space-between">
+                      <Text as="p" variant="bodySm">✦ Yapay Zeka Görseli (bu ay)</Text>
+                      <Text as="p" variant="bodySm">
+                        {analytics.aiThisMonth} / {analytics.aiQuota}
+                      </Text>
+                    </InlineStack>
+                    <ProgressBar
+                      progress={Math.min(analytics.aiPercent, 100)}
+                      tone={analytics.aiPercent >= 90 ? "critical" : "primary"}
+                      size="small"
+                    />
+                  </BlockStack>
+                </>
+              )}
+
               {(isActive || isTrial) && (
                 <>
                   <Divider />
@@ -527,6 +546,7 @@ export default function BillingPage() {
                       { label: t("billing.ordersPerMonth"), values: PLAN_ORDER.map((k) => PLANS[k].maxMonthlyOrders === -1 ? t("billing.unlimited") : String(PLANS[k].maxMonthlyOrders)) },
                       { label: t("billing.backSurface"), values: PLAN_ORDER.map((k) => PLANS[k].allowBackSurface ? "✓" : "—") },
                       { label: t("billing.bgRemoval"), values: PLAN_ORDER.map((k) => String(PLANS[k].removeBgMonthlyQuota)) },
+                      { label: "✦ Yapay Zeka Görseli/ay", values: PLAN_ORDER.map((k) => String(PLANS[k].aiImageMonthlyQuota ?? 0)) },
                       { label: t("billing.templates"), values: PLAN_ORDER.map((k) => PLANS[k].maxShopTemplates === -1 ? t("billing.unlimited") : PLANS[k].maxShopTemplates === 0 ? "—" : String(PLANS[k].maxShopTemplates)) },
                       { label: t("billing.freeTrial"), values: PLAN_ORDER.map(() => t("billing.trialDays")) },
                     ].map(({ label, values }) => (

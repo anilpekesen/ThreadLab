@@ -275,6 +275,15 @@ const STYLE_PRESETS = [
   { label: 'Graffiti', hint: 'graffiti street art style, urban art' },
 ];
 
+interface QuotaInfo {
+  isTrial: boolean;
+  isActive: boolean;
+  shopRemaining: number;
+  shopQuota: number;
+  customerRemaining: number;
+  customerLimit: number;
+}
+
 function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: (url: string) => void; shop?: string; uploadEndpoint?: string; sessionId?: string }) {
   const [prompt, setPrompt] = useState('');
   const [styleIdx, setStyleIdx] = useState(0);
@@ -284,8 +293,18 @@ function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: 
   const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
+  const [quota, setQuota] = useState<QuotaInfo | null>(null);
 
   const appUrl = uploadEndpoint?.split('/apps/')[0] ?? '';
+
+  // Panel açılınca kota bilgisini çek
+  useEffect(() => {
+    if (!shop) return;
+    fetch(`${appUrl}/apps/tshirt-designer/generate-image?shop=${encodeURIComponent(shop)}&sessionId=${encodeURIComponent(sessionId ?? '')}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setQuota(data as QuotaInfo); })
+      .catch(() => {});
+  }, [appUrl, shop, sessionId]);
 
   async function handleGenerate() {
     if (!prompt.trim()) return;
@@ -306,10 +325,17 @@ function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: 
           sessionId: sessionId ?? '',
         }),
       });
-      const data = await res.json() as { url?: string; enhancedPrompt?: string; error?: string };
+      const data = await res.json() as { url?: string; enhancedPrompt?: string; error?: string; customerRemaining?: number; shopRemaining?: number };
       if (!res.ok || !data.url) { setError(data.error ?? 'Görsel oluşturulamadı'); return; }
       setResult(data.url);
       setEnhancedPrompt(data.enhancedPrompt ?? '');
+      if (data.customerRemaining !== undefined || data.shopRemaining !== undefined) {
+        setQuota((prev) => prev ? {
+          ...prev,
+          customerRemaining: data.customerRemaining ?? prev.customerRemaining,
+          shopRemaining: data.shopRemaining ?? prev.shopRemaining,
+        } : prev);
+      }
     } catch {
       setError('Bağlantı hatası — lütfen tekrar deneyin');
     } finally {
@@ -331,14 +357,36 @@ function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: 
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Başlık */}
+      {/* Başlık + Kota */}
       <div className="flex items-start gap-3 rounded-xl bg-violet-50 p-3.5">
         <span className="mt-0.5 text-lg leading-none">✦</span>
-        <div>
+        <div className="flex-1">
           <p className="text-sm font-semibold text-violet-800">Yapay Zeka ile Görsel Üret</p>
           <p className="mt-0.5 text-xs text-violet-600">
-            Fikrini yaz, baskıya hazır görsel oluşturulsun. Prompt'un baskı optimizasyonu için otomatik genişletilir.
+            Fikrini yaz, baskıya hazır görsel oluşturulsun.
           </p>
+          {quota && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {quota.isTrial ? (
+                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                  ⚠ Deneme sürecinde yapay zeka devre dışı
+                </span>
+              ) : !quota.isActive ? (
+                <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-semibold text-red-700">
+                  ✕ Aktif abonelik gerekli
+                </span>
+              ) : (
+                <>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${quota.customerRemaining > 0 ? 'bg-violet-100 text-violet-700' : 'bg-red-100 text-red-700'}`}>
+                    Bu oturumda: {quota.customerRemaining}/{quota.customerLimit} kaldı
+                  </span>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${quota.shopRemaining > 0 ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-700'}`}>
+                    Mağaza aylık: {quota.shopRemaining}/{quota.shopQuota} kaldı
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -381,7 +429,7 @@ function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: 
       {/* Oluştur butonu */}
       <button
         onClick={handleGenerate}
-        disabled={loading || !prompt.trim()}
+        disabled={loading || !prompt.trim() || (quota !== null && (!quota.isActive || quota.isTrial || quota.customerRemaining <= 0 || quota.shopRemaining <= 0))}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
       >
         {loading ? (
