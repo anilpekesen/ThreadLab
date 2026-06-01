@@ -1784,22 +1784,25 @@ export default function App() {
                 {/* Fixed header — always visible, never scrolls */}
                 <div className="shrink-0 border-b border-gray-100 px-4 md:px-6">
                   {activeTab === 'image' ? (
-                    <div className="flex items-center">
-                      <div className="flex flex-1 gap-5">
+                    <div className="flex items-center gap-2 py-2">
+                      <div className="flex flex-1 gap-1.5">
                         {(['upload', 'qr'] as const).map((id) => (
                           <button
                             key={id}
                             onClick={() => setImageActiveSource(id)}
-                            className={`relative pb-3 text-sm font-bold transition-colors ${imageActiveSource === id ? 'text-blue-600' : 'text-gray-400'}`}
+                            className={`rounded-full px-4 py-2 text-sm font-bold transition-colors ${
+                              imageActiveSource === id
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'bg-gray-100 text-gray-500 active:bg-gray-200'
+                            }`}
                           >
-                            {id === 'upload' ? 'Yükle' : 'QR Kod'}
-                            {imageActiveSource === id && <span className="absolute bottom-0 left-0 h-0.5 w-full bg-blue-600" />}
+                            {id === 'upload' ? '🖼 Yükle' : '📎 QR Kod'}
                           </button>
                         ))}
                       </div>
                       <button
                         onClick={() => { setActiveTab(null); }}
-                        className="mb-2 flex items-center gap-1.5 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"
+                        className="flex shrink-0 items-center gap-1 rounded-full bg-gray-100 py-2 pl-3 pr-4 text-sm font-bold text-gray-500 active:scale-95"
                       >
                         <X className="h-4 w-4" />Kapat
                       </button>
