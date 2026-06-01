@@ -3,13 +3,73 @@ import { json } from "@remix-run/node";
 import { randomBytes } from "crypto";
 import { verifyWebhookHmac } from "~/lib/shopify.server";
 import { processOrderBgRemoval } from "~/models/auto-bg-removal.server";
-import { getOrderByShopifyId, updateOrderStatus } from "~/models/orders.server";
+import { getOrderByShopifyId, updateOrderStatus, setOrderDriveUpload } from "~/models/orders.server";
 import { resetCustomerBgQuota } from "~/models/customer-bg-quota.server";
 import { resetCustomerAiQuota } from "~/models/customer-ai-quota.server";
-import { getSessionForDesignToken } from "~/models/designs.server";
+import { getSessionForDesignToken, getDesignByToken } from "~/models/designs.server";
 import { query } from "~/lib/db.server";
 import { upsertShopSubscription } from "~/models/billing.server";
 import { PLAN_NAMES } from "~/lib/plans";
+import { getDriveConnection } from "~/models/shop-google-drive.server";
+import {
+  getValidAccessToken,
+  ensureRootFolder,
+  ensureSubfolder,
+  uploadFromUrl,
+  uploadText,
+  getDriveFolderName,
+  renameDriveFolder,
+} from "~/lib/google-drive.server";
+
+async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Promise<void> {
+  const conn = await getDriveConnection(shop);
+  if (!conn) return;
+
+  const order = await getOrderByShopifyId(shop, shopifyOrderId);
+  if (!order) return;
+  if (order.driveFolderId) return; // already exported, skip
+
+  const design = order.designToken ? await getDesignByToken(order.shop || shop, order.designToken) : null;
+  const frontPrint = design?.frontPrintUrl || order.designFrontPrintUrl || order.productionFileUrl || "";
+  const backPrint = design?.backPrintUrl || order.designBackPrintUrl || "";
+  const frontPreview = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
+  const backPreview = design?.backPreviewUrl || order.designBackPreviewUrl || "";
+
+  if (!frontPrint && !backPrint && !frontPreview && !backPreview && !design?.designJson) return;
+
+  const accessToken = await getValidAccessToken(shop);
+  const rootId = await ensureRootFolder(shop, accessToken);
+  const folderName = `Sipariş ${order.orderNumber || shopifyOrderId} — ${order.customerName || "Müşteri"}`;
+  const folderId = await ensureSubfolder(accessToken, rootId, folderName);
+
+  const tasks: Promise<unknown>[] = [];
+  if (frontPrint) tasks.push(uploadFromUrl(accessToken, folderId, "front-print.png", frontPrint, "image/png"));
+  if (backPrint) tasks.push(uploadFromUrl(accessToken, folderId, "back-print.png", backPrint, "image/png"));
+  if (frontPreview) tasks.push(uploadFromUrl(accessToken, folderId, "front-mockup.png", frontPreview, "image/png"));
+  if (backPreview) tasks.push(uploadFromUrl(accessToken, folderId, "back-mockup.png", backPreview, "image/png"));
+  if (design?.designJson) {
+    tasks.push(uploadText(accessToken, folderId, "design.json", JSON.stringify(design.designJson, null, 2), "application/json"));
+  }
+
+  await Promise.all(tasks);
+  await setOrderDriveUpload(order.id, folderId);
+  console.log(`[webhook] auto drive export: order=${order.orderNumber} folder=${folderId}`);
+}
+
+async function markDriveFolderCancelled(shop: string, shopifyOrderId: string): Promise<void> {
+  const conn = await getDriveConnection(shop);
+  if (!conn) return;
+
+  const order = await getOrderByShopifyId(shop, shopifyOrderId);
+  if (!order?.driveFolderId) return;
+
+  const accessToken = await getValidAccessToken(shop);
+  const currentName = await getDriveFolderName(accessToken, order.driveFolderId);
+  if (!currentName || currentName.startsWith("❌")) return; // already marked
+
+  await renameDriveFolder(accessToken, order.driveFolderId, `❌ ${currentName}`);
+  console.log(`[webhook] drive folder cancelled: "${currentName}" → "❌ ${currentName}"`);
+}
 
 async function deleteShopData(shop: string): Promise<void> {
   const tables = [
@@ -252,33 +312,50 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // ── Orders created ──────────────────────────────────────────────────
   if (topic === "ORDERS_CREATE" || topic === "orders/create") {
     const order = payload as OrderPayload;
+    const shopifyOrderId = String((order as { id?: number }).id ?? "");
     const designToken = extractDesignToken(order);
     console.log(`[webhook] order=${order.name} topic=${topic} token=${designToken ?? "none"}`);
 
-    importOrderFromWebhook(shop, order).catch((err) =>
-      console.error(`[webhook] importOrder failed for order ${order.name}:`, err),
-    );
-
-    if (designToken) {
-      processOrderBgRemoval(shop, designToken).catch((err) =>
-        console.error(`[webhook] auto-bg failed for order ${order.name}:`, err),
+    importOrderFromWebhook(shop, order)
+      .then(() => {
+        if (designToken) {
+          processOrderBgRemoval(shop, designToken).catch((err) =>
+            console.error(`[webhook] auto-bg failed for order ${order.name}:`, err),
+          );
+        }
+        if (shopifyOrderId && designToken) {
+          autoExportOrderToDrive(shop, shopifyOrderId).catch((err) =>
+            console.error(`[webhook] auto-drive-export failed for order ${order.name}:`, err),
+          );
+        }
+      })
+      .catch((err) =>
+        console.error(`[webhook] importOrder failed for order ${order.name}:`, err),
       );
-    }
   }
 
   // ── Orders paid ──────────────────────────────────────────────────
   if (topic === "ORDERS_PAID" || topic === "orders/paid") {
     const order = payload as OrderPayload;
+    const shopifyOrderId = String((order as { id?: number }).id ?? "");
     const designToken = extractDesignToken(order);
     console.log(`[webhook] order=${order.name} topic=${topic} token=${designToken ?? "none"}`);
 
-    importOrderFromWebhook(shop, order).catch((err) =>
-      console.error(`[webhook] importOrder (paid fallback) failed for order ${order.name}:`, err),
-    );
-
-    if (designToken) {
-      resetCustomerQuota(shop, designToken, order.name);
-    }
+    importOrderFromWebhook(shop, order)
+      .then(() => {
+        if (designToken) {
+          resetCustomerQuota(shop, designToken, order.name);
+          // Fallback: export if orders/create webhook was missed or export failed
+          if (shopifyOrderId) {
+            autoExportOrderToDrive(shop, shopifyOrderId).catch((err) =>
+              console.error(`[webhook] auto-drive-export (paid fallback) failed for order ${order.name}:`, err),
+            );
+          }
+        }
+      })
+      .catch((err) =>
+        console.error(`[webhook] importOrder (paid fallback) failed for order ${order.name}:`, err),
+      );
   }
 
   // ── Orders cancelled ─────────────────────────────────────────────
@@ -295,6 +372,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         .catch((err) =>
           console.error(`[webhook] cancel status update failed for order ${order.name}:`, err),
         );
+
+      markDriveFolderCancelled(shop, shopifyOrderId).catch((err) =>
+        console.error(`[webhook] drive cancel mark failed for order ${order.name}:`, err),
+      );
     }
   }
 

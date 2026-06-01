@@ -237,3 +237,20 @@ export async function uploadText(
 export async function getFolderWebUrl(folderId: string): Promise<string> {
   return `https://drive.google.com/drive/folders/${folderId}`;
 }
+
+export async function getDriveFolderName(accessToken: string, folderId: string): Promise<string | null> {
+  try {
+    const data = await driveJson<{ name?: string }>(accessToken, `/drive/v3/files/${folderId}?fields=name`);
+    return data.name ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function renameDriveFolder(accessToken: string, folderId: string, newName: string): Promise<void> {
+  await driveJson<DriveFile>(accessToken, `/drive/v3/files/${folderId}?fields=id`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: newName }),
+  });
+}
