@@ -27,11 +27,12 @@ import {
   Menu,
   MousePointer2,
   Move,
+  Pencil,
   Plus,
   Redo2,
   RefreshCw,
   Save,
-  Scissors,
+  Crop,
   ShoppingBag,
   Sparkles,
   Trash2,
@@ -55,6 +56,7 @@ const SavedPanel = lazy(() => import('@/components/panels/SavedPanel'));
 type Tab = 'image' | 'text' | 'layers' | 'templates' | 'saved' | null;
 
 type InteractionMode = 'selection' | 'navigation';
+type CanvasSelection = fabric.Object | fabric.ActiveSelection;
 
 interface ObjectState {
   type: 'text' | 'image';
@@ -64,6 +66,13 @@ interface ObjectState {
   isBold?: boolean;
   isItalic?: boolean;
   textAlign?: 'left' | 'center' | 'right';
+}
+
+interface CropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 interface CartItemPayload {
@@ -469,6 +478,283 @@ function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
+function isActiveSelection(obj: fabric.Object | null | undefined): obj is fabric.ActiveSelection {
+  return Boolean(obj && obj.type === 'activeSelection');
+}
+
+function isImageSelection(obj: fabric.Object | null | undefined): obj is fabric.Image {
+  return Boolean(obj && obj.type === 'image');
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeCropRect(rect: CropRect): CropRect {
+  const minSize = 0.08;
+  const maxX = 1 - minSize;
+  const maxY = 1 - minSize;
+  const x = clamp(rect.x, 0, maxX);
+  const y = clamp(rect.y, 0, maxY);
+  const width = clamp(rect.width, minSize, 1 - x);
+  const height = clamp(rect.height, minSize, 1 - y);
+  return { x, y, width, height };
+}
+
+async function cropImageDataUrl(src: string, rect: CropRect): Promise<string> {
+  return await new Promise<string>((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const cropX = Math.round(img.width * rect.x);
+      const cropY = Math.round(img.height * rect.y);
+      const cropWidth = Math.max(1, Math.round(img.width * rect.width));
+      const cropHeight = Math.max(1, Math.round(img.height * rect.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = cropWidth;
+      canvas.height = cropHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas olusturulamadi'));
+        return;
+      }
+      ctx.drawImage(
+        img,
+        cropX,
+        cropY,
+        cropWidth,
+        cropHeight,
+        0,
+        0,
+        cropWidth,
+        cropHeight,
+      );
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error('Gorsel yuklenemedi'));
+    img.src = src;
+  });
+}
+
+function ImageCropModal({
+  src,
+  initialRect,
+  onClose,
+  onApply,
+}: {
+  src: string;
+  initialRect: CropRect;
+  onClose: () => void;
+  onApply: (rect: CropRect) => void;
+}) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<CropRect>(initialRect);
+  const dragStateRef = useRef<{
+    mode: 'move' | 'n' | 's' | 'e' | 'w' | 'nw' | 'ne' | 'sw' | 'se';
+    pointerId: number;
+    startRect: CropRect;
+    startX: number;
+    startY: number;
+  } | null>(null);
+
+  useEffect(() => {
+    setRect(initialRect);
+  }, [initialRect]);
+
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => {
+      const drag = dragStateRef.current;
+      const frame = frameRef.current;
+      if (!drag || !frame || drag.pointerId !== event.pointerId) return;
+      const bounds = frame.getBoundingClientRect();
+      const dx = (event.clientX - drag.startX) / Math.max(bounds.width, 1);
+      const dy = (event.clientY - drag.startY) / Math.max(bounds.height, 1);
+      const minSize = 0.08;
+
+      setRect(() => {
+        let next = { ...drag.startRect };
+        if (drag.mode === 'move') {
+          next.x = clamp(drag.startRect.x + dx, 0, 1 - drag.startRect.width);
+          next.y = clamp(drag.startRect.y + dy, 0, 1 - drag.startRect.height);
+        }
+        if (drag.mode === 'nw') {
+          const nextX = clamp(drag.startRect.x + dx, 0, drag.startRect.x + drag.startRect.width - minSize);
+          const nextY = clamp(drag.startRect.y + dy, 0, drag.startRect.y + drag.startRect.height - minSize);
+          next.width = drag.startRect.width + (drag.startRect.x - nextX);
+          next.height = drag.startRect.height + (drag.startRect.y - nextY);
+          next.x = nextX;
+          next.y = nextY;
+        }
+        if (drag.mode === 'ne') {
+          const maxRight = 1;
+          const nextRight = clamp(drag.startRect.x + drag.startRect.width + dx, drag.startRect.x + minSize, maxRight);
+          const nextY = clamp(drag.startRect.y + dy, 0, drag.startRect.y + drag.startRect.height - minSize);
+          next.width = nextRight - drag.startRect.x;
+          next.height = drag.startRect.height + (drag.startRect.y - nextY);
+          next.y = nextY;
+        }
+        if (drag.mode === 'sw') {
+          const nextX = clamp(drag.startRect.x + dx, 0, drag.startRect.x + drag.startRect.width - minSize);
+          const nextBottom = clamp(drag.startRect.y + drag.startRect.height + dy, drag.startRect.y + minSize, 1);
+          next.width = drag.startRect.width + (drag.startRect.x - nextX);
+          next.height = nextBottom - drag.startRect.y;
+          next.x = nextX;
+        }
+        if (drag.mode === 'se') {
+          const nextRight = clamp(drag.startRect.x + drag.startRect.width + dx, drag.startRect.x + minSize, 1);
+          const nextBottom = clamp(drag.startRect.y + drag.startRect.height + dy, drag.startRect.y + minSize, 1);
+          next.width = nextRight - drag.startRect.x;
+          next.height = nextBottom - drag.startRect.y;
+        }
+        if (drag.mode === 'n') {
+          const nextY = clamp(drag.startRect.y + dy, 0, drag.startRect.y + drag.startRect.height - minSize);
+          next.height = drag.startRect.height + (drag.startRect.y - nextY);
+          next.y = nextY;
+        }
+        if (drag.mode === 's') {
+          const nextBottom = clamp(drag.startRect.y + drag.startRect.height + dy, drag.startRect.y + minSize, 1);
+          next.height = nextBottom - drag.startRect.y;
+        }
+        if (drag.mode === 'w') {
+          const nextX = clamp(drag.startRect.x + dx, 0, drag.startRect.x + drag.startRect.width - minSize);
+          next.width = drag.startRect.width + (drag.startRect.x - nextX);
+          next.x = nextX;
+        }
+        if (drag.mode === 'e') {
+          const nextRight = clamp(drag.startRect.x + drag.startRect.width + dx, drag.startRect.x + minSize, 1);
+          next.width = nextRight - drag.startRect.x;
+        }
+        return normalizeCropRect(next);
+      });
+    };
+
+    const stopDrag = (event: PointerEvent) => {
+      if (dragStateRef.current?.pointerId !== event.pointerId) return;
+      dragStateRef.current = null;
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', stopDrag);
+    window.addEventListener('pointercancel', stopDrag);
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', stopDrag);
+      window.removeEventListener('pointercancel', stopDrag);
+    };
+  }, []);
+
+  const beginDrag = useCallback((mode: 'move' | 'n' | 's' | 'e' | 'w' | 'nw' | 'ne' | 'sw' | 'se', event: React.PointerEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragStateRef.current = {
+      mode,
+      pointerId: event.pointerId,
+      startRect: rect,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+  }, [rect]);
+
+  const overlayStyle = {
+    left: `${rect.x * 100}%`,
+    top: `${rect.y * 100}%`,
+    width: `${rect.width * 100}%`,
+    height: `${rect.height * 100}%`,
+  };
+
+  return (
+    <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+          <div>
+            <p className="text-sm font-bold text-gray-900">Görseli Kırp</p>
+            <p className="mt-1 text-xs text-gray-500">Kutuyu sürükleyip köşelerden daralt.</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4">
+          <div
+            ref={frameRef}
+            className="relative mx-auto aspect-square max-h-[65vh] overflow-hidden rounded-2xl bg-gray-100"
+            style={{ touchAction: 'none' }}
+          >
+            <img src={src} alt="Crop preview" className="h-full w-full object-contain select-none" draggable={false} />
+            <div className="pointer-events-none absolute inset-0 bg-black/35" />
+            <div
+              className="absolute rounded-[20px] border-2 border-white shadow-[0_0_0_9999px_rgba(15,23,42,0.18)]"
+              style={overlayStyle}
+            >
+              <div onPointerDown={(event) => beginDrag('move', event)} className="absolute inset-0 cursor-move" />
+              <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3">
+                {Array.from({ length: 9 }).map((_, index) => (
+                  <div key={index} className="border border-white/30" />
+                ))}
+              </div>
+              {(['nw', 'ne', 'sw', 'se'] as const).map((handle) => {
+                const positions = {
+                  nw: 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize',
+                  ne: 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize',
+                  sw: 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize',
+                  se: 'right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize',
+                };
+                return (
+                  <button
+                    key={handle}
+                    type="button"
+                    onPointerDown={(event) => beginDrag(handle, event)}
+                    className={`absolute h-5 w-5 rounded-full border-2 border-white bg-blue-600 shadow ${positions[handle]}`}
+                  />
+                );
+              })}
+              {([
+                ['n', 'left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 cursor-ns-resize'],
+                ['s', 'left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-ns-resize'],
+                ['w', 'left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize'],
+                ['e', 'right-0 top-1/2 translate-x-1/2 -translate-y-1/2 cursor-ew-resize'],
+              ] as const).map(([handle, position]) => (
+                <button
+                  key={handle}
+                  type="button"
+                  onPointerDown={(event) => beginDrag(handle, event)}
+                  className={`absolute h-4 w-4 rounded-full border-2 border-white bg-white shadow ${position}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2 border-t border-gray-100 px-5 py-4">
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+          >
+            Vazgeç
+          </button>
+          <button
+            onClick={() => setRect({ x: 0, y: 0, width: 1, height: 1 })}
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+          >
+            Sıfırla
+          </button>
+          <button
+            onClick={() => onApply(rect)}
+            className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Uygula
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const CANVAS_STATE_KEY = 'bkf_canvas_state';
 
 function canvasStorageKey(productKey: string) {
@@ -528,13 +814,24 @@ function getAutoZoom() {
   return Math.max(50, Math.min(100, Math.floor(usable / 488 * 100)));
 }
 
+function isTurkishLocale(locale: string | undefined) {
+  return (locale ?? 'tr-TR').toLocaleLowerCase('tr-TR').startsWith('tr');
+}
+
+function isMobileViewport() {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth < 860;
+}
+
 export default function App() {
   const {
     config, setConfig,
     activeSide, setActiveSide,
     sizeQuantities, setSizeQuantity,
     addSavedDesign,
+    addUploadedImage,
     setIsBgRemoving,
+    isBgRemoving,
     canvasState, setCanvasJson,
   } = useDesignerStore();
 
@@ -546,11 +843,11 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<Tab>(null);
   const [imageActiveSource, setImageActiveSource] = useState<'upload' | 'qr' | 'ai'>('upload');
-  const [selectedObj, setSelectedObj] = useState<fabric.Object | null>(null);
+  const [selectedObj, setSelectedObj] = useState<CanvasSelection | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
   const [zoom, setZoom] = useState(getAutoZoom);
   const [layers, setLayers] = useState<fabric.Object[]>([]);
-  const [interactionMode, setInteractionMode] = useState<InteractionMode>('selection');
+  const [interactionMode, setInteractionMode] = useState<InteractionMode>(() => isMobileViewport() ? 'navigation' : 'selection');
   const [sceneOffset, setSceneOffset] = useState({ x: 0, y: 0 });
   const [isDraggingScene, setIsDraggingScene] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -568,10 +865,12 @@ export default function App() {
   const [selectedColor, setSelectedColor] = useState('');
   const [isCartLoading, setIsCartLoading] = useState(false);
   const [showSizeErrorModal, setShowSizeErrorModal] = useState(false);
+  const [cropModalState, setCropModalState] = useState<{ src: string; rect: CropRect } | null>(null);
   const [noSizeQuantity, setNoSizeQuantity] = useState(1);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'info' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const designerStartedAtRef = useRef(Date.now());
+  const cropTargetRef = useRef<fabric.Image | null>(null);
 
   const showToast = useCallback((message: string, type: 'error' | 'warning' | 'info' = 'error') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -628,7 +927,7 @@ export default function App() {
     }).catch(() => {});
   }, [analyticsEndpoint, config?.productHandle, config?.productId, config?.productTitle, config?.shop]);
 
-  const updateToolbarPosition = useCallback((obj: fabric.Object | null) => {
+  const updateToolbarPosition = useCallback((obj: CanvasSelection | null) => {
     const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv || !obj) {
       setToolbarPos(null);
@@ -856,7 +1155,7 @@ export default function App() {
     if (side === activeSide) syncLayers();
   }, [activeSide, canvasState, getCanvasHandle, productCanvasKey, setCanvasJson, syncLayers]);
 
-  const handleObjectSelected = useCallback((obj: fabric.Object | null) => {
+  const handleObjectSelected = useCallback((obj: CanvasSelection | null) => {
     setSelectedObj(obj);
     if (!obj) {
       setObjState(null);
@@ -866,6 +1165,12 @@ export default function App() {
       return;
     }
     setActiveTab(null);
+    if (isActiveSelection(obj)) {
+      setObjState({ type: 'image' });
+      updateToolbarPosition(obj);
+      syncLayers();
+      return;
+    }
     if (obj.type === 'text' || obj.type === 'i-text' || obj.type === 'textbox') {
       const text = obj as fabric.Text;
       setObjState({
@@ -1168,6 +1473,111 @@ export default function App() {
     getActiveCanvasHandle()?.cloneSelected();
     syncLayers();
   };
+
+  const getSelectedImageObject = useCallback(() => {
+    const cv = getActiveCanvasHandle()?.getCanvas();
+    const active = cv?.getActiveObject() ?? null;
+    if (!active || isActiveSelection(active) || !isImageSelection(active)) return null;
+    return active;
+  }, [getActiveCanvasHandle]);
+
+  const refreshSelectedImage = useCallback((img: fabric.Image) => {
+    const cv = getActiveCanvasHandle()?.getCanvas();
+    if (!cv) return;
+    img.setCoords();
+    cv.fire('object:modified', { target: img });
+    cv.renderAll();
+    handleObjectSelected(img);
+    syncLayers();
+  }, [getActiveCanvasHandle, syncLayers]);
+
+  const applyUrlToImageObject = useCallback(async (selectedImage: fabric.Image, url: string) => {
+    const scaledWidth = selectedImage.getScaledWidth();
+    const scaledHeight = selectedImage.getScaledHeight();
+    const signX = (selectedImage.scaleX ?? 1) < 0 ? -1 : 1;
+    const signY = (selectedImage.scaleY ?? 1) < 0 ? -1 : 1;
+    const proxiedUrl = url.startsWith('https://assets.printlabapp.com/')
+      ? `/api/img-proxy?url=${encodeURIComponent(url)}`
+      : url;
+
+    try {
+      const runtimeImage = selectedImage as fabric.Image & {
+        setSrc?: (src: string, callback?: () => void, options?: { crossOrigin?: string }) => unknown;
+      };
+      const finalize = () => {
+        const nextWidth = Math.max(1, Number(selectedImage.width ?? 1));
+        const nextHeight = Math.max(1, Number(selectedImage.height ?? 1));
+        selectedImage.set({
+          cropX: 0,
+          cropY: 0,
+          scaleX: (scaledWidth / nextWidth) * signX,
+          scaleY: (scaledHeight / nextHeight) * signY,
+        } as Partial<fabric.Image>);
+        refreshSelectedImage(selectedImage);
+      };
+
+      if (runtimeImage.setSrc) {
+        let done = false;
+        const onReady = () => {
+          if (done) return;
+          done = true;
+          finalize();
+        };
+        const maybePromise = runtimeImage.setSrc(proxiedUrl, onReady, { crossOrigin: 'anonymous' }) as unknown;
+        if (maybePromise && typeof (maybePromise as { then?: unknown }).then === 'function') {
+          await (maybePromise as Promise<unknown>).then(onReady);
+        }
+        return true;
+      }
+    } catch (err) {
+      console.error('[selected-image-update]', err);
+    }
+
+    return false;
+  }, [refreshSelectedImage]);
+
+  const removeBgFromSelectedImage = useCallback(async () => {
+    const selectedImage = getSelectedImageObject();
+    if (!selectedImage || isBgRemoving) return;
+    try {
+      const sourceDataUrl = selectedImage.toDataURL({ format: 'png', multiplier: 2 });
+      const cleanedUrl = await handleRemoveBg(sourceDataUrl);
+      if (!cleanedUrl) return;
+      addUploadedImage({ id: generateId(), dataUrl: cleanedUrl, serverUrl: cleanedUrl, name: 'Temizlenmiş', addedAt: Date.now() });
+      await applyUrlToImageObject(selectedImage, cleanedUrl);
+    } catch {
+      showToast('Seçili görselin arka planı kaldırılamadı', 'error');
+    }
+  }, [addUploadedImage, applyUrlToImageObject, getSelectedImageObject, handleRemoveBg, isBgRemoving, showToast]);
+
+  const openCropForSelectedImage = useCallback(() => {
+    const selectedImage = getSelectedImageObject();
+    if (!selectedImage) return;
+    cropTargetRef.current = selectedImage;
+    const src = selectedImage.toDataURL({ format: 'png', multiplier: 2 });
+    setCropModalState({
+      src,
+      rect: { x: 0, y: 0, width: 1, height: 1 },
+    });
+  }, [getSelectedImageObject]);
+
+  const applyCropToSelectedImage = useCallback(async (rect: CropRect) => {
+    const selectedImage = cropTargetRef.current;
+    const state = cropModalState;
+    if (!selectedImage || !state) return;
+    try {
+      const croppedDataUrl = await cropImageDataUrl(state.src, rect);
+      const blob = await fetch(croppedDataUrl).then((r) => r.blob());
+      const serverUrl = await uploadBlob(blob, 'cropped-image');
+      const finalUrl = serverUrl ?? croppedDataUrl;
+      addUploadedImage({ id: generateId(), dataUrl: finalUrl, serverUrl: finalUrl, name: 'Kırpılmış', addedAt: Date.now() });
+      await applyUrlToImageObject(selectedImage, finalUrl);
+      setCropModalState(null);
+      cropTargetRef.current = null;
+    } catch {
+      showToast('Görsel kırpılamadı', 'error');
+    }
+  }, [addUploadedImage, applyUrlToImageObject, cropModalState, showToast]);
 
   const updateTextProp = (props: Partial<ObjectState>) => {
     const cv = getActiveCanvasHandle()?.getCanvas();
@@ -1532,9 +1942,28 @@ export default function App() {
   const pricingNarrative = surfaceMode === 'front_only'
     ? summarizeSidePricing('Ön', pricingSummary.front)
     : `${summarizeSidePricing('Ön', pricingSummary.front)} | ${summarizeSidePricing('Arka', pricingSummary.back)}`;
+  const isTurkish = isTurkishLocale(config?.locale);
+  const designAreaTitle = isTurkish ? 'Tasarım Alanı' : 'Design Area';
+  const totalLabel = isTurkish ? 'Toplam' : 'Total';
 
   const reversedLayers = [...layers].reverse();
   const mobileToolbar = zoom < 100 || (typeof window !== 'undefined' && window.innerWidth < 860);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncInteractionMode = () => {
+      setInteractionMode((current) => {
+        if (window.innerWidth < 860) {
+          return current === 'selection' ? current : 'navigation';
+        }
+        return current === 'navigation' ? 'selection' : current;
+      });
+    };
+
+    syncInteractionMode();
+    window.addEventListener('resize', syncInteractionMode);
+    return () => window.removeEventListener('resize', syncInteractionMode);
+  }, []);
 
   return (
     <div className="flex h-full min-h-screen items-stretch justify-center bg-[#eef2f7] text-gray-900">
@@ -1639,6 +2068,7 @@ export default function App() {
                     side="front"
                     zoom={zoom}
                     printArea={personalization.printAreas.front}
+                    allowPageScroll={interactionMode === 'navigation'}
                     onObjectSelected={handleObjectSelected}
                     onDesignChange={handleDesignChange}
                   />
@@ -1650,19 +2080,20 @@ export default function App() {
                       side="back"
                       zoom={zoom}
                       printArea={personalization.printAreas.back}
+                      allowPageScroll={interactionMode === 'navigation'}
                       onObjectSelected={handleObjectSelected}
                       onDesignChange={handleDesignChange}
                     />
                   </div>
                 )}
 
-                <div className="absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6 lg:hidden">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">Tasarım Alanı</p>
+                <div className="pointer-events-none absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6 lg:hidden">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">{designAreaTitle}</p>
                   <p className="mt-1 text-sm font-bold text-gray-900">{activeAreaSummary}</p>
                   <p className="mt-1 text-[10px] font-semibold text-gray-500">{activeAreaCoordsSummary}</p>
                 </div>
 
-                <div className="absolute bottom-14 left-1/2 z-30 flex -translate-x-1/2 gap-1.5 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
+                <div className="pointer-events-none absolute bottom-14 left-1/2 z-30 flex -translate-x-1/2 gap-1.5 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
                   {availableSides.map((side) => {
                     const label = side === 'front' ? 'Ön' : 'Arka';
                     const image = sidePreviews[side] || (side === 'front' ? config?.frontImage : config?.backImage);
@@ -1673,7 +2104,7 @@ export default function App() {
                         type="button"
                         onClick={() => setActiveSide(side)}
                         className={cn(
-                          'h-16 w-12 overflow-hidden rounded-lg border-2 p-0.5 transition-all md:h-20 md:w-16',
+                          'pointer-events-auto h-16 w-12 overflow-hidden rounded-lg border-2 p-0.5 transition-all md:h-20 md:w-16',
                           activeSide === side ? 'scale-105 border-blue-500 shadow-md' : 'border-transparent opacity-60 hover:opacity-100',
                         )}
                       >
@@ -1694,8 +2125,8 @@ export default function App() {
               </div>
             </div>
 
-            <div className="absolute bottom-24 right-2 z-30 flex scale-[0.8] flex-col gap-1.5 origin-right md:right-5 md:top-1/2 md:-translate-y-1/2 md:scale-90 md:gap-2">
-              <div className="flex w-14 flex-col rounded-2xl border border-gray-100 bg-white/95 shadow-xl backdrop-blur-sm md:w-16">
+            <div className="pointer-events-none absolute bottom-24 right-2 z-30 flex scale-[0.8] flex-col gap-1.5 origin-right md:right-5 md:top-1/2 md:-translate-y-1/2 md:scale-90 md:gap-2">
+              <div className="pointer-events-auto flex w-14 flex-col rounded-2xl border border-gray-100 bg-white/95 shadow-xl backdrop-blur-sm md:w-16">
                 <button
                   onClick={() => {
                     setInteractionMode('selection');
@@ -1743,7 +2174,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="flex w-14 flex-col rounded-2xl border border-gray-100 bg-white/95 shadow-xl backdrop-blur-sm md:w-16">
+              <div className="pointer-events-auto flex w-14 flex-col rounded-2xl border border-gray-100 bg-white/95 shadow-xl backdrop-blur-sm md:w-16">
                 <button
                   onClick={() => setZoom((value) => Math.min(300, value + 20))}
                   className="flex w-full justify-center rounded-t-2xl border-b border-gray-100 p-2 text-gray-400 transition-colors hover:bg-gray-50 md:p-2.5"
@@ -1776,10 +2207,10 @@ export default function App() {
             />
             {/* Panel: bottom-sheet on mobile, centered modal on desktop */}
             <div className={cn(
-              "fixed z-50 flex flex-col bg-white",
-              "bottom-0 left-0 w-full rounded-t-3xl shadow-[0_-8px_32px_rgba(0,0,0,0.16)]",
-              "md:bottom-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[500px] md:rounded-2xl md:shadow-[0_8px_48px_rgba(0,0,0,0.18)]"
-            )} style={{ maxHeight: 'min(88vh, 680px)' }}>
+              "fixed z-50 flex min-h-0 flex-col overflow-hidden bg-white",
+              "left-0 right-0 bottom-0 top-[max(12px,env(safe-area-inset-top))] rounded-t-3xl shadow-[0_-8px_32px_rgba(0,0,0,0.16)]",
+              "md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-[500px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:shadow-[0_8px_48px_rgba(0,0,0,0.18)]"
+            )} style={{ maxHeight: 'min(94svh, 760px)' }}>
 
                 {/* Drag handle — mobile only */}
                 <div className="flex shrink-0 justify-center pt-3 pb-1 md:hidden">
@@ -1833,7 +2264,10 @@ export default function App() {
                 </div>
 
                 {/* Scrollable content */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                <div
+                  className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-[max(110px,calc(env(safe-area-inset-bottom)+88px))] pt-4 md:p-6"
+                  style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                >
                   {activeTab === 'image' && (
                     <Suspense fallback={<PanelLoading />}>
                       <ImagePanel
@@ -1946,21 +2380,7 @@ export default function App() {
 
           {selectedObj && (toolbarPos || mobileToolbar) && !activeTab && !showPreview && (
             <div
-              className="fixed inset-0 z-[99]"
-              onClick={() => {
-                const cv = getActiveCanvasHandle()?.getCanvas();
-                cv?.discardActiveObject();
-                cv?.renderAll();
-                setSelectedObj(null);
-                setObjState(null);
-                setToolbarPos(null);
-                setShowTextColorPalette(false);
-              }}
-            />
-          )}
-          {selectedObj && (toolbarPos || mobileToolbar) && !activeTab && !showPreview && (
-            <div
-              className="fixed z-[100] flex items-center justify-center"
+              className="pointer-events-none fixed z-[100] flex items-center justify-center"
               style={mobileToolbar
                 ? {
                     left: 8,
@@ -1991,7 +2411,7 @@ export default function App() {
                         onClick={editText}
                         className="flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
                       >
-                        <Scissors className="h-4 w-4 text-gray-500" />
+                        <Pencil className="h-4 w-4 text-gray-500" />
                         <span className="text-[9px] font-bold text-gray-500">Düzenle</span>
                       </button>
 
@@ -2105,7 +2525,8 @@ export default function App() {
                     )}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-4 gap-1 p-2">
+                    <div>
+                    <div className="grid grid-cols-5 gap-1 p-2">
                       <button
                         onClick={centerSelectedObject}
                         className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
@@ -2115,22 +2536,43 @@ export default function App() {
                       </button>
                       <button
                         onClick={duplicateSelected}
-                        className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
+                        disabled={isActiveSelection(selectedObj)}
+                        className={cn(
+                          'group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors',
+                          isActiveSelection(selectedObj) ? 'cursor-not-allowed opacity-35' : 'hover:bg-gray-50',
+                        )}
                       >
                         <Plus className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
                         <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">Kopyala</span>
                       </button>
                       <button
                         onClick={toggleLayerOrder}
-                        className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
+                        disabled={isActiveSelection(selectedObj)}
+                        className={cn(
+                          'group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors',
+                          isActiveSelection(selectedObj) ? 'cursor-not-allowed opacity-35' : 'hover:bg-gray-50',
+                        )}
                       >
                         <Layers className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
                         <span className="text-[9px] font-bold uppercase text-gray-500 group-hover:text-blue-500">
                           {(() => {
                             const objects = getActiveCanvasHandle()?.getCanvas()?.getObjects() ?? [];
+                            if (isActiveSelection(selectedObj)) return 'Grup';
                             return objects.indexOf(selectedObj) === objects.length - 1 ? 'Arkaya' : 'Öne';
                           })()}
                         </span>
+                      </button>
+                      <button
+                        onClick={removeBgFromSelectedImage}
+                        disabled={isActiveSelection(selectedObj) || !isImageSelection(selectedObj) || isBgRemoving}
+                        title="Arka plan kaldır"
+                        className={cn(
+                          'group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors',
+                          isActiveSelection(selectedObj) || !isImageSelection(selectedObj) || isBgRemoving ? 'cursor-not-allowed opacity-35' : 'hover:bg-gray-50',
+                        )}
+                      >
+                        <Sparkles className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
+                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">BG Sil</span>
                       </button>
                       <button
                         onClick={deleteSelected}
@@ -2140,10 +2582,34 @@ export default function App() {
                         <span className="text-[9px] font-bold text-red-400 group-hover:text-red-500">Kaldır</span>
                       </button>
                     </div>
+                    {!isActiveSelection(selectedObj) && isImageSelection(selectedObj) && (
+                      <div className="border-t border-gray-100 px-2 pb-2 pt-1.5">
+                        <button
+                          onClick={openCropForSelectedImage}
+                          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-50 py-2 text-[11px] font-semibold text-gray-600 transition-colors hover:bg-gray-100"
+                        >
+                          <Crop className="h-4 w-4" />
+                          Kırp
+                        </button>
+                      </div>
+                    )}
+                    </div>
                   )}
                 </div>
                 </div>
             </div>
+          )}
+
+          {cropModalState && (
+            <ImageCropModal
+              src={cropModalState.src}
+              initialRect={cropModalState.rect}
+              onClose={() => {
+                setCropModalState(null);
+                cropTargetRef.current = null;
+              }}
+              onApply={applyCropToSelectedImage}
+            />
           )}
 
           {showSizeErrorModal && (
@@ -2246,11 +2712,11 @@ export default function App() {
             <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">Tasarım Alanı</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">{designAreaTitle}</p>
                   <p className="mt-1 text-sm font-bold text-gray-900">{activeAreaSummary}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Toplam</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">{totalLabel}</p>
                   <p className="mt-1 text-lg font-black text-gray-900">{formattedPrice}</p>
                 </div>
               </div>
@@ -2538,11 +3004,11 @@ export default function App() {
             <div className="rounded-2xl border border-sky-100 bg-sky-50/60 p-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-sky-500">Tasarım Alanı</p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-sky-500">{designAreaTitle}</p>
                   <p className="mt-0.5 text-sm font-black text-gray-900">{activeAreaSummary}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-400">Toplam</p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-400">{totalLabel}</p>
                   <p className="mt-0.5 text-xl font-black text-gray-900">{formattedPrice}</p>
                 </div>
               </div>

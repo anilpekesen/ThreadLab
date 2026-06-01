@@ -38,6 +38,7 @@ interface Props {
   side: Side;
   zoom: number;
   printArea: PrintAreaConfig;
+  allowPageScroll?: boolean;
   onObjectSelected: (obj: fabric.Object | null) => void;
   onDesignChange: (side: Side) => void;
 }
@@ -354,7 +355,7 @@ function unproxyJsonUrls(json: string): string {
     (_, encoded) => `"src":"${decodeURIComponent(encoded)}"`);
 }
 
-const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea, onObjectSelected, onDesignChange }, ref) => {
+const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea, allowPageScroll = false, onObjectSelected, onDesignChange }, ref) => {
   const hostEl = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
   const historyRef = useRef<string[]>([]);
@@ -413,7 +414,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     canvasNode.style.width = `${PRINT_W}px`;
     canvasNode.style.height = `${PRINT_H}px`;
     canvasNode.style.display = 'block';
-    canvasNode.style.touchAction = 'none';
+    canvasNode.style.touchAction = allowPageScroll ? 'pan-y' : 'none';
     hostEl.current.innerHTML = '';
     hostEl.current.appendChild(canvasNode);
 
@@ -422,7 +423,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       preserveObjectStacking: true,
       width: PRINT_W,
       height: PRINT_H,
-      allowTouchScrolling: false,
+      allowTouchScrolling: allowPageScroll,
       selection: false,
       targetFindTolerance: 14,
     });
@@ -433,9 +434,9 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       lowerCanvasEl?: HTMLCanvasElement;
     };
 
-    hostEl.current.style.touchAction = 'none';
+    hostEl.current.style.touchAction = allowPageScroll ? 'pan-y' : 'none';
     hostEl.current.style.webkitUserSelect = 'none';
-    setCanvasTouchAction(cv, 'none');
+    setCanvasTouchAction(cv, allowPageScroll ? 'pan-y' : 'none');
     runtimeCanvas.upperCanvasEl?.style.setProperty('-webkit-user-select', 'none');
     runtimeCanvas.lowerCanvasEl?.style.setProperty('-webkit-user-select', 'none');
     cv.on('mouse:down', (e) => {
@@ -470,8 +471,8 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       constrainTarget(e.target);
       cv.requestRenderAll();
     });
-    cv.on('selection:created', (e) => onObjectSelectedRef.current(e.selected?.[0] ?? null));
-    cv.on('selection:updated', (e) => onObjectSelectedRef.current(e.selected?.[0] ?? null));
+    cv.on('selection:created', (e) => onObjectSelectedRef.current(cv.getActiveObject() ?? e.selected?.[0] ?? null));
+    cv.on('selection:updated', (e) => onObjectSelectedRef.current(cv.getActiveObject() ?? e.selected?.[0] ?? null));
     cv.on('selection:cleared', () => onObjectSelectedRef.current(null));
 
     pushHistory(cv);
@@ -482,7 +483,19 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       try { if (hostEl.current) hostEl.current.innerHTML = ''; } catch { /* ignore */ }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [constrainTarget, pushHistory, side]);
+  }, [allowPageScroll, constrainTarget, pushHistory, side]);
+
+  useEffect(() => {
+    const cv = canvasRef.current;
+    const host = hostEl.current;
+    if (!cv || !host) return;
+    const runtimeCanvas = cv as fabric.Canvas & { allowTouchScrolling?: boolean };
+    runtimeCanvas.allowTouchScrolling = allowPageScroll;
+    host.style.touchAction = allowPageScroll ? 'pan-y' : 'none';
+    const canvasEl = cv.getElement();
+    if (canvasEl) canvasEl.style.touchAction = allowPageScroll ? 'pan-y' : 'none';
+    setCanvasTouchAction(cv, allowPageScroll ? 'pan-y' : 'none');
+  }, [allowPageScroll]);
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -748,28 +761,29 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
               {Math.round(printArea.realWidthMm / 10)} × {Math.round(printArea.realHeightMm / 10)} CM
             </div>
             <div
-              className="pointer-events-none absolute z-10 rounded-[14px] border-2 border-dashed border-sky-400"
+              className="pointer-events-none absolute z-10 rounded-[14px] border-2 border-dashed"
               style={{
                 left: areaRect.left,
                 top: areaRect.top,
                 width: areaRect.width,
                 height: areaRect.height,
+                borderColor: 'rgba(14, 165, 233, 0.22)',
               }}
             />
             <div
-              className="absolute left-0 right-0 top-0 z-20 md:hidden"
+              className="pointer-events-none absolute left-0 right-0 top-0 z-20 md:hidden"
               style={{ height: areaRect.top, touchAction: 'pan-y' }}
             />
             <div
-              className="absolute bottom-0 left-0 right-0 z-20 md:hidden"
+              className="pointer-events-none absolute bottom-0 left-0 right-0 z-20 md:hidden"
               style={{ top: areaRect.top + areaRect.height, touchAction: 'pan-y' }}
             />
             <div
-              className="absolute left-0 z-20 md:hidden"
+              className="pointer-events-none absolute left-0 z-20 md:hidden"
               style={{ top: areaRect.top, width: areaRect.left, height: areaRect.height, touchAction: 'pan-y' }}
             />
             <div
-              className="absolute right-0 z-20 md:hidden"
+              className="pointer-events-none absolute right-0 z-20 md:hidden"
               style={{
                 top: areaRect.top,
                 left: areaRect.left + areaRect.width,
