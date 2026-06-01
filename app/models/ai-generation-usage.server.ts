@@ -30,7 +30,25 @@ export interface AiQuotaResult {
   reason?: "trial" | "no_subscription" | "quota_exceeded";
 }
 
+// Test/dev mağazaları tüm kısıtlamalardan muaf
+function isDevShop(shop: string): boolean {
+  const devShops = (process.env.AI_DEV_SHOPS ?? "")
+    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const shopLower = shop.toLowerCase();
+  // Her zaman muaf: test store'lar
+  if (devShops.includes(shopLower)) return true;
+  // SHOPIFY_BILLING_TEST_STORES ile paylaşılan liste
+  const billingTest = (process.env.SHOPIFY_BILLING_TEST_STORES ?? "")
+    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  return billingTest.includes(shopLower);
+}
+
 export async function checkAndIncrementAiGeneration(shop: string): Promise<AiQuotaResult> {
+  // Dev/test mağazaları için tüm kontrolleri atla
+  if (isDevShop(shop)) {
+    return { allowed: true, count: 0, quota: 99999, planKey: "Business" };
+  }
+
   const sub = await getShopSubscription(shop);
   const planKey = (sub?.plan_key ?? "Starter") as PlanKey;
   const status = sub?.subscription_status ?? "none";

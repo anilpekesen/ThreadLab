@@ -412,24 +412,22 @@ export default function BillingPage() {
                 </>
               )}
 
-              {analytics.aiQuota > 0 && (
-                <>
-                  <Divider />
-                  <BlockStack gap="100">
-                    <InlineStack align="space-between">
-                      <Text as="p" variant="bodySm">✦ Yapay Zeka Görseli (bu ay)</Text>
-                      <Text as="p" variant="bodySm">
-                        {analytics.aiThisMonth} / {analytics.aiQuota}
-                      </Text>
-                    </InlineStack>
-                    <ProgressBar
-                      progress={Math.min(analytics.aiPercent, 100)}
-                      tone={analytics.aiPercent >= 90 ? "critical" : "primary"}
-                      size="small"
-                    />
-                  </BlockStack>
-                </>
-              )}
+              <>
+                <Divider />
+                <BlockStack gap="100">
+                  <InlineStack align="space-between">
+                    <Text as="p" variant="bodySm">✦ Yapay Zeka Görseli (bu ay)</Text>
+                    <Text as="p" variant="bodySm">
+                      {analytics.aiThisMonth ?? 0} / {analytics.aiQuota ?? 0}
+                    </Text>
+                  </InlineStack>
+                  <ProgressBar
+                    progress={analytics.aiQuota > 0 ? Math.min(analytics.aiPercent ?? 0, 100) : 0}
+                    tone={(analytics.aiPercent ?? 0) >= 90 ? "critical" : "primary"}
+                    size="small"
+                  />
+                </BlockStack>
+              </>
 
               {(isActive || isTrial) && (
                 <>
