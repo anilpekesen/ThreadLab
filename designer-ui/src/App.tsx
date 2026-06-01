@@ -2028,7 +2028,10 @@ export default function App() {
           <span>{toast.message}</span>
         </div>
       )}
-      <div className="flex h-full min-h-0 w-full max-w-none flex-1 flex-col overflow-y-auto layout:overflow-hidden bg-white shadow-none layout:flex-row layout:justify-center">
+      <div className={cn(
+        "flex h-full min-h-0 w-full max-w-none flex-1 flex-col bg-white shadow-none layout:flex-row layout:justify-center layout:overflow-hidden",
+        interactionMode === 'navigation' ? "overflow-y-auto" : "overflow-hidden",
+      )}>
         <div className="flex min-h-0 h-screen w-full flex-col layout:h-full layout:min-w-0 layout:w-auto layout:flex-[0_1_980px] xl:flex-[0_1_1040px]">
         <div className="hidden md:flex items-center justify-between border-b border-gray-100 bg-white px-3 py-2.5 md:px-4 md:py-3">
           <div className="flex items-center gap-2">
