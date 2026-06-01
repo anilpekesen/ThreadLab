@@ -1843,6 +1843,7 @@ export default function App() {
                         activeSource={imageActiveSource}
                         shop={config?.shop}
                         uploadEndpoint={config?.uploadEndpoint}
+                        sessionId={getBgSessionId()}
                       />
                     </Suspense>
                   )}

@@ -5,6 +5,7 @@ import { verifyWebhookHmac } from "~/lib/shopify.server";
 import { processOrderBgRemoval } from "~/models/auto-bg-removal.server";
 import { getOrderByShopifyId, updateOrderStatus } from "~/models/orders.server";
 import { resetCustomerBgQuota } from "~/models/customer-bg-quota.server";
+import { resetCustomerAiQuota } from "~/models/customer-ai-quota.server";
 import { getSessionForDesignToken } from "~/models/designs.server";
 import { query } from "~/lib/db.server";
 import { upsertShopSubscription } from "~/models/billing.server";
@@ -158,11 +159,15 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
 
 function resetCustomerQuota(shop: string, designToken: string, orderName?: string) {
   getSessionForDesignToken(shop, designToken)
-    .then((sessionId) => {
-      if (sessionId) return resetCustomerBgQuota(shop, sessionId);
+    .then(async (sessionId) => {
+      if (!sessionId) return;
+      await Promise.all([
+        resetCustomerBgQuota(shop, sessionId),
+        resetCustomerAiQuota(shop, sessionId),
+      ]);
     })
     .catch((err) =>
-      console.error(`[webhook] customer bg quota reset failed for order ${orderName}:`, err),
+      console.error(`[webhook] customer quota reset failed for order ${orderName}:`, err),
     );
 }
 

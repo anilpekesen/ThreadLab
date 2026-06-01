@@ -14,9 +14,10 @@ interface Props {
   activeSource: 'upload' | 'qr' | 'ai';
   shop?: string;
   uploadEndpoint?: string;
+  sessionId?: string;
 }
 
-export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource, shop, uploadEndpoint }: Props) {
+export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource, shop, uploadEndpoint, sessionId }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -257,7 +258,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
       )}
 
       {activeSource === 'ai' && (
-        <AiPanel onAddImage={onAddImage} shop={shop} uploadEndpoint={uploadEndpoint} />
+        <AiPanel onAddImage={onAddImage} shop={shop} uploadEndpoint={uploadEndpoint} sessionId={sessionId} />
       )}
     </div>
   );
@@ -274,7 +275,7 @@ const STYLE_PRESETS = [
   { label: 'Graffiti', hint: 'graffiti street art style, urban art' },
 ];
 
-function AiPanel({ onAddImage, shop, uploadEndpoint }: { onAddImage: (url: string) => void; shop?: string; uploadEndpoint?: string }) {
+function AiPanel({ onAddImage, shop, uploadEndpoint, sessionId }: { onAddImage: (url: string) => void; shop?: string; uploadEndpoint?: string; sessionId?: string }) {
   const [prompt, setPrompt] = useState('');
   const [styleIdx, setStyleIdx] = useState(0);
   const [result, setResult] = useState('');
@@ -302,6 +303,7 @@ function AiPanel({ onAddImage, shop, uploadEndpoint }: { onAddImage: (url: strin
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: `${prompt.trim()}, ${STYLE_PRESETS[styleIdx].hint}`,
+          sessionId: sessionId ?? '',
         }),
       });
       const data = await res.json() as { url?: string; enhancedPrompt?: string; error?: string };

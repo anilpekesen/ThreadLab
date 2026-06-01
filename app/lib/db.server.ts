@@ -211,6 +211,30 @@ async function _runMigrationsLocked() {
       ON customer_bg_quota (shop, updated_at)
   `);
   await query(`
+    CREATE TABLE IF NOT EXISTS ai_generation_usage (
+      shop        TEXT NOT NULL,
+      month       TEXT NOT NULL,
+      count       INTEGER NOT NULL DEFAULT 0,
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (shop, month)
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS customer_ai_quota (
+      shop          TEXT NOT NULL,
+      session_id    TEXT NOT NULL,
+      count         INTEGER NOT NULL DEFAULT 0,
+      reset_count   INTEGER NOT NULL DEFAULT 0,
+      last_order_at TIMESTAMPTZ,
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (shop, session_id)
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS customer_ai_quota_shop
+      ON customer_ai_quota (shop, updated_at)
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS analytics_events (
       id            TEXT PRIMARY KEY,
       shop          TEXT NOT NULL,

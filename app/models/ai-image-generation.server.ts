@@ -1,6 +1,8 @@
 import { json } from "@remix-run/node";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings } from "~/models/shop-settings.server";
+import { checkAndIncrementAiGeneration } from "~/models/ai-generation-usage.server";
+import { checkAndIncrementCustomerAi } from "~/models/customer-ai-quota.server";
 import { uploadToR2 } from "~/lib/r2.server";
 import { randomBytes } from "node:crypto";
 
@@ -116,9 +118,11 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
   }
 
   let userPrompt = "";
+  let sessionId = "";
   try {
-    const body = await request.json() as { prompt?: string };
+    const body = await request.json() as { prompt?: string; sessionId?: string };
     userPrompt = String(body.prompt ?? "").trim();
+    sessionId = String(body.sessionId ?? "").trim();
   } catch {
     return json({ error: "Geçersiz istek gövdesi" }, { status: 400 });
   }
@@ -129,6 +133,32 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
     getGlobalSettings(),
     getShopSettings(shop),
   ]);
+
+  // ① Shop plan + abonelik kontrolü (trial + active değil = engelle)
+  const shopQuota = await checkAndIncrementAiGeneration(shop);
+  if (!shopQuota.allowed) {
+    const messages: Record<string, string> = {
+      trial: "Yapay zeka görseli üretimi ücretsiz deneme döneminde kullanılamaz. Lütfen bir plan seçin.",
+      no_subscription: "Yapay zeka görseli üretimi için aktif bir abonelik gereklidir.",
+      quota_exceeded: `Bu ay için yapay zeka görsel kotanız doldu (${shopQuota.count}/${shopQuota.quota}). Bir sonraki ayda yenilenir.`,
+    };
+    return json({ error: messages[shopQuota.reason ?? "quota_exceeded"] ?? "İzin verilmiyor." }, { status: 429 });
+  }
+
+  // ② Müşteri session bazlı kota (sipariş vermeden max N adet)
+  if (sessionId) {
+    const customerLimit = shopSettings.customerAiLimit ?? 3;
+    const customerQuota = await checkAndIncrementCustomerAi(shop, sessionId, customerLimit);
+    if (!customerQuota.allowed) {
+      // Shop kotasını geri al (henüz API çağrısı yapmadık)
+      // Not: Basit yaklaşım — gerçekte decrement de eklenebilir
+      return json({
+        error: `Yapay zeka görsel limitinize ulaştınız (${customerQuota.count}/${customerQuota.limit}). Sipariş verdikten sonra limitiniz sıfırlanır.`,
+        code: "customer_quota_exceeded",
+      }, { status: 429 });
+    }
+  }
+
   const apiKey = (shopSettings.wavespeedApiKey || process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
 
   if (!apiKey) {

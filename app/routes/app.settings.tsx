@@ -416,11 +416,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const newVariantId = String(form.get("surchargeVariantId") || "").trim();
   const newBgLimit = parseInt(String(form.get("customerBgLimit") || ""), 10);
   const newTermsUrl = String(form.get("termsUrl") || "").trim();
+  const newAiLimit = parseInt(String(form.get("customerAiLimit") || ""), 10);
   try {
     await saveShopSettings(session.shop, {
       surchargeVariantId: newVariantId,
       ...(newBgLimit > 0 ? { customerBgLimit: newBgLimit } : {}),
       termsUrl: newTermsUrl,
+      ...(newAiLimit > 0 ? { customerAiLimit: newAiLimit } : {}),
     });
   } catch (err) {
     console.error("[settings] saveShopSettings error:", err);
@@ -439,6 +441,7 @@ export default function SettingsRoute() {
   const [surchargeVariantId, setSurchargeVariantId] = useState(settings.surchargeVariantId || "");
   const [customerBgLimit, setCustomerBgLimit] = useState(String(settings.customerBgLimit ?? 5));
   const [termsUrl, setTermsUrl] = useState(settings.termsUrl || "");
+  const [customerAiLimit, setCustomerAiLimit] = useState(String(settings.customerAiLimit ?? 3));
   const selectedVariantExists = surchargeVariantOptions.some((option) => option.value === surchargeVariantId);
   const variantSelectOptions = [
     { label: lang === "tr" ? "Ürün / varyant seçin" : "Select product / variant", value: "" },
@@ -525,6 +528,31 @@ export default function SettingsRoute() {
                       autoComplete="off"
                       min="1"
                       max="100"
+                      suffix="adet"
+                    />
+                  </div>
+                </BlockStack>
+              </Box>
+            </Card>
+
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">Yapay Zeka Görsel Limiti (Müşteri Başına)</Text>
+                  <Text as="p" tone="subdued" variant="bodySm">
+                    Bir müşteri sipariş vermeden kaç yapay zeka görseli üretebilir? Sipariş verdikten sonra limiti sıfırlanır.
+                    Varsayılan: 3 adet.
+                  </Text>
+                  <div style={{ width: "100%", maxWidth: 200 }}>
+                    <TextField
+                      label="Sipariş vermeden maksimum yapay zeka üretimi"
+                      name="customerAiLimit"
+                      type="number"
+                      value={customerAiLimit}
+                      onChange={setCustomerAiLimit}
+                      autoComplete="off"
+                      min="1"
+                      max="50"
                       suffix="adet"
                     />
                   </div>
