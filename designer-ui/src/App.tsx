@@ -2119,7 +2119,6 @@ export default function App() {
                 )}
 
                 <div className="pointer-events-none absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6 lg:hidden">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">{designAreaTitle}</p>
                   <p className="mt-1 text-sm font-bold text-gray-900">{activeAreaSummary}</p>
                   <p className="mt-1 text-[10px] font-semibold text-gray-500">{activeAreaCoordsSummary}</p>
                 </div>
@@ -2743,8 +2742,7 @@ export default function App() {
             <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">{designAreaTitle}</p>
-                  <p className="mt-1 text-sm font-bold text-gray-900">{activeAreaSummary}</p>
+                  <p className="text-sm font-bold text-gray-900">{activeAreaSummary}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">{totalLabel}</p>
@@ -3035,8 +3033,7 @@ export default function App() {
             <div className="rounded-2xl border border-sky-100 bg-sky-50/60 p-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-sky-500">{designAreaTitle}</p>
-                  <p className="mt-0.5 text-sm font-black text-gray-900">{activeAreaSummary}</p>
+                  <p className="text-sm font-black text-gray-900">{activeAreaSummary}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-400">{totalLabel}</p>
