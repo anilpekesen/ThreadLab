@@ -483,7 +483,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       try { if (hostEl.current) hostEl.current.innerHTML = ''; } catch { /* ignore */ }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowPageScroll, constrainTarget, pushHistory, side]);
+  }, [constrainTarget, pushHistory, side]);
 
   useEffect(() => {
     const cv = canvasRef.current;
