@@ -833,6 +833,16 @@ export default function ProductSettingsRoute() {
     if (mockup?.back) setBackArea((prev) => ({ ...prev, mockupImageUrl: mockup.back! }));
   }
 
+  // Sayfa ilk yüklenince kayıtlı renk mockuplarını editöre yükle
+  const initRef = useRef(false);
+  useEffect(() => {
+    if (initRef.current || !selectedColor) return;
+    initRef.current = true;
+    const mockup = variantMockups[selectedColor];
+    if (mockup?.front) setFrontArea((prev) => ({ ...prev, mockupImageUrl: mockup.front! }));
+    if (mockup?.back) setBackArea((prev) => ({ ...prev, mockupImageUrl: mockup.back! }));
+  }, [selectedColor, variantMockups]);
+
   // Liquid mantığıyla aynı: option3'e göre ön/arka variant görselini seç
   const designerFrontImage = (() => {
     const v = product.variants.find((variant) => {
@@ -962,7 +972,14 @@ export default function ProductSettingsRoute() {
                             }}
                           >
                             {color}
-                            {(variantMockups[color]?.front) ? " ✓" : ""}
+                            {(() => {
+                              const m = variantMockups[color];
+                              const hasFront = Boolean(m?.front);
+                              const hasBack = surfaceMode === "front_back" ? Boolean(m?.back) : true;
+                              if (hasFront && hasBack) return " ✓";
+                              if (hasFront || hasBack) return " ◑";
+                              return "";
+                            })()}
                           </button>
                         ))}
                       </div>
