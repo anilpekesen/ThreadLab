@@ -1487,7 +1487,7 @@ export default function App() {
     syncLayers();
   }, [getActiveCanvasHandle, syncLayers]);
 
-  const applyUrlToImageObject = useCallback(async (selectedImage: fabric.Image, url: string) => {
+  const applyUrlToImageObject = useCallback(async (selectedImage: fabric.Image, url: string): Promise<boolean> => {
     const scaledWidth = selectedImage.getScaledWidth();
     const scaledHeight = selectedImage.getScaledHeight();
     const signX = (selectedImage.scaleX ?? 1) < 0 ? -1 : 1;
@@ -1497,39 +1497,31 @@ export default function App() {
       : url;
 
     try {
-      const runtimeImage = selectedImage as fabric.Image & {
-        setSrc?: (src: string, callback?: () => void, options?: { crossOrigin?: string }) => unknown;
-      };
-      const finalize = () => {
-        const nextWidth = Math.max(1, Number(selectedImage.width ?? 1));
-        const nextHeight = Math.max(1, Number(selectedImage.height ?? 1));
-        selectedImage.set({
-          cropX: 0,
-          cropY: 0,
-          scaleX: (scaledWidth / nextWidth) * signX,
-          scaleY: (scaledHeight / nextHeight) * signY,
-        } as Partial<fabric.Image>);
-        refreshSelectedImage(selectedImage);
-      };
-
-      if (runtimeImage.setSrc) {
-        let done = false;
-        const onReady = () => {
-          if (done) return;
-          done = true;
-          finalize();
+      await new Promise<void>((resolve, reject) => {
+        const imgEl = new Image();
+        imgEl.crossOrigin = 'anonymous';
+        imgEl.onload = () => {
+          const nextW = Math.max(1, imgEl.naturalWidth || imgEl.width || 1);
+          const nextH = Math.max(1, imgEl.naturalHeight || imgEl.height || 1);
+          (selectedImage as unknown as { setElement(el: HTMLImageElement, opts?: unknown): void })
+            .setElement(imgEl, { crossOrigin: 'anonymous' });
+          selectedImage.set({
+            cropX: 0,
+            cropY: 0,
+            scaleX: (scaledWidth / nextW) * signX,
+            scaleY: (scaledHeight / nextH) * signY,
+          } as Partial<fabric.Image>);
+          resolve();
         };
-        const maybePromise = runtimeImage.setSrc(proxiedUrl, onReady, { crossOrigin: 'anonymous' }) as unknown;
-        if (maybePromise && typeof (maybePromise as { then?: unknown }).then === 'function') {
-          await (maybePromise as Promise<unknown>).then(onReady);
-        }
-        return true;
-      }
+        imgEl.onerror = () => reject(new Error(`Image failed to load: ${proxiedUrl}`));
+        imgEl.src = proxiedUrl;
+      });
+      refreshSelectedImage(selectedImage);
+      return true;
     } catch (err) {
       console.error('[selected-image-update]', err);
+      return false;
     }
-
-    return false;
   }, [refreshSelectedImage]);
 
   const removeBgFromSelectedImage = useCallback(async () => {
