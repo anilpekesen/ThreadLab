@@ -941,6 +941,7 @@ export default function App() {
   const [showTextColorPalette, setShowTextColorPalette] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewImages, setPreviewImages] = useState({ front: '', back: '' });
+  const [previewTab, setPreviewTab] = useState<'front' | 'back'>('front');
   const [sidePreviews, setSidePreviews] = useState({ front: '', back: '' });
   const [textDraft, setTextDraft] = useState('');
   const [isEditingText, setIsEditingText] = useState(false);
@@ -1409,6 +1410,7 @@ export default function App() {
       front: frontCanvasRef.current?.exportPng(2) ?? '',
       back: backCanvasRef.current?.exportPng(2) ?? '',
     });
+    setPreviewTab('front');
     setShowPreview(true);
   };
 
@@ -2758,62 +2760,116 @@ export default function App() {
           )}
 
           {showPreview && (
-            <div
-              className="fixed inset-0 z-[100] flex items-stretch justify-center bg-black/60 backdrop-blur-sm md:items-center md:p-4"
-              onClick={() => setShowPreview(false)}
-            >
+            <>
+              {/* Backdrop */}
               <div
-                className="flex h-full w-full max-w-4xl flex-col overflow-hidden bg-white shadow-2xl md:h-auto md:max-h-[90vh] md:rounded-3xl"
+                className="animate-fadeIn fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm"
+                onClick={() => setShowPreview(false)}
+              />
+
+              {/* Sheet — bottom sheet on mobile, centered modal on desktop */}
+              <div
+                className="animate-slideUp fixed bottom-0 left-0 right-0 z-[101] flex max-h-[88svh] flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:bottom-auto md:left-1/2 md:top-1/2 md:max-h-[88vh] md:w-full md:max-w-3xl md:-translate-x-1/2 md:-translate-y-1/2 md:animate-none md:rounded-3xl"
                 onClick={(e) => e.stopPropagation()}
               >
-                  <div className="flex-none flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4 md:px-8 md:py-6">
-                    <p className="text-lg font-black md:text-xl">Tasarım Önizleme</p>
-                    <button onClick={() => setShowPreview(false)} className="rounded-full p-2 transition-colors hover:bg-gray-100">
-                      <X className="h-6 w-6 text-gray-500" />
-                    </button>
-                  </div>
+                {/* Drag handle — mobile cue */}
+                <div className="flex flex-none justify-center pb-1 pt-3 md:hidden">
+                  <div className="h-1 w-9 rounded-full bg-gray-200" />
+                </div>
 
-                  <div
-                    className="min-h-0 flex-1 overflow-y-auto bg-gray-50 p-4 pb-[max(24px,env(safe-area-inset-bottom))] md:p-8"
-                    style={{ WebkitOverflowScrolling: 'touch' }}
+                {/* Header */}
+                <div className="flex flex-none items-center justify-between px-5 py-3 md:border-b md:border-gray-100 md:px-8 md:py-5">
+                  <p className="text-[15px] font-bold text-gray-900 md:text-lg">Önizleme</p>
+                  <button
+                    onClick={() => setShowPreview(false)}
+                    className="rounded-full p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
                   >
-                    <div className={cn('grid grid-cols-1 gap-5 md:gap-8', surfaceMode === 'front_only' ? 'md:grid-cols-1' : 'md:grid-cols-2')}>
-                      <div className="flex flex-col gap-4">
-                        <span className="text-center text-sm font-black uppercase tracking-widest text-gray-400">Ön Cephe</span>
-                        <div className="relative aspect-[5/6] overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
-                          {previewImages.front ? (
-                            <img src={previewImages.front} className="absolute inset-0 h-full w-full object-cover" alt="Ön tasarım" />
-                          ) : config?.frontImage ? (
-                            <img src={config.frontImage} className="absolute inset-0 h-full w-full object-cover" alt="Ön mockup" />
-                          ) : null}
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Ön / Arka tab — mobile only, front_back mode */}
+                {surfaceMode !== 'front_only' && (
+                  <div className="flex flex-none gap-1.5 px-4 pb-2 pt-1 md:hidden">
+                    {(['front', 'back'] as const).map((side) => (
+                      <button
+                        key={side}
+                        onClick={() => setPreviewTab(side)}
+                        className={cn(
+                          'flex-1 rounded-xl py-2 text-sm font-semibold transition-colors',
+                          previewTab === side
+                            ? 'bg-gray-900 text-white'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
+                        )}
+                      >
+                        {side === 'front' ? 'Ön Cephe' : 'Arka Cephe'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Content — scrollable */}
+                <div
+                  className="min-h-0 flex-1 overflow-y-auto"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
+                  <div className={cn(
+                    'p-4 pb-2 md:p-8',
+                    surfaceMode !== 'front_only' && 'md:grid md:grid-cols-2 md:gap-8',
+                  )}>
+                    {/* Front */}
+                    <div className={cn(
+                      'flex flex-col gap-2',
+                      surfaceMode !== 'front_only' && previewTab !== 'front' && 'hidden md:flex',
+                    )}>
+                      <span className="hidden text-center text-xs font-semibold uppercase tracking-widest text-gray-400 md:block">
+                        Ön Cephe
+                      </span>
+                      <div className="relative aspect-[5/6] overflow-hidden rounded-2xl bg-gray-50">
+                        {(previewImages.front || config?.frontImage) && (
+                          <img
+                            src={previewImages.front || config!.frontImage}
+                            className="absolute inset-0 h-full w-full object-cover"
+                            alt="Ön tasarım"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Back */}
+                    {surfaceMode !== 'front_only' && (
+                      <div className={cn(
+                        'flex flex-col gap-2',
+                        previewTab !== 'back' && 'hidden md:flex',
+                      )}>
+                        <span className="hidden text-center text-xs font-semibold uppercase tracking-widest text-gray-400 md:block">
+                          Arka Cephe
+                        </span>
+                        <div className="relative aspect-[5/6] overflow-hidden rounded-2xl bg-gray-50">
+                          {(previewImages.back || config?.backImage) && (
+                            <img
+                              src={previewImages.back || config!.backImage}
+                              className="absolute inset-0 h-full w-full object-cover"
+                              alt="Arka tasarım"
+                            />
+                          )}
                         </div>
                       </div>
-
-                      {surfaceMode !== 'front_only' && (
-                        <div className="flex flex-col gap-4">
-                          <span className="text-center text-sm font-black uppercase tracking-widest text-gray-400">Arka Cephe</span>
-                          <div className="relative aspect-[5/6] overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
-                            {previewImages.back ? (
-                              <img src={previewImages.back} className="absolute inset-0 h-full w-full object-cover" alt="Arka tasarım" />
-                            ) : config?.backImage ? (
-                              <img src={config.backImage} className="absolute inset-0 h-full w-full object-cover" alt="Arka mockup" />
-                            ) : null}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
+                </div>
 
-                  <div className="flex-none flex justify-end border-t border-gray-100 bg-white p-4 md:p-6">
-                    <button
-                      onClick={() => setShowPreview(false)}
-                      className="rounded-xl bg-blue-600 px-8 py-3 font-black text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-blue-700"
-                    >
-                      Kapat
-                    </button>
-                  </div>
+                {/* Footer */}
+                <div className="flex-none p-4 pb-[max(16px,env(safe-area-inset-bottom))] md:p-5">
+                  <button
+                    onClick={() => setShowPreview(false)}
+                    className="w-full rounded-xl bg-gray-900 py-3 text-sm font-bold text-white transition-colors hover:bg-gray-800 md:w-auto md:px-8"
+                  >
+                    Kapat
+                  </button>
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
 
