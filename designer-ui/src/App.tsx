@@ -2315,8 +2315,10 @@ export default function App() {
                 )}
 
                 <div className="pointer-events-none absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6">
-                  <p className="text-sm font-bold text-gray-900">{activeAreaSummary}</p>
-                  <p className="text-[9px] font-medium text-gray-400">Bu ölçüler baskı alanının ölçüsüdür</p>
+                  <p className="text-sm font-bold text-gray-900">
+                    {activeAreaSummary}
+                    <span className="ml-1.5 text-[9px] font-normal text-gray-400">baskı alanı</span>
+                  </p>
                 </div>
 
                 <div className="pointer-events-none absolute bottom-14 left-1/2 z-30 flex -translate-x-1/2 gap-1.5 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
