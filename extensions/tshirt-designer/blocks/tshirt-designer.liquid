@@ -56,22 +56,6 @@
     {% endif %}
   {% endif %}
 {% endfor %}
-{% if selected_front_variant == nil %}
-  {% for variant in product.variants %}
-    {% assign variant_print = variant.option3 | downcase %}
-    {% assign has_front_print = false %}
-    {% assign has_back_print = false %}
-    {% if variant_print contains 'ön' or variant_print contains 'on' %}
-      {% assign has_front_print = true %}
-    {% endif %}
-    {% if variant_print contains 'arka' or variant_print contains 'back' %}
-      {% assign has_back_print = true %}
-    {% endif %}
-    {% if selected_front_variant == nil and has_front_print and has_back_print == false %}
-      {% assign selected_front_variant = variant %}
-    {% endif %}
-  {% endfor %}
-{% endif %}
 {% assign initial_price = selected_front_variant.price | default: selected_variant.price %}
 {% assign var_front_img = '' %}
 {% if selected_front_variant and selected_front_variant.featured_image %}

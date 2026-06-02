@@ -473,6 +473,60 @@ function colorInputValue(value: string | undefined) {
   return /^#[0-9a-f]{6}$/i.test(value ?? '') ? value! : '#111827';
 }
 
+function selectedColorFromConfig(config: DesignerConfig | null | undefined): string {
+  if (!config) return '';
+  const { colorKey } = detectOptionKeys(config.optionNames ?? []);
+  const selectedVariantColor = config.selectedVariant?.[colorKey] ?? '';
+  if (selectedVariantColor) return String(selectedVariantColor);
+  const selectedVariantId = config.selectedVariant?.id ? String(config.selectedVariant.id) : '';
+  if (selectedVariantId) {
+    const matchingVariantColor = config.variants?.find((variant) => String(variant.id) === selectedVariantId)?.[colorKey] ?? '';
+    if (matchingVariantColor) return String(matchingVariantColor);
+  }
+  return '';
+}
+
+function colorMockupFor(
+  personalization: PersonalizationConfig,
+  color: string,
+): { front?: string; back?: string } | undefined {
+  if (!color) return undefined;
+  const direct = personalization.variantMockups?.[color];
+  if (direct?.front || direct?.back) return direct;
+  const normalizedColor = normalizeColorKey(color);
+  return Object.entries(personalization.variantMockups ?? {}).find(([key, value]) => (
+    normalizeColorKey(key) === normalizedColor && Boolean(value?.front || value?.back)
+  ))?.[1];
+}
+
+function resolveDesignerMockupConfig(
+  config: DesignerConfig,
+  personalization: PersonalizationConfig,
+  selectedColor?: string,
+): DesignerConfig {
+  const color = selectedColor || selectedColorFromConfig(config);
+  const mockup = colorMockupFor(personalization, color);
+  if (mockup?.front || mockup?.back) {
+    return {
+      ...config,
+      frontImage: mockup.front || config.frontImage,
+      backImage: mockup.back || config.backImage,
+    };
+  }
+
+  const hasColorMockups = Object.keys(personalization.variantMockups ?? {}).length > 0;
+  if (hasColorMockups && color) return config;
+
+  const frontUrl = personalization.printAreas.front.mockupImageUrl;
+  const backUrl = personalization.printAreas.back.mockupImageUrl;
+  if (!frontUrl && !backUrl) return config;
+  return {
+    ...config,
+    frontImage: frontUrl || config.frontImage,
+    backImage: backUrl || config.backImage,
+  };
+}
+
 function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(' ');
 }
@@ -1019,18 +1073,11 @@ export default function App() {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      const payload = event.data;
-      if (!payload || payload.type !== 'DESIGNER_INIT' || !payload.config) return;
-      const cfg = payload.config as DesignerConfig & { shop?: string };
-      // Personalization zaten yüklüyse mockupImageUrl'i Liquid'in URL'inin üzerine yaz
-      const p = personalizationRef.current;
-      const frontMockup = p?.printAreas.front.mockupImageUrl;
-      const backMockup = p?.printAreas.back.mockupImageUrl;
-      applyConfig({
-        ...cfg,
-        frontImage: frontMockup || cfg.frontImage,
-        backImage: backMockup || cfg.backImage,
-      }, setConfig);
+	      const payload = event.data;
+	      if (!payload || payload.type !== 'DESIGNER_INIT' || !payload.config) return;
+	      const cfg = payload.config as DesignerConfig & { shop?: string };
+	      const p = personalizationRef.current;
+	      applyConfig(resolveDesignerMockupConfig(cfg, p), setConfig);
       // Shop domain'i DESIGNER_INIT'ten al ve şablonları çek
       if (cfg.shop && cfg.shop !== 'null' && cfg.shop !== '') {
         const appUrl = cfg.uploadEndpoint?.split('/apps/')[0] ?? window.location.origin;
@@ -1080,19 +1127,14 @@ export default function App() {
     };
   }, [config?.productHandle, config?.productId]);
 
-  // Admin'de seçilen mockup görsellerini frontImage/backImage olarak uygula
-  useEffect(() => {
-    const frontUrl = personalization.printAreas.front.mockupImageUrl;
-    const backUrl = personalization.printAreas.back.mockupImageUrl;
-    if (!frontUrl && !backUrl) return;
-    if (!config) return;
-    setConfig({
-      ...config,
-      frontImage: frontUrl || config.frontImage,
-      backImage: backUrl || config.backImage,
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personalization.printAreas.front.mockupImageUrl, personalization.printAreas.back.mockupImageUrl]);
+	  // Admin mockup'ını yalnızca seçili renk mockup'ı yoksa uygula.
+	  useEffect(() => {
+	    if (!config) return;
+	    const resolved = resolveDesignerMockupConfig(config, personalization, selectedColor);
+	    if (resolved.frontImage === config.frontImage && resolved.backImage === config.backImage) return;
+	    setConfig(resolved);
+	  // eslint-disable-next-line react-hooks/exhaustive-deps
+	  }, [personalization, selectedColor, config]);
 
   // Renk değişince o rengin mockup görselini yükle
   useEffect(() => {
