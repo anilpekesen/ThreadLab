@@ -2113,6 +2113,7 @@ export default function App() {
     if (!cv) return;
     const onMouseDown = (e: { target?: fabric.Object | null }) => {
       if (!e.target && interactionMode === 'selection') {
+        // Boş alana tıklandı → gezinme moduna geç
         if (wrapperRef.current) wrapperRef.current.scrollTop = wrapperRef.current.scrollTop;
         setInteractionMode('navigation');
         cv.discardActiveObject();
@@ -2120,6 +2121,13 @@ export default function App() {
         cv.renderAll();
         setSelectedObj(null);
         setObjState(null);
+      } else if (e.target && interactionMode === 'navigation') {
+        // Objeye tıklandı → seçim moduna geç
+        if (wrapperRef.current) wrapperRef.current.scrollTop = wrapperRef.current.scrollTop;
+        setInteractionMode('selection');
+        cv.selection = true;
+        cv.setActiveObject(e.target);
+        cv.renderAll();
       }
     };
     cv.on('mouse:down', onMouseDown);
