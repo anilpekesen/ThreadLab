@@ -1879,10 +1879,17 @@ export default function App() {
     [config?.variants, colorKey],
   );
 
+  const isColorAvailable = useCallback((color: string) => {
+    const variants = config?.variants?.filter((v) => v[colorKey] === color) ?? [];
+    if (!variants.length) return true;
+    return variants.some((v) => v.available !== false);
+  }, [config?.variants, colorKey]);
+
   useEffect(() => {
     if (!colorOptions.length) return;
     if (!selectedColor || !colorOptions.includes(selectedColor)) {
-      setSelectedColor(colorOptions[0] ?? '');
+      const firstAvailable = colorOptions.find((c) => isColorAvailable(c ?? '')) ?? colorOptions[0];
+      setSelectedColor(firstAvailable ?? '');
     }
   }, [colorOptions, selectedColor]);
 
@@ -3014,23 +3021,29 @@ export default function App() {
                   {selectedColor && <span className="text-xs font-bold text-gray-600">{selectedColor}</span>}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {colorOptions.map((color) => (
-                    <button
-                      key={color!}
-                      type="button"
-                      onClick={() => setSelectedColor(color!)}
-                      className={cn(
-                        'inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition-colors',
-                        selectedColor === color ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100',
-                      )}
-                    >
-                      <span
-                        className="h-3.5 w-3.5 rounded-full border border-black/10"
-                        style={{ backgroundColor: colorHexForLabel(color!) }}
-                      />
-                      {color}
-                    </button>
-                  ))}
+                  {colorOptions.map((color) => {
+                    const available = isColorAvailable(color!);
+                    return (
+                      <button
+                        key={color!}
+                        type="button"
+                        disabled={!available}
+                        onClick={() => available && setSelectedColor(color!)}
+                        className={cn(
+                          'inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition-colors',
+                          !available ? 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-300 opacity-60' :
+                          selectedColor === color ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100',
+                        )}
+                      >
+                        <span
+                          className="h-3.5 w-3.5 rounded-full border border-black/10"
+                          style={{ backgroundColor: colorHexForLabel(color!), opacity: available ? 1 : 0.4 }}
+                        />
+                        <span className={!available ? 'line-through' : ''}>{color}</span>
+                        {!available && <span className="ml-0.5 text-[9px] font-semibold normal-case no-underline text-gray-400" style={{ textDecoration: 'none' }}>Stok yok</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -3160,23 +3173,29 @@ export default function App() {
                 {selectedColor && <span className="text-[10px] font-bold text-gray-600">{selectedColor}</span>}
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {colorOptions.map((color) => (
-                  <button
-                    key={color!}
-                    type="button"
-                    onClick={() => setSelectedColor(color!)}
-                    className={cn(
-                      'inline-flex items-center gap-1.5 rounded-full border px-2 py-1.5 text-[10px] font-bold transition-colors',
-                      selectedColor === color ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100',
-                    )}
-                  >
-                    <span
-                      className="h-3 w-3 rounded-full border border-black/10"
-                      style={{ backgroundColor: colorHexForLabel(color!) }}
-                    />
-                    {color}
-                  </button>
-                ))}
+                {colorOptions.map((color) => {
+                  const available = isColorAvailable(color!);
+                  return (
+                    <button
+                      key={color!}
+                      type="button"
+                      disabled={!available}
+                      onClick={() => available && setSelectedColor(color!)}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full border px-2 py-1.5 text-[10px] font-bold transition-colors',
+                        !available ? 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-300 opacity-60' :
+                        selectedColor === color ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100',
+                      )}
+                    >
+                      <span
+                        className="h-3 w-3 rounded-full border border-black/10"
+                        style={{ backgroundColor: colorHexForLabel(color!), opacity: available ? 1 : 0.4 }}
+                      />
+                      <span className={!available ? 'line-through' : ''}>{color}</span>
+                      {!available && <span className="text-[8px] font-semibold text-gray-400" style={{ textDecoration: 'none' }}>Stok yok</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
