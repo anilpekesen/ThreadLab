@@ -922,6 +922,7 @@ export default function App() {
   const frontCanvasRef = useRef<CanvasAreaHandle>(null);
   const backCanvasRef = useRef<CanvasAreaHandle>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const lastTouchY = useRef<number | null>(null);
   const configRef = useRef(config);
   const personalizationRef = useRef<PersonalizationConfig>(defaultPersonalization());
   const restoredCanvasRef = useRef<string | null>(null);
@@ -2207,6 +2208,22 @@ export default function App() {
                       onDesignChange={handleDesignChange}
                     />
                   </div>
+                )}
+
+                {/* Mobil navigation: canvas üstü şeffaf scroll overlay */}
+                {isMobileLayout && interactionMode === 'navigation' && (
+                  <div
+                    className="absolute inset-0 z-10"
+                    style={{ touchAction: 'pan-y' }}
+                    onTouchStart={(e) => { lastTouchY.current = e.touches[0].clientY; }}
+                    onTouchMove={(e) => {
+                      if (!wrapperRef.current || lastTouchY.current === null) return;
+                      const delta = lastTouchY.current - e.touches[0].clientY;
+                      wrapperRef.current.scrollTop += delta;
+                      lastTouchY.current = e.touches[0].clientY;
+                    }}
+                    onTouchEnd={() => { lastTouchY.current = null; }}
+                  />
                 )}
 
                 <div className="pointer-events-none absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6 lg:hidden">
