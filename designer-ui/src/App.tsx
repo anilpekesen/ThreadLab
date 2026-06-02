@@ -3308,6 +3308,9 @@ export default function App() {
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-black text-gray-900">{activeAreaSummary}</p>
+                  {pricingSummary[activeSide].band.label && (
+                    <p className="text-[10px] font-semibold text-sky-500">{pricingSummary[activeSide].band.label} baskı alanı</p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-400">{totalLabel}</p>
