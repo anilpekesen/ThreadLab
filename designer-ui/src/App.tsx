@@ -2145,7 +2145,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F9FAFB]">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip layout:overflow-hidden bg-[#F9FAFB]">
           <div className="relative z-40 flex w-full border-b border-gray-100 bg-white">
             {MAIN_TABS.map(({ id, label, Icon }) => (
               <button
@@ -2169,7 +2169,7 @@ export default function App() {
           </div>
 
           <div
-            className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 pb-24 pt-3 md:p-4"
+            className="relative flex min-h-0 flex-1 items-center justify-center overflow-clip layout:overflow-hidden px-3 pb-24 pt-3 md:p-4"
             onMouseMove={handleSceneMouseMove}
             onMouseUp={handleSceneMouseUp}
             onMouseLeave={handleSceneMouseUp}
