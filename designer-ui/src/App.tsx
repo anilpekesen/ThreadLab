@@ -3031,28 +3031,40 @@ export default function App() {
               <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                 {sizes.map((size) => {
                   const qty = sizeQuantities[size!] ?? 0;
+                  const variant = baseVariantForSize(size!);
+                  const inStock = variant?.available !== false;
                   return (
                     <div
                       key={size!}
                       className={cn(
                         'rounded-2xl border p-2 text-center transition-colors',
+                        !inStock ? 'border-gray-100 bg-gray-50 opacity-50' :
                         qty > 0 ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-gray-50',
                       )}
                     >
-                      <p className={cn('text-xs font-black', qty > 0 ? 'text-blue-700' : 'text-gray-600')}>{size}</p>
-                      <div className="mt-2 flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setSizeQuantity(size!, qty - 1)}
-                          className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
-                        >−</button>
-                        <span className={cn('w-5 text-center text-sm font-black tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>{qty}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSizeQuantity(size!, qty + 1)}
-                          className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
-                        >+</button>
-                      </div>
+                      <p className={cn(
+                        'text-xs font-black',
+                        !inStock ? 'text-gray-400 line-through' :
+                        qty > 0 ? 'text-blue-700' : 'text-gray-600',
+                      )}>
+                        {size}
+                        {!inStock && <span className="ml-1 text-[9px] font-semibold normal-case no-underline" style={{ textDecoration: 'none' }}>Tükendi</span>}
+                      </p>
+                      {inStock && (
+                        <div className="mt-2 flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setSizeQuantity(size!, qty - 1)}
+                            className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
+                          >−</button>
+                          <span className={cn('w-5 text-center text-sm font-black tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>{qty}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSizeQuantity(size!, qty + 1)}
+                            className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
+                          >+</button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -3170,15 +3182,25 @@ export default function App() {
               <div className="grid grid-cols-3 gap-1.5">
                 {sizes.map((size) => {
                   const qty = sizeQuantities[size!] ?? 0;
+                  const variant = baseVariantForSize(size!);
+                  const inStock = variant?.available !== false;
                   return (
                     <div
                       key={size!}
                       className={cn(
                         'flex flex-col items-center rounded-xl border-2 p-1.5 transition-colors',
+                        !inStock ? 'border-gray-100 bg-gray-50 opacity-50' :
                         qty > 0 ? 'border-blue-400 bg-blue-50' : 'border-gray-100 bg-gray-50',
                       )}
                     >
-                      <span className={cn('text-[10px] font-bold', qty > 0 ? 'text-blue-700' : 'text-gray-600')}>{size}</span>
+                      <span className={cn(
+                        'text-[10px] font-bold',
+                        !inStock ? 'text-gray-400 line-through' :
+                        qty > 0 ? 'text-blue-700' : 'text-gray-600',
+                      )}>{size}</span>
+                      {!inStock ? (
+                        <span className="text-[8px] text-gray-400">Tükendi</span>
+                      ) : (
                       <div className="mt-1 flex items-center gap-0.5">
                         <button
                           type="button"
@@ -3192,6 +3214,7 @@ export default function App() {
                           className="flex h-5 w-5 items-center justify-center rounded-md bg-white text-xs font-bold text-gray-400 shadow-sm hover:bg-gray-100"
                         >+</button>
                       </div>
+                      )}
                     </div>
                   );
                 })}
