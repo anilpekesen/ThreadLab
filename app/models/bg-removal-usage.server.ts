@@ -1,5 +1,6 @@
 import { query } from "~/lib/db.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
+import { getShopSettings } from "~/models/shop-settings.server";
 import { getTestStoreLimits } from "~/models/test-store-limits.server";
 
 function currentMonth() {
@@ -56,7 +57,9 @@ export async function checkAndIncrementBgRemoval(shop: string): Promise<QuotaChe
     getBgRemovalCount(shop),
   ]);
 
-  const quota = testLimits?.bgMonthlyQuota ?? PLANS[planKey].removeBgMonthlyQuota;
+  const shopSettings = await getShopSettings(shop).catch(() => null);
+  const bonus = shopSettings?.bgQuotaBonus ?? 0;
+  const quota = (testLimits?.bgMonthlyQuota ?? PLANS[planKey].removeBgMonthlyQuota) + bonus;
   const allowed = quota < 0 || count < quota;
 
   if (!allowed) {

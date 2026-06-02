@@ -15,6 +15,8 @@ export interface ShopSettings {
   wavespeedApiKey: string;
   termsUrl: string;
   customerAiLimit: number;
+  aiQuotaBonus: number;
+  bgQuotaBonus: number;
 }
 
 const DEFAULTS: ShopSettings = {
@@ -23,6 +25,8 @@ const DEFAULTS: ShopSettings = {
   wavespeedApiKey: "",
   termsUrl: "",
   customerAiLimit: 3,
+  aiQuotaBonus: 0,
+  bgQuotaBonus: 0,
 };
 
 export async function getShopSettings(shop: string): Promise<ShopSettings> {
@@ -43,6 +47,8 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
       wavespeedApiKey: DEFAULTS.wavespeedApiKey,
       termsUrl: DEFAULTS.termsUrl,
       customerAiLimit: DEFAULTS.customerAiLimit,
+      aiQuotaBonus: DEFAULTS.aiQuotaBonus,
+      bgQuotaBonus: DEFAULTS.bgQuotaBonus,
     };
   }
 
@@ -55,6 +61,8 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
     wavespeedApiKey: saved.wavespeedApiKey ?? DEFAULTS.wavespeedApiKey,
     termsUrl: saved.termsUrl ?? DEFAULTS.termsUrl,
     customerAiLimit: Number(saved.customerAiLimit) > 0 ? Number(saved.customerAiLimit) : DEFAULTS.customerAiLimit,
+    aiQuotaBonus: Number(saved.aiQuotaBonus) >= 0 ? Number(saved.aiQuotaBonus) : DEFAULTS.aiQuotaBonus,
+    bgQuotaBonus: Number(saved.bgQuotaBonus) >= 0 ? Number(saved.bgQuotaBonus) : DEFAULTS.bgQuotaBonus,
   };
 }
 

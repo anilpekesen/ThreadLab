@@ -84,8 +84,12 @@ export async function checkAndIncrementAiGeneration(shop: string): Promise<AiQuo
     return { allowed: false, count: 0, quota: 0, planKey, reason: "no_subscription" };
   }
 
-  const quota = PLANS[planKey].aiImageMonthlyQuota ?? 0;
-  const count = await getAiGenCount(shop);
+  const [shopSettings, count] = await Promise.all([
+    getShopSettings(shop).catch(() => null),
+    getAiGenCount(shop),
+  ]);
+  const bonus = shopSettings?.aiQuotaBonus ?? 0;
+  const quota = (PLANS[planKey].aiImageMonthlyQuota ?? 0) + bonus;
 
   if (quota >= 0 && count >= quota) {
     return { allowed: false, count, quota, planKey, reason: "quota_exceeded" };

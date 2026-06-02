@@ -3,6 +3,7 @@ import { json, redirect } from "@remix-run/node";
 import { useLoaderData, Form, useActionData } from "@remix-run/react";
 import { query } from "~/lib/db.server";
 import { getAiPromptLogs, getAiPromptLogsCount, type AiPromptLog } from "~/models/ai-prompt-logs.server";
+import { saveShopSettings, getShopSettings } from "~/models/shop-settings.server";
 import React from "react";
 
 const AUTH_COOKIE = "panel_auth";
@@ -126,6 +127,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
+  if (intent === "setBonus") {
+    const shop = String(form.get("shop") ?? "");
+    const aiBonus = Math.max(0, parseInt(String(form.get("aiQuotaBonus") ?? "0"), 10) || 0);
+    const bgBonus = Math.max(0, parseInt(String(form.get("bgQuotaBonus") ?? "0"), 10) || 0);
+    if (shop) {
+      const current = await getShopSettings(shop);
+      await saveShopSettings(shop, { ...current, aiQuotaBonus: aiBonus, bgQuotaBonus: bgBonus });
+    }
+    return redirect(`/admin?tab=shops`);
+  }
+
   const password = String(form.get("password") ?? "");
   const secret = process.env.ADMIN_PANEL_SECRET ?? "";
   if (!secret || password !== secret) {
@@ -199,52 +211,90 @@ function StatCard({ label, value, isRevenue }: { label: string; value: number; i
 }
 
 function ShopsTab({ shops }: { shops: ShopRow[] }) {
+  const [bonusShop, setBonusShop] = React.useState<string | null>(null);
+
   return (
-    <div style={css.card}>
-      <table style={css.table}>
-        <thead>
-          <tr>
-            {["Mağaza", "Plan", "Durum", "Top. Sipariş", "Bu Ay", "Gelir", "AI/Ay", "BG/Ay", "Drive", "Son Sipariş"].map((h) => (
-              <th key={h} style={css.th}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {shops.length === 0 && (
-            <tr><td colSpan={10} style={{ ...css.td, textAlign: "center", color: "#475569", padding: 32 }}>Kayıt bulunamadı</td></tr>
-          )}
-          {shops.map((s) => {
-            const revenue = parseFloat(s.total_revenue ?? "0");
-            return (
-              <tr key={s.shop}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#162032")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                <td style={css.td}>
-                  <span style={{ fontWeight: 600, color: "#f1f5f9" }}>{s.shop.replace(".myshopify.com", "")}</span>
-                  <br /><span style={{ fontSize: 11, color: "#475569" }}>{s.shop}</span>
-                </td>
-                <td style={css.td}><span style={css.badge(PLAN_COLOR[s.plan_key] ?? "#6b7280")}>{s.plan_key}</span></td>
-                <td style={css.td}><span style={css.badge(STATUS_COLOR[s.subscription_status] ?? "#6b7280")}>{s.subscription_status}</span></td>
-                <td style={{ ...css.td, fontWeight: 700, color: "#f1f5f9" }}>{s.total_orders}</td>
-                <td style={css.td}>{s.orders_this_month}</td>
-                <td style={{ ...css.td, color: "#10b981", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>
-                  {revenue.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {s.currency}
-                </td>
-                <td style={css.td}>{s.ai_this_month}</td>
-                <td style={css.td}>{s.bg_this_month}</td>
-                <td style={css.td}>
-                  {s.drive_connected
-                    ? <span style={{ color: "#10b981", fontWeight: 700 }}>✓</span>
-                    : <span style={{ color: "#475569" }}>—</span>}
-                </td>
-                <td style={{ ...css.td, color: "#64748b", fontSize: 12, whiteSpace: "nowrap" }}>
-                  {s.last_order_at ? new Date(s.last_order_at).toLocaleDateString("tr-TR") : "—"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div>
+      <div style={css.card}>
+        <table style={css.table}>
+          <thead>
+            <tr>
+              {["Mağaza", "Plan", "Durum", "Top. Sipariş", "Bu Ay", "Gelir", "AI/Ay", "BG/Ay", "Drive", "Son Sipariş", "Bonus"].map((h) => (
+                <th key={h} style={css.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {shops.length === 0 && (
+              <tr><td colSpan={11} style={{ ...css.td, textAlign: "center", color: "#475569", padding: 32 }}>Kayıt bulunamadı</td></tr>
+            )}
+            {shops.map((s) => {
+              const revenue = parseFloat(s.total_revenue ?? "0");
+              return (
+                <React.Fragment key={s.shop}>
+                  <tr
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#162032")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                    <td style={css.td}>
+                      <span style={{ fontWeight: 600, color: "#f1f5f9" }}>{s.shop.replace(".myshopify.com", "")}</span>
+                      <br /><span style={{ fontSize: 11, color: "#475569" }}>{s.shop}</span>
+                    </td>
+                    <td style={css.td}><span style={css.badge(PLAN_COLOR[s.plan_key] ?? "#6b7280")}>{s.plan_key}</span></td>
+                    <td style={css.td}><span style={css.badge(STATUS_COLOR[s.subscription_status] ?? "#6b7280")}>{s.subscription_status}</span></td>
+                    <td style={{ ...css.td, fontWeight: 700, color: "#f1f5f9" }}>{s.total_orders}</td>
+                    <td style={css.td}>{s.orders_this_month}</td>
+                    <td style={{ ...css.td, color: "#10b981", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>
+                      {revenue.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {s.currency}
+                    </td>
+                    <td style={css.td}>{s.ai_this_month}</td>
+                    <td style={css.td}>{s.bg_this_month}</td>
+                    <td style={css.td}>
+                      {s.drive_connected
+                        ? <span style={{ color: "#10b981", fontWeight: 700 }}>✓</span>
+                        : <span style={{ color: "#475569" }}>—</span>}
+                    </td>
+                    <td style={{ ...css.td, color: "#64748b", fontSize: 12, whiteSpace: "nowrap" }}>
+                      {s.last_order_at ? new Date(s.last_order_at).toLocaleDateString("tr-TR") : "—"}
+                    </td>
+                    <td style={css.td}>
+                      <button
+                        onClick={() => setBonusShop(bonusShop === s.shop ? null : s.shop)}
+                        style={{ background: bonusShop === s.shop ? "#334155" : "transparent", border: "1px solid #334155", borderRadius: 6, padding: "3px 10px", color: "#94a3b8", cursor: "pointer", fontSize: 12 }}
+                      >
+                        {bonusShop === s.shop ? "İptal" : "+ Bonus"}
+                      </button>
+                    </td>
+                  </tr>
+
+                  {bonusShop === s.shop && (
+                    <tr style={{ background: "#162032" }}>
+                      <td colSpan={11} style={{ padding: "12px 14px" }}>
+                        <form method="post" action="/admin" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                          <input type="hidden" name="intent" value="setBonus" />
+                          <input type="hidden" name="shop" value={s.shop} />
+                          <span style={{ color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>{s.shop.replace(".myshopify.com", "")} — Ekstra Kota:</span>
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 13 }}>
+                            AI Bonus
+                            <input type="number" name="aiQuotaBonus" min="0" defaultValue="0" style={{ ...css.input, width: 80, padding: "4px 8px" }} />
+                          </label>
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 13 }}>
+                            BG Bonus
+                            <input type="number" name="bgQuotaBonus" min="0" defaultValue="0" style={{ ...css.input, width: 80, padding: "4px 8px" }} />
+                          </label>
+                          <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "6px 16px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                            Kaydet
+                          </button>
+                          <span style={{ color: "#64748b", fontSize: 12 }}>0 girmek mevcut bonusu sıfırlar</span>
+                        </form>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
