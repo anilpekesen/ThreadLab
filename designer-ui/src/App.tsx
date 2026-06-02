@@ -923,6 +923,7 @@ export default function App() {
   const backCanvasRef = useRef<CanvasAreaHandle>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const lastTouchY = useRef<number | null>(null);
+  const scrollOverlayRef = useRef<HTMLDivElement>(null);
   const configRef = useRef(config);
   const personalizationRef = useRef<PersonalizationConfig>(defaultPersonalization());
   const restoredCanvasRef = useRef<string | null>(null);
@@ -2085,6 +2086,26 @@ export default function App() {
     }
   }, [activeTab]);
 
+  // Scroll overlay: passive touch listener (JSX olmadan — preventDefault uyarısı olmaz)
+  useEffect(() => {
+    const el = scrollOverlayRef.current;
+    if (!el) return;
+    let startY = 0;
+    const onStart = (e: TouchEvent) => { startY = e.touches[0].clientY; };
+    const onMove = (e: TouchEvent) => {
+      if (!wrapperRef.current) return;
+      const delta = startY - e.touches[0].clientY;
+      wrapperRef.current.scrollTop += delta;
+      startY = e.touches[0].clientY;
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+    };
+  });
+
   return (
     <div className="flex h-full min-h-screen items-stretch justify-center bg-[#eef2f7] text-gray-900">
 
@@ -2222,16 +2243,9 @@ export default function App() {
                 {/* Mobil navigation: canvas üstü şeffaf scroll overlay */}
                 {isMobileLayout && interactionMode === 'navigation' && (
                   <div
+                    ref={scrollOverlayRef}
                     className="absolute inset-0 z-10"
                     style={{ touchAction: 'pan-y' }}
-                    onTouchStart={(e) => { lastTouchY.current = e.touches[0].clientY; }}
-                    onTouchMove={(e) => {
-                      if (!wrapperRef.current || lastTouchY.current === null) return;
-                      const delta = lastTouchY.current - e.touches[0].clientY;
-                      wrapperRef.current.scrollTop += delta;
-                      lastTouchY.current = e.touches[0].clientY;
-                    }}
-                    onTouchEnd={() => { lastTouchY.current = null; }}
                   />
                 )}
 
