@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import QRCode from 'qrcode';
 import { ImagePlus, Link2, Loader2, QrCode, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
 import { compressImage, generateId } from '@/utils/compress';
@@ -678,12 +677,23 @@ function QrPanel({ onAddImage }: { onAddImage: (url: string) => void }) {
 
   useEffect(() => {
     if (!text.trim()) { setPreview(''); return; }
+    let cancelled = false;
     const color = QR_COLORS[colorIdx];
-    QRCode.toDataURL(text.trim(), {
-      width: 400,
-      margin: 2,
-      color: { dark: color.fg, light: color.bg },
-    }).then(setPreview).catch(() => setPreview(''));
+    import('qrcode')
+      .then(({ default: QRCode }) => QRCode.toDataURL(text.trim(), {
+        width: 400,
+        margin: 2,
+        color: { dark: color.fg, light: color.bg },
+      }))
+      .then((url) => {
+        if (!cancelled) setPreview(url);
+      })
+      .catch(() => {
+        if (!cancelled) setPreview('');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [text, colorIdx]);
 
   async function handleAdd() {

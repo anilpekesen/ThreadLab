@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { fabric } from 'fabric';
 import type { ShopTemplate } from '@/types';
 
@@ -33,6 +33,30 @@ const TEXT_CATEGORIES = [
   { value: 'minimal', label: 'Minimal' },
   { value: 'brand', label: 'Marka' },
 ];
+
+const TEMPLATE_FONT_LINK_ID = 'printlab-template-fonts';
+const TEMPLATE_FONT_URL = 'https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Montserrat:wght@400;700&family=Oswald:wght@400;700&family=Playfair+Display:wght@700&family=Poppins:wght@400;700&family=Rock+Salt&display=swap';
+
+function useTemplateFonts() {
+  useEffect(() => {
+    if (typeof document === 'undefined' || document.getElementById(TEMPLATE_FONT_LINK_ID)) return;
+    const preconnectGoogle = document.createElement('link');
+    preconnectGoogle.rel = 'preconnect';
+    preconnectGoogle.href = 'https://fonts.googleapis.com';
+
+    const preconnectGstatic = document.createElement('link');
+    preconnectGstatic.rel = 'preconnect';
+    preconnectGstatic.href = 'https://fonts.gstatic.com';
+    preconnectGstatic.crossOrigin = 'anonymous';
+
+    const stylesheet = document.createElement('link');
+    stylesheet.id = TEMPLATE_FONT_LINK_ID;
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = TEMPLATE_FONT_URL;
+
+    document.head.append(preconnectGoogle, preconnectGstatic, stylesheet);
+  }, []);
+}
 
 const fitText = (text: fabric.IText, maxWidth: number) => {
   if (text.width && text.width > maxWidth) {
@@ -863,6 +887,7 @@ interface Props {
 }
 
 export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = [] }: Props) {
+  useTemplateFonts();
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeTextCategory, setActiveTextCategory] = useState('all');
 
