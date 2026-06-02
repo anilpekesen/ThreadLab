@@ -2167,7 +2167,10 @@ export default function App() {
           </div>
         </div>
 
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip layout:overflow-hidden bg-[#F9FAFB]">
+        <div
+          className="relative flex min-h-0 flex-1 flex-col overflow-clip layout:overflow-hidden bg-[#F9FAFB]"
+          style={isMobileLayout && interactionMode === 'selection' ? { touchAction: 'none' } : undefined}
+        >
           <div className="relative z-40 flex w-full border-b border-gray-100 bg-white">
             {MAIN_TABS.map(({ id, label, Icon }) => (
               <button
@@ -2289,6 +2292,8 @@ export default function App() {
               <div className="pointer-events-auto flex w-14 flex-col rounded-2xl border border-gray-100 bg-white/95 shadow-xl backdrop-blur-sm md:w-16">
                 <button
                   onClick={() => {
+                    // inertia scroll'u durdur — seçim modunda touchstart cancelable olsun
+                    if (wrapperRef.current) wrapperRef.current.scrollTop = wrapperRef.current.scrollTop;
                     setInteractionMode('selection');
                     const cv = getActiveCanvasHandle()?.getCanvas();
                     if (cv) {
