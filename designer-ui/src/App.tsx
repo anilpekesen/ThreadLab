@@ -217,7 +217,9 @@ function readConfig(): DesignerConfig {
   if (w.__DESIGNER_CONFIG__) return w.__DESIGNER_CONFIG__;
   const p = new URLSearchParams(window.location.search);
   let variants: DesignerConfig['variants'] = [];
+  let selectedVariant: DesignerConfig['selectedVariant'] = null;
   try { variants = JSON.parse(p.get('variants') ?? '[]') as DesignerConfig['variants']; } catch { variants = []; }
+  try { selectedVariant = JSON.parse(p.get('selectedVariant') ?? 'null') as DesignerConfig['selectedVariant']; } catch { selectedVariant = null; }
   return {
     productId: p.get('productId') ?? '',
     productHandle: p.get('handle') ?? '',
@@ -226,6 +228,7 @@ function readConfig(): DesignerConfig {
     backImage: p.get('back') ?? '',
     shirtColor: p.get('color') ?? '#1C1C1E',
     variants,
+    selectedVariant,
     optionNames: (p.get('optionNames') ?? '').split(',').map((s) => s.trim()).filter(Boolean),
     currency: p.get('currency') ?? 'TRY',
     locale: p.get('locale') ?? 'tr-TR',
@@ -867,6 +870,7 @@ export default function App() {
   const configRef = useRef(config);
   const personalizationRef = useRef<PersonalizationConfig>(defaultPersonalization());
   const restoredCanvasRef = useRef<string | null>(null);
+  const lastSelectedVariantIdRef = useRef('');
 
   const [activeTab, setActiveTab] = useState<Tab>(null);
   const [imageActiveSource, setImageActiveSource] = useState<'upload' | 'qr' | 'ai'>('upload');
@@ -1115,9 +1119,22 @@ export default function App() {
   );
 
   useEffect(() => {
+    const selectedVariantColor = config?.selectedVariant?.[colorKey] ?? '';
+    const selectedVariantId = config?.selectedVariant?.id ? String(config.selectedVariant.id) : '';
+    const matchingVariantColor = selectedVariantId
+      ? config?.variants?.find((variant) => String(variant.id) === selectedVariantId)?.[colorKey] ?? ''
+      : '';
     const firstColor = config?.variants?.find((variant) => variant[colorKey])?.[colorKey] ?? '';
-    if (firstColor && !selectedColor) setSelectedColor(firstColor);
-  }, [config?.variants, colorKey, selectedColor]);
+    const initialColor = selectedVariantColor || matchingVariantColor || firstColor;
+
+    if (selectedVariantId && selectedVariantId !== lastSelectedVariantIdRef.current) {
+      lastSelectedVariantIdRef.current = selectedVariantId;
+      if (selectedVariantColor || matchingVariantColor) setSelectedColor(selectedVariantColor || matchingVariantColor);
+      return;
+    }
+
+    if (initialColor && !selectedColor) setSelectedColor(initialColor);
+  }, [config?.selectedVariant, config?.variants, colorKey, selectedColor]);
 
   useEffect(() => {
     syncLayers();

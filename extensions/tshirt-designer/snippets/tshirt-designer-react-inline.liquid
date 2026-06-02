@@ -22,6 +22,7 @@
   data-double-price="{{ block.settings.double_price }}"
   data-surcharge-variant-id="{{ shop.metafields.printlabapp.surcharge_variant_id.value }}"
   data-product-variants="{{ product.variants | json | escape }}"
+  data-selected-variant="{{ product.selected_or_first_available_variant | json | escape }}"
   data-option-names="{{ product.options | join: ',' | escape }}"
 >
   <iframe
@@ -79,6 +80,16 @@
 
     function sendDesignerConfig(iframe, root) {
       if (!iframe || !iframe.contentWindow) return;
+      var selectedVariant = null;
+      var variants = [];
+      try { variants = JSON.parse(root.dataset.productVariants || '[]'); } catch (err) { variants = []; }
+      try { selectedVariant = JSON.parse(root.dataset.selectedVariant || 'null'); } catch (err) { selectedVariant = null; }
+      var selectedVariantInput = document.querySelector('form[action*="/cart/add"] [name="id"]');
+      var selectedVariantId = selectedVariantInput && selectedVariantInput.value ? String(selectedVariantInput.value) : '';
+      if (selectedVariantId && Array.isArray(variants)) {
+        var liveVariant = variants.find(function(variant) { return String(variant.id) === selectedVariantId; });
+        if (liveVariant) selectedVariant = liveVariant;
+      }
       iframe.contentWindow.postMessage({
         type: 'DESIGNER_INIT',
         config: {
@@ -88,7 +99,8 @@
           frontImage: root.dataset.frontImage || '',
           backImage: root.dataset.backImage || '',
           shirtColor: root.dataset.shirtColor || '#1C1C1E',
-          variants: JSON.parse(root.dataset.productVariants || '[]'),
+          variants: variants,
+          selectedVariant: selectedVariant,
           optionNames: (root.dataset.optionNames || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean),
           currency: root.dataset.currency || 'TRY',
           locale: root.dataset.locale || 'tr-TR',
@@ -115,6 +127,12 @@
       iframe.addEventListener('load', function() {
         sendDesignerConfig(iframe, root);
         window.setTimeout(function() { sendDesignerConfig(iframe, root); }, 400);
+      });
+
+      document.addEventListener('change', function(event) {
+        var target = event.target;
+        if (!target || !target.matches || !target.matches('form[action*="/cart/add"] [name="id"], variant-selects select, variant-radios input')) return;
+        window.setTimeout(function() { sendDesignerConfig(iframe, root); }, 50);
       });
     });
 
