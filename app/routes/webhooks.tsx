@@ -12,7 +12,6 @@ import { upsertShopSubscription } from "~/models/billing.server";
 import { PLAN_NAMES } from "~/lib/plans";
 import { getDriveConnection } from "~/models/shop-google-drive.server";
 import { CREDIT_PACKS } from "~/lib/credit-packs";
-import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server";
 import {
   getValidAccessToken,
   ensureRootFolder,
@@ -415,13 +414,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         query("SELECT id FROM ai_credit_purchases WHERE charge_id = $1", [chargeId])
           .then(async (existing) => {
             if (existing.rows.length > 0) return;
-            const current = await getShopSettings(shop);
-            const newBonus = (current.aiQuotaBonus ?? 0) + pack.credits;
-            await saveShopSettings(shop, { ...current, aiQuotaBonus: newBonus });
             const id = `acp_${randomBytes(8).toString("hex")}`;
             await query(
-              `INSERT INTO ai_credit_purchases (id, shop, charge_id, pack_key, credits_added, price_usd)
-               VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (charge_id) DO NOTHING`,
+              `INSERT INTO ai_credit_purchases (id, shop, charge_id, pack_key, credits_added, price_usd, expires_at)
+               VALUES ($1,$2,$3,$4,$5,$6, now() + interval '30 days') ON CONFLICT (charge_id) DO NOTHING`,
               [id, shop, chargeId, pack.key, pack.credits, pack.price],
             );
             console.log(

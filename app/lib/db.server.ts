@@ -447,9 +447,11 @@ async function _runMigrationsLocked() {
       pack_key      TEXT NOT NULL,
       credits_added INTEGER NOT NULL,
       price_usd     NUMERIC NOT NULL,
-      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      expires_at    TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '30 days')
     )
   `);
+  await query(`ALTER TABLE ai_credit_purchases ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '30 days')`);
   await query(`
     CREATE INDEX IF NOT EXISTS ai_credit_purchases_shop
       ON ai_credit_purchases (shop, created_at DESC)

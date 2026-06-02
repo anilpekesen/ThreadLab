@@ -84,11 +84,17 @@ export async function checkAndIncrementAiGeneration(shop: string): Promise<AiQuo
     return { allowed: false, count: 0, quota: 0, planKey, reason: "no_subscription" };
   }
 
-  const [shopSettings, count] = await Promise.all([
+  const [shopSettings, purchasedBonusRes, count] = await Promise.all([
     getShopSettings(shop).catch(() => null),
+    query<{ total: string }>(
+      "SELECT COALESCE(SUM(credits_added), 0)::text AS total FROM ai_credit_purchases WHERE shop = $1 AND expires_at > now()",
+      [shop],
+    ).catch(() => null),
     getAiGenCount(shop),
   ]);
-  const bonus = shopSettings?.aiQuotaBonus ?? 0;
+  const permanentBonus = shopSettings?.aiQuotaBonus ?? 0;
+  const purchasedBonus = parseInt(purchasedBonusRes?.rows[0]?.total ?? "0", 10);
+  const bonus = permanentBonus + purchasedBonus;
   const quota = (PLANS[planKey].aiImageMonthlyQuota ?? 0) + bonus;
 
   if (quota >= 0 && count >= quota) {

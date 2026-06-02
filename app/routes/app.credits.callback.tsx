@@ -5,7 +5,6 @@ import { authenticate } from "~/lib/authenticate.server";
 import { shopifyGraphQL } from "~/lib/shopify.server";
 import { getValidAccessToken } from "~/lib/session.server";
 import { query } from "~/lib/db.server";
-import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server";
 import { CREDIT_PACKS, type PackKey } from "~/lib/credit-packs";
 
 export const headers = () => ({ "Cache-Control": "no-store" });
@@ -61,16 +60,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return redirect("/app/credits?error=not_approved");
   }
 
-  // Add credits (additive onto existing bonus)
-  const current = await getShopSettings(session.shop);
-  const newBonus = (current.aiQuotaBonus ?? 0) + pack.credits;
-  await saveShopSettings(session.shop, { ...current, aiQuotaBonus: newBonus });
-
-  // Record purchase (ON CONFLICT DO NOTHING for safety)
+  // Record purchase with 30-day expiry (ON CONFLICT DO NOTHING for safety)
   const id = `acp_${randomBytes(8).toString("hex")}`;
   await query(
-    `INSERT INTO ai_credit_purchases (id, shop, charge_id, pack_key, credits_added, price_usd)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO ai_credit_purchases (id, shop, charge_id, pack_key, credits_added, price_usd, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, now() + interval '30 days')
      ON CONFLICT (charge_id) DO NOTHING`,
     [id, session.shop, chargeId, packKey, pack.credits, pack.price],
   );

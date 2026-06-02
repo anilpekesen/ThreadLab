@@ -11,6 +11,7 @@ import {
   Banner,
   Button,
   Box,
+  Badge,
   InlineGrid,
   InlineStack,
   DataTable,
@@ -29,28 +30,37 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = session.shop;
 
   const settings = await getShopSettings(shop);
-  const aiQuotaBonus: number = settings.aiQuotaBonus ?? 0;
+  const permanentBonus: number = settings.aiQuotaBonus ?? 0;
 
   const month = new Date().toISOString().slice(0, 7);
-  const usageRes = await query<{ count: number }>(
-    "SELECT count FROM ai_generation_usage WHERE shop = $1 AND month = $2",
-    [shop, month],
-  );
-  const usedThisMonth: number = usageRes.rows[0]?.count ?? 0;
+  const [usageRes, purchasesRes, activeBonusRes] = await Promise.all([
+    query<{ count: number }>(
+      "SELECT count FROM ai_generation_usage WHERE shop = $1 AND month = $2",
+      [shop, month],
+    ),
+    query<{
+      pack_key: string;
+      credits_added: number;
+      price_usd: string;
+      created_at: string;
+      expires_at: string;
+    }>(
+      "SELECT pack_key, credits_added, price_usd, created_at, expires_at FROM ai_credit_purchases WHERE shop = $1 ORDER BY created_at DESC LIMIT 5",
+      [shop],
+    ),
+    query<{ total: string }>(
+      "SELECT COALESCE(SUM(credits_added), 0)::text AS total FROM ai_credit_purchases WHERE shop = $1 AND expires_at > now()",
+      [shop],
+    ),
+  ]);
 
-  const purchasesRes = await query<{
-    pack_key: string;
-    credits_added: number;
-    price_usd: string;
-    created_at: Date;
-  }>(
-    "SELECT pack_key, credits_added, price_usd, created_at FROM ai_credit_purchases WHERE shop = $1 ORDER BY created_at DESC LIMIT 3",
-    [shop],
-  );
+  const usedThisMonth: number = usageRes.rows[0]?.count ?? 0;
+  const activePurchasedBonus = parseInt(activeBonusRes.rows[0]?.total ?? "0", 10);
 
   return json({
     shop,
-    aiQuotaBonus,
+    permanentBonus,
+    activePurchasedBonus,
     usedThisMonth,
     recentPurchases: purchasesRes.rows,
   });
@@ -104,7 +114,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function CreditsPage() {
-  const { aiQuotaBonus, usedThisMonth, recentPurchases } =
+  const { permanentBonus, activePurchasedBonus, usedThisMonth, recentPurchases } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<{ redirectUrl?: string; error?: string }>();
   const navigation = useNavigation();
@@ -117,28 +127,49 @@ export default function CreditsPage() {
   }, [actionData]);
 
   const packList = Object.values(CREDIT_PACKS);
+  const totalBonus = activePurchasedBonus + permanentBonus;
 
-  const purchaseRows = recentPurchases.map((p) => [
-    p.pack_key,
-    String(p.credits_added),
-    `$${Number(p.price_usd).toFixed(2)}`,
-    new Date(p.created_at).toLocaleDateString("tr-TR"),
-  ]);
+  const purchaseRows = recentPurchases.map((p) => {
+    const isExpired = new Date(p.expires_at) < new Date();
+    return [
+      <span key="pack" style={isExpired ? { opacity: 0.5 } : undefined}>
+        {p.pack_key}
+      </span>,
+      <span key="credits" style={isExpired ? { opacity: 0.5 } : undefined}>
+        {String(p.credits_added)}
+      </span>,
+      <span key="price" style={isExpired ? { opacity: 0.5 } : undefined}>
+        ${Number(p.price_usd).toFixed(2)}
+      </span>,
+      <span key="date" style={isExpired ? { opacity: 0.5 } : undefined}>
+        {new Date(p.created_at).toLocaleDateString("tr-TR")}
+      </span>,
+      <span key="expires" style={isExpired ? { opacity: 0.5 } : undefined}>
+        {isExpired ? (
+          <Badge tone="critical">Süresi Doldu</Badge>
+        ) : (
+          new Date(p.expires_at).toLocaleDateString("tr-TR")
+        )}
+      </span>,
+    ];
+  });
 
   return (
     <Page title="AI Kredi Paketleri">
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
-            {aiQuotaBonus > 0 && (
+            {totalBonus > 0 && (
               <Banner tone="info">
                 <Text as="p" variant="bodyMd">
-                  Mevcut bonus krediniz: <strong>{aiQuotaBonus}</strong> — Bu ay kullanılan:{" "}
+                  Aktif kredi: <strong>{activePurchasedBonus}</strong> satın alınan +{" "}
+                  <strong>{permanentBonus}</strong> kalıcı ={" "}
+                  <strong>{totalBonus}</strong> toplam bonus — Bu ay kullanılan:{" "}
                   <strong>{usedThisMonth}</strong>
                 </Text>
               </Banner>
             )}
-            {aiQuotaBonus === 0 && (
+            {totalBonus === 0 && (
               <Banner tone="warning">
                 <Text as="p" variant="bodyMd">
                   Bu ay kullanılan AI jenerasyon: <strong>{usedThisMonth}</strong>. Ek kredi satın alarak limitinizi artırabilirsiniz.
@@ -158,6 +189,9 @@ export default function CreditsPage() {
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
                       {pack.credits} AI görsel jenerasyonu
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Satın alındığı tarihten itibaren 30 gün geçerli
                     </Text>
                     <Box paddingBlockStart="200">
                       <Form method="post">
@@ -193,8 +227,8 @@ export default function CreditsPage() {
                     Son Satın Alımlar
                   </Text>
                   <DataTable
-                    columnContentTypes={["text", "numeric", "text", "text"]}
-                    headings={["Paket", "Kredi", "Fiyat", "Tarih"]}
+                    columnContentTypes={["text", "numeric", "text", "text", "text"]}
+                    headings={["Paket", "Kredi", "Fiyat", "Tarih", "Son Kullanım"]}
                     rows={purchaseRows}
                   />
                 </BlockStack>
