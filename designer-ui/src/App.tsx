@@ -2700,12 +2700,12 @@ export default function App() {
 
           {showPreview && (
             <div
-              className="fixed inset-0 z-[100] overflow-y-auto overscroll-y-contain bg-black/60 backdrop-blur-sm md:flex md:items-center md:justify-center md:p-4"
+              className="fixed inset-0 z-[100] overflow-y-auto overscroll-y-contain bg-black/60 px-3 pb-3 pt-[max(14px,env(safe-area-inset-top))] backdrop-blur-sm md:flex md:items-center md:justify-center md:p-4"
               style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
               onClick={() => setShowPreview(false)}
             >
               <div
-                className="min-h-[100svh] w-full max-w-4xl bg-white shadow-2xl md:flex md:h-auto md:max-h-[90vh] md:min-h-0 md:flex-col md:overflow-hidden md:rounded-3xl"
+                className="min-h-[calc(100svh-28px)] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl md:flex md:h-auto md:max-h-[90vh] md:min-h-0 md:flex-col md:rounded-3xl"
                 onClick={(e) => e.stopPropagation()}
               >
                   <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4 md:static md:flex-none md:px-8 md:py-6">
