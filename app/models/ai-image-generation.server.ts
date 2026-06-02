@@ -227,18 +227,12 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
   let enhancedPrompt: string;
   try {
     const optimized = await optimizePrompt(apiKey, userPrompt);
-    // Optimizer çıktısına baskı kritik kısıtlamalarını ekle
-    enhancedPrompt = [
-      optimized,
-      styleHint ? `style: ${styleHint}` : "",
-      "isolated on pure white background",
-      "no scenery, no background environment, no frame",
-      "suitable for DTF and screen printing",
-    ].filter(Boolean).join(", ");
+    // Optimizer çıktısını direkt kullan — model kendi kalitesini yönetiyor
+    enhancedPrompt = styleHint ? `${optimized}, style: ${styleHint}` : optimized;
     console.log(`[ai-generate] optimized prompt: ${optimized.slice(0, 120)}...`);
   } catch (optErr) {
-    console.warn("[ai-generate] prompt optimizer failed, using manual build:", optErr instanceof Error ? optErr.message : optErr);
-    enhancedPrompt = buildPrintPrompt(userPrompt, styleHint);
+    console.warn("[ai-generate] prompt optimizer failed, using user prompt:", optErr instanceof Error ? optErr.message : optErr);
+    enhancedPrompt = styleHint ? `${userPrompt.trim()}, style: ${styleHint}` : userPrompt.trim();
   }
 
   try {
