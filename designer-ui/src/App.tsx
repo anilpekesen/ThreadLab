@@ -2314,7 +2314,7 @@ export default function App() {
                   />
                 )}
 
-                <div className="pointer-events-none absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6 lg:hidden">
+                <div className="pointer-events-none absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6">
                   <p className="text-sm font-bold text-gray-900">{activeAreaSummary}</p>
                   <p className="text-[9px] font-medium text-gray-400">Bu ölçüler baskı alanının ölçüsüdür</p>
                 </div>
