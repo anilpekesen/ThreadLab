@@ -3325,13 +3325,23 @@ export default function App() {
                 </div>
                 {pricingSummary.front.hasContent && (
                   <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">Ön baskı ({pricingSummary.front.metrics.objectCount} öğe)</span>
+                    <span className="font-semibold text-gray-500">
+                      Ön baskı ({pricingSummary.front.metrics.objectCount} öğe)
+                      {pricingSummary.front.band.label && (
+                        <span className="ml-1 text-gray-400">· {pricingSummary.front.band.label}</span>
+                      )}
+                    </span>
                     <strong className="font-black text-gray-900">{formatMoney(displayFrontSubtotal)}</strong>
                   </div>
                 )}
                 {pricingSummary.back.hasContent && (
                   <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">Arka baskı ({pricingSummary.back.metrics.objectCount} öğe)</span>
+                    <span className="font-semibold text-gray-500">
+                      Arka baskı ({pricingSummary.back.metrics.objectCount} öğe)
+                      {pricingSummary.back.band.label && (
+                        <span className="ml-1 text-gray-400">· {pricingSummary.back.band.label}</span>
+                      )}
+                    </span>
                     <strong className="font-black text-gray-900">{formatMoney(displayBackSubtotal)}</strong>
                   </div>
                 )}
