@@ -13,7 +13,7 @@ import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
 import { logAiPrompt } from "~/models/ai-prompt-logs.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
-const IMAGE_MODEL = "google/nano-banana/text-to-image";
+const IMAGE_MODEL = "wavespeed-ai/z-image/turbo";
 const PROMPT_OPTIMIZER_MODEL = "wavespeed-ai/prompt-optimizer";
 const POLL_MAX_MS = 42_000;
 const POLL_INTERVAL_MS = 1_200;
