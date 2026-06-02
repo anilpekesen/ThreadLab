@@ -2267,6 +2267,7 @@ export default function App() {
             onMouseMove={handleSceneMouseMove}
             onMouseUp={handleSceneMouseUp}
             onMouseLeave={handleSceneMouseUp}
+            style={{ isolation: 'isolate' }}
             onClick={(e) => {
               if (!(e.target as Element).closest('canvas') && interactionMode !== 'navigation') {
                 setInteractionMode('navigation');
@@ -2322,13 +2323,6 @@ export default function App() {
                 )}
 
 
-                <div className="pointer-events-none absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6">
-                  <p className="text-sm font-bold text-gray-900">
-                    {activeAreaSummary}
-                    <span className="ml-1.5 text-[9px] font-normal text-gray-400">baskı alanı</span>
-                  </p>
-                </div>
-
                 <div className="pointer-events-none absolute bottom-14 left-1/2 z-30 flex -translate-x-1/2 gap-1.5 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
                   {availableSides.map((side) => {
                     const label = side === 'front' ? 'Ön' : 'Arka';
@@ -2359,6 +2353,14 @@ export default function App() {
                   })}
                 </div>
               </div>
+            </div>
+
+            {/* Baskı alanı etiketi — scene div dışında, transform etkilenmiyor */}
+            <div className="pointer-events-none absolute left-4 top-4 z-40 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6">
+              <p className="text-sm font-bold text-gray-900">
+                {activeAreaSummary}
+                <span className="ml-1.5 text-[9px] font-normal text-gray-400">baskı alanı</span>
+              </p>
             </div>
 
             <div className="pointer-events-none absolute bottom-24 right-2 z-30 flex scale-[0.8] flex-col gap-1.5 origin-right md:right-5 md:top-1/2 md:-translate-y-1/2 md:scale-90 md:gap-2">
