@@ -952,11 +952,10 @@ export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = []
                 >
                   <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50 p-1">
                     <img
-                      src={tpl.imageUrl}
+                      src={tpl.imageUrl.startsWith('https://assets.printlabapp.com/') ? `/api/img-proxy?url=${encodeURIComponent(tpl.imageUrl)}` : tpl.imageUrl}
                       alt={tpl.name}
                       className="h-full w-full object-contain transition-transform group-hover:scale-110"
                       draggable={false}
-                      crossOrigin="anonymous"
                     />
                   </div>
                   <span className="w-full truncate text-[10px] font-bold text-violet-700">{tpl.name}</span>
