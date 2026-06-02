@@ -759,7 +759,6 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
             {/* Size label */}
             <div className="pointer-events-none absolute left-1/2 top-[14px] z-20 -translate-x-1/2 rounded-full bg-white/92 px-3 py-1 text-[10px] font-bold tracking-[0.14em] text-sky-500 shadow-sm">
               {Math.round(printArea.realWidthMm / 10)} × {Math.round(printArea.realHeightMm / 10)} CM
-              <span className="ml-1.5 font-normal tracking-normal text-gray-400">baskı alanı</span>
             </div>
             <div
               className="pointer-events-none absolute z-10 rounded-[14px] border-2 border-dashed"
