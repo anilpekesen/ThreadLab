@@ -60,6 +60,7 @@ function AppInner() {
     { label: t("nav.billing"), url: "/app/billing", end: false, show: true },
     { label: "AI Kredi", url: "/app/credits", end: false, show: true },
     { label: t("nav.settings"), url: "/app/settings", end: false, show: true },
+    { label: "Destek / Support", url: "/app/support", end: false, show: true },
   ].filter((item) => item.show);
 
   return (

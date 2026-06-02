@@ -30,6 +30,18 @@ interface ShopRow {
   last_order_at: string | null;
 }
 
+interface TicketRow {
+  id: string;
+  shop: string;
+  subject: string;
+  message: string;
+  status: string;
+  priority: string;
+  admin_reply: string | null;
+  created_at: string;
+  replied_at: string | null;
+}
+
 async function getShopsData() {
   const month = new Date().toISOString().slice(0, 7);
   const result = await query<ShopRow>(`
@@ -70,6 +82,9 @@ async function getGlobalStats() {
     total_ai_gens: string;
     total_bg_removals: string;
     active_subs: string;
+    open_tickets: string;
+    active_bonus_credits: string;
+    total_credit_sales: string;
   }>(`
     SELECT
       (SELECT COUNT(DISTINCT shop)::text FROM shopify_sessions WHERE shop != '') as total_shops,
@@ -77,7 +92,10 @@ async function getGlobalStats() {
       (SELECT COALESCE(SUM(line_total_price), 0)::text FROM orders) as total_revenue,
       (SELECT COALESCE(SUM(count), 0)::text FROM ai_generation_usage) as total_ai_gens,
       (SELECT COALESCE(SUM(count), 0)::text FROM bg_removal_usage) as total_bg_removals,
-      (SELECT COUNT(*)::text FROM shop_subscriptions WHERE subscription_status = 'active') as active_subs
+      (SELECT COUNT(*)::text FROM shop_subscriptions WHERE subscription_status = 'active') as active_subs,
+      (SELECT COUNT(*)::text FROM support_tickets WHERE status = 'open') as open_tickets,
+      (SELECT COALESCE(SUM(credits_added), 0)::text FROM ai_credit_purchases WHERE expires_at > now()) as active_bonus_credits,
+      (SELECT COUNT(*)::text FROM ai_credit_purchases) as total_credit_sales
   `);
   const r = result.rows[0];
   return {
@@ -87,6 +105,9 @@ async function getGlobalStats() {
     totalAiGens: parseInt(r?.total_ai_gens ?? "0", 10),
     totalBgRemovals: parseInt(r?.total_bg_removals ?? "0", 10),
     activeSubs: parseInt(r?.active_subs ?? "0", 10),
+    openTickets: parseInt(r?.open_tickets ?? "0", 10),
+    activeBonusCredits: parseInt(r?.active_bonus_credits ?? "0", 10),
+    totalCreditSales: parseInt(r?.total_credit_sales ?? "0", 10),
   };
 }
 
@@ -96,6 +117,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       authed: false, tab: "login",
       shops: [] as ShopRow[], globalStats: null,
       aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "",
+      tickets: [] as TicketRow[], openCount: 0,
     });
   }
 
@@ -110,11 +132,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       getAiPromptLogsCount(filterShop || undefined),
       getGlobalStats(),
     ]);
-    return json({ authed: true, tab, shops: [] as ShopRow[], globalStats, aiLogs, aiLogsCount, aiLogsPage: page, filterShop });
+    return json({ authed: true, tab, shops: [] as ShopRow[], globalStats, aiLogs, aiLogsCount, aiLogsPage: page, filterShop, tickets: [] as TicketRow[], openCount: 0 });
+  }
+
+  if (tab === "support") {
+    const [ticketsResult, globalStats] = await Promise.all([
+      query<TicketRow>(
+        `SELECT id, shop, subject, message, status, priority, admin_reply, created_at, replied_at
+         FROM support_tickets ORDER BY created_at DESC LIMIT 100`,
+      ),
+      getGlobalStats(),
+    ]);
+    const tickets = ticketsResult.rows;
+    const openCount = tickets.filter((t) => t.status === "open").length;
+    return json({
+      authed: true, tab, shops: [] as ShopRow[], globalStats,
+      aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "",
+      tickets, openCount,
+    });
   }
 
   const [shops, globalStats] = await Promise.all([getShopsData(), getGlobalStats()]);
-  return json({ authed: true, tab: "shops", shops, globalStats, aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "" });
+  return json({ authed: true, tab: "shops", shops, globalStats, aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "", tickets: [] as TicketRow[], openCount: 0 });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -136,6 +175,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await saveShopSettings(shop, { ...current, aiQuotaBonus: aiBonus, bgQuotaBonus: bgBonus });
     }
     return redirect(`/admin?tab=shops`);
+  }
+
+  if (intent === "replyTicket") {
+    if (isAuthed(request)) {
+      const ticketId = form.get("ticketId") as string;
+      const reply = form.get("reply") as string;
+      if (ticketId && reply?.trim()) {
+        await query(
+          `UPDATE support_tickets SET admin_reply = $2, status = 'answered', replied_at = now(), updated_at = now() WHERE id = $1`,
+          [ticketId, reply.trim()],
+        );
+      }
+    }
+    return redirect("/admin?tab=support");
+  }
+
+  if (intent === "closeTicket") {
+    if (isAuthed(request)) {
+      const ticketId = form.get("ticketId") as string;
+      if (ticketId) {
+        await query(
+          `UPDATE support_tickets SET status = 'closed', updated_at = now() WHERE id = $1`,
+          [ticketId],
+        );
+      }
+    }
+    return redirect("/admin?tab=support");
   }
 
   const password = String(form.get("password") ?? "");
@@ -161,7 +227,7 @@ const css = {
     color: active ? "#f8fafc" : "#94a3b8", background: active ? "#334155" : "transparent",
   }),
   main: { padding: "24px 28px", maxWidth: 1400, margin: "0 auto" } as React.CSSProperties,
-  statsGrid: { display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 14, marginBottom: 22 } as React.CSSProperties,
+  statsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 14, marginBottom: 22 } as React.CSSProperties,
   statCard: { background: "#1e293b", border: "1px solid #334155", borderRadius: 10, padding: "14px 18px" } as React.CSSProperties,
   statLabel: { fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: 0.8 },
   statValue: { fontSize: 22, fontWeight: 700, color: "#f1f5f9", marginTop: 4 },
@@ -176,6 +242,7 @@ const css = {
 
 const PLAN_COLOR: Record<string, string> = { Starter: "#6366f1", Growth: "#0ea5e9", Pro: "#8b5cf6", Business: "#f59e0b" };
 const STATUS_COLOR: Record<string, string> = { active: "#10b981", trial: "#f59e0b", cancelled: "#ef4444", none: "#6b7280" };
+const TICKET_STATUS_COLOR: Record<string, string> = { open: "#f59e0b", answered: "#10b981", closed: "#6b7280" };
 
 // ── Components ────────────────────────────────────────────────────────────────
 
@@ -198,20 +265,24 @@ function LoginPage({ error }: { error?: string }) {
   );
 }
 
-function StatCard({ label, value, isRevenue }: { label: string; value: number; isRevenue?: boolean }) {
+function StatCard({ label, value, isRevenue, critical }: { label: string; value: number; isRevenue?: boolean; critical?: boolean }) {
   const formatted = isRevenue
     ? `$${value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : value.toLocaleString("tr-TR");
   return (
-    <div style={css.statCard}>
+    <div style={{ ...css.statCard, ...(critical && value > 0 ? { borderColor: "#f59e0b" } : {}) }}>
       <div style={css.statLabel}>{label}</div>
-      <div style={css.statValue}>{formatted}</div>
+      <div style={{ ...css.statValue, ...(critical && value > 0 ? { color: "#f59e0b" } : {}) }}>{formatted}</div>
     </div>
   );
 }
 
 function ShopsTab({ shops }: { shops: ShopRow[] }) {
   const [bonusShop, setBonusShop] = React.useState<string | null>(null);
+
+  // Sort shops by ai_this_month desc to find top 3
+  const sortedByAi = [...shops].sort((a, b) => b.ai_this_month - a.ai_this_month);
+  const top3AiShops = new Set(sortedByAi.slice(0, 3).filter((s) => s.ai_this_month > 0).map((s) => s.shop));
 
   return (
     <div>
@@ -230,6 +301,7 @@ function ShopsTab({ shops }: { shops: ShopRow[] }) {
             )}
             {shops.map((s) => {
               const revenue = parseFloat(s.total_revenue ?? "0");
+              const isTopAi = top3AiShops.has(s.shop);
               return (
                 <React.Fragment key={s.shop}>
                   <tr
@@ -246,7 +318,14 @@ function ShopsTab({ shops }: { shops: ShopRow[] }) {
                     <td style={{ ...css.td, color: "#10b981", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>
                       {revenue.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {s.currency}
                     </td>
-                    <td style={css.td}>{s.ai_this_month}</td>
+                    <td style={css.td}>
+                      {s.ai_this_month}
+                      {isTopAi && (
+                        <span style={{ marginLeft: 4, display: "inline-block", padding: "1px 6px", borderRadius: 10, fontSize: 10, fontWeight: 700, background: "#f59e0b22", color: "#f59e0b" }}>
+                          TOP
+                        </span>
+                      )}
+                    </td>
                     <td style={css.td}>{s.bg_this_month}</td>
                     <td style={css.td}>
                       {s.drive_connected
@@ -387,6 +466,121 @@ function AiLogsTab({ logs, count, page, filterShop }: {
   );
 }
 
+function SupportTab({ tickets }: { tickets: TicketRow[] }) {
+  const [expanded, setExpanded] = React.useState<string | null>(null);
+
+  return (
+    <div>
+      <div style={css.card}>
+        <table style={css.table}>
+          <thead>
+            <tr>
+              {["ID", "Mağaza", "Konu", "Mesaj", "Durum", "Tarih", "İşlem"].map((h) => (
+                <th key={h} style={css.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {tickets.length === 0 && (
+              <tr><td colSpan={7} style={{ ...css.td, textAlign: "center", color: "#475569", padding: 32 }}>Destek talebi bulunamadı</td></tr>
+            )}
+            {tickets.map((t) => (
+              <React.Fragment key={t.id}>
+                <tr
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#162032")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = expanded === t.id ? "#162032" : "transparent")}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setExpanded(expanded === t.id ? null : t.id)}
+                >
+                  <td style={{ ...css.td, fontSize: 11, color: "#475569", fontFamily: "monospace" }}>
+                    {t.id.slice(0, 12)}…
+                  </td>
+                  <td style={{ ...css.td, fontSize: 12 }}>
+                    {t.shop.replace(".myshopify.com", "")}
+                  </td>
+                  <td style={{ ...css.td, fontWeight: 600, color: "#f1f5f9", maxWidth: 200 }}>
+                    <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {t.subject}
+                    </span>
+                  </td>
+                  <td style={{ ...css.td, maxWidth: 240, color: "#94a3b8", fontSize: 12 }}>
+                    <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {t.message.length > 80 ? t.message.slice(0, 80) + "…" : t.message}
+                    </span>
+                  </td>
+                  <td style={css.td}>
+                    <span style={css.badge(TICKET_STATUS_COLOR[t.status] ?? "#6b7280")}>{t.status}</span>
+                  </td>
+                  <td style={{ ...css.td, fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
+                    {new Date(t.created_at).toLocaleDateString("tr-TR")}
+                  </td>
+                  <td style={css.td}>
+                    <span style={{ fontSize: 12, color: "#94a3b8" }}>{expanded === t.id ? "▲ Kapat" : "▼ Detay"}</span>
+                  </td>
+                </tr>
+
+                {expanded === t.id && (
+                  <tr style={{ background: "#162032" }}>
+                    <td colSpan={7} style={{ padding: "16px 20px" }}>
+                      <div style={{ marginBottom: 12 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.8 }}>Mesaj</span>
+                        <p style={{ margin: "6px 0 0", color: "#e2e8f0", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{t.message}</p>
+                      </div>
+
+                      {t.admin_reply && (
+                        <div style={{ marginBottom: 12, padding: "10px 14px", background: "#10b98110", border: "1px solid #10b98130", borderRadius: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#10b981", textTransform: "uppercase", letterSpacing: 0.8 }}>Mevcut Yanıt</span>
+                          <p style={{ margin: "6px 0 0", color: "#e2e8f0", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{t.admin_reply}</p>
+                          {t.replied_at && (
+                            <span style={{ fontSize: 11, color: "#64748b", marginTop: 4, display: "block" }}>
+                              {new Date(t.replied_at).toLocaleString("tr-TR")}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+                        {t.status !== "closed" && (
+                          <form method="post" action="/admin" style={{ flex: 1, minWidth: 300 }}>
+                            <input type="hidden" name="intent" value="replyTicket" />
+                            <input type="hidden" name="ticketId" value={t.id} />
+                            <div style={{ marginBottom: 8 }}>
+                              <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, display: "block", marginBottom: 6 }}>Yanıt</label>
+                              <textarea
+                                name="reply"
+                                rows={4}
+                                placeholder="Yanıtınızı yazın..."
+                                style={{ ...css.input, width: "100%", boxSizing: "border-box", resize: "vertical", lineHeight: 1.5, fontFamily: "inherit" }}
+                              />
+                            </div>
+                            <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "7px 18px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                              Yanıtla
+                            </button>
+                          </form>
+                        )}
+
+                        {t.status !== "closed" && (
+                          <form method="post" action="/admin" style={{ display: "flex", alignItems: "flex-end" }}>
+                            <input type="hidden" name="intent" value="closeTicket" />
+                            <input type="hidden" name="ticketId" value={t.id} />
+                            <button type="submit" style={{ background: "#1e293b", border: "1px solid #475569", borderRadius: 6, padding: "7px 18px", color: "#94a3b8", cursor: "pointer", fontSize: 13 }}>
+                              Kapat
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export default function Admin() {
@@ -398,6 +592,7 @@ export default function Admin() {
   }
 
   const gs = data.globalStats;
+  const openCount = data.openCount ?? 0;
 
   return (
     <div style={css.page}>
@@ -406,6 +601,13 @@ export default function Admin() {
         <nav style={{ display: "flex", gap: 4, flex: 1 }}>
           <a href="/admin?tab=shops" style={css.navLink(data.tab === "shops")}>Mağazalar</a>
           <a href="/admin?tab=ai-logs" style={css.navLink(data.tab === "ai-logs")}>AI Logları</a>
+          <a href="/admin?tab=support" style={css.navLink(data.tab === "support")}>
+            Destek{openCount > 0 && (
+              <span style={{ marginLeft: 5, display: "inline-block", padding: "1px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: "#f59e0b", color: "#0f172a" }}>
+                {openCount}
+              </span>
+            )}
+          </a>
         </nav>
         <form method="post" action="/admin">
           <input type="hidden" name="intent" value="logout" />
@@ -424,6 +626,8 @@ export default function Admin() {
             <StatCard label="Toplam Sipariş" value={gs.totalOrders} />
             <StatCard label="AI Üretim" value={gs.totalAiGens} />
             <StatCard label="BG Kaldırma" value={gs.totalBgRemovals} />
+            <StatCard label="Açık Talepler" value={gs.openTickets} critical />
+            <StatCard label="Kredi Satışı" value={gs.totalCreditSales} />
           </div>
         )}
 
@@ -436,6 +640,7 @@ export default function Admin() {
             filterShop={data.filterShop}
           />
         )}
+        {data.tab === "support" && <SupportTab tickets={data.tickets as TicketRow[]} />}
       </main>
     </div>
   );

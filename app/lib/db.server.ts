@@ -456,4 +456,26 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS ai_credit_purchases_shop
       ON ai_credit_purchases (shop, created_at DESC)
   `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS support_tickets (
+      id            TEXT PRIMARY KEY,
+      shop          TEXT NOT NULL,
+      subject       TEXT NOT NULL,
+      message       TEXT NOT NULL,
+      status        TEXT NOT NULL DEFAULT 'open',
+      priority      TEXT NOT NULL DEFAULT 'normal',
+      admin_reply   TEXT,
+      replied_at    TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS support_tickets_shop_created
+      ON support_tickets (shop, created_at DESC)
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS support_tickets_status_created
+      ON support_tickets (status, created_at DESC)
+  `);
 }
