@@ -921,6 +921,7 @@ export default function App() {
 
   const frontCanvasRef = useRef<CanvasAreaHandle>(null);
   const backCanvasRef = useRef<CanvasAreaHandle>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const configRef = useRef(config);
   const personalizationRef = useRef<PersonalizationConfig>(defaultPersonalization());
   const restoredCanvasRef = useRef<string | null>(null);
@@ -2076,6 +2077,13 @@ export default function App() {
     return () => window.removeEventListener('resize', syncViewportState);
   }, []);
 
+  // Panel açıldığında wrapper'ı başa sar (sayfa aşağı kaydırılmışsa panel yarım görünmesin)
+  useEffect(() => {
+    if (activeTab && wrapperRef.current) {
+      wrapperRef.current.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, [activeTab]);
+
   return (
     <div className="flex h-full min-h-screen items-stretch justify-center bg-[#eef2f7] text-gray-900">
 
@@ -2097,7 +2105,7 @@ export default function App() {
           <span>{toast.message}</span>
         </div>
       )}
-      <div className={cn(
+      <div ref={wrapperRef} className={cn(
         "flex h-full min-h-0 w-full max-w-none flex-1 flex-col bg-white shadow-none layout:flex-row layout:justify-center layout:overflow-hidden",
         isMobileLayout && interactionMode === 'navigation' ? "overflow-y-auto" : "overflow-hidden",
       )}>
