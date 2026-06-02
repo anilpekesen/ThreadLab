@@ -2090,19 +2090,46 @@ export default function App() {
   useEffect(() => {
     const el = scrollOverlayRef.current;
     if (!el) return;
-    let startY = 0;
-    const onStart = (e: TouchEvent) => { startY = e.touches[0].clientY; };
+    let startX = 0, startY = 0, startTime = 0;
+
+    const onStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startTime = Date.now();
+    };
     const onMove = (e: TouchEvent) => {
       if (!wrapperRef.current) return;
       const delta = startY - e.touches[0].clientY;
       wrapperRef.current.scrollTop += delta;
       startY = e.touches[0].clientY;
     };
+    const onEnd = (e: TouchEvent) => {
+      const t = e.changedTouches[0];
+      const dx = Math.abs(t.clientX - startX);
+      const dy = Math.abs(t.clientY - startY);
+      const dt = Date.now() - startTime;
+      // Tap (az hareket, kısa süre) → canvas'ta obje var mı bak
+      if (dx < 12 && dy < 12 && dt < 300) {
+        const cv = getActiveCanvasHandle()?.getCanvas();
+        if (!cv) return;
+        const target = cv.findTarget({ clientX: t.clientX, clientY: t.clientY } as MouseEvent, false);
+        if (target) {
+          if (wrapperRef.current) wrapperRef.current.scrollTop = wrapperRef.current.scrollTop;
+          setInteractionMode('selection');
+          cv.selection = true;
+          cv.setActiveObject(target);
+          cv.renderAll();
+        }
+      }
+    };
+
     el.addEventListener('touchstart', onStart, { passive: true });
     el.addEventListener('touchmove', onMove, { passive: true });
+    el.addEventListener('touchend', onEnd, { passive: true });
     return () => {
       el.removeEventListener('touchstart', onStart);
       el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
     };
   });
 
