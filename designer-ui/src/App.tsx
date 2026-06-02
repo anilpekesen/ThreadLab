@@ -1957,6 +1957,10 @@ export default function App() {
   );
 
   const baseSubtotal = useMemo(() => {
+    if (sizes.length === 0) {
+      // Bedensiz ürün (kupa, bez çanta vb.) — noSizeQuantity kullan
+      return baseUnitPrice * noSizeQuantity;
+    }
     return sizes.reduce((sum, size) => {
       const qty = sizeQuantities[size!] ?? 0;
       if (qty === 0) return sum;
@@ -1964,7 +1968,7 @@ export default function App() {
       const unitPrice = variant ? priceToCents(variant.price) : baseUnitPrice;
       return sum + unitPrice * qty;
     }, 0);
-  }, [baseUnitPrice, baseVariantForSize, sizeQuantities, sizes]);
+  }, [baseUnitPrice, baseVariantForSize, noSizeQuantity, sizeQuantities, sizes]);
 
   const pricingSummary = useMemo<PricingSummary>(() => {
     const frontItems = frontHasDesign
