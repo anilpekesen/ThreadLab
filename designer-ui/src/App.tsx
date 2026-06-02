@@ -1942,9 +1942,12 @@ export default function App() {
   const baseUnitPrice = useMemo(() => {
     const firstSize = sizes[0];
     const baseVariant = firstSize ? baseVariantForSize(firstSize) : null;
-    const fallback = priceToCents(config?.singlePrice ?? 0) || priceToCents(config?.doublePrice ?? 0);
-    return baseVariant ? priceToCents(baseVariant.price) : fallback;
-  }, [baseVariantForSize, config?.doublePrice, config?.singlePrice, sizes]);
+    if (baseVariant) return priceToCents(baseVariant.price);
+    // Beden yoksa: ilk varyant fiyatını kullan (ör. Kupa, Default Title)
+    const firstVariant = config?.variants?.[0];
+    if (firstVariant?.price) return priceToCents(firstVariant.price);
+    return priceToCents(config?.singlePrice ?? 0) || priceToCents(config?.doublePrice ?? 0);
+  }, [baseVariantForSize, config?.doublePrice, config?.singlePrice, config?.variants, sizes]);
 
   const totalQuantity = useMemo(
     () => sizes.length > 0
