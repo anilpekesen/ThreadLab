@@ -87,6 +87,15 @@
 {% assign front_img = '' %}
 {% if var_front_img != blank %}
   {% assign front_img = var_front_img %}
+{% elsif selected_variant and selected_variant.featured_image %}
+  {% assign front_img = selected_variant.featured_image | image_url: width: 900 %}
+{% elsif selected_variant and selected_variant.image_id %}
+  {% for image in product.images %}
+    {% if image.id == selected_variant.image_id %}
+      {% assign front_img = image | image_url: width: 900 %}
+      {% break %}
+    {% endif %}
+  {% endfor %}
 {% elsif product.images[0] != blank %}
   {% assign front_img = product.images[0] | image_url: width: 900 %}
 {% elsif block.settings.front_image != blank %}
@@ -120,12 +129,12 @@
   {% assign back_img = var_back_img %}
 {% elsif var_double_img != blank %}
   {% assign back_img = var_double_img %}
+{% elsif front_img != blank %}
+  {% assign back_img = front_img %}
 {% elsif product.images[1] != blank %}
   {% assign back_img = product.images[1] | image_url: width: 900 %}
 {% elsif block.settings.back_image != blank %}
   {% assign back_img = block.settings.back_image | image_url: width: 900 %}
-{% elsif front_img != blank %}
-  {% assign back_img = front_img %}
 {% endif %}
 
 <div

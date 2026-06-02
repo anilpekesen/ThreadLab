@@ -28,7 +28,7 @@
   <iframe
     class="dsgn-inline-react__frame"
     title="Tişört Tasarım Aracı"
-    loading="lazy"
+    loading="eager"
     allow="camera; microphone"
   ></iframe>
 </div>
@@ -78,26 +78,117 @@
     var roots = document.querySelectorAll('[data-designer-inline]');
     if (!roots.length) return;
 
+    function normalizeOptionName(value) {
+      return String(value || '').toLocaleLowerCase('tr-TR').trim();
+    }
+
+    function detectOptionKeys(root) {
+      var names = (root.dataset.optionNames || '').split(',').map(function(s) { return normalizeOptionName(s); });
+      var keys = ['option1', 'option2', 'option3'];
+      var colorIndex = names.findIndex(function(name) {
+        return name.indexOf('renk') !== -1 || name.indexOf('color') !== -1 || name.indexOf('colour') !== -1;
+      });
+      if (colorIndex < 0) colorIndex = 0;
+      return {
+        colorKey: keys[colorIndex] || 'option1'
+      };
+    }
+
+    function variantImageSrc(variant) {
+      return variant && variant.featured_image && variant.featured_image.src ? String(variant.featured_image.src) : '';
+    }
+
+    function findVariantBySelectedOptions(variants) {
+      if (!Array.isArray(variants) || !variants.length) return null;
+      var optionValues = [];
+      var selectValues = Array.from(document.querySelectorAll('variant-selects select, form[action*="/cart/add"] select[name^="options["]'))
+        .map(function(select) { return select && select.value ? String(select.value) : ''; })
+        .filter(Boolean);
+      if (selectValues.length) optionValues = selectValues;
+
+      var radioValues = Array.from(document.querySelectorAll('variant-radios fieldset, form[action*="/cart/add"] fieldset'))
+        .map(function(fieldset) {
+          var checked = fieldset.querySelector('input[type="radio"]:checked');
+          return checked && checked.value ? String(checked.value) : '';
+        })
+        .filter(Boolean);
+      if (radioValues.length) optionValues = radioValues;
+
+      if (!optionValues.length) return null;
+      return variants.find(function(variant) {
+        return optionValues.every(function(value, index) {
+          return String(variant['option' + (index + 1)] || '') === value;
+        });
+      }) || null;
+    }
+
+    function resolveVariantImages(root, variants, selectedVariant) {
+      var fallbackFront = root.dataset.frontImage || '';
+      var fallbackBack = root.dataset.backImage || fallbackFront;
+      if (!Array.isArray(variants) || !variants.length) {
+        return { frontImage: fallbackFront, backImage: fallbackBack };
+      }
+
+      var keys = detectOptionKeys(root);
+      var selectedColor = selectedVariant && selectedVariant[keys.colorKey] ? String(selectedVariant[keys.colorKey]) : '';
+      var selectedImage = variantImageSrc(selectedVariant);
+      var frontImage = '';
+      var backImage = '';
+
+      variants.forEach(function(variant) {
+        if (selectedColor && String(variant[keys.colorKey] || '') !== selectedColor) return;
+        var img = variantImageSrc(variant);
+        if (!img) return;
+        var printOption = normalizeOptionName(variant.option3);
+        var hasFront = printOption.indexOf('ön') !== -1 || printOption.indexOf('on') !== -1 || printOption.indexOf('front') !== -1;
+        var hasBack = printOption.indexOf('arka') !== -1 || printOption.indexOf('back') !== -1;
+        if (!printOption && selectedVariant && String(variant.id) === String(selectedVariant.id)) {
+          if (!frontImage) frontImage = img;
+          if (!backImage) backImage = img;
+          return;
+        }
+        if (hasFront && !frontImage) frontImage = img;
+        if (hasBack && !backImage) backImage = img;
+      });
+
+      if (!frontImage && selectedImage) frontImage = selectedImage;
+      if (!backImage && selectedImage) backImage = selectedImage;
+      if (!frontImage && selectedColor) {
+        var anySameColor = variants.find(function(variant) {
+          return String(variant[keys.colorKey] || '') === selectedColor && variantImageSrc(variant);
+        });
+        if (anySameColor) frontImage = variantImageSrc(anySameColor);
+      }
+      if (!backImage && frontImage) backImage = frontImage;
+      return {
+        frontImage: frontImage || fallbackFront,
+        backImage: backImage || fallbackBack || frontImage || fallbackFront
+      };
+    }
+
     function sendDesignerConfig(iframe, root) {
       if (!iframe || !iframe.contentWindow) return;
       var selectedVariant = null;
       var variants = [];
       try { variants = JSON.parse(root.dataset.productVariants || '[]'); } catch (err) { variants = []; }
       try { selectedVariant = JSON.parse(root.dataset.selectedVariant || 'null'); } catch (err) { selectedVariant = null; }
+      var visibleSelectedVariant = findVariantBySelectedOptions(variants);
+      if (visibleSelectedVariant) selectedVariant = visibleSelectedVariant;
       var selectedVariantInput = document.querySelector('form[action*="/cart/add"] [name="id"]');
       var selectedVariantId = selectedVariantInput && selectedVariantInput.value ? String(selectedVariantInput.value) : '';
-      if (selectedVariantId && Array.isArray(variants)) {
+      if (!visibleSelectedVariant && selectedVariantId && Array.isArray(variants)) {
         var liveVariant = variants.find(function(variant) { return String(variant.id) === selectedVariantId; });
         if (liveVariant) selectedVariant = liveVariant;
       }
+      var resolvedImages = resolveVariantImages(root, variants, selectedVariant);
       iframe.contentWindow.postMessage({
         type: 'DESIGNER_INIT',
         config: {
           productId: root.dataset.productId || '',
           productHandle: root.dataset.productHandle || '',
           productTitle: root.dataset.productTitle || '',
-          frontImage: root.dataset.frontImage || '',
-          backImage: root.dataset.backImage || '',
+          frontImage: resolvedImages.frontImage,
+          backImage: resolvedImages.backImage,
           shirtColor: root.dataset.shirtColor || '#1C1C1E',
           variants: variants,
           selectedVariant: selectedVariant,
@@ -131,7 +222,7 @@
 
       document.addEventListener('change', function(event) {
         var target = event.target;
-        if (!target || !target.matches || !target.matches('form[action*="/cart/add"] [name="id"], variant-selects select, variant-radios input')) return;
+        if (!target || !target.matches || !target.matches('form[action*="/cart/add"] [name="id"], form[action*="/cart/add"] select[name^="options["], form[action*="/cart/add"] input[type="radio"], variant-selects select, variant-radios input')) return;
         window.setTimeout(function() { sendDesignerConfig(iframe, root); }, 50);
       });
     });
