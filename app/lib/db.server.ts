@@ -439,4 +439,19 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS ai_prompt_logs_shop_created
       ON ai_prompt_logs (shop, created_at DESC)
   `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS ai_credit_purchases (
+      id            TEXT PRIMARY KEY,
+      shop          TEXT NOT NULL,
+      charge_id     TEXT NOT NULL UNIQUE,
+      pack_key      TEXT NOT NULL,
+      credits_added INTEGER NOT NULL,
+      price_usd     NUMERIC NOT NULL,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS ai_credit_purchases_shop
+      ON ai_credit_purchases (shop, created_at DESC)
+  `);
 }
