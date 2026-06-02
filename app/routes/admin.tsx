@@ -173,14 +173,14 @@ function LoginPage({ error }: { error?: string }) {
       <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 14, padding: "40px 44px", width: 340 }}>
         <div style={{ fontSize: 36, textAlign: "center", marginBottom: 6 }}>🖥</div>
         <h1 style={{ margin: "0 0 24px", fontSize: 19, fontWeight: 700, color: "#f8fafc", textAlign: "center" }}>Admin Panel</h1>
-        <Form method="post">
+        <form method="post" action="/admin">
           <input type="password" name="password" placeholder="Yönetici şifresi" required autoFocus
             style={{ ...css.input, width: "100%", boxSizing: "border-box", marginBottom: 12, fontSize: 14, padding: "10px 14px" }} />
           {error && <p style={{ color: "#ef4444", fontSize: 13, margin: "0 0 10px" }}>{error}</p>}
           <button type="submit" style={{ width: "100%", background: "#6366f1", border: "none", borderRadius: 8, padding: 10, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
             Giriş
           </button>
-        </Form>
+        </form>
       </div>
     </div>
   );
@@ -357,12 +357,12 @@ export default function Admin() {
           <a href="/admin?tab=shops" style={css.navLink(data.tab === "shops")}>Mağazalar</a>
           <a href="/admin?tab=ai-logs" style={css.navLink(data.tab === "ai-logs")}>AI Logları</a>
         </nav>
-        <Form method="post">
+        <form method="post" action="/admin">
           <input type="hidden" name="intent" value="logout" />
           <button type="submit" style={{ background: "transparent", border: "1px solid #334155", color: "#94a3b8", borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontSize: 13 }}>
             Çıkış
           </button>
-        </Form>
+        </form>
       </header>
 
       <main style={css.main}>
