@@ -2106,6 +2106,26 @@ export default function App() {
     };
   });
 
+  // Fabric.js boş canvas tıklaması → gezinme moduna geç
+  useEffect(() => {
+    if (!isMobileLayout) return;
+    const cv = getActiveCanvasHandle()?.getCanvas();
+    if (!cv) return;
+    const onMouseDown = (e: { target?: fabric.Object | null }) => {
+      if (!e.target && interactionMode === 'selection') {
+        if (wrapperRef.current) wrapperRef.current.scrollTop = wrapperRef.current.scrollTop;
+        setInteractionMode('navigation');
+        cv.discardActiveObject();
+        cv.selection = false;
+        cv.renderAll();
+        setSelectedObj(null);
+        setObjState(null);
+      }
+    };
+    cv.on('mouse:down', onMouseDown);
+    return () => { cv.off('mouse:down', onMouseDown as never); };
+  }, [isMobileLayout, interactionMode, getActiveCanvasHandle]);
+
   return (
     <div className="flex h-full min-h-screen items-stretch justify-center bg-[#eef2f7] text-gray-900">
 
