@@ -138,7 +138,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (tab === "support") {
     const [ticketsResult, globalStats] = await Promise.all([
       query<TicketRow>(
-        `SELECT id, shop, subject, message, status, priority, admin_reply, created_at, replied_at
+        `SELECT id, shop, subject, message, status, priority, admin_reply, messages, created_at, replied_at
          FROM support_tickets ORDER BY created_at DESC LIMIT 100`,
       ),
       getGlobalStats(),
@@ -182,9 +182,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const ticketId = form.get("ticketId") as string;
       const reply = form.get("reply") as string;
       if (ticketId && reply?.trim()) {
+        const adminMsg = JSON.stringify([{ role: "admin", text: reply.trim(), at: new Date().toISOString() }]);
         await query(
-          `UPDATE support_tickets SET admin_reply = $2, status = 'answered', replied_at = now(), updated_at = now() WHERE id = $1`,
-          [ticketId, reply.trim()],
+          `UPDATE support_tickets
+           SET admin_reply = $2, status = 'answered', replied_at = now(), updated_at = now(),
+               messages = messages || $3::jsonb
+           WHERE id = $1`,
+          [ticketId, reply.trim(), adminMsg],
         );
       }
     }

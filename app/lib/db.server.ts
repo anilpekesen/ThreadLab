@@ -478,4 +478,6 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS support_tickets_status_created
       ON support_tickets (status, created_at DESC)
   `);
+  // Konuşma thread'i için messages JSONB kolonu
+  await query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS messages JSONB NOT NULL DEFAULT '[]'`);
 }

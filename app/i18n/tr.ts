@@ -403,6 +403,50 @@ const tr = {
   "gangSheet.preview": "Önizleme",
   "gangSheet.itemCount": "tasarım",
   "gangSheet.note": "Not: Gang sheet yüksek çözünürlüklü PNG olarak indirilir.",
+
+  // Nav — yeni
+  "nav.support": "Destek",
+  "nav.credits": "AI Kredi",
+
+  // Support page
+  "support.title": "Destek",
+  "support.description": "Sorunlarınızı buradan bize iletebilirsiniz. En kısa sürede yanıt vereceğiz.",
+  "support.newTicket": "Yeni Talep",
+  "support.subject": "Konu",
+  "support.message": "Mesaj",
+  "support.submit": "Talep Gönder",
+  "support.successMsg": "Talebiniz alındı, en kısa sürede yanıt vereceğiz.",
+  "support.myTickets": "Taleplerim",
+  "support.noTickets": "Henüz destek talebiniz yok.",
+  "support.statusOpen": "Açık",
+  "support.statusAnswered": "Yanıtlandı",
+  "support.statusClosed": "Kapalı",
+  "support.adminReply": "Yanıt",
+  "support.date": "Tarih",
+  "support.subjectLabel": "Konu",
+  "support.emptyTitle": "Henüz destek talebi yok",
+  "support.emptyDesc": "Bir sorunuz veya sorununuz mu var? Yukarıdaki formu kullanarak bize ulaşın.",
+
+  // Credits page
+  "credits.title": "AI Kredi Paketleri",
+  "credits.description": "Planınıza ek AI görsel kredisi satın alın. Satın alındığı tarihten itibaren 30 gün geçerlidir.",
+  "credits.currentBonus": "Mevcut bonus krediniz",
+  "credits.purchased": "satın alınan",
+  "credits.permanent": "kalıcı",
+  "credits.total": "toplam",
+  "credits.buy": "Satın Al",
+  "credits.credits": "AI Kredisi",
+  "credits.validDays": "Satın alındığı tarihten itibaren 30 gün geçerli",
+  "credits.recentPurchases": "Son Satın Alımlar",
+  "credits.pack": "Paket",
+  "credits.amount": "Kredi",
+  "credits.price": "Fiyat",
+  "credits.expiry": "Son Kullanım",
+  "credits.expired": "Süresi Doldu",
+  "credits.noBonus": "Aktif bonus krediniz yok.",
+  "credits.successParam": "Satın alma başarılı! Krediniz hesabınıza eklendi.",
+  "credits.errorParam": "Satın alma tamamlanamadı. Lütfen tekrar deneyin.",
+  "credits.alreadyParam": "Bu satın alma daha önce işlenmiş.",
 } as const;
 
 export type TranslationKey = keyof typeof tr;

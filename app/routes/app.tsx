@@ -41,8 +41,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 function AppInner() {
-  const { planKey, subscriptionStatus, lang, shop, allowProduction, allowGangSheet, allowPrintQueue } = useLoaderData<typeof loader>();
-  const { t, setLang } = useTranslation();
+  const { planKey, subscriptionStatus, shop, allowProduction, allowGangSheet, allowPrintQueue } = useLoaderData<typeof loader>();
+  const { t, setLang, lang } = useTranslation(); // lang context'ten gelsin — anlık değişsin
   const navigate = useNavigate();
 
   const isActive = subscriptionStatus === "active" || subscriptionStatus === "trial";
@@ -58,9 +58,9 @@ function AppInner() {
     { label: t("nav.productTypes"), url: "/app/product-types", end: false, show: true },
     { label: t("nav.templates"), url: "/app/templates", end: false, show: true },
     { label: t("nav.billing"), url: "/app/billing", end: false, show: true },
-    { label: "AI Kredi", url: "/app/credits", end: false, show: true },
+    { label: t("nav.credits"), url: "/app/credits", end: false, show: true },
     { label: t("nav.settings"), url: "/app/settings", end: false, show: true },
-    { label: "Destek / Support", url: "/app/support", end: false, show: true },
+    { label: t("nav.support"), url: "/app/support", end: false, show: true },
   ].filter((item) => item.show);
 
   return (

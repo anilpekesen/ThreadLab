@@ -403,6 +403,50 @@ const en = {
   "gangSheet.preview": "Preview",
   "gangSheet.itemCount": "designs",
   "gangSheet.note": "Note: Gang sheet is downloaded as a high-resolution PNG.",
+
+  // Nav — new
+  "nav.support": "Support",
+  "nav.credits": "AI Credits",
+
+  // Support page
+  "support.title": "Support",
+  "support.description": "Submit your issues here and we'll get back to you as soon as possible.",
+  "support.newTicket": "New Request",
+  "support.subject": "Subject",
+  "support.message": "Message",
+  "support.submit": "Submit Request",
+  "support.successMsg": "Your request has been received. We'll get back to you shortly.",
+  "support.myTickets": "My Requests",
+  "support.noTickets": "You have no support requests yet.",
+  "support.statusOpen": "Open",
+  "support.statusAnswered": "Answered",
+  "support.statusClosed": "Closed",
+  "support.adminReply": "Reply",
+  "support.date": "Date",
+  "support.subjectLabel": "Subject",
+  "support.emptyTitle": "No support requests yet",
+  "support.emptyDesc": "Have a question or issue? Use the form above to reach us.",
+
+  // Credits page
+  "credits.title": "AI Credit Packs",
+  "credits.description": "Purchase additional AI image credits on top of your plan. Valid for 30 days from purchase.",
+  "credits.currentBonus": "Current bonus credits",
+  "credits.purchased": "purchased",
+  "credits.permanent": "permanent",
+  "credits.total": "total",
+  "credits.buy": "Buy",
+  "credits.credits": "AI Credits",
+  "credits.validDays": "Valid for 30 days from purchase date",
+  "credits.recentPurchases": "Recent Purchases",
+  "credits.pack": "Pack",
+  "credits.amount": "Credits",
+  "credits.price": "Price",
+  "credits.expiry": "Expires",
+  "credits.expired": "Expired",
+  "credits.noBonus": "You have no active bonus credits.",
+  "credits.successParam": "Purchase successful! Credits have been added to your account.",
+  "credits.errorParam": "Purchase could not be completed. Please try again.",
+  "credits.alreadyParam": "This purchase has already been processed.",
 } as const;
 
 export default en;
