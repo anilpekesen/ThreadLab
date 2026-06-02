@@ -234,9 +234,14 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                 {uploadedImages.map((img) => (
                   <div key={img.id} className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
-                    <div className="aspect-square">
+                    <button
+                      type="button"
+                      onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)}
+                      className="block aspect-square w-full cursor-pointer md:cursor-default"
+                      aria-label={`${img.name} tasarima ekle`}
+                    >
                       <img src={img.dataUrl} alt={img.name} className="h-full w-full object-cover" />
-                    </div>
+                    </button>
                     {/* Hover overlay — desktop */}
                     <div className="absolute inset-0 hidden flex-col items-center justify-center gap-1.5 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 md:flex">
                       <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)} className="w-[80%] rounded-lg bg-white py-1.5 text-xs font-bold text-gray-900 hover:bg-gray-50">
@@ -600,9 +605,14 @@ function AiPanel({
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
             {aiImages.map((img) => (
               <div key={img.id} className="group relative overflow-hidden rounded-2xl border border-violet-100 bg-violet-50/40">
-                <div className="aspect-square">
+                <button
+                  type="button"
+                  onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)}
+                  className="block aspect-square w-full cursor-pointer md:cursor-default"
+                  aria-label={`${img.name} tasarima ekle`}
+                >
                   <img src={img.dataUrl} alt={img.name} className="h-full w-full object-cover" />
-                </div>
+                </button>
                 <div className="absolute inset-0 hidden flex-col items-center justify-center gap-1.5 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 md:flex">
                   <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)} className="w-[80%] rounded-lg bg-white py-1.5 text-xs font-bold text-gray-900 hover:bg-gray-50">
                     Ekle
