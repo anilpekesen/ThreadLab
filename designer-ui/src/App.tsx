@@ -2174,6 +2174,15 @@ export default function App() {
             onMouseMove={handleSceneMouseMove}
             onMouseUp={handleSceneMouseUp}
             onMouseLeave={handleSceneMouseUp}
+            onClick={(e) => {
+              if (!(e.target as Element).closest('canvas') && interactionMode !== 'navigation') {
+                setInteractionMode('navigation');
+                const cv = getActiveCanvasHandle()?.getCanvas();
+                if (cv) { cv.discardActiveObject(); cv.selection = false; cv.renderAll(); }
+                setSelectedObj(null);
+                setObjState(null);
+              }
+            }}
           >
             <div
               onMouseDown={handleSceneMouseDown}
