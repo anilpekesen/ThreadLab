@@ -2700,11 +2700,12 @@ export default function App() {
 
           {showPreview && (
             <div
-              className="fixed inset-0 z-[100] flex items-stretch justify-center overflow-hidden bg-black/60 backdrop-blur-sm md:items-center md:p-4"
+              className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-y-contain bg-black/60 backdrop-blur-sm md:items-center md:p-4"
+              style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
               onClick={() => setShowPreview(false)}
             >
               <div
-                className="flex h-[100dvh] w-full max-w-4xl flex-col overflow-hidden bg-white shadow-2xl md:h-auto md:max-h-[90vh] md:rounded-3xl"
+                className="flex h-[100svh] max-h-[100svh] w-full max-w-4xl flex-col overflow-hidden bg-white shadow-2xl md:h-auto md:max-h-[90vh] md:rounded-3xl"
                 onClick={(e) => e.stopPropagation()}
               >
                   <div className="flex flex-none items-center justify-between border-b border-gray-100 bg-white px-5 py-4 md:px-8 md:py-6">
@@ -2715,8 +2716,8 @@ export default function App() {
                   </div>
 
                   <div
-                    className="min-h-0 flex-1 overflow-y-auto bg-gray-50 p-4 md:p-8"
-                    style={{ WebkitOverflowScrolling: 'touch' }}
+                    className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain bg-gray-50 p-4 pb-[max(24px,env(safe-area-inset-bottom))] md:p-8"
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
                   >
                     <div className={cn('grid grid-cols-1 gap-5 md:gap-8', surfaceMode === 'front_only' ? 'md:grid-cols-1' : 'md:grid-cols-2')}>
                       <div className="flex flex-col gap-4">
