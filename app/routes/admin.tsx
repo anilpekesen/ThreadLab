@@ -526,43 +526,58 @@ function SupportTab({ tickets }: { tickets: TicketRow[] }) {
                 {expanded === t.id && (
                   <tr style={{ background: "#162032" }}>
                     <td colSpan={7} style={{ padding: "16px 20px" }}>
-                      <div style={{ marginBottom: 12 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.8 }}>Mesaj</span>
-                        <p style={{ margin: "6px 0 0", color: "#e2e8f0", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{t.message}</p>
+
+                      {/* Konuşma thread */}
+                      <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                        {((t as TicketRow & { messages?: { role: string; text: string; at: string }[] }).messages ?? []).length === 0
+                          ? (
+                            <div style={{ padding: "10px 14px", background: "#1e293b", borderRadius: 8 }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" as const, letterSpacing: 0.8 }}>İlk Mesaj</span>
+                              <p style={{ margin: "6px 0 0", color: "#e2e8f0", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{t.message}</p>
+                            </div>
+                          )
+                          : ((t as TicketRow & { messages?: { role: string; text: string; at: string }[] }).messages ?? []).map((msg, i) => (
+                            <div key={i} style={{
+                              padding: "10px 14px", borderRadius: 8,
+                              background: msg.role === "admin" ? "#0f3460" : "#1e293b",
+                              border: `1px solid ${msg.role === "admin" ? "#6366f130" : "#334155"}`,
+                              alignSelf: msg.role === "admin" ? "flex-start" : "flex-end",
+                              maxWidth: "85%",
+                            }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: msg.role === "admin" ? "#818cf8" : "#94a3b8", textTransform: "uppercase" as const, letterSpacing: 0.8 }}>
+                                {msg.role === "admin" ? "PrintLab (Siz)" : "Mağaza"}
+                              </span>
+                              <p style={{ margin: "6px 0 4px", color: "#e2e8f0", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{msg.text}</p>
+                              <span style={{ fontSize: 11, color: "#475569" }}>
+                                {new Date(msg.at).toLocaleString("tr-TR")}
+                              </span>
+                            </div>
+                          ))
+                        }
                       </div>
 
-                      {t.admin_reply && (
-                        <div style={{ marginBottom: 12, padding: "10px 14px", background: "#10b98110", border: "1px solid #10b98130", borderRadius: 8 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: "#10b981", textTransform: "uppercase", letterSpacing: 0.8 }}>Mevcut Yanıt</span>
-                          <p style={{ margin: "6px 0 0", color: "#e2e8f0", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{t.admin_reply}</p>
-                          {t.replied_at && (
-                            <span style={{ fontSize: 11, color: "#64748b", marginTop: 4, display: "block" }}>
-                              {new Date(t.replied_at).toLocaleString("tr-TR")}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
+                      {/* Yanıt formu + kapat */}
                       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
                         {t.status !== "closed" && (
                           <form method="post" action="/admin" style={{ flex: 1, minWidth: 300 }}>
                             <input type="hidden" name="intent" value="replyTicket" />
                             <input type="hidden" name="ticketId" value={t.id} />
                             <div style={{ marginBottom: 8 }}>
-                              <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, display: "block", marginBottom: 6 }}>Yanıt</label>
+                              <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, display: "block", marginBottom: 6 }}>Yanıt yaz</label>
                               <textarea
                                 name="reply"
-                                rows={4}
+                                rows={3}
                                 placeholder="Yanıtınızı yazın..."
-                                style={{ ...css.input, width: "100%", boxSizing: "border-box", resize: "vertical", lineHeight: 1.5, fontFamily: "inherit" }}
+                                style={{ ...css.input, width: "100%", boxSizing: "border-box" as const, resize: "vertical" as const, lineHeight: 1.5, fontFamily: "inherit" }}
                               />
                             </div>
-                            <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "7px 18px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                              Yanıtla
-                            </button>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "7px 18px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                                Yanıtla
+                              </button>
+                            </div>
                           </form>
                         )}
-
                         {t.status !== "closed" && (
                           <form method="post" action="/admin" style={{ display: "flex", alignItems: "flex-end" }}>
                             <input type="hidden" name="intent" value="closeTicket" />
@@ -571,6 +586,9 @@ function SupportTab({ tickets }: { tickets: TicketRow[] }) {
                               Kapat
                             </button>
                           </form>
+                        )}
+                        {t.status === "closed" && (
+                          <span style={{ fontSize: 12, color: "#475569" }}>✓ Kapatıldı</span>
                         )}
                       </div>
                     </td>
