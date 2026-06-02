@@ -2315,7 +2315,8 @@ export default function App() {
                 )}
 
                 <div className="pointer-events-none absolute left-4 top-4 z-30 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6 lg:hidden">
-                  <p className="mt-1 text-sm font-bold text-gray-900">{activeAreaSummary}</p>
+                  <p className="text-sm font-bold text-gray-900">{activeAreaSummary}</p>
+                  <p className="text-[9px] font-medium text-gray-400">Bu ölçüler baskı alanının ölçüsüdür</p>
                 </div>
 
                 <div className="pointer-events-none absolute bottom-14 left-1/2 z-30 flex -translate-x-1/2 gap-1.5 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
@@ -3308,9 +3309,6 @@ export default function App() {
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-black text-gray-900">{activeAreaSummary}</p>
-                  {pricingSummary[activeSide].band.label && (
-                    <p className="text-[10px] font-semibold text-sky-500">{pricingSummary[activeSide].band.label} baskı alanı</p>
-                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-400">{totalLabel}</p>
@@ -3328,23 +3326,13 @@ export default function App() {
                 </div>
                 {pricingSummary.front.hasContent && (
                   <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">
-                      Ön baskı ({pricingSummary.front.metrics.objectCount} öğe)
-                      {pricingSummary.front.band.label && (
-                        <span className="ml-1 text-gray-400">· {pricingSummary.front.band.label}</span>
-                      )}
-                    </span>
+                    <span className="font-semibold text-gray-500">Ön baskı ({pricingSummary.front.metrics.objectCount} öğe)</span>
                     <strong className="font-black text-gray-900">{formatMoney(displayFrontSubtotal)}</strong>
                   </div>
                 )}
                 {pricingSummary.back.hasContent && (
                   <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">
-                      Arka baskı ({pricingSummary.back.metrics.objectCount} öğe)
-                      {pricingSummary.back.band.label && (
-                        <span className="ml-1 text-gray-400">· {pricingSummary.back.band.label}</span>
-                      )}
-                    </span>
+                    <span className="font-semibold text-gray-500">Arka baskı ({pricingSummary.back.metrics.objectCount} öğe)</span>
                     <strong className="font-black text-gray-900">{formatMoney(displayBackSubtotal)}</strong>
                   </div>
                 )}
