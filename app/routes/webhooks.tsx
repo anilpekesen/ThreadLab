@@ -3,7 +3,7 @@ import { json } from "@remix-run/node";
 import { randomBytes } from "crypto";
 import { verifyWebhookHmac } from "~/lib/shopify.server";
 import { processOrderBgRemoval } from "~/models/auto-bg-removal.server";
-import { getOrderByShopifyId, updateOrderStatus, setOrderDriveUpload } from "~/models/orders.server";
+import { getOrderByShopifyId, updateOrderStatus, setOrderDriveUpload, setShopifyOrderDriveUpload, claimDriveExport, getSiblingOrders } from "~/models/orders.server";
 import { resetCustomerBgQuota } from "~/models/customer-bg-quota.server";
 import { resetCustomerAiQuota } from "~/models/customer-ai-quota.server";
 import { getSessionForDesignToken, getDesignByToken } from "~/models/designs.server";
@@ -22,6 +22,38 @@ import {
   renameDriveFolder,
 } from "~/lib/google-drive.server";
 
+function buildVariantSummary(
+  order: { orderNumber: string; customerName: string; customerEmail: string; productName: string; variantTitle: string; quantity: number; createdAt: string },
+  siblings: { variantTitle: string; quantity: number }[],
+): string {
+  const allVariants = [
+    { variantTitle: order.variantTitle, quantity: order.quantity ?? 1 },
+    ...siblings.map((s) => ({ variantTitle: s.variantTitle, quantity: s.quantity ?? 1 })),
+  ].filter((v) => v.variantTitle);
+
+  const totalQty = allVariants.reduce((s, v) => s + v.quantity, 0);
+
+  const variantRows = allVariants
+    .map((v) => `  ${(v.variantTitle || "—").padEnd(20)} × ${v.quantity}`)
+    .join("\n");
+
+  return [
+    `SİPARİŞ`,
+    `───────────────────────────────`,
+    `Sipariş No   : ${order.orderNumber}`,
+    `Müşteri      : ${order.customerName || "—"}`,
+    `E-posta      : ${order.customerEmail || "—"}`,
+    `Ürün         : ${(order.productName || "").split(" - ")[0] || "—"}`,
+    `Tarih        : ${new Date(order.createdAt).toLocaleString("tr-TR")}`,
+    ``,
+    `BEDENLER / RENKLER`,
+    `───────────────────────────────`,
+    variantRows || "  —",
+    `───────────────────────────────`,
+    `TOPLAM ADET  : ${totalQty}`,
+  ].join("\n");
+}
+
 async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Promise<void> {
   const conn = await getDriveConnection(shop);
   if (!conn) return;
@@ -30,13 +62,20 @@ async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Pro
   if (!order) return;
   if (order.driveFolderId) return; // already exported, skip
 
+  // Atomik kilit: başka bir webhook aynı anda çalışıyorsa ikinci klasör oluşmasın
+  const claimed = await claimDriveExport(shop, shopifyOrderId);
+  if (!claimed) return; // başka process aldı
+
   const design = order.designToken ? await getDesignByToken(order.shop || shop, order.designToken) : null;
   const frontPrint = design?.frontPrintUrl || order.designFrontPrintUrl || order.productionFileUrl || "";
   const backPrint = design?.backPrintUrl || order.designBackPrintUrl || "";
   const frontPreview = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
   const backPreview = design?.backPreviewUrl || order.designBackPreviewUrl || "";
 
-  if (!frontPrint && !backPrint && !frontPreview && !backPreview && !design?.designJson) return;
+  if (!frontPrint && !backPrint && !frontPreview && !backPreview) return;
+
+  const siblings = await getSiblingOrders(shop, shopifyOrderId, order.id).catch(() => []);
+  const summary = buildVariantSummary(order, siblings);
 
   const accessToken = await getValidAccessToken(shop);
   const rootId = await ensureRootFolder(shop, accessToken);
@@ -48,12 +87,11 @@ async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Pro
   if (backPrint) tasks.push(uploadFromUrl(accessToken, folderId, "back-print.png", backPrint, "image/png"));
   if (frontPreview) tasks.push(uploadFromUrl(accessToken, folderId, "front-mockup.png", frontPreview, "image/png"));
   if (backPreview) tasks.push(uploadFromUrl(accessToken, folderId, "back-mockup.png", backPreview, "image/png"));
-  if (design?.designJson) {
-    tasks.push(uploadText(accessToken, folderId, "design.json", JSON.stringify(design.designJson, null, 2), "application/json"));
-  }
+  tasks.push(uploadText(accessToken, folderId, "siparis.txt", summary, "text/plain; charset=utf-8"));
 
   await Promise.all(tasks);
-  await setOrderDriveUpload(order.id, folderId);
+  // Tüm sibling'lere Drive klasör ID'sini yaz (Drive linki orders sayfasında görünsün)
+  await setShopifyOrderDriveUpload(shop, shopifyOrderId, folderId);
   console.log(`[webhook] auto drive export: order=${order.orderNumber} folder=${folderId}`);
 }
 

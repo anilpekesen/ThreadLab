@@ -18,7 +18,7 @@ import {
   Box, Divider, Grid, Thumbnail, Banner,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
-import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders, setOrderDriveUpload } from "~/models/orders.server";
+import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders, setOrderDriveUpload, setShopifyOrderDriveUpload } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
 import { getDriveConnection } from "~/models/shop-google-drive.server";
@@ -205,7 +205,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const order = await getOrder(appOrderId);
     if (!order) return json({ ok: false, error: "Sipariş bulunamadı" }, { status: 404 });
     const orderShop = order.shop || session.shop;
-    const design = order.designToken ? await getDesignByToken(orderShop, order.designToken) : null;
+    const [design, siblings] = await Promise.all([
+      order.designToken ? getDesignByToken(orderShop, order.designToken) : Promise.resolve(null),
+      getSiblingOrders(orderShop, order.shopifyOrderId, order.id).catch(() => [] as Order[]),
+    ]);
 
     const frontPreview = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
     const backPreview = design?.backPreviewUrl || order.designBackPreviewUrl || "";
@@ -251,23 +254,32 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         exportedAt: new Date().toISOString(),
       };
 
+      const allVariants = [
+        { variantTitle: order.variantTitle, quantity: order.quantity ?? 1 },
+        ...siblings.map((s: Order) => ({ variantTitle: s.variantTitle, quantity: s.quantity ?? 1 })),
+      ].filter((v) => v.variantTitle);
+      const totalQty = allVariants.reduce((s, v) => s + v.quantity, 0);
+      const variantRows = allVariants
+        .map((v) => `  ${(v.variantTitle || "—").padEnd(20)} × ${v.quantity}`)
+        .join("\n");
+
       const summaryLines = [
-        `SİPARİŞ ÖZETİ`,
-        `─────────────`,
-        `Sipariş No        : ${order.orderNumber || order.shopifyOrderId}`,
-        `Müşteri           : ${order.customerName || "-"}`,
-        `E-posta           : ${order.customerEmail || "-"}`,
+        `SİPARİŞ`,
+        `───────────────────────────────`,
+        `Sipariş No   : ${order.orderNumber || order.shopifyOrderId}`,
+        `Müşteri      : ${order.customerName || "—"}`,
+        `E-posta      : ${order.customerEmail || "—"}`,
+        `Ürün         : ${(order.productName || "").split(" - ")[0] || "—"}`,
+        `Durum        : ${order.productionStatus || "—"}`,
+        order.missingSurcharge ? `⚠ Baskı ücreti eksik` : "",
+        `Tarih        : ${new Date(order.createdAt).toLocaleString("tr-TR")}`,
+        `Aktarma      : ${new Date().toLocaleString("tr-TR")}`,
         ``,
-        `Ürün              : ${order.productName || "-"}`,
-        `Varyant           : ${order.variantTitle || "-"}`,
-        `Adet              : ${order.quantity ?? 1}`,
-        ``,
-        `Tasarım Token     : ${order.designToken || "-"}`,
-        `Üretim Durumu     : ${order.productionStatus || "-"}`,
-        order.missingSurcharge ? `⚠ Baskı ücreti eksik (sipariş ödemesinde surcharge eklenmemiş).` : ``,
-        ``,
-        `Sipariş Tarihi    : ${new Date(order.createdAt).toLocaleString("tr-TR")}`,
-        `Aktarma Tarihi    : ${new Date().toLocaleString("tr-TR")}`,
+        `BEDENLER / RENKLER`,
+        `───────────────────────────────`,
+        variantRows || "  —",
+        `───────────────────────────────`,
+        `TOPLAM ADET  : ${totalQty}`,
       ].filter(Boolean).join("\n");
 
       const tasks: Promise<unknown>[] = [];
@@ -275,14 +287,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       if (backPrint) tasks.push(uploadFromUrl(accessToken, folderId, "back-print.png", backPrint, "image/png"));
       if (frontPreview) tasks.push(uploadFromUrl(accessToken, folderId, "front-mockup.png", frontPreview, "image/png"));
       if (backPreview) tasks.push(uploadFromUrl(accessToken, folderId, "back-mockup.png", backPreview, "image/png"));
-      if (design?.designJson) {
-        tasks.push(uploadText(accessToken, folderId, "design.json", JSON.stringify(design.designJson, null, 2), "application/json"));
-      }
-      tasks.push(uploadText(accessToken, folderId, "order.json", JSON.stringify(orderSnapshot, null, 2), "application/json"));
-      tasks.push(uploadText(accessToken, folderId, "siparis-ozeti.txt", summaryLines, "text/plain; charset=utf-8"));
+      tasks.push(uploadText(accessToken, folderId, "siparis.txt", summaryLines, "text/plain; charset=utf-8"));
 
       await Promise.all(tasks);
-      await setOrderDriveUpload(order.id, folderId);
+      await setShopifyOrderDriveUpload(orderShop, order.shopifyOrderId, folderId);
 
       return json({
         ok: true,

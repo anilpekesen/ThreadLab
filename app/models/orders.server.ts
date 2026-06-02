@@ -115,6 +115,24 @@ export async function setOrderDriveUpload(orderId: string, folderId: string): Pr
   );
 }
 
+export async function setShopifyOrderDriveUpload(shop: string, shopifyOrderId: string, folderId: string): Promise<void> {
+  await query(
+    `UPDATE orders SET drive_folder_id = $3, drive_uploaded_at = now()
+     WHERE shop = $1 AND shopify_order_id = $2`,
+    [shop, shopifyOrderId, folderId],
+  );
+}
+
+export async function claimDriveExport(shop: string, shopifyOrderId: string): Promise<boolean> {
+  const result = await query<{ id: string }>(
+    `UPDATE orders SET drive_folder_id = 'pending'
+     WHERE shop = $1 AND shopify_order_id = $2 AND drive_folder_id IS NULL
+     RETURNING id LIMIT 1`,
+    [shop, shopifyOrderId],
+  );
+  return result.rowCount !== null && result.rowCount > 0;
+}
+
 export async function getOrders(shop: string, status?: string): Promise<Order[]> {
   await ensureMigrations();
   const result = status
