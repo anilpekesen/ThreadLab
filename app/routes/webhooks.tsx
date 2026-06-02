@@ -107,6 +107,7 @@ type OrderPayload = {
   id?: number;
   name?: string;
   created_at?: string;
+  financial_status?: string;
   note_attributes?: Attr[];
   attributes?: Attr[];
   line_items?: LineItem[];
@@ -315,7 +316,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const order = payload as OrderPayload;
     const shopifyOrderId = String((order as { id?: number }).id ?? "");
     const designToken = extractDesignToken(order);
-    console.log(`[webhook] order=${order.name} topic=${topic} token=${designToken ?? "none"}`);
+    const financialStatus = order.financial_status ?? "pending";
+    const isPaid = ["paid", "authorized", "partially_paid"].includes(financialStatus);
+    console.log(`[webhook] order=${order.name} topic=${topic} token=${designToken ?? "none"} financial=${financialStatus}`);
 
     importOrderFromWebhook(shop, order)
       .then(() => {
@@ -324,10 +327,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             console.error(`[webhook] auto-bg failed for order ${order.name}:`, err),
           );
         }
-        if (shopifyOrderId && designToken) {
+        // Sadece ödeme onaylıysa Drive'a at — havale (pending) ise orders/paid bekle
+        if (shopifyOrderId && designToken && isPaid) {
           autoExportOrderToDrive(shop, shopifyOrderId).catch((err) =>
             console.error(`[webhook] auto-drive-export failed for order ${order.name}:`, err),
           );
+        } else if (!isPaid) {
+          console.log(`[webhook] drive export beklemede (${financialStatus}): order=${order.name}`);
         }
       })
       .catch((err) =>
@@ -340,22 +346,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const order = payload as OrderPayload;
     const shopifyOrderId = String((order as { id?: number }).id ?? "");
     const designToken = extractDesignToken(order);
-    console.log(`[webhook] order=${order.name} topic=${topic} token=${designToken ?? "none"}`);
+    console.log(`[webhook] order=${order.name} topic=${topic} token=${designToken ?? "none"} — ödeme onaylandı`);
 
     importOrderFromWebhook(shop, order)
       .then(() => {
         if (designToken) {
           resetCustomerQuota(shop, designToken, order.name);
-          // Fallback: export if orders/create webhook was missed or export failed
-          if (shopifyOrderId) {
-            autoExportOrderToDrive(shop, shopifyOrderId).catch((err) =>
-              console.error(`[webhook] auto-drive-export (paid fallback) failed for order ${order.name}:`, err),
-            );
-          }
+        }
+        // Ödeme onaylandı → her zaman Drive'a at (havale dahil)
+        if (shopifyOrderId) {
+          autoExportOrderToDrive(shop, shopifyOrderId).catch((err) =>
+            console.error(`[webhook] auto-drive-export (paid) failed for order ${order.name}:`, err),
+          );
         }
       })
       .catch((err) =>
-        console.error(`[webhook] importOrder (paid fallback) failed for order ${order.name}:`, err),
+        console.error(`[webhook] importOrder (paid) failed for order ${order.name}:`, err),
       );
   }
 
