@@ -841,7 +841,7 @@ export default function ProductSettingsRoute() {
   return (
     <Frame>
       {showSavedToast && (
-        <Toast content="Ayarlar kaydedildi" onDismiss={() => setShowSavedToast(false)} />
+        <Toast content={t("settings.saved")} onDismiss={() => setShowSavedToast(false)} />
       )}
     <Page
       title={product.title}
