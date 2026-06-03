@@ -971,6 +971,12 @@ export default function App() {
 
   const scrollDesignerToTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const scrollOptions: ScrollToOptions = { top: 0, left: 0, behavior };
+    try {
+      window.parent?.postMessage({ type: 'DESIGNER_SCROLL_TO_TOP', behavior }, '*');
+    } catch {
+      // Parent page may be inaccessible outside the Shopify embed.
+    }
+
     const wrapper = wrapperRef.current;
     if (wrapper) {
       wrapper.scrollTop = 0;

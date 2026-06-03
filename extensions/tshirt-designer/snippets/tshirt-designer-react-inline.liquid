@@ -286,6 +286,26 @@
     window.addEventListener('message', function(e) {
       if (!e.data || !e.data.type) return;
 
+      if (e.data.type === 'DESIGNER_SCROLL_TO_TOP') {
+        var behavior = e.data.behavior === 'auto' ? 'auto' : 'smooth';
+        var targetRoot = roots[0];
+        if (targetRoot) {
+          var top = targetRoot.getBoundingClientRect().top + window.pageYOffset - 8;
+          try {
+            window.scrollTo({ top: Math.max(0, top), left: 0, behavior: behavior });
+          } catch (_) {
+            window.scrollTo(0, Math.max(0, top));
+          }
+        } else {
+          try {
+            window.scrollTo({ top: 0, left: 0, behavior: behavior });
+          } catch (_) {
+            window.scrollTo(0, 0);
+          }
+        }
+        return;
+      }
+
       if (e.data.type === 'DESIGNER_INACTIVE') {
         roots.forEach(function(r) { r.style.display = 'none'; });
         return;
