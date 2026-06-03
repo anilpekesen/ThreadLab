@@ -27,39 +27,53 @@ function buildOrderSummary(
 ): string {
   if (!allRows.length) return "";
   const first = allRows[0];
+  const multiProduct = new Set(allRows.map((r) => (r.productName || "").split(" - ")[0])).size > 1;
 
-  // Her ürünü (unique productName) ve varyantlarını listele
-  const productGroups = new Map<string, { variantTitle: string; quantity: number }[]>();
-  for (const row of allRows) {
-    const pName = (row.productName || "").split(" - ")[0] || "Ürün";
-    if (!productGroups.has(pName)) productGroups.set(pName, []);
-    productGroups.get(pName)!.push({ variantTitle: row.variantTitle, quantity: row.quantity ?? 1 });
-  }
   const totalQty = allRows.reduce((s, r) => s + (r.quantity ?? 1), 0);
+  const hasMissingSurcharge = allRows.some((r) => r.missingSurcharge);
 
-  const productLines: string[] = [];
-  let idx = 1;
-  for (const [pName, variants] of productGroups) {
-    productLines.push(`  ${idx++}. ${pName}`);
-    for (const v of variants) {
-      productLines.push(`     ${(v.variantTitle || "—").padEnd(18)} × ${v.quantity}`);
+  let variantSection: string[];
+  if (multiProduct) {
+    // Birden fazla ürün: ürün bazlı gruplama
+    const productGroups = new Map<string, { variantTitle: string; quantity: number }[]>();
+    for (const row of allRows) {
+      const pName = (row.productName || "").split(" - ")[0] || "Ürün";
+      if (!productGroups.has(pName)) productGroups.set(pName, []);
+      productGroups.get(pName)!.push({ variantTitle: row.variantTitle, quantity: row.quantity ?? 1 });
     }
+    const lines: string[] = [];
+    let idx = 1;
+    for (const [pName, variants] of productGroups) {
+      lines.push(`  ${idx++}. ${pName}`);
+      for (const v of variants) {
+        lines.push(`     ${(v.variantTitle || "—").padEnd(18)} × ${v.quantity}`);
+      }
+    }
+    variantSection = [`ÜRÜNLER`, `───────────────────────────────`, ...lines];
+  } else {
+    // Tek ürün: varyant listesi (order detail sayfasıyla aynı format)
+    const variantRows = allRows
+      .map((r) => `  ${(r.variantTitle || "—").padEnd(20)} × ${r.quantity ?? 1}`)
+      .join("\n");
+    variantSection = [`BEDENLER / RENKLER`, `───────────────────────────────`, variantRows || "  —"];
   }
 
   return [
     `SİPARİŞ`,
     `───────────────────────────────`,
-    `Sipariş No   : ${first.orderNumber}`,
+    `Sipariş No   : ${first.orderNumber || first.shopifyOrderId}`,
     `Müşteri      : ${first.customerName || "—"}`,
     `E-posta      : ${first.customerEmail || "—"}`,
+    `Ürün         : ${(first.productName || "").split(" - ")[0] || "—"}`,
+    `Durum        : ${first.productionStatus || "—"}`,
+    hasMissingSurcharge ? `⚠ Baskı ücreti eksik` : "",
     `Tarih        : ${new Date(first.createdAt).toLocaleString("tr-TR")}`,
+    `Aktarma      : ${new Date().toLocaleString("tr-TR")}`,
     ``,
-    `ÜRÜNLER`,
-    `───────────────────────────────`,
-    ...productLines,
+    ...variantSection,
     `───────────────────────────────`,
     `TOPLAM ADET  : ${totalQty}`,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Promise<void> {
@@ -79,20 +93,27 @@ async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Pro
     new Map(allRows.filter((r) => r.designToken).map((r) => [r.designToken, r])).values()
   );
 
-  // En az bir üründe dosya olmalı
-  const hasAnyFile = await Promise.any(
+  // Design'ları bir kez çek, hem kontrol hem upload için kullan
+  const resolvedProducts = await Promise.all(
     productRows.map(async (row) => {
-      const design = row.designToken ? await getDesignByToken(row.shop || shop, row.designToken).catch(() => null) : null;
-      const fp = design?.frontPrintUrl || row.designFrontPrintUrl || row.productionFileUrl || "";
-      const bp = design?.backPrintUrl || row.designBackPrintUrl || "";
-      const fv = design?.frontPreviewUrl || row.designFrontPreviewUrl || row.previewUrl || "";
-      const bv = design?.backPreviewUrl || row.designBackPreviewUrl || "";
-      if (!fp && !bp && !fv && !bv) throw new Error("no files");
-      return true;
+      const design = row.designToken
+        ? await getDesignByToken(row.shop || shop, row.designToken).catch(() => null)
+        : null;
+      return {
+        row,
+        fp: design?.frontPrintUrl || row.designFrontPrintUrl || row.productionFileUrl || "",
+        bp: design?.backPrintUrl || row.designBackPrintUrl || "",
+        fv: design?.frontPreviewUrl || row.designFrontPreviewUrl || row.previewUrl || "",
+        bv: design?.backPreviewUrl || row.designBackPreviewUrl || "",
+      };
     })
-  ).catch(() => false);
+  );
 
-  if (!hasAnyFile) return;
+  const hasAnyFile = resolvedProducts.some((p) => p.fp || p.bp || p.fv || p.bv);
+  if (!hasAnyFile) {
+    console.log(`[webhook] drive export skipped — no files for order=${firstOrder.orderNumber}`);
+    return;
+  }
 
   const claimed = await claimDriveExport(shop, shopifyOrderId);
   if (!claimed) return;
@@ -105,15 +126,10 @@ async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Pro
   const tasks: Promise<unknown>[] = [];
 
   // Her ürün için dosyaları prefix'li yükle
-  const prefix = productRows.length > 1;
-  for (let i = 0; i < productRows.length; i++) {
-    const row = productRows[i];
-    const design = row.designToken ? await getDesignByToken(row.shop || shop, row.designToken).catch(() => null) : null;
-    const fp = design?.frontPrintUrl || row.designFrontPrintUrl || row.productionFileUrl || "";
-    const bp = design?.backPrintUrl || row.designBackPrintUrl || "";
-    const fv = design?.frontPreviewUrl || row.designFrontPreviewUrl || row.previewUrl || "";
-    const bv = design?.backPreviewUrl || row.designBackPreviewUrl || "";
-    const p = prefix ? `${i + 1}-` : "";
+  const usePrefix = resolvedProducts.length > 1;
+  for (let i = 0; i < resolvedProducts.length; i++) {
+    const { fp, bp, fv, bv } = resolvedProducts[i];
+    const p = usePrefix ? `${i + 1}-` : "";
     if (fp) tasks.push(uploadFromUrl(accessToken, folderId, `${p}front-print.png`, fp, "image/png"));
     if (bp) tasks.push(uploadFromUrl(accessToken, folderId, `${p}back-print.png`, bp, "image/png"));
     if (fv) tasks.push(uploadFromUrl(accessToken, folderId, `${p}front-mockup.png`, fv, "image/png"));
