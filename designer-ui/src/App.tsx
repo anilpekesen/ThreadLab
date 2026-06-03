@@ -2545,7 +2545,7 @@ export default function App() {
                       </div>
                       <button
                         onClick={() => { setActiveTab(null); }}
-                        className="flex shrink-0 h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200"
+                        className="flex h-8 w-8 shrink-0 translate-y-0.5 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -2557,7 +2557,7 @@ export default function App() {
                       </p>
                       <button
                         onClick={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200"
+                        className="flex h-8 w-8 translate-y-0.5 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -2986,7 +2986,7 @@ export default function App() {
                   <p className="text-[15px] font-bold text-gray-900 md:text-lg">Önizleme</p>
                   <button
                     onClick={() => setShowPreview(false)}
-                    className="rounded-full p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                    className="translate-y-0.5 rounded-full p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
                   >
                     <X className="h-5 w-5" />
                   </button>
