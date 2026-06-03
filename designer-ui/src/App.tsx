@@ -2636,8 +2636,8 @@ export default function App() {
                 <div className="pointer-events-auto w-[min(340px,95vw)] rounded-[20px] border border-white/50 bg-white/95 shadow-[0_10px_50px_rgba(0,0,0,0.15)] backdrop-blur-xl">
                   {objState?.type === 'text' ? (
                     <div>
-                    <div className="grid grid-cols-5 gap-1 p-2 pb-1">
-                      {/* Row 1: Renk | Düzenle | B | I | Kaldır */}
+                    <div className="grid grid-cols-6 gap-1 p-2 pb-1">
+                      {/* Row 1: Renk | Düzenle | B | I | Öne/Arkaya | Kaldır */}
                       <button
                         type="button"
                         onClick={() => setShowTextColorPalette((prev) => !prev)}
@@ -2670,6 +2670,19 @@ export default function App() {
                       </button>
 
                       <button
+                        onClick={toggleLayerOrder}
+                        className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
+                      >
+                        <Layers className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
+                        <span className="text-[9px] font-bold uppercase text-gray-500 group-hover:text-blue-500">
+                          {(() => {
+                            const objects = getActiveCanvasHandle()?.getCanvas()?.getObjects() ?? [];
+                            return objects.indexOf(selectedObj) === objects.length - 1 ? 'Arkaya' : 'Öne';
+                          })()}
+                        </span>
+                      </button>
+
+                      <button
                         onClick={deleteSelected}
                         className="flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-red-50"
                       >
@@ -2677,7 +2690,7 @@ export default function App() {
                         <span className="text-[9px] font-bold text-red-400">Kaldır</span>
                       </button>
 
-                      {/* Row 2: Boyut | Font (col-span-2) | Ortala | Öne/Arkaya */}
+                      {/* Row 2: Boyut | Font | Hizala | Ortala */}
                       <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl bg-gray-50 p-1">
                         <input
                           type="number"
@@ -2706,7 +2719,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-center gap-0.5 rounded-xl bg-gray-50 p-1">
+                      <div className="col-span-2 flex items-center justify-center gap-0.5 rounded-xl bg-gray-50 p-1">
                         <button
                           onClick={() => alignHorizontal('left')}
                           className={cn('rounded p-1 transition-colors', objState.textAlign === 'left' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400')}
