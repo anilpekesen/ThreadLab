@@ -778,8 +778,6 @@ export default function ProductSettingsRoute() {
     : [];
 
   const [selectedColor, setSelectedColor] = useState<string>(uniqueColors[0] ?? "");
-  const discountsAdminUrl = `https://admin.shopify.com/store/${shop.replace(".myshopify.com", "")}/discounts`;
-
   function handleColorChange(color: string) {
     setSelectedColor(color);
     const mockup = variantMockups[color];
@@ -1176,22 +1174,6 @@ export default function ProductSettingsRoute() {
                   ) : (
                     <input type="hidden" name="backBandCount" value="0" />
                   )}
-                </BlockStack>
-              </Box>
-            </Card>
-
-            <Card>
-              <Box padding="400">
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Toplu adet indirimi</Text>
-                  <Text as="p" tone="subdued">
-                    Toplu adet indirimlerini artık Shopify indirimler ekranından yönetin. Uygulama içindeki indirim kuralı kaldırıldı.
-                  </Text>
-                  <InlineStack gap="200">
-                    <Button url={discountsAdminUrl} target="_blank">
-                      Shopify indirimlerine git
-                    </Button>
-                  </InlineStack>
                 </BlockStack>
               </Box>
             </Card>
