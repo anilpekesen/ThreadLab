@@ -88,7 +88,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const count = await syncOrdersFromAdmin(admin, session.shop);
       return json({ ok: true, synced: count });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      let msg = "Bilinmeyen hata";
+      if (err instanceof Error) {
+        msg = err.message;
+      } else if (err instanceof Response) {
+        msg = `Shopify API hatası (HTTP ${err.status})`;
+      } else {
+        msg = String(err);
+      }
+      console.error("[sync] error:", err);
       return json({ ok: false, error: msg });
     }
   }
