@@ -958,6 +958,7 @@ export default function App() {
   const [selectedColor, setSelectedColor] = useState('');
   const [isCartLoading, setIsCartLoading] = useState(false);
   const [showSizeErrorModal, setShowSizeErrorModal] = useState(false);
+  const [showMinQtyErrorModal, setShowMinQtyErrorModal] = useState(false);
   const [cropModalState, setCropModalState] = useState<{ src: string; rect: CropRect } | null>(null);
   const minOrderQty = personalization.minOrderQuantity ?? 1;
   const [noSizeQuantity, setNoSizeQuantity] = useState(minOrderQty);
@@ -1501,6 +1502,11 @@ export default function App() {
         .filter((item) => item.variantId);
       if (cartItems.length === 0) {
         setShowSizeErrorModal(true);
+        return;
+      }
+      const totalSelected = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+      if (totalSelected < minOrderQty) {
+        setShowMinQtyErrorModal(true);
         return;
       }
     }
@@ -2979,6 +2985,27 @@ export default function App() {
             </div>
           )}
 
+          {showMinQtyErrorModal && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+              <div className="w-full max-w-xs rounded-2xl bg-white shadow-2xl p-6 flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-amber-100 text-xl">⚠️</span>
+                  <p className="font-bold text-gray-900 text-sm leading-snug">Minimum sipariş adeti</p>
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Bu ürün için en az <strong>{minOrderQty} adet</strong> sipariş vermeniz gerekmektedir. Lütfen beden seçimlerinizi güncelleyin.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowMinQtyErrorModal(false)}
+                  className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors"
+                >
+                  Tamam
+                </button>
+              </div>
+            </div>
+          )}
+
           {showPreview && (
             <>
               {/* Backdrop */}
@@ -3169,13 +3196,13 @@ export default function App() {
                         <div className="mt-2 flex items-center justify-center gap-1">
                           <button
                             type="button"
-                            onClick={() => setSizeQuantity(size!, qty <= minOrderQty ? 0 : qty - 1)}
+                            onClick={() => setSizeQuantity(size!, qty - 1)}
                             className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
                           >−</button>
                           <span className={cn('w-5 text-center text-sm font-black tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>{qty}</span>
                           <button
                             type="button"
-                            onClick={() => setSizeQuantity(size!, qty === 0 ? minOrderQty : qty + 1)}
+                            onClick={() => setSizeQuantity(size!, qty + 1)}
                             className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
                           >+</button>
                         </div>
@@ -3328,13 +3355,13 @@ export default function App() {
                       <div className="mt-1 flex items-center gap-0.5">
                         <button
                           type="button"
-                          onClick={() => setSizeQuantity(size!, qty <= minOrderQty ? 0 : qty - 1)}
+                          onClick={() => setSizeQuantity(size!, qty - 1)}
                           className="flex h-5 w-5 items-center justify-center rounded-md bg-white text-xs font-bold text-gray-400 shadow-sm hover:bg-gray-100"
                         >−</button>
                         <span className={cn('w-4 text-center text-xs font-bold tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>{qty}</span>
                         <button
                           type="button"
-                          onClick={() => setSizeQuantity(size!, qty === 0 ? minOrderQty : qty + 1)}
+                          onClick={() => setSizeQuantity(size!, qty + 1)}
                           className="flex h-5 w-5 items-center justify-center rounded-md bg-white text-xs font-bold text-gray-400 shadow-sm hover:bg-gray-100"
                         >+</button>
                       </div>
