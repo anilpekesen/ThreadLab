@@ -23,7 +23,7 @@ const T = {
       eyebrow: "SHOPIFY ÜRÜN KİŞİSELLEŞTİRME UYGULAMASI",
       title: `Müşterileriniz <span class="title-accent">kendi tasarımını</span> yapsın, siz baskıya yollayın.`,
       sub: "PrintLab, Shopify mağazaları için ürün kişiselleştirme ve baskı tasarım aracıdır. T-shirt, sweatshirt, kupa, tote bag ve benzeri ürünlerde müşteri ürün sayfasında tasarım yapar, siz baskıya hazır siparişi alırsınız.",
-      cta1: "14 gün ücretsiz başla", cta2: "2 dakikalık demo izle",
+      cta1: "14 gün ücretsiz başla", cta2: "Demo mağazayı gör →",
       b1: "Kurulum 5 dakika", b2: "Kredi kartı gerekmiyor", b3: "Türkçe destek",
       trustLabel: "Shopify mağazaları için kişiselleştirme ve baskı yönetimi",
       kpis: [
@@ -60,10 +60,10 @@ const T = {
     showcase: {
       eyebrow: "MÜŞTERİ DENEYİMİ",
       title: "Mobilde tasarım, gerçekten kolay.",
-      sub: "PrintLab'in tasarımcısı %78 mobil kullanılır. Her piksel buna göre optimize edildi: dokunma hedefleri 44px, alt levha rahat ulaşılır, baskı alanı her zaman görünür.",
+      sub: "Online alışverişin büyük çoğunluğu mobil cihazlarda gerçekleştiği için PrintLab tasarımcısı mobil öncelikli tasarlandı. Dokunma hedefleri 44px, alt levha rahat ulaşılır, baskı alanı her zaman görünür.",
       l: [
         { n: "01", t: "Tek el kullanım", p: "Tüm kritik aksiyonlar baş parmak menzilinde." },
-        { n: "02", t: "Hafif önyükleme", p: "İlk anlamlı boyama 1.2 sn (4G, orta seviye Android)." },
+        { n: "02", t: "Hızlı yükleme", p: "Tasarımcı hafif tutuldu — mobil bağlantılarda bile akıcı deneyim." },
         { n: "03", t: "Sıfır taşma", p: "iOS Safari'de bottom sheet ve klavye etkileşimi cilalı." },
       ],
     },
@@ -83,7 +83,7 @@ const T = {
       eyebrow: "SIKÇA SORULAN",
       title: "Önce buralara bakın.",
       items: [
-        { q: "PrintLab Shopify'da nasıl çalışıyor?", a: "PrintLab, Shopify App Proxy üzerinden mağazanızın <code>/apps/tshirt-designer</code> yoluna gömülen bir Shopify kişiselleştirme uygulamasıdır. Müşteri ürün sayfasından doğrudan tasarımcıya erişir, tasarımını yapar ve sepete eklediğinde varyant otomatik oluşturulur." },
+        { q: "PrintLab Shopify'da nasıl çalışıyor?", a: "PrintLab, Shopify ürün sayfanıza kolayca eklenir. Müşteri ürünü terk etmeden tasarımını yapar, sepete ekler ve sipariş doğrudan Shopify üzerinden tamamlanır. Özel teknik kurulum gerekmez." },
         { q: "Baskıya hazır dosyaları nasıl alıyorum?", a: "Her sipariş tamamlandığında 300 DPI çözünürlükte PDF ve önizleme JPG'si otomatik oluşur, CDN üzerinde saklanır. Admin panelinden tek tıkla indirebilirsiniz." },
         { q: "Kendi mockup'larımı yükleyebilir miyim?", a: "Growth ve üzeri planlarında evet. Mockup PNG'sini yükler, baskı alanını sürükle-bırakla çizer, güvenli alan ve ölçü etiketini ayarlarsınız." },
         { q: "Türkçe dışında dil desteği var mı?", a: "Şu anda Türkçe ve İngilizce. Admin paneli her iki dili destekler; müşteri tasarımcısı da Türkçe/İngilizce." },
@@ -96,12 +96,12 @@ const T = {
       btn1: "Shopify'a ekle", btn2: "Demo talep et",
     },
     footer: {
-      tagline: "Shopify mağazaları için kişiselleştirme tasarımcısı. İstanbul'dan, sevgiyle.",
+      tagline: "Shopify mağazaları için baskıya hazır üretim akışı. İstanbul'dan, sevgiyle.",
       product: "Ürün", company: "Şirket", legal: "Yasal",
       features: "Özellikler", pricing: "Fiyatlandırma", demo: "Demo", roadmap: "Yol haritası",
       about: "Hakkımızda", blog: "Blog", contact: "İletişim",
       privacy: "Gizlilik", terms: "Kullanım Koşulları", kvkk: "KVKK",
-      copy: "© 2026 PrintLab Yazılım A.Ş.",
+      copy: "© 2026 PrintLab. Tüm hakları saklıdır.",
     },
     switchLang: "EN",
   },
@@ -115,7 +115,7 @@ const T = {
       eyebrow: "SHOPIFY PRODUCT PERSONALIZATION APP",
       title: `Let your customers <span class="title-accent">create their own design</span> — you send it to print.`,
       sub: "PrintLab is a Shopify product personalization and print designer app embedded directly on your product pages. For t-shirts, sweatshirts, mugs, tote bags, and more, customers personalize the product and you receive a print-ready order.",
-      cta1: "Start free for 14 days", cta2: "Watch 2-min demo",
+      cta1: "Start free for 14 days", cta2: "See demo store →",
       b1: "5-minute setup", b2: "No credit card required", b3: "English support",
       trustLabel: "Product personalization and print workflow for Shopify stores",
       kpis: [
@@ -152,10 +152,10 @@ const T = {
     showcase: {
       eyebrow: "CUSTOMER EXPERIENCE",
       title: "Mobile design, actually easy.",
-      sub: "78% of PrintLab sessions are on mobile. Every pixel is optimized for it: 44px touch targets, bottom sheet always reachable, print area always visible.",
+      sub: "Most online shopping happens on mobile — so PrintLab was designed mobile-first. 44px touch targets, bottom sheet always reachable, print area always visible.",
       l: [
         { n: "01", t: "One-hand use", p: "All critical actions within thumb reach." },
-        { n: "02", t: "Fast first paint", p: "First meaningful paint in 1.2 s (4G, mid-range Android)." },
+        { n: "02", t: "Fast loading", p: "The designer is lightweight — smooth even on mobile connections." },
         { n: "03", t: "Zero overflow", p: "Bottom sheet and keyboard interaction polished on iOS Safari." },
       ],
     },
@@ -175,7 +175,7 @@ const T = {
       eyebrow: "FAQ",
       title: "Check here first.",
       items: [
-        { q: "How does PrintLab work on Shopify?", a: "PrintLab is a Shopify product personalization app embedded into your store via Shopify App Proxy at <code>/apps/tshirt-designer</code>. Customers access the designer directly from the product page, personalize the item, and a variant is created automatically when they add to cart." },
+        { q: "How does PrintLab work on Shopify?", a: "PrintLab is added directly to your Shopify product pages. Customers personalize their item without leaving your store, add to cart, and checkout happens entirely through Shopify. No custom technical setup required." },
         { q: "How do I get print-ready files?", a: "A 300 DPI PDF and a preview JPG are generated automatically for every completed order and stored on CDN. Download with one click from your admin panel." },
         { q: "Can I upload my own mockups?", a: "Yes, on Growth and above. Upload your PNG mockup, draw the print area with drag & drop, and set the safe zone and dimension labels." },
         { q: "What languages does PrintLab support?", a: "Turkish and English are fully supported right now. The admin panel and the customer designer both have TR/EN language switching." },
@@ -188,12 +188,12 @@ const T = {
       btn1: "Add to Shopify", btn2: "Request a demo",
     },
     footer: {
-      tagline: "Customization designer for Shopify stores. Made with love in Istanbul.",
+      tagline: "Print-ready production workflow for Shopify stores. Built for print shops worldwide.",
       product: "Product", company: "Company", legal: "Legal",
       features: "Features", pricing: "Pricing", demo: "Demo", roadmap: "Roadmap",
       about: "About us", blog: "Blog", contact: "Contact",
       privacy: "Privacy", terms: "Terms of Service", kvkk: "GDPR / KVKK",
-      copy: "© 2026 PrintLab Software Inc.",
+      copy: "© 2026 PrintLab. All rights reserved.",
     },
     switchLang: "TR",
   },
@@ -344,8 +344,7 @@ function buildHtml(lang: Lang): string {
         <a class="btn btn-primary btn-lg" href="${SHOPIFY_APP_URL}">
           ${t.hero.cta1} ${arrowIcon}
         </a>
-        <a class="btn btn-ghost btn-lg" href="#nasil">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/></svg>
+        <a class="btn btn-ghost btn-lg" href="https://whanotify-dev.myshopify.com" target="_blank" rel="noopener noreferrer">
           ${t.hero.cta2}
         </a>
       </div>
