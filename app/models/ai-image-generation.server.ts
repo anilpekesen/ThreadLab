@@ -1,4 +1,5 @@
 import { json } from "@remix-run/node";
+import Anthropic from "@anthropic-ai/sdk";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings } from "~/models/shop-settings.server";
 import { checkAndIncrementAiGeneration } from "~/models/ai-generation-usage.server";
@@ -95,25 +96,27 @@ async function pollJob(apiKey: string, jobId: string, maxMs = POLL_MAX_MS, inter
   return outputs;
 }
 
-async function optimizePrompt(apiKey: string, userPrompt: string): Promise<string> {
-  const res = await fetch(`${WAVESPEED_BASE}/${PROMPT_OPTIMIZER_MODEL}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: userPrompt }),
+async function translateAndOptimizePrompt(userPrompt: string): Promise<string> {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY not set");
+
+  const client = new Anthropic({ apiKey: anthropicKey });
+  const response = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 300,
+    messages: [{
+      role: "user",
+      content: `You are a prompt engineer for AI image generation.
+Translate the following user prompt to English (if not already) and rewrite it as a concise, vivid image generation prompt.
+Keep it under 80 words. Output ONLY the final English prompt, nothing else.
+
+User prompt: ${userPrompt}`,
+    }],
   });
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Prompt optimizer failed (${res.status}): ${detail.slice(0, 200)}`);
-  }
-
-  const body = await res.json() as { code: number; data: { id: string; status: string; outputs: string[] } };
-  if (body.code !== 200) throw new Error(`Optimizer error code: ${body.code}`);
-
-  const job = body.data;
-  if (job.status === "completed" && job.outputs?.length) return job.outputs[0];
-  const outputs = await pollJob(apiKey, job.id, 20_000, 800);
-  return outputs[0];
+  const text = response.content[0].type === "text" ? response.content[0].text.trim() : "";
+  if (!text) throw new Error("Empty response from Claude");
+  return text;
 }
 
 async function generateImage(apiKey: string, prompt: string): Promise<string> {
@@ -226,12 +229,11 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
 
   let enhancedPrompt: string;
   try {
-    const optimized = await optimizePrompt(apiKey, userPrompt);
-    // Optimizer çıktısını direkt kullan — model kendi kalitesini yönetiyor
-    enhancedPrompt = styleHint ? `${optimized}, style: ${styleHint}` : optimized;
-    console.log(`[ai-generate] optimized prompt: ${optimized.slice(0, 120)}...`);
-  } catch (optErr) {
-    console.warn("[ai-generate] prompt optimizer failed, using user prompt:", optErr instanceof Error ? optErr.message : optErr);
+    const translated = await translateAndOptimizePrompt(userPrompt);
+    enhancedPrompt = styleHint ? `${translated}, style: ${styleHint}` : translated;
+    console.log(`[ai-generate] translated prompt: ${translated.slice(0, 120)}`);
+  } catch (transErr) {
+    console.warn("[ai-generate] translation failed, using raw prompt:", transErr instanceof Error ? transErr.message : transErr);
     enhancedPrompt = styleHint ? `${userPrompt.trim()}, style: ${styleHint}` : userPrompt.trim();
   }
 
