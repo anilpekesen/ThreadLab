@@ -116,8 +116,105 @@ export const tr = {
   termsSuffix: "'nı kabul etmiş sayılırsınız.",
 } as const;
 
-// Designer UI her zaman Türkçe kalır
-export const en: { [K in keyof typeof tr]: string } = { ...tr };
+export const en: { [K in keyof typeof tr]: string } = {
+  tabImage: 'Images',
+  tabText: 'Text',
+  tabLayers: 'Layers',
+  tabTemplates: 'Templates',
+  tabSaved: 'Saved Designs',
+
+  toolbarCenter: 'Center',
+  toolbarCopy: 'Copy',
+  toolbarLayer: 'Layer',
+  toolbarFront: 'Forward',
+  toolbarBack: 'Backward',
+  toolbarBgRemove: 'Remove BG',
+  toolbarRemove: 'Delete',
+  toolbarCrop: 'Crop',
+
+  btnAddToCart: 'Add to Cart',
+  btnAddToCartLoading: 'Loading...',
+  btnPreview: 'Preview',
+  btnSave: 'Save',
+  btnSaved: 'Saved',
+  btnTemplates: 'Templates',
+  btnClose: 'Close',
+  btnApply: 'Apply',
+  btnCancel: 'Cancel',
+  btnOk: 'OK',
+  btnUndo: 'Undo',
+  btnRedo: 'Redo',
+
+  uploadImage: 'Upload Image',
+  uploadAi: 'AI Generate',
+  uploadQr: 'QR Code',
+  imageRemoveBg: 'Remove Background',
+  imageRemoving: 'Removing...',
+  imageCrop: 'Crop',
+
+  textAdd: 'Add Text',
+  textEdit: 'Edit Text',
+  textPlaceholder: 'Enter your text...',
+
+  printAreaLabel: 'print area',
+  frontSurface: 'Front',
+  backSurface: 'Back',
+  surfaceOn: 'Front',
+  surfaceBack: 'Back',
+
+  modeSelection: 'Select',
+  modeBulk: 'Multi',
+  modeNavigation: 'Pan',
+
+  totalLabel: 'Total',
+  productPrice: 'Product price',
+  subtotal: 'Subtotal',
+  frontPrint: 'Front print',
+  backPrint: 'Back print',
+  bulkDiscount: 'Bulk discount',
+
+  colorLabel: 'Color',
+  sizeLabel: 'Size',
+  quantityLabel: 'Quantity',
+  outOfStock: 'Out of stock',
+
+  previewTitle: 'Preview',
+
+  cropTitle: 'Crop Image',
+  cropApply: 'Crop',
+  cropCancel: 'Cancel',
+
+  layerImage: 'Image Layer',
+  layerText: 'Text:',
+
+  errorCrop: 'Could not crop image',
+  errorBgRemove: 'Background removal failed',
+  errorBgSelected: 'Could not remove background from selected image',
+  errorCart: 'Add to cart error:',
+  errorNoVariant: 'No variant found for this product. Check your Shopify product settings.',
+  errorNoSize: 'Please select a quantity for at least one size.',
+  uploadedLabel: 'Uploaded',
+  croppedLabel: 'Cropped',
+  cleanedLabel: 'Cleaned',
+
+  sizeErrorTitle: 'No size selected',
+  sizeErrorDesc: 'Please select a quantity for at least one size.',
+
+  savedNoDesigns: 'No saved designs yet.',
+  savedApply: 'Apply',
+
+  templatesNone: 'No templates found in this category.',
+  templatesAll: 'All',
+
+  aiGenerate: 'Generate',
+  aiGenerating: 'Generating...',
+  aiPlaceholder: 'Describe an image...',
+  aiStyleLabel: 'Style',
+
+  termsPrefix: 'By placing an order you agree to our',
+  termsMid: 'Terms of Service',
+  termsSuffix: '.',
+};
 
 export type I18nKey = keyof typeof tr;
 
