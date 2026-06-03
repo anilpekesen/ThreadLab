@@ -1,18 +1,20 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, useActionData, useLoaderData, useNavigate } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
 import {
   Badge,
   BlockStack,
   Box,
   Button,
   Card,
+  Frame,
   InlineGrid,
   InlineStack,
   Page,
   Select,
   Text,
   TextField,
+  Toast,
 } from "@shopify/polaris";
 import { useEffect, useRef, useState } from "react";
 import { authenticate } from "~/lib/authenticate.server";
@@ -755,6 +757,15 @@ export default function ProductSettingsRoute() {
   const { t } = useTranslation();
   const actionData = useActionData<typeof action>();
   const hasMounted = useRef(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showSavedToast, setShowSavedToast] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("saved") === "1") {
+      setShowSavedToast(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const [productType, setProductType] = useState<ProductConfig["productType"]>(config.productType);
   const [surfaceMode, setSurfaceMode] = useState<ProductConfig["surfaceMode"]>(config.surfaceMode);
@@ -828,6 +839,10 @@ export default function ProductSettingsRoute() {
   }, [productType]);
 
   return (
+    <Frame>
+      {showSavedToast && (
+        <Toast content="Ayarlar kaydedildi" onDismiss={() => setShowSavedToast(false)} />
+      )}
     <Page
       title={product.title}
       subtitle={product.handle}
@@ -1230,5 +1245,6 @@ export default function ProductSettingsRoute() {
         </Form>
       </BlockStack>
     </Page>
+    </Frame>
   );
 }
