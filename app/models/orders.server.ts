@@ -127,7 +127,7 @@ export async function claimDriveExport(shop: string, shopifyOrderId: string): Pr
   const result = await query<{ id: string }>(
     `UPDATE orders SET drive_folder_id = 'pending'
      WHERE shop = $1 AND shopify_order_id = $2 AND drive_folder_id IS NULL
-     RETURNING id LIMIT 1`,
+     RETURNING id`,
     [shop, shopifyOrderId],
   );
   return result.rowCount !== null && result.rowCount > 0;
