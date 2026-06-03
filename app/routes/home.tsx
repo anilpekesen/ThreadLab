@@ -26,6 +26,11 @@ const T = {
       cta1: "14 gün ücretsiz başla", cta2: "2 dakikalık demo izle",
       b1: "Kurulum 5 dakika", b2: "Kredi kartı gerekmiyor", b3: "Türkçe destek",
       trustLabel: "Shopify mağazaları için kişiselleştirme ve baskı yönetimi",
+      kpis: [
+        { value: "300 DPI", label: "baskıya hazır çıktı" },
+        { value: "TR/EN", label: "müşteri ve admin dili" },
+        { value: "5 dk", label: "tema kurulumu" },
+      ],
     },
     how: {
       eyebrow: "NASIL ÇALIŞIR",
@@ -113,6 +118,11 @@ const T = {
       cta1: "Start free for 14 days", cta2: "Watch 2-min demo",
       b1: "5-minute setup", b2: "No credit card required", b3: "English support",
       trustLabel: "Product personalization and print workflow for Shopify stores",
+      kpis: [
+        { value: "300 DPI", label: "print-ready output" },
+        { value: "TR/EN", label: "customer and admin UI" },
+        { value: "5 min", label: "theme setup" },
+      ],
     },
     how: {
       eyebrow: "HOW IT WORKS",
@@ -255,6 +265,11 @@ function buildHtml(lang: Lang): string {
 
   const showcaseList = t.showcase.l.map((l) => `
     <li><span class="sl-num">${l.n}</span><div><h4>${l.t}</h4><p>${l.p}</p></div></li>`).join("");
+  const heroKpis = t.hero.kpis.map((kpi) => `
+    <div class="hero-kpi">
+      <strong>${kpi.value}</strong>
+      <span>${kpi.label}</span>
+    </div>`).join("");
 
   return `<!DOCTYPE html>
 <html lang="${t.htmlLang}">
@@ -339,11 +354,18 @@ function buildHtml(lang: Lang): string {
         <li>${checkIcon} ${t.hero.b2}</li>
         <li>${checkIcon} ${t.hero.b3}</li>
       </ul>
+      <div class="hero-kpis">${heroKpis}</div>
     </div>
 
     <!-- Phone mockup -->
     <div class="hero-visual">
       <div class="hero-blob"></div>
+      <div class="hero-admin-card">
+        <div class="hero-admin-bar">
+          <span></span><span></span><span></span>
+        </div>
+        <img src="/screenshots/ss-print-area.png" alt="PrintLab baskı alanı ayarı ekranı" loading="eager" />
+      </div>
       <div class="phone">
         <div class="phone-notch"></div>
         <div class="phone-screen">
