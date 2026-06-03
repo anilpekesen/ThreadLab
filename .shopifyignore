@@ -1,0 +1,5 @@
+.claude/
+.git/
+node_modules/
+designer-ui/node_modules/
+extensions/*/node_modules/

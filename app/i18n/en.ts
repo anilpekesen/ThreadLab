@@ -410,12 +410,12 @@ const en = {
 
   // Support page
   "support.title": "Support",
-  "support.description": "Submit your issues here and we'll get back to you as soon as possible.",
+  "support.description": "Submit your issues here. Each request is tracked under your store account, and you can continue the conversation from the same ticket when we reply.",
   "support.newTicket": "New Request",
   "support.subject": "Subject",
   "support.message": "Message",
   "support.submit": "Submit Request",
-  "support.successMsg": "Your request has been received. We'll get back to you shortly.",
+  "support.successMsg": "Your request was updated. You can follow replies from this page.",
   "support.myTickets": "My Requests",
   "support.noTickets": "You have no support requests yet.",
   "support.statusOpen": "Open",

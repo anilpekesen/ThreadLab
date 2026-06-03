@@ -480,4 +480,16 @@ async function _runMigrationsLocked() {
   `);
   // Konuşma thread'i için messages JSONB kolonu
   await query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS messages JSONB NOT NULL DEFAULT '[]'`);
+  await query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'general'`);
+  await query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS last_merchant_reply_at TIMESTAMPTZ`);
+  await query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS last_admin_reply_at TIMESTAMPTZ`);
+  await query(`
+    UPDATE support_tickets
+       SET last_merchant_reply_at = COALESCE(last_merchant_reply_at, created_at)
+     WHERE last_merchant_reply_at IS NULL
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS support_tickets_shop_status_updated
+      ON support_tickets (shop, status, updated_at DESC)
+  `);
 }

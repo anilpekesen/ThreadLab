@@ -37,8 +37,11 @@ interface TicketRow {
   message: string;
   status: string;
   priority: string;
+  category: string;
   admin_reply: string | null;
+  messages: { role: "merchant" | "admin"; text: string; at: string }[];
   created_at: string;
+  updated_at: string;
   replied_at: string | null;
 }
 
@@ -117,7 +120,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       authed: false, tab: "login",
       shops: [] as ShopRow[], globalStats: null,
       aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "",
-      tickets: [] as TicketRow[], openCount: 0,
+      tickets: [] as TicketRow[], openCount: 0, supportStatus: "all", supportSearch: "",
     });
   }
 
@@ -132,14 +135,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       getAiPromptLogsCount(filterShop || undefined),
       getGlobalStats(),
     ]);
-    return json({ authed: true, tab, shops: [] as ShopRow[], globalStats, aiLogs, aiLogsCount, aiLogsPage: page, filterShop, tickets: [] as TicketRow[], openCount: 0 });
+    return json({ authed: true, tab, shops: [] as ShopRow[], globalStats, aiLogs, aiLogsCount, aiLogsPage: page, filterShop, tickets: [] as TicketRow[], openCount: 0, supportStatus: "all", supportSearch: "" });
   }
 
   if (tab === "support") {
+    const supportStatus = url.searchParams.get("status") ?? "all";
+    const supportSearch = (url.searchParams.get("q") ?? "").trim();
+    const where: string[] = [];
+    const params: string[] = [];
+    if (["open", "answered", "closed"].includes(supportStatus)) {
+      params.push(supportStatus);
+      where.push(`status = $${params.length}`);
+    }
+    if (supportSearch) {
+      params.push(`%${supportSearch}%`);
+      where.push(`(shop ILIKE $${params.length} OR subject ILIKE $${params.length} OR message ILIKE $${params.length})`);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const [ticketsResult, globalStats] = await Promise.all([
       query<TicketRow>(
-        `SELECT id, shop, subject, message, status, priority, admin_reply, messages, created_at, replied_at
-         FROM support_tickets ORDER BY created_at DESC LIMIT 100`,
+        `SELECT id, shop, subject, message, status, priority, category, admin_reply, messages, created_at, updated_at, replied_at
+         FROM support_tickets ${whereSql} ORDER BY updated_at DESC LIMIT 100`,
+        params,
       ),
       getGlobalStats(),
     ]);
@@ -148,12 +165,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json({
       authed: true, tab, shops: [] as ShopRow[], globalStats,
       aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "",
-      tickets, openCount,
+      tickets, openCount, supportStatus, supportSearch,
     });
   }
 
   const [shops, globalStats] = await Promise.all([getShopsData(), getGlobalStats()]);
-  return json({ authed: true, tab: "shops", shops, globalStats, aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "", tickets: [] as TicketRow[], openCount: 0 });
+  return json({ authed: true, tab: "shops", shops, globalStats, aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "", tickets: [] as TicketRow[], openCount: 0, supportStatus: "all", supportSearch: "" });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -185,10 +202,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const adminMsg = JSON.stringify([{ role: "admin", text: reply.trim(), at: new Date().toISOString() }]);
         await query(
           `UPDATE support_tickets
-           SET admin_reply = $2, status = 'answered', replied_at = now(), updated_at = now(),
+           SET admin_reply = $2,
+               status = 'answered',
+               replied_at = now(),
+               updated_at = now(),
+               last_admin_reply_at = now(),
                messages = messages || $3::jsonb
            WHERE id = $1`,
           [ticketId, reply.trim(), adminMsg],
+        );
+      }
+    }
+    return redirect("/admin?tab=support");
+  }
+
+  if (intent === "reopenTicket") {
+    if (isAuthed(request)) {
+      const ticketId = form.get("ticketId") as string;
+      if (ticketId) {
+        await query(
+          `UPDATE support_tickets SET status = 'open', updated_at = now() WHERE id = $1`,
+          [ticketId],
         );
       }
     }
@@ -470,16 +504,65 @@ function AiLogsTab({ logs, count, page, filterShop }: {
   );
 }
 
-function SupportTab({ tickets }: { tickets: TicketRow[] }) {
+function ticketStatusLabel(status: string) {
+  return ({ open: "Açık", answered: "Yanıtlandı", closed: "Kapalı" } as Record<string, string>)[status] ?? status;
+}
+
+function ticketCategoryLabel(category: string) {
+  return ({
+    setup: "Kurulum",
+    billing: "Ödeme",
+    designer: "Tasarım",
+    orders: "Sipariş",
+    bug: "Hata",
+    general: "Genel",
+  } as Record<string, string>)[category] ?? category;
+}
+
+function ticketPriorityLabel(priority: string) {
+  return ({ urgent: "Acil", high: "Yüksek", normal: "Normal" } as Record<string, string>)[priority] ?? priority;
+}
+
+function SupportTab({ tickets, status, search }: { tickets: TicketRow[]; status: string; search: string }) {
   const [expanded, setExpanded] = React.useState<string | null>(null);
+  const openCount = tickets.filter((t) => t.status === "open").length;
+  const answeredCount = tickets.filter((t) => t.status === "answered").length;
+  const closedCount = tickets.filter((t) => t.status === "closed").length;
 
   return (
     <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 16 }}>
+        <div style={css.statCard}><div style={css.statLabel}>Bu listede açık</div><div style={css.statValue}>{openCount}</div></div>
+        <div style={css.statCard}><div style={css.statLabel}>Yanıtlanan</div><div style={css.statValue}>{answeredCount}</div></div>
+        <div style={css.statCard}><div style={css.statLabel}>Kapalı</div><div style={css.statValue}>{closedCount}</div></div>
+      </div>
+
+      <form method="get" action="/admin" style={{ ...css.card, padding: 14, marginBottom: 16, display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap" }}>
+        <input type="hidden" name="tab" value="support" />
+        <label style={{ display: "grid", gap: 6, color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
+          Durum
+          <select name="status" defaultValue={status} style={{ ...css.input, minWidth: 150 }}>
+            <option value="all">Tümü</option>
+            <option value="open">Açık</option>
+            <option value="answered">Yanıtlandı</option>
+            <option value="closed">Kapalı</option>
+          </select>
+        </label>
+        <label style={{ display: "grid", gap: 6, color: "#94a3b8", fontSize: 12, fontWeight: 600, flex: "1 1 260px" }}>
+          Ara
+          <input name="q" defaultValue={search} placeholder="Mağaza, konu veya mesaj ara" style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+        </label>
+        <button type="submit" style={{ ...css.btn, background: "#6366f1", color: "#fff", fontWeight: 700 }}>Filtrele</button>
+        {(status !== "all" || search) && (
+          <a href="/admin?tab=support" style={{ ...css.btn, textDecoration: "none", display: "inline-block" }}>Temizle</a>
+        )}
+      </form>
+
       <div style={css.card}>
         <table style={css.table}>
           <thead>
             <tr>
-              {["ID", "Mağaza", "Konu", "Mesaj", "Durum", "Tarih", "İşlem"].map((h) => (
+              {["Ticket", "Mağaza", "Konu", "Öncelik", "Durum", "Son Güncelleme", "İşlem"].map((h) => (
                 <th key={h} style={css.th}>{h}</th>
               ))}
             </tr>
@@ -488,114 +571,110 @@ function SupportTab({ tickets }: { tickets: TicketRow[] }) {
             {tickets.length === 0 && (
               <tr><td colSpan={7} style={{ ...css.td, textAlign: "center", color: "#475569", padding: 32 }}>Destek talebi bulunamadı</td></tr>
             )}
-            {tickets.map((t) => (
-              <React.Fragment key={t.id}>
-                <tr
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#162032")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = expanded === t.id ? "#162032" : "transparent")}
-                  style={{ cursor: "pointer" }}
-                  onClick={() => setExpanded(expanded === t.id ? null : t.id)}
-                >
-                  <td style={{ ...css.td, fontSize: 11, color: "#475569", fontFamily: "monospace" }}>
-                    {t.id.slice(0, 12)}…
-                  </td>
-                  <td style={{ ...css.td, fontSize: 12 }}>
-                    {t.shop.replace(".myshopify.com", "")}
-                  </td>
-                  <td style={{ ...css.td, fontWeight: 600, color: "#f1f5f9", maxWidth: 200 }}>
-                    <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {t.subject}
-                    </span>
-                  </td>
-                  <td style={{ ...css.td, maxWidth: 240, color: "#94a3b8", fontSize: 12 }}>
-                    <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {t.message.length > 80 ? t.message.slice(0, 80) + "…" : t.message}
-                    </span>
-                  </td>
-                  <td style={css.td}>
-                    <span style={css.badge(TICKET_STATUS_COLOR[t.status] ?? "#6b7280")}>{t.status}</span>
-                  </td>
-                  <td style={{ ...css.td, fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
-                    {new Date(t.created_at).toLocaleDateString("tr-TR")}
-                  </td>
-                  <td style={css.td}>
-                    <span style={{ fontSize: 12, color: "#94a3b8" }}>{expanded === t.id ? "▲ Kapat" : "▼ Detay"}</span>
-                  </td>
-                </tr>
-
-                {expanded === t.id && (
-                  <tr style={{ background: "#162032" }}>
-                    <td colSpan={7} style={{ padding: "16px 20px" }}>
-
-                      {/* Konuşma thread */}
-                      <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-                        {((t as TicketRow & { messages?: { role: string; text: string; at: string }[] }).messages ?? []).length === 0
-                          ? (
-                            <div style={{ padding: "10px 14px", background: "#1e293b", borderRadius: 8 }}>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" as const, letterSpacing: 0.8 }}>İlk Mesaj</span>
-                              <p style={{ margin: "6px 0 0", color: "#e2e8f0", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{t.message}</p>
-                            </div>
-                          )
-                          : ((t as TicketRow & { messages?: { role: string; text: string; at: string }[] }).messages ?? []).map((msg, i) => (
-                            <div key={i} style={{
-                              padding: "10px 14px", borderRadius: 8,
-                              background: msg.role === "admin" ? "#0f3460" : "#1e293b",
-                              border: `1px solid ${msg.role === "admin" ? "#6366f130" : "#334155"}`,
-                              alignSelf: msg.role === "admin" ? "flex-start" : "flex-end",
-                              maxWidth: "85%",
-                            }}>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: msg.role === "admin" ? "#818cf8" : "#94a3b8", textTransform: "uppercase" as const, letterSpacing: 0.8 }}>
-                                {msg.role === "admin" ? "PrintLab (Siz)" : "Mağaza"}
-                              </span>
-                              <p style={{ margin: "6px 0 4px", color: "#e2e8f0", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{msg.text}</p>
-                              <span style={{ fontSize: 11, color: "#475569" }}>
-                                {new Date(msg.at).toLocaleString("tr-TR")}
-                              </span>
-                            </div>
-                          ))
-                        }
-                      </div>
-
-                      {/* Yanıt formu + kapat */}
-                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
-                        {t.status !== "closed" && (
-                          <form method="post" action="/admin" style={{ flex: 1, minWidth: 300 }}>
-                            <input type="hidden" name="intent" value="replyTicket" />
-                            <input type="hidden" name="ticketId" value={t.id} />
-                            <div style={{ marginBottom: 8 }}>
-                              <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, display: "block", marginBottom: 6 }}>Yanıt yaz</label>
-                              <textarea
-                                name="reply"
-                                rows={3}
-                                placeholder="Yanıtınızı yazın..."
-                                style={{ ...css.input, width: "100%", boxSizing: "border-box" as const, resize: "vertical" as const, lineHeight: 1.5, fontFamily: "inherit" }}
-                              />
-                            </div>
-                            <div style={{ display: "flex", gap: 8 }}>
-                              <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "7px 18px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                                Yanıtla
-                              </button>
-                            </div>
-                          </form>
-                        )}
-                        {t.status !== "closed" && (
-                          <form method="post" action="/admin" style={{ display: "flex", alignItems: "flex-end" }}>
-                            <input type="hidden" name="intent" value="closeTicket" />
-                            <input type="hidden" name="ticketId" value={t.id} />
-                            <button type="submit" style={{ background: "#1e293b", border: "1px solid #475569", borderRadius: 6, padding: "7px 18px", color: "#94a3b8", cursor: "pointer", fontSize: 13 }}>
-                              Kapat
-                            </button>
-                          </form>
-                        )}
-                        {t.status === "closed" && (
-                          <span style={{ fontSize: 12, color: "#475569" }}>✓ Kapatıldı</span>
-                        )}
-                      </div>
+            {tickets.map((t) => {
+              const messages = t.messages?.length ? t.messages : [{ role: "merchant" as const, text: t.message, at: t.created_at }];
+              const lastMessage = messages[messages.length - 1];
+              const priorityColor = t.priority === "urgent" ? "#ef4444" : t.priority === "high" ? "#f59e0b" : "#64748b";
+              return (
+                <React.Fragment key={t.id}>
+                  <tr
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#162032")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = expanded === t.id ? "#162032" : "transparent")}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => setExpanded(expanded === t.id ? null : t.id)}
+                  >
+                    <td style={{ ...css.td, fontSize: 11, color: "#64748b", fontFamily: "monospace" }}>
+                      {t.id}
+                    </td>
+                    <td style={{ ...css.td, fontSize: 12 }}>
+                      <span style={{ color: "#f1f5f9", fontWeight: 700 }}>{t.shop.replace(".myshopify.com", "")}</span>
+                      <br /><span style={{ color: "#64748b" }}>{t.shop}</span>
+                    </td>
+                    <td style={{ ...css.td, maxWidth: 300 }}>
+                      <span style={{ display: "block", fontWeight: 700, color: "#f1f5f9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.subject}</span>
+                      <span style={{ display: "block", marginTop: 3, color: "#94a3b8", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {ticketCategoryLabel(t.category)} · {lastMessage.role === "admin" ? "Son cevap: PrintLab" : "Son cevap: Mağaza"}
+                      </span>
+                    </td>
+                    <td style={css.td}><span style={css.badge(priorityColor)}>{ticketPriorityLabel(t.priority)}</span></td>
+                    <td style={css.td}><span style={css.badge(TICKET_STATUS_COLOR[t.status] ?? "#6b7280")}>{ticketStatusLabel(t.status)}</span></td>
+                    <td style={{ ...css.td, fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
+                      {new Date(t.updated_at ?? t.created_at).toLocaleString("tr-TR")}
+                    </td>
+                    <td style={css.td}>
+                      <span style={{ fontSize: 12, color: "#94a3b8" }}>{expanded === t.id ? "Yukarı al" : "Detay"}</span>
                     </td>
                   </tr>
-                )}
-              </React.Fragment>
-            ))}
+
+                  {expanded === t.id && (
+                    <tr style={{ background: "#162032" }}>
+                      <td colSpan={7} style={{ padding: "16px 20px" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 16 }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            {messages.map((msg, i) => (
+                              <div key={i} style={{
+                                padding: "10px 14px", borderRadius: 8,
+                                background: msg.role === "admin" ? "#0f3460" : "#1e293b",
+                                border: `1px solid ${msg.role === "admin" ? "#6366f130" : "#334155"}`,
+                                alignSelf: msg.role === "admin" ? "flex-start" : "flex-end",
+                                maxWidth: "88%",
+                              }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: msg.role === "admin" ? "#818cf8" : "#94a3b8", textTransform: "uppercase" as const, letterSpacing: 0.8 }}>
+                                  {msg.role === "admin" ? "PrintLab" : "Mağaza"}
+                                </span>
+                                <p style={{ margin: "6px 0 4px", color: "#e2e8f0", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{msg.text}</p>
+                                <span style={{ fontSize: 11, color: "#64748b" }}>{new Date(msg.at).toLocaleString("tr-TR")}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <aside style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: 12, alignSelf: "start" }}>
+                            <div style={{ display: "grid", gap: 8, marginBottom: 12, fontSize: 12, color: "#94a3b8" }}>
+                              <div><strong style={{ color: "#e2e8f0" }}>Kategori:</strong> {ticketCategoryLabel(t.category)}</div>
+                              <div><strong style={{ color: "#e2e8f0" }}>Öncelik:</strong> {ticketPriorityLabel(t.priority)}</div>
+                              <div><strong style={{ color: "#e2e8f0" }}>Oluşturma:</strong> {new Date(t.created_at).toLocaleString("tr-TR")}</div>
+                            </div>
+
+                            {t.status !== "closed" ? (
+                              <form method="post" action="/admin" style={{ display: "grid", gap: 8 }}>
+                                <input type="hidden" name="intent" value="replyTicket" />
+                                <input type="hidden" name="ticketId" value={t.id} />
+                                <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>Yanıt</label>
+                                <textarea
+                                  name="reply"
+                                  rows={5}
+                                  placeholder="Mağazaya yanıt yazın..."
+                                  style={{ ...css.input, width: "100%", boxSizing: "border-box" as const, resize: "vertical" as const, lineHeight: 1.5, fontFamily: "inherit" }}
+                                />
+                                <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "8px 14px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                                  Yanıtla
+                                </button>
+                              </form>
+                            ) : (
+                              <form method="post" action="/admin">
+                                <input type="hidden" name="intent" value="reopenTicket" />
+                                <input type="hidden" name="ticketId" value={t.id} />
+                                <button type="submit" style={{ ...css.btn, width: "100%" }}>Yeniden aç</button>
+                              </form>
+                            )}
+
+                            {t.status !== "closed" && (
+                              <form method="post" action="/admin" style={{ marginTop: 8 }}>
+                                <input type="hidden" name="intent" value="closeTicket" />
+                                <input type="hidden" name="ticketId" value={t.id} />
+                                <button type="submit" style={{ background: "transparent", border: "1px solid #475569", borderRadius: 6, padding: "8px 14px", color: "#94a3b8", cursor: "pointer", fontSize: 13, width: "100%" }}>
+                                  Kapat
+                                </button>
+                              </form>
+                            )}
+                          </aside>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -662,7 +741,13 @@ export default function Admin() {
             filterShop={data.filterShop}
           />
         )}
-        {data.tab === "support" && <SupportTab tickets={data.tickets as TicketRow[]} />}
+        {data.tab === "support" && (
+          <SupportTab
+            tickets={data.tickets as TicketRow[]}
+            status={data.supportStatus ?? "all"}
+            search={data.supportSearch ?? ""}
+          />
+        )}
       </main>
     </div>
   );

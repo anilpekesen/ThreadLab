@@ -410,12 +410,12 @@ const tr = {
 
   // Support page
   "support.title": "Destek",
-  "support.description": "Sorunlarınızı buradan bize iletebilirsiniz. En kısa sürede yanıt vereceğiz.",
+  "support.description": "Sorunlarınızı buradan bize iletebilirsiniz. Talebiniz mağaza hesabınıza bağlı olarak takip edilir; yanıt geldiğinde aynı kayıttan konuşmaya devam edebilirsiniz.",
   "support.newTicket": "Yeni Talep",
   "support.subject": "Konu",
   "support.message": "Mesaj",
   "support.submit": "Talep Gönder",
-  "support.successMsg": "Talebiniz alındı, en kısa sürede yanıt vereceğiz.",
+  "support.successMsg": "Talebiniz güncellendi. Yanıt geldiğinde bu sayfada görebilirsiniz.",
   "support.myTickets": "Taleplerim",
   "support.noTickets": "Henüz destek talebiniz yok.",
   "support.statusOpen": "Açık",
