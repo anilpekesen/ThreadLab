@@ -5,6 +5,8 @@
   var _fetch = window.fetch;
   var _cartItems = [];
   var _cartAttributes = {};
+  var _lightboxItems = [];
+  var _lightboxIndex = 0;
   var _ready = false;
 
   function loadCart() {
@@ -169,10 +171,94 @@
       '.printlab-cart-design-preview{display:grid;gap:8px;margin-top:10px;max-width:156px}',
       '.printlab-cart-design-preview__item{display:grid;gap:4px}',
       '.printlab-cart-design-preview__label{font-size:11px;line-height:1.2;font-weight:700;color:rgba(17,24,39,.72)}',
-      '.printlab-cart-design-preview__image{display:block;width:100%;max-width:156px;border:1px solid rgba(17,24,39,.10);border-radius:10px;background:#f8fafc;object-fit:contain;aspect-ratio:1/1;box-shadow:0 1px 2px rgba(15,23,42,.06)}',
+      '.printlab-cart-design-preview__trigger{display:block;width:100%;padding:0;border:0;background:transparent;cursor:zoom-in;text-align:left}',
+      '.printlab-cart-design-preview__image{display:block;width:100%;max-width:156px;border:1px solid rgba(17,24,39,.10);border-radius:10px;background:#f8fafc;object-fit:contain;aspect-ratio:1/1;box-shadow:0 1px 2px rgba(15,23,42,.06);transition:transform .16s ease,box-shadow .16s ease}',
+      '.printlab-cart-design-preview__trigger:hover .printlab-cart-design-preview__image{transform:translateY(-1px);box-shadow:0 8px 18px rgba(15,23,42,.14)}',
+      '.printlab-cart-lightbox{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.78);padding:18px;backdrop-filter:blur(4px)}',
+      '.printlab-cart-lightbox[hidden]{display:none!important}',
+      '.printlab-cart-lightbox__dialog{position:relative;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px;width:min(92vw,760px);max-height:92vh;color:#111827}',
+      '.printlab-cart-lightbox__head{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#fff}',
+      '.printlab-cart-lightbox__title{font-size:14px;font-weight:800;line-height:1.25}',
+      '.printlab-cart-lightbox__close,.printlab-cart-lightbox__nav{display:flex;align-items:center;justify-content:center;border:0;border-radius:999px;background:rgba(255,255,255,.92);color:#111827;box-shadow:0 10px 24px rgba(0,0,0,.18);cursor:pointer}',
+      '.printlab-cart-lightbox__close{width:38px;height:38px;font-size:24px;line-height:1}',
+      '.printlab-cart-lightbox__nav{position:absolute;top:50%;width:42px;height:42px;font-size:28px;transform:translateY(-50%)}',
+      '.printlab-cart-lightbox__nav--prev{left:-8px}',
+      '.printlab-cart-lightbox__nav--next{right:-8px}',
+      '.printlab-cart-lightbox__nav[hidden]{display:none!important}',
+      '.printlab-cart-lightbox__frame{display:flex;align-items:center;justify-content:center;min-height:220px;overflow:hidden;border-radius:16px;background:#f8fafc;box-shadow:0 24px 70px rgba(0,0,0,.32)}',
+      '.printlab-cart-lightbox__image{display:block;max-width:100%;max-height:78vh;width:auto;height:auto;object-fit:contain}',
       '@media (min-width:750px){.printlab-cart-design-preview{max-width:184px}.printlab-cart-design-preview__image{max-width:184px}}'
     ].join('');
     document.head.appendChild(style);
+  }
+
+  function lightboxEl() {
+    var existing = document.querySelector('.printlab-cart-lightbox');
+    if (existing) return existing;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'printlab-cart-lightbox';
+    overlay.hidden = true;
+    overlay.innerHTML = [
+      '<div class="printlab-cart-lightbox__dialog" role="dialog" aria-modal="true" aria-label="Tasarım önizlemesi">',
+      '  <div class="printlab-cart-lightbox__head">',
+      '    <div class="printlab-cart-lightbox__title"></div>',
+      '    <button type="button" class="printlab-cart-lightbox__close" aria-label="Kapat">×</button>',
+      '  </div>',
+      '  <button type="button" class="printlab-cart-lightbox__nav printlab-cart-lightbox__nav--prev" aria-label="Önceki">‹</button>',
+      '  <div class="printlab-cart-lightbox__frame"><img class="printlab-cart-lightbox__image" alt=""></div>',
+      '  <button type="button" class="printlab-cart-lightbox__nav printlab-cart-lightbox__nav--next" aria-label="Sonraki">›</button>',
+      '</div>'
+    ].join('');
+
+    overlay.addEventListener('click', function (event) {
+      if (event.target === overlay) closeLightbox();
+    });
+    overlay.querySelector('.printlab-cart-lightbox__close').addEventListener('click', closeLightbox);
+    overlay.querySelector('.printlab-cart-lightbox__nav--prev').addEventListener('click', function () { moveLightbox(-1); });
+    overlay.querySelector('.printlab-cart-lightbox__nav--next').addEventListener('click', function () { moveLightbox(1); });
+
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function updateLightbox() {
+    var overlay = lightboxEl();
+    var item = _lightboxItems[_lightboxIndex];
+    if (!item) return;
+
+    var img = overlay.querySelector('.printlab-cart-lightbox__image');
+    var title = overlay.querySelector('.printlab-cart-lightbox__title');
+    var prev = overlay.querySelector('.printlab-cart-lightbox__nav--prev');
+    var next = overlay.querySelector('.printlab-cart-lightbox__nav--next');
+
+    img.src = item.url;
+    img.alt = item.label;
+    title.textContent = item.label + (_lightboxItems.length > 1 ? ' · ' + (_lightboxIndex + 1) + '/' + _lightboxItems.length : '');
+    prev.hidden = _lightboxItems.length < 2;
+    next.hidden = _lightboxItems.length < 2;
+  }
+
+  function openLightbox(items, index) {
+    _lightboxItems = items || [];
+    _lightboxIndex = index || 0;
+    if (!_lightboxItems.length) return;
+    var overlay = lightboxEl();
+    updateLightbox();
+    overlay.hidden = false;
+    document.documentElement.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    var overlay = document.querySelector('.printlab-cart-lightbox');
+    if (overlay) overlay.hidden = true;
+    document.documentElement.style.overflow = '';
+  }
+
+  function moveLightbox(direction) {
+    if (_lightboxItems.length < 2) return;
+    _lightboxIndex = (_lightboxIndex + direction + _lightboxItems.length) % _lightboxItems.length;
+    updateLightbox();
   }
 
   function renderDesignPreviews() {
@@ -196,7 +282,9 @@
       [
         { label: 'Ön tasarım', url: urls.front },
         { label: 'Arka tasarım', url: urls.back },
-      ].forEach(function (preview) {
+      ].filter(function (preview) {
+        return !!preview.url;
+      }).forEach(function (preview, previewIndex, previews) {
         if (!preview.url) return;
         var itemEl = document.createElement('div');
         itemEl.className = 'printlab-cart-design-preview__item';
@@ -211,8 +299,17 @@
         img.alt = preview.label;
         img.loading = 'lazy';
 
+        var trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'printlab-cart-design-preview__trigger';
+        trigger.setAttribute('aria-label', preview.label + ' büyüt');
+        trigger.addEventListener('click', function () {
+          openLightbox(previews, previewIndex);
+        });
+        trigger.appendChild(img);
+
         itemEl.appendChild(label);
-        itemEl.appendChild(img);
+        itemEl.appendChild(trigger);
         wrap.appendChild(itemEl);
       });
 
@@ -223,6 +320,13 @@
   loadCart();
   document.addEventListener('cart:updated', loadCart);
   document.addEventListener('cart-update', loadCart);
+  document.addEventListener('keydown', function (event) {
+    var overlay = document.querySelector('.printlab-cart-lightbox');
+    if (!overlay || overlay.hidden) return;
+    if (event.key === 'Escape') closeLightbox();
+    if (event.key === 'ArrowLeft') moveLightbox(-1);
+    if (event.key === 'ArrowRight') moveLightbox(1);
+  });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadCart);
 
   var _t;
