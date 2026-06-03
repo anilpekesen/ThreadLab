@@ -77,12 +77,12 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
     try {
       const res = await fetch('/apps/tshirt-designer/fetch-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: value }) });
       const data = await res.json() as { url?: string; error?: string };
-      if (!res.ok || !data.url) { setUrlError(data.error ?? 'Resim yüklenemedi'); return; }
+      if (!res.ok || !data.url) { setUrlError(data.error ?? (tr ? 'Resim yüklenemedi' : 'Could not load image')); return; }
       setImageUrl('');
       setShowUrlInput(false);
       if (canRemoveBg) setPendingUrl(data.url);
       else onAddImage(data.url);
-    } catch { setUrlError('Bağlantı hatası, tekrar deneyin'); }
+    } catch { setUrlError(tr ? 'Bağlantı hatası, tekrar deneyin' : 'Connection error, please retry'); }
     finally { setUrlLoading(false); }
   }, [imageUrl, canRemoveBg, onAddImage]);
 
@@ -182,7 +182,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                   onClick={handleAddFromUrl}
                   className="flex items-center justify-center gap-1.5 rounded-xl bg-gray-800 px-3.5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-gray-700 disabled:opacity-30 md:px-4"
                 >
-                  {urlLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Ekle'}
+                  {urlLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (tr ? 'Ekle' : 'Add')}
                 </button>
               </div>
               {urlError && <p className="px-3 pb-2 text-[11px] text-red-500">{urlError}</p>}
@@ -244,18 +244,18 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                       type="button"
                       onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)}
                       className="block aspect-square w-full cursor-pointer md:cursor-default"
-                      aria-label={`${img.name} tasarima ekle`}
+                      aria-label={`${img.name} ${tr ? 'tasarıma ekle' : 'add to design'}`}
                     >
                       <img src={img.dataUrl} alt={img.name} className="h-full w-full object-cover" />
                     </button>
                     {/* Hover overlay — desktop */}
                     <div className="absolute inset-0 hidden flex-col items-center justify-center gap-1.5 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 md:flex">
                       <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)} className="w-[80%] rounded-lg bg-white py-1.5 text-xs font-bold text-gray-900 hover:bg-gray-50">
-                        Ekle
+                        {tr ? 'Ekle' : 'Add'}
                       </button>
                       {canRemoveBg && (
                         <button disabled={isBgRemoving} onClick={async () => { const r = await onRemoveBg(img.serverUrl ?? img.dataUrl); if (r) { addUploadedImage({ id: generateId(), dataUrl: r, serverUrl: r, name: `${img.name} ✦`, addedAt: Date.now() }); onAddImage(r); } }} className="w-[80%] rounded-lg bg-white/20 py-1.5 text-xs font-semibold text-white hover:bg-white/30 disabled:opacity-40">
-                          BG Kaldır
+                          {tr ? 'BG Kaldır' : 'Remove BG'}
                         </button>
                       )}
                       <button onClick={() => removeUploadedImage(img.id)} className="rounded-lg bg-red-500/80 p-1.5 text-white hover:bg-red-500">
@@ -267,7 +267,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                       <p className="truncate px-1 text-[11px] font-medium text-gray-600">{img.name}</p>
                       <div className="flex gap-1">
                       <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)} className="flex-1 rounded-lg bg-gray-900 py-1.5 text-[11px] font-semibold text-white">
-                        Ekle
+                        {tr ? 'Ekle' : 'Add'}
                       </button>
                       {canRemoveBg && (
                         <button disabled={isBgRemoving} onClick={async () => { const r = await onRemoveBg(img.serverUrl ?? img.dataUrl); if (r) { addUploadedImage({ id: generateId(), dataUrl: r, serverUrl: r, name: `${img.name} ✦`, addedAt: Date.now() }); onAddImage(r); } }} className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-600 disabled:opacity-40">
@@ -309,13 +309,13 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
 // ─── Yapay Zeka Görseli ──────────────────────────────────────────────────────
 
 const STYLE_PRESETS = [
-  { label: 'Amblem / Streetwear', hint: 'streetwear emblem graphic, dramatic mascot logo, apparel print design' },
-  { label: 'Vektör illüstrasyon', hint: 'vector illustration style, flat design' },
-  { label: 'Anime / Manga', hint: 'anime illustration style, manga art' },
-  { label: 'Gerçekçi', hint: 'realistic, highly detailed, photorealistic' },
-  { label: 'Vintage / Retro', hint: 'vintage retro poster art, distressed texture' },
-  { label: 'Minimalist', hint: 'minimalist design, simple shapes, clean' },
-  { label: 'Graffiti', hint: 'graffiti street art style, urban art' },
+  { labelTr: 'Amblem / Streetwear', labelEn: 'Emblem / Streetwear', hint: 'streetwear emblem graphic, dramatic mascot logo, apparel print design' },
+  { labelTr: 'Vektör illüstrasyon', labelEn: 'Vector illustration', hint: 'vector illustration style, flat design' },
+  { labelTr: 'Anime / Manga', labelEn: 'Anime / Manga', hint: 'anime illustration style, manga art' },
+  { labelTr: 'Gerçekçi', labelEn: 'Realistic', hint: 'realistic, highly detailed, photorealistic' },
+  { labelTr: 'Vintage / Retro', labelEn: 'Vintage / Retro', hint: 'vintage retro poster art, distressed texture' },
+  { labelTr: 'Minimalist', labelEn: 'Minimalist', hint: 'minimalist design, simple shapes, clean' },
+  { labelTr: 'Graffiti', labelEn: 'Graffiti', hint: 'graffiti street art style, urban art' },
 ];
 
 interface QuotaInfo {
@@ -379,13 +379,13 @@ function AiPanel({
   async function handleGenerate() {
     if (!prompt.trim()) return;
     setLoading(true);
-    setLoadingStep('Görsel oluşturuluyor…');
+    setLoadingStep(tr ? 'Görsel oluşturuluyor…' : 'Generating image…');
     setError('');
     setResult('');
     setEnhancedPrompt('');
 
     // Adım göstergesini 10 saniye sonra güncelle (bg removal aşamasına geçildiğini göster)
-    const stepTimer = setTimeout(() => setLoadingStep('Arka plan kaldırılıyor…'), 10_000);
+    const stepTimer = setTimeout(() => setLoadingStep(tr ? 'Arka plan kaldırılıyor…' : 'Removing background…'), 10_000);
     try {
       const res = await fetch(`${appUrl}/apps/tshirt-designer/generate-image?shop=${encodeURIComponent(shop ?? '')}`, {
         method: 'POST',
@@ -404,7 +404,7 @@ function AiPanel({
           return { error: rawText || 'Gorsel olusturulamadi' };
         }
       })();
-      if (!res.ok || !data.url) { setError(data.error ?? 'Görsel oluşturulamadı'); return; }
+      if (!res.ok || !data.url) { setError(data.error ?? (tr ? 'Görsel oluşturulamadı' : 'Could not generate image')); return; }
       setResult(data.url);
       setEnhancedPrompt(data.enhancedPrompt ?? '');
       saveAiImage(data.url, 'AI Tasarim');
@@ -416,7 +416,7 @@ function AiPanel({
         } : prev);
       }
     } catch {
-      setError('Bağlantı hatası — lütfen tekrar deneyin');
+      setError(tr ? 'Bağlantı hatası — lütfen tekrar deneyin' : 'Connection error — please try again');
     } finally {
       clearTimeout(stepTimer);
       setLoading(false);
@@ -502,7 +502,7 @@ function AiPanel({
 
       {/* Stil seçimi */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-gray-600">Stil</label>
+        <label className="text-xs font-semibold text-gray-600">{tr ? 'Stil' : 'Style'}</label>
         <div className="flex flex-wrap gap-1.5">
           {STYLE_PRESETS.map((s, i) => (
             <button
@@ -515,7 +515,7 @@ function AiPanel({
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {s.label}
+              {tr ? s.labelTr : s.labelEn}
             </button>
           ))}
         </div>
@@ -527,7 +527,7 @@ function AiPanel({
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Orn: Turk bayragi hilal ve yildizi kartalin gogus ve kanatlarina gecmis, tek parca guclu bir amblem, yuksek enerjili streetwear tisort tasarimi"
+          placeholder={tr ? 'Orn: Turk bayragi hilal ve yildizi kartalin gogus ve kanatlarina gecmis, tek parca guclu bir amblem, yuksek enerjili streetwear tisort tasarimi' : 'E.g. A fierce eagle mascot fused with the crescent moon, single piece bold emblem, high-energy streetwear print design'}
           rows={4}
           className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-relaxed outline-none placeholder:text-gray-300 focus:border-violet-400"
         />
@@ -545,7 +545,7 @@ function AiPanel({
         {loading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            {loadingStep || 'Görsel oluşturuluyor…'}
+            {loadingStep || (tr ? 'Görsel oluşturuluyor…' : 'Generating image…')}
           </>
         ) : (
           <>✦ Görsel Oluştur</>
@@ -577,7 +577,7 @@ function AiPanel({
               disabled={saving || removingBg}
               className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40"
             >
-              {saving ? 'Kaydediliyor...' : 'Yuklenenlere Ekle'}
+              {saving ? (tr ? 'Kaydediliyor...' : 'Saving...') : (tr ? 'Yüklenenlere Ekle' : 'Save to Uploads')}
             </button>
             {canRemoveBg && (
               <button
@@ -593,7 +593,7 @@ function AiPanel({
               disabled={adding || removingBg}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
             >
-              {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <>✦ Tişörte Ekle</>}
+              {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <>✦ {tr ? 'Tişörte Ekle' : 'Add to Design'}</>}
             </button>
             <button
               onClick={handleGenerate}
@@ -625,7 +625,7 @@ function AiPanel({
                 </button>
                 <div className="absolute inset-0 hidden flex-col items-center justify-center gap-1.5 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 md:flex">
                   <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)} className="w-[80%] rounded-lg bg-white py-1.5 text-xs font-bold text-gray-900 hover:bg-gray-50">
-                    Ekle
+                    {tr ? 'Ekle' : 'Add'}
                   </button>
                   {canRemoveBg && (
                     <button
@@ -649,7 +649,7 @@ function AiPanel({
                   <p className="truncate px-1 text-[11px] font-medium text-gray-600">{img.name}</p>
                   <div className="flex gap-1">
                     <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)} className="flex-1 rounded-lg bg-gray-900 py-1.5 text-[11px] font-semibold text-white">
-                      Ekle
+                      {tr ? 'Ekle' : 'Add'}
                     </button>
                     {canRemoveBg && (
                       <button
@@ -682,11 +682,11 @@ function AiPanel({
 // ─── QR Kod ──────────────────────────────────────────────────────────────────
 
 const QR_COLORS = [
-  { label: 'Siyah', fg: '#000000', bg: '#ffffff' },
-  { label: 'Lacivert', fg: '#1e3a5f', bg: '#ffffff' },
-  { label: 'Koyu Yeşil', fg: '#166534', bg: '#ffffff' },
-  { label: 'Bordo', fg: '#7f1d1d', bg: '#ffffff' },
-  { label: 'Beyaz', fg: '#ffffff', bg: '#000000' },
+  { labelTr: 'Siyah', labelEn: 'Black', fg: '#000000', bg: '#ffffff' },
+  { labelTr: 'Lacivert', labelEn: 'Navy', fg: '#1e3a5f', bg: '#ffffff' },
+  { labelTr: 'Koyu Yeşil', labelEn: 'Dark Green', fg: '#166534', bg: '#ffffff' },
+  { labelTr: 'Bordo', labelEn: 'Burgundy', fg: '#7f1d1d', bg: '#ffffff' },
+  { labelTr: 'Beyaz', labelEn: 'White', fg: '#ffffff', bg: '#000000' },
 ];
 
 function QrPanel({ onAddImage, locale }: { onAddImage: (url: string) => void; locale?: string }) {
@@ -754,29 +754,29 @@ function QrPanel({ onAddImage, locale }: { onAddImage: (url: string) => void; lo
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="https://instagram.com/hesabim"
+          placeholder={tr ? 'https://instagram.com/hesabim' : 'https://instagram.com/youraccount'}
           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-gray-300 focus:border-gray-400"
         />
-        <p className="text-[10px] text-gray-400">URL, sosyal medya, telefon no, kısa metin…</p>
+        <p className="text-[10px] text-gray-400">{tr ? 'URL, sosyal medya, telefon no, kısa metin…' : 'URL, social media, phone number, short text…'}</p>
       </div>
 
       {/* Renk seçimi */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-gray-600">Renk</label>
+        <label className="text-xs font-semibold text-gray-600">{tr ? 'Renk' : 'Color'}</label>
         <div className="flex gap-2 flex-wrap">
           {QR_COLORS.map((c, i) => (
             <button
               key={i}
               type="button"
               onClick={() => setColorIdx(i)}
-              title={c.label}
+              title={tr ? c.labelTr : c.labelEn}
               className={`flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition-all ${
                 colorIdx === i ? 'border-gray-400 shadow-sm ring-1 ring-gray-300' : 'border-gray-100 hover:border-gray-300'
               }`}
               style={{ background: c.bg, color: c.fg }}
             >
               <span className="inline-block h-3.5 w-3.5 rounded-sm border border-current/20" style={{ background: c.fg }} />
-              {c.label}
+              {tr ? c.labelTr : c.labelEn}
             </button>
           ))}
         </div>
@@ -785,7 +785,7 @@ function QrPanel({ onAddImage, locale }: { onAddImage: (url: string) => void; lo
       {/* Önizleme */}
       {preview ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-4">
-          <p className="self-start text-xs font-semibold text-gray-500">Önizleme</p>
+          <p className="self-start text-xs font-semibold text-gray-500">{tr ? 'Önizleme' : 'Preview'}</p>
           <img
             src={preview}
             alt="QR Önizleme"
@@ -799,7 +799,7 @@ function QrPanel({ onAddImage, locale }: { onAddImage: (url: string) => void; lo
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-50"
           >
             {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
-            {adding ? 'Ekleniyor…' : 'Tişörte Ekle'}
+            {adding ? (tr ? 'Ekleniyor…' : 'Adding…') : (tr ? 'Tişörte Ekle' : 'Add to Design')}
           </button>
         </div>
       ) : (
