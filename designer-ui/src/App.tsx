@@ -968,6 +968,35 @@ export default function App() {
     toastTimerRef.current = setTimeout(() => setToast(null), 4000);
   }, []);
 
+  const scrollDesignerToTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const scrollOptions: ScrollToOptions = { top: 0, left: 0, behavior };
+    const wrapper = wrapperRef.current;
+    if (wrapper) {
+      wrapper.scrollTop = 0;
+      try {
+        wrapper.scrollTo(scrollOptions);
+      } catch {
+        wrapper.scrollTo(0, 0);
+      }
+    }
+
+    const scrollingElement = document.scrollingElement as HTMLElement | null;
+    if (scrollingElement) {
+      scrollingElement.scrollTop = 0;
+      try {
+        scrollingElement.scrollTo(scrollOptions);
+      } catch {
+        scrollingElement.scrollTo(0, 0);
+      }
+    }
+
+    try {
+      window.scrollTo(scrollOptions);
+    } catch {
+      window.scrollTo(0, 0);
+    }
+  }, []);
+
   const getCanvasHandle = useCallback((side: Side) => (
     side === 'front' ? frontCanvasRef.current : backCanvasRef.current
   ), []);
@@ -2106,12 +2135,25 @@ export default function App() {
     return () => window.removeEventListener('resize', syncViewportState);
   }, []);
 
-  // Panel açıldığında wrapper'ı başa sar (sayfa aşağı kaydırılmışsa panel yarım görünmesin)
+  // Panel açıldığında mobilde görünümü başa sar (sayfa aşağı kaydırılmışsa panel yarım görünmesin)
   useEffect(() => {
-    if (activeTab && wrapperRef.current) {
-      wrapperRef.current.scrollTo({ top: 0, behavior: 'instant' });
-    }
-  }, [activeTab]);
+    if (!activeTab) return;
+
+    scrollDesignerToTop(isMobileLayout ? 'smooth' : 'auto');
+    if (!isMobileLayout) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      scrollDesignerToTop('smooth');
+    });
+    const timer = window.setTimeout(() => {
+      scrollDesignerToTop('smooth');
+    }, 120);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [activeTab, isMobileLayout, scrollDesignerToTop]);
 
   // Scroll overlay: passive touch listener (JSX olmadan — preventDefault uyarısı olmaz)
   useEffect(() => {
