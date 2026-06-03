@@ -15,7 +15,7 @@ function imageDownloadUrl(shop: string, orderId: string, side: "front" | "back",
 }
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
-  Box, Divider, Grid, Thumbnail, Banner,
+  Box, Divider, Grid, Thumbnail, Banner, Tabs,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
 import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders, setOrderDriveUpload, setShopifyOrderDriveUpload } from "~/models/orders.server";
@@ -375,6 +375,36 @@ export default function OrderDetail() {
     >
       <BlockStack gap="500">
 
+        {/* Siparişteki ürün tabları — çoklu ürün varsa göster */}
+        {otherProducts.length > 0 && (
+          <Tabs
+            tabs={[
+              {
+                id: order.id,
+                content: (order.productName || "").split(" - ")[0] || "Bu Ürün",
+                accessibilityLabel: (order.productName || "").split(" - ")[0],
+              },
+              ...otherProducts.map((p: Order) => ({
+                id: p.id,
+                content: (p.productName || "").split(" - ")[0] || "Ürün",
+                accessibilityLabel: (p.productName || "").split(" - ")[0],
+              })),
+            ]}
+            selected={0}
+            onSelect={(index) => {
+              const allTabs = [order, ...otherProducts];
+              const target = allTabs[index];
+              if (target && target.id !== order.id) navigate(`/app/orders/${target.id}`);
+            }}
+          >
+            <Box paddingBlockStart="200">
+              <Text as="p" variant="bodySm" tone="subdued">
+                {order.orderNumber} — {otherProducts.length + 1} farklı ürün
+              </Text>
+            </Box>
+          </Tabs>
+        )}
+
         {/* Google Drive Export */}
         {(() => {
           const liveFolderUrl = driveResult?.ok ? driveResult.folderUrl : null;
@@ -601,37 +631,6 @@ export default function OrderDetail() {
                 </>
               )}
 
-              {/* Bu siparişteki diğer ürünler (farklı tasarım) */}
-              {otherProducts.length > 0 && (
-                <>
-                  <Divider />
-                  <BlockStack gap="200">
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Bu siparişteki diğer ürünler ({otherProducts.length}):
-                    </Text>
-                    <BlockStack gap="100">
-                      {otherProducts.map((p: Order) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => navigate(`/app/orders/${p.id}`)}
-                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", textAlign: "left" }}
-                        >
-                          <div>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>
-                              {(p.productName || "").split(" - ")[0] || "Ürün"}
-                            </span>
-                            {p.variantTitle && (
-                              <span style={{ marginLeft: 8, fontSize: 12, color: "#64748b" }}>{p.variantTitle} × {p.quantity ?? 1}</span>
-                            )}
-                          </div>
-                          <span style={{ fontSize: 12, color: "#6366f1" }}>Detay →</span>
-                        </button>
-                      ))}
-                    </BlockStack>
-                  </BlockStack>
-                </>
-              )}
 
               <Divider />
               <InlineStack align="space-between">
