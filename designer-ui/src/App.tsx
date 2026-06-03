@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 function getBgSessionId(): string {
   const key = 'dk_bg_session';
@@ -2493,7 +2494,7 @@ export default function App() {
             </div>
           </div>
 
-          {activeTab && (
+          {activeTab && typeof document !== 'undefined' && createPortal(
             <>
             {/* Backdrop */}
             <div
@@ -2671,6 +2672,7 @@ export default function App() {
                 </div>
             </div>
             </>
+            , document.body
           )}
 
           {selectedObj && (toolbarPos || mobileToolbar) && !activeTab && !showPreview && !(mobileToolbar && isActiveSelection(selectedObj)) && (
