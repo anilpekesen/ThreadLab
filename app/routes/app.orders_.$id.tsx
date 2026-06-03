@@ -228,7 +228,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const accessToken = await getValidAccessToken(session.shop);
       const rootId = await ensureRootFolder(session.shop, accessToken);
       const folderName = (order.orderNumber || order.shopifyOrderId).replace(/^#/, "");
-      const folderId = order.driveFolderId || await ensureSubfolder(accessToken, rootId, folderName);
+      // Eski klasör ID'sini yeniden kullanmıyoruz — silinmiş olabilir, her zaman yeni oluştur
+      const folderId = await ensureSubfolder(accessToken, rootId, folderName);
 
       const orderSnapshot = {
         id: order.id,
