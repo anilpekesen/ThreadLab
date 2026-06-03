@@ -43,6 +43,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
+import { useDesignerI18n } from './i18n';
 import { useDesignerStore } from '@/store/designerStore';
 import CanvasArea, { type CanvasAreaHandle } from '@/components/canvas/CanvasArea';
 import type { Template } from '@/components/panels/TemplatesPanel';
@@ -82,12 +83,6 @@ interface CartItemPayload {
   size?: string;
   properties?: Record<string, string>;
 }
-
-const MAIN_TABS: { id: 'image' | 'text' | 'layers'; label: string; Icon: React.FC<{ className?: string }> }[] = [
-  { id: 'image', label: 'Görsel', Icon: ImageIcon },
-  { id: 'text', label: 'Metin', Icon: Type },
-  { id: 'layers', label: 'Katmanlar', Icon: Layers },
-];
 
 const TOOLBAR_FONTS = ['Inter', 'Roboto', 'Arial', 'Montserrat', 'Playfair Display', 'Oswald'];
 const TEXT_COLOR_SWATCHES = ['#111827', '#ffffff', '#2563eb', '#dc2626', '#16a34a', '#f59e0b', '#ec4899', '#7c3aed'];
@@ -899,10 +894,6 @@ function getAutoZoom() {
   return Math.max(50, Math.min(100, Math.floor(usable / 488 * 100)));
 }
 
-function isTurkishLocale(locale: string | undefined) {
-  return (locale ?? 'tr-TR').toLocaleLowerCase('tr-TR').startsWith('tr');
-}
-
 function isMobileViewport() {
   if (typeof window === 'undefined') return false;
   return window.innerWidth < 860;
@@ -919,6 +910,14 @@ export default function App() {
     isBgRemoving,
     canvasState, setCanvasJson,
   } = useDesignerStore();
+
+  const { t } = useDesignerI18n(config?.locale);
+
+  const MAIN_TABS = useMemo(() => [
+    { id: 'image' as const, label: t.tabImage, Icon: ImageIcon },
+    { id: 'text' as const, label: t.tabText, Icon: Type },
+    { id: 'layers' as const, label: t.tabLayers, Icon: Layers },
+  ], [t]);
 
   const frontCanvasRef = useRef<CanvasAreaHandle>(null);
   const backCanvasRef = useRef<CanvasAreaHandle>(null);
@@ -1428,7 +1427,7 @@ export default function App() {
       });
       if (!res.ok) {
         const error = await res.json().catch(() => null) as { error?: string } | null;
-        showToast(error?.error || 'Arka plan kaldırma başarısız', 'error');
+        showToast(error?.error || t.errorBgRemove, 'error');
         return '';
       }
       const remaining = parseInt(res.headers.get('X-BG-Quota-Remaining') ?? '', 10);
@@ -1683,10 +1682,10 @@ export default function App() {
       const sourceDataUrl = selectedImage.toDataURL({ format: 'png', multiplier: 2 });
       const cleanedUrl = await handleRemoveBg(sourceDataUrl);
       if (!cleanedUrl) return;
-      addUploadedImage({ id: generateId(), dataUrl: cleanedUrl, serverUrl: cleanedUrl, name: 'Temizlenmiş', addedAt: Date.now() });
+      addUploadedImage({ id: generateId(), dataUrl: cleanedUrl, serverUrl: cleanedUrl, name: t.cleanedLabel, addedAt: Date.now() });
       await applyUrlToImageObject(selectedImage, cleanedUrl);
     } catch {
-      showToast('Seçili görselin arka planı kaldırılamadı', 'error');
+      showToast(t.errorBgSelected, 'error');
     }
   }, [addUploadedImage, applyUrlToImageObject, getSelectedImageObject, handleRemoveBg, isBgRemoving, showToast]);
 
@@ -1713,7 +1712,7 @@ export default function App() {
       const blob = await fetch(croppedDataUrl).then((r) => r.blob());
       const serverUrl = await uploadBlob(blob, 'cropped-image');
       const finalUrl = serverUrl ?? croppedDataUrl;
-      addUploadedImage({ id: generateId(), dataUrl: finalUrl, serverUrl: finalUrl, name: 'Kırpılmış', addedAt: Date.now() });
+      addUploadedImage({ id: generateId(), dataUrl: finalUrl, serverUrl: finalUrl, name: t.croppedLabel, addedAt: Date.now() });
       // Target visual size = original size × crop fraction (prevents stretching)
       await applyUrlToImageObject(selectedImage, finalUrl, {
         w: origW * normalizedRect.width,
@@ -1722,7 +1721,7 @@ export default function App() {
       setCropModalState(null);
       cropTargetRef.current = null;
     } catch {
-      showToast('Görsel kırpılamadı', 'error');
+      showToast(t.errorCrop, 'error');
     }
   }, [addUploadedImage, applyUrlToImageObject, cropModalState, showToast]);
 
@@ -2117,9 +2116,7 @@ export default function App() {
   const pricingNarrative = surfaceMode === 'front_only'
     ? summarizeSidePricing('Ön', pricingSummary.front)
     : `${summarizeSidePricing('Ön', pricingSummary.front)} | ${summarizeSidePricing('Arka', pricingSummary.back)}`;
-  const isTurkish = isTurkishLocale(config?.locale);
-  const designAreaTitle = isTurkish ? 'Tasarım Alanı' : 'Design Area';
-  const totalLabel = isTurkish ? 'Toplam' : 'Total';
+  const totalLabel = t.totalLabel;
 
   const reversedLayers = [...layers].reverse();
   const mobileToolbar = zoom < 100 || isMobileLayout;
@@ -2297,7 +2294,7 @@ export default function App() {
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700 lg:hidden"
             >
               <Eye className="h-3.5 w-3.5 md:h-4 md:w-4" />
-              <span>Önizleme</span>
+              <span>{t.btnPreview}</span>
             </button>
           </div>
         </div>
@@ -2391,7 +2388,7 @@ export default function App() {
 
                 <div className="pointer-events-none absolute bottom-14 left-1/2 z-30 flex -translate-x-1/2 gap-1.5 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
                   {availableSides.map((side) => {
-                    const label = side === 'front' ? 'Ön' : 'Arka';
+                    const label = side === 'front' ? t.surfaceOn : t.surfaceBack;
                     const image = sidePreviews[side] || (side === 'front' ? config?.frontImage : config?.backImage);
                     const hasDesign = side === 'front' ? frontHasDesign : backHasDesign;
                     return (
@@ -2425,7 +2422,7 @@ export default function App() {
             <div className="pointer-events-none absolute left-4 top-4 z-40 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6">
               <p className="text-sm font-bold text-gray-900">
                 {activeAreaSummary}
-                <span className="ml-1.5 text-[9px] font-normal text-gray-400">baskı alanı</span>
+                <span className="ml-1.5 text-[9px] font-normal text-gray-400">{t.printAreaLabel}</span>
               </p>
             </div>
 
@@ -2448,14 +2445,14 @@ export default function App() {
                   )}
                 >
                   <MousePointer2 className="h-4 w-4 md:h-[18px] md:w-[18px]" />
-                  <span className="mt-1 block text-[6px] font-bold uppercase tracking-tighter md:text-[8px]">Seçim</span>
+                  <span className="mt-1 block text-[6px] font-bold uppercase tracking-tighter md:text-[8px]">{t.modeSelection}</span>
                 </button>
                 <button
                   onClick={selectAllLayers}
                   className="flex w-full flex-col items-center justify-center border-b border-gray-100 p-2 text-gray-500 transition-colors hover:bg-gray-50 md:p-2.5"
                 >
                   <LayoutGrid className="h-4 w-4 md:h-[18px] md:w-[18px]" />
-                  <span className="mt-1 block text-center text-[6px] font-bold uppercase tracking-tighter md:text-[8px]">Toplu S.</span>
+                  <span className="mt-1 block text-center text-[6px] font-bold uppercase tracking-tighter md:text-[8px]">{t.modeBulk}</span>
                 </button>
                 <button
                   onClick={() => {
@@ -2476,7 +2473,7 @@ export default function App() {
                   )}
                 >
                   <Move className="h-4 w-4 md:h-[18px] md:w-[18px]" />
-                  <span className="mt-1 block text-center text-[6px] font-bold uppercase tracking-tighter md:text-[8px]">Gezinme</span>
+                  <span className="mt-1 block text-center text-[6px] font-bold uppercase tracking-tighter md:text-[8px]">{t.modeNavigation}</span>
                 </button>
               </div>
 
@@ -2529,7 +2526,7 @@ export default function App() {
                     <div className="flex items-center gap-3 px-4 py-2.5 md:px-5 md:py-3.5">
                       <div className="flex flex-1 gap-1 flex-wrap">
                         {([
-                          { id: 'upload', label: 'Görsel Yükle' },
+                          { id: 'upload', label: t.uploadImage },
                           { id: 'qr',     label: 'QR Kod' },
                           { id: 'ai',     label: '✦ Yapay Zeka' },
                         ] as const).map(({ id, label }) => (
@@ -2557,7 +2554,7 @@ export default function App() {
                   ) : (
                     <div className="flex items-center justify-between px-4 py-3 md:px-5 md:py-3.5">
                       <p className="text-sm font-semibold text-gray-800">
-                        {activeTab === 'text' ? (isEditingText ? 'Yazıyı Düzenle' : 'Yazı Ekle') : activeTab === 'layers' ? 'Katmanlar' : activeTab === 'templates' ? 'Şablonlar' : 'Kayıtlı Tasarımlar'}
+                        {activeTab === 'text' ? (isEditingText ? t.textEdit : t.textAdd) : activeTab === 'layers' ? t.tabLayers : activeTab === 'templates' ? t.tabTemplates : t.tabSaved}
                       </p>
                       <button
                         onClick={() => { setActiveTab(null); setIsEditingText(false); setTextDraft(''); }}
@@ -2744,7 +2741,7 @@ export default function App() {
                         <span className="text-[9px] font-bold uppercase text-gray-500 group-hover:text-blue-500">
                           {(() => {
                             const objects = getActiveCanvasHandle()?.getCanvas()?.getObjects() ?? [];
-                            return objects.indexOf(selectedObj) === objects.length - 1 ? 'Arkaya' : 'Öne';
+                            return objects.indexOf(selectedObj) === objects.length - 1 ? t.toolbarBack : t.toolbarFront;
                           })()}
                         </span>
                       </button>
@@ -2754,7 +2751,7 @@ export default function App() {
                         className="flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4 text-red-400" />
-                        <span className="text-[9px] font-bold text-red-400">Kaldır</span>
+                        <span className="text-[9px] font-bold text-red-400">{t.toolbarRemove}</span>
                       </button>
 
                       {/* Row 2: Boyut | Font | Hizala | Ortala */}
@@ -2812,7 +2809,7 @@ export default function App() {
                         className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
                       >
                         <Sparkles className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
-                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">Ortala</span>
+                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">{t.toolbarCenter}</span>
                       </button>
 
                     </div>
@@ -2852,7 +2849,7 @@ export default function App() {
                         className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
                       >
                         <Sparkles className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
-                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">Ortala</span>
+                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">{t.toolbarCenter}</span>
                       </button>
                       <button
                         onClick={duplicateSelected}
@@ -2863,7 +2860,7 @@ export default function App() {
                         )}
                       >
                         <Plus className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
-                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">Kopyala</span>
+                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">{t.toolbarCopy}</span>
                       </button>
                       <button
                         onClick={toggleLayerOrder}
@@ -2878,7 +2875,7 @@ export default function App() {
                           {(() => {
                             const objects = getActiveCanvasHandle()?.getCanvas()?.getObjects() ?? [];
                             if (isActiveSelection(selectedObj)) return 'Grup';
-                            return objects.indexOf(selectedObj) === objects.length - 1 ? 'Arkaya' : 'Öne';
+                            return objects.indexOf(selectedObj) === objects.length - 1 ? t.toolbarBack : t.toolbarFront;
                           })()}
                         </span>
                       </button>
@@ -2892,14 +2889,14 @@ export default function App() {
                         )}
                       >
                         <Sparkles className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
-                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">BG Sil</span>
+                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">{t.toolbarBgRemove}</span>
                       </button>
                       <button
                         onClick={deleteSelected}
                         className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4 text-red-400 group-hover:text-red-500" />
-                        <span className="text-[9px] font-bold text-red-400 group-hover:text-red-500">Kaldır</span>
+                        <span className="text-[9px] font-bold text-red-400 group-hover:text-red-500">{t.toolbarRemove}</span>
                       </button>
                     </div>
                     {!isActiveSelection(selectedObj) && isImageSelection(selectedObj) && (
@@ -2937,10 +2934,10 @@ export default function App() {
               <div className="w-full max-w-xs rounded-2xl bg-white shadow-2xl p-6 flex flex-col gap-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-amber-100 text-xl">⚠️</span>
-                  <p className="font-bold text-gray-900 text-sm leading-snug">Beden seçilmedi</p>
+                  <p className="font-bold text-gray-900 text-sm leading-snug">{t.sizeErrorTitle}</p>
                 </div>
                 <p className="text-sm text-gray-600 leading-relaxed">
-                  Lütfen en az bir beden için adet seçin.
+                  {t.sizeErrorDesc}
                 </p>
                 {personalization.termsUrl && (
                   <p className="text-[11px] text-gray-400 leading-relaxed border-t border-gray-100 pt-3">
@@ -2987,7 +2984,7 @@ export default function App() {
 
                 {/* Header */}
                 <div className="flex flex-none items-center justify-between px-5 py-3 md:border-b md:border-gray-100 md:px-8 md:py-5">
-                  <p className="text-[15px] font-bold text-gray-900 md:text-lg">Önizleme</p>
+                  <p className="text-[15px] font-bold text-gray-900 md:text-lg">{t.previewTitle}</p>
                   <button
                     onClick={() => setShowPreview(false)}
                     className="translate-y-0.5 rounded-full p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
@@ -3010,7 +3007,7 @@ export default function App() {
                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
                         )}
                       >
-                        {side === 'front' ? 'Ön Cephe' : 'Arka Cephe'}
+                        {side === 'front' ? t.frontSurface : t.backSurface}
                       </button>
                     ))}
                   </div>
@@ -3031,7 +3028,7 @@ export default function App() {
                       surfaceMode !== 'front_only' && previewTab !== 'front' && 'hidden md:flex',
                     )}>
                       <span className="hidden text-center text-xs font-semibold uppercase tracking-widest text-gray-400 md:block">
-                        Ön Cephe
+                        {t.frontSurface}
                       </span>
                       <div className="relative aspect-[5/6] overflow-hidden rounded-2xl bg-gray-50">
                         {(previewImages.front || config?.frontImage) && (
@@ -3051,7 +3048,7 @@ export default function App() {
                         previewTab !== 'back' && 'hidden md:flex',
                       )}>
                         <span className="hidden text-center text-xs font-semibold uppercase tracking-widest text-gray-400 md:block">
-                          Arka Cephe
+                          {t.backSurface}
                         </span>
                         <div className="relative aspect-[5/6] overflow-hidden rounded-2xl bg-gray-50">
                           {(previewImages.back || config?.backImage) && (
@@ -3073,7 +3070,7 @@ export default function App() {
                     onClick={() => setShowPreview(false)}
                     className="w-full rounded-xl bg-gray-900 py-3 text-sm font-bold text-white transition-colors hover:bg-gray-800 md:w-auto md:px-8"
                   >
-                    Kapat
+                    {t.btnClose}
                   </button>
                 </div>
               </div>
@@ -3151,7 +3148,7 @@ export default function App() {
                         qty > 0 ? 'text-blue-700' : 'text-gray-600',
                       )}>
                         {size}
-                        {!inStock && <span className="ml-1 text-[9px] font-semibold normal-case no-underline" style={{ textDecoration: 'none' }}>Tükendi</span>}
+                        {!inStock && <span className="ml-1 text-[9px] font-semibold normal-case no-underline" style={{ textDecoration: 'none' }}>{t.outOfStock}</span>}
                       </p>
                       {inStock && (
                         <div className="mt-2 flex items-center justify-center gap-1">
@@ -3196,21 +3193,21 @@ export default function App() {
                 onClick={() => setActiveTab('templates')}
                 className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
               >
-                Şablonlar
+                {t.tabTemplates}
               </button>
               <button
                 onClick={() => setActiveTab('saved')}
                 className="inline-flex items-center justify-center gap-1 rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
               >
                 <Bookmark className="h-3.5 w-3.5" />
-                Kayıtlar
+                {t.btnSaved}
               </button>
               <button
                 onClick={handleSave}
                 className="inline-flex items-center justify-center gap-1 rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
               >
                 <Save className="h-3.5 w-3.5" />
-                Kaydet
+                {t.btnSave}
               </button>
             </div>
 
@@ -3220,7 +3217,7 @@ export default function App() {
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
             >
               <ShoppingBag className="h-4 w-4" />
-              {isCartLoading ? 'Yükleniyor...' : `Sepete Ekle${totalQuantity > 0 ? ` (${totalQuantity})` : ''}`}
+              {isCartLoading ? t.btnAddToCartLoading : `${t.btnAddToCart}${totalQuantity > 0 ? ` (${totalQuantity})` : ''}`}
             </button>
             {personalization.termsUrl && (
               <p className="mt-2 text-center text-[10px] text-gray-400 leading-relaxed">
@@ -3308,7 +3305,7 @@ export default function App() {
                         qty > 0 ? 'text-blue-700' : 'text-gray-600',
                       )}>{size}</span>
                       {!inStock ? (
-                        <span className="text-[8px] text-gray-400">Tükendi</span>
+                        <span className="text-[8px] text-gray-400">{t.outOfStock}</span>
                       ) : (
                       <div className="mt-1 flex items-center gap-0.5">
                         <button
@@ -3356,28 +3353,28 @@ export default function App() {
               className="mb-1.5 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-100 px-2 py-2 text-[10px] font-bold text-gray-700 transition-colors hover:bg-gray-200"
             >
               <Eye className="h-3.5 w-3.5" />
-              Önizleme
+              {t.btnPreview}
             </button>
             <div className="flex gap-1.5">
               <button
                 onClick={() => setActiveTab('templates')}
                 className="flex-1 rounded-lg bg-gray-100 px-2 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
               >
-                Şablonlar
+                {t.tabTemplates}
               </button>
               <button
                 onClick={handleSave}
                 className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-gray-100 px-2 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
               >
                 <Save className="h-3 w-3" />
-                Kaydet
+                {t.btnSave}
               </button>
               <button
                 onClick={() => setActiveTab('saved')}
                 className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-gray-100 px-2 py-2 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200"
               >
                 <Bookmark className="h-3 w-3" />
-                Kayıtlar
+                {t.btnSaved}
               </button>
             </div>
           </div>
@@ -3389,7 +3386,7 @@ export default function App() {
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-3 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-blue-700 disabled:opacity-50"
             >
               <ShoppingBag className="h-3.5 w-3.5" />
-              {isCartLoading ? 'Yükleniyor...' : `Sepete Ekle${totalQuantity > 0 ? ` (${totalQuantity})` : ''}`}
+              {isCartLoading ? t.btnAddToCartLoading : `${t.btnAddToCart}${totalQuantity > 0 ? ` (${totalQuantity})` : ''}`}
             </button>
             {personalization.termsUrl && (
               <p className="mt-2 text-center text-[9px] text-gray-400 leading-relaxed">
@@ -3421,11 +3418,11 @@ export default function App() {
               </div>
               <div className="mt-2 space-y-1 rounded-xl bg-white/80 p-2">
                 <div className="flex items-center justify-between text-[10px]">
-                  <span className="font-semibold text-gray-500">Ürün fiyatı</span>
+                  <span className="font-semibold text-gray-500">{t.productPrice}</span>
                   <strong className="font-black text-gray-900">{formatMoney(pricingSummary.baseUnitPrice)}</strong>
                 </div>
                 <div className="flex items-center justify-between text-[10px]">
-                  <span className="font-semibold text-gray-500">Ara toplam</span>
+                  <span className="font-semibold text-gray-500">{t.subtotal}</span>
                   <strong className="font-black text-gray-900">{formatMoney(displayBaseSubtotal)}</strong>
                 </div>
                 {pricingSummary.front.hasContent && (
