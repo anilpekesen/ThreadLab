@@ -3256,6 +3256,11 @@ export default function App() {
               </button>
             </div>
 
+            {minOrderQty > 1 && (
+              <p className="text-center text-[11px] text-amber-600 font-medium leading-snug">
+                {t.minOrderNotice} <strong>{minOrderQty}</strong> {t.minOrderNoticeSuffix}
+              </p>
+            )}
             <button
               onClick={handleAddToCart}
               disabled={isCartLoading}
@@ -3428,6 +3433,11 @@ export default function App() {
           </div>
 
           <div className="px-3 py-3">
+            {minOrderQty > 1 && (
+              <p className="mb-2 text-center text-[10px] text-amber-600 font-medium leading-snug">
+                {t.minOrderNotice} <strong>{minOrderQty}</strong> {t.minOrderNoticeSuffix}
+              </p>
+            )}
             <button
               onClick={handleAddToCart}
               disabled={isCartLoading}

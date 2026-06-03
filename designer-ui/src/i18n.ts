@@ -92,6 +92,10 @@ export const tr = {
   croppedLabel: 'Kırpılmış',
   cleanedLabel: 'Temizlenmiş',
 
+  // Min order quantity notice
+  minOrderNotice: 'Bu üründen en az',
+  minOrderNoticeSuffix: 'adet sipariş vermeniz gerekmektedir.',
+
   // Size error modal
   sizeErrorTitle: 'Beden seçilmedi',
   sizeErrorDesc: 'Lütfen en az bir beden için adet seçin.',
@@ -196,6 +200,9 @@ export const en: { [K in keyof typeof tr]: string } = {
   uploadedLabel: 'Uploaded',
   croppedLabel: 'Cropped',
   cleanedLabel: 'Cleaned',
+
+  minOrderNotice: 'A minimum of',
+  minOrderNoticeSuffix: 'items is required for this product.',
 
   sizeErrorTitle: 'No size selected',
   sizeErrorDesc: 'Please select a quantity for at least one size.',
