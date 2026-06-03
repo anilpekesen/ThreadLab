@@ -1345,7 +1345,11 @@ export default function App() {
       cv.renderAll();
       handleObjectSelected(text);
     } else {
-      getActiveCanvasHandle()?.addText(value, {
+      const canvasHandle = getActiveCanvasHandle();
+      const cvSel = canvasHandle?.getCanvas();
+      setInteractionMode('selection');
+      if (cvSel) cvSel.selection = true;
+      canvasHandle?.addText(value, {
         fontFamily: 'Inter',
         fontSize: 40,
         fill: '#6b7280',
@@ -1361,6 +1365,8 @@ export default function App() {
   const handleApplyTemplate = (tpl: Template) => {
     const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv) return;
+    setInteractionMode('selection');
+    cv.selection = true;
     tpl.build(cv);
     trackDesignerEvent({
       eventType: 'template_applied',
