@@ -169,6 +169,8 @@ type LineItem = {
   variant_id?: number;
   variant_title?: string | null;
   quantity?: number;
+  price?: string;
+  price_set?: { shop_money?: { amount?: string; currency_code?: string } };
   name?: string;
   requires_shipping?: boolean;
   properties?: Attr[];
@@ -179,6 +181,7 @@ type OrderPayload = {
   name?: string;
   created_at?: string;
   financial_status?: string;
+  currency?: string;
   note_attributes?: Attr[];
   attributes?: Attr[];
   line_items?: LineItem[];
@@ -257,14 +260,20 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
       getAttr(item.attributes, "_front_print_url") ??
       orderFrontPrintUrl;
 
+    const qty = item.quantity ?? 1;
+    const unitPrice = Number(item.price_set?.shop_money?.amount ?? item.price ?? 0);
+    const lineTotalPrice = unitPrice * qty;
+    const currencyCode = item.price_set?.shop_money?.currency_code ?? payload.currency ?? "";
+
     const id = `order_${randomBytes(8).toString("hex")}`;
     await query(
       `INSERT INTO orders
          (id, shop, shopify_order_id, order_number, product_id, product_name,
           variant_id, variant_title, quantity, design_token, preview_url,
           production_file_url, customer_name, customer_email,
-          production_status, missing_surcharge, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'pending',FALSE,$15)
+          production_status, missing_surcharge, created_at,
+          line_total_price, currency_code)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'pending',FALSE,$15,$16,$17)
        ON CONFLICT (shop, shopify_order_id, variant_id) DO NOTHING`,
       [
         id,
@@ -275,13 +284,15 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
         item.name ?? "",
         variantId,
         item.variant_title ?? "",
-        item.quantity ?? 1,
+        qty,
         token,
         frontPreviewUrl,
         frontPrintUrl,
         customerName,
         customerEmail,
         payload.created_at ? new Date(payload.created_at) : new Date(),
+        lineTotalPrice,
+        currencyCode,
       ],
     );
     console.log(
