@@ -1317,7 +1317,11 @@ export default function App() {
   }, [syncLayers, updateToolbarPosition]);
 
   const handleAddImage = (url: string, template?: import('@/types').ShopTemplate) => {
-    getActiveCanvasHandle()?.addImageFromUrl(url);
+    const canvasHandle = getActiveCanvasHandle();
+    const cv = canvasHandle?.getCanvas();
+    setInteractionMode('selection');
+    if (cv) cv.selection = true;
+    canvasHandle?.addImageFromUrl(url);
     if (template) {
       trackDesignerEvent({
         eventType: 'template_applied',
