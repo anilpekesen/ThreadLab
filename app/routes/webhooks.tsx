@@ -60,11 +60,8 @@ async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Pro
 
   const order = await getOrderByShopifyId(shop, shopifyOrderId);
   if (!order) return;
-  if (order.driveFolderId) return; // already exported, skip
-
-  // Atomik kilit: başka bir webhook aynı anda çalışıyorsa ikinci klasör oluşmasın
-  const claimed = await claimDriveExport(shop, shopifyOrderId);
-  if (!claimed) return; // başka process aldı
+  // 'pending' hariç gerçek bir klasör ID'si varsa zaten export edilmiş
+  if (order.driveFolderId && order.driveFolderId !== 'pending') return;
 
   const design = order.designToken ? await getDesignByToken(order.shop || shop, order.designToken) : null;
   const frontPrint = design?.frontPrintUrl || order.designFrontPrintUrl || order.productionFileUrl || "";
@@ -72,7 +69,12 @@ async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Pro
   const frontPreview = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
   const backPreview = design?.backPreviewUrl || order.designBackPreviewUrl || "";
 
+  // Dosya yoksa claim etme — orders/paid gelince tekrar denensin
   if (!frontPrint && !backPrint && !frontPreview && !backPreview) return;
+
+  // Atomik kilit: dosyalar hazır, şimdi claim et
+  const claimed = await claimDriveExport(shop, shopifyOrderId);
+  if (!claimed) return; // başka process aldı
 
   const siblings = await getSiblingOrders(shop, shopifyOrderId, order.id).catch(() => []);
   const summary = buildVariantSummary(order, siblings);
