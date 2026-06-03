@@ -2587,6 +2587,7 @@ export default function App() {
                         shop={config?.shop}
                         uploadEndpoint={config?.uploadEndpoint}
                         sessionId={getBgSessionId()}
+                        locale={config?.locale}
                       />
                     </Suspense>
                   )}

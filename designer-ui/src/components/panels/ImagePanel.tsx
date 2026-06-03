@@ -14,9 +14,15 @@ interface Props {
   shop?: string;
   uploadEndpoint?: string;
   sessionId?: string;
+  locale?: string;
 }
 
-export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource, shop, uploadEndpoint, sessionId }: Props) {
+function isTR(locale?: string) {
+  return !locale || locale.startsWith('tr');
+}
+
+export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource, shop, uploadEndpoint, sessionId, locale }: Props) {
+  const tr = isTR(locale);
   const fileRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -89,11 +95,11 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
             <input type="checkbox" checked={consentAccepted} onChange={(e) => setConsentAccepted(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-600" />
             <div>
               <p className="text-xs font-semibold leading-snug text-gray-700">
-                Bu görselin kullanım ve baskı hakkına sahibim ya da gerekli izinleri aldım.
+                {tr ? 'Bu görselin kullanım ve baskı hakkına sahibim ya da gerekli izinleri aldım.' : 'I own or have permission to use and print this image.'}
               </p>
               <p className="mt-0.5 text-[10px] text-gray-400">
-                Telif ihlali bildiriminde sipariş durdurulabilir.{' '}
-                <a href="https://app.printlabapp.com/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Koşullar</a>
+                {tr ? 'Telif ihlali bildiriminde sipariş durdurulabilir.' : 'Orders may be stopped if a copyright claim is filed.'}{' '}
+                <a href="https://app.printlabapp.com/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{tr ? 'Koşullar' : 'Terms'}</a>
               </p>
             </div>
           </label>
@@ -120,7 +126,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                 </div>
                 <div>
                   <p className="text-sm font-semibold">Galeriden sec</p>
-                  <p className="text-xs text-white/70">Bir veya birden fazla gorsel</p>
+                  <p className="text-xs text-white/70">{tr ? 'Bir veya birden fazla görsel' : 'One or more images'}</p>
                 </div>
               </button>
             </div>
@@ -143,8 +149,8 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                   <Upload className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-700">Gorseli surukle birak veya <span className="text-blue-600">bilgisayardan sec</span></p>
-                  <p className="mt-1 text-xs text-gray-400">Yuksek cozunurluk daha iyi baski sonucu verir</p>
+                  <p className="text-sm font-medium text-gray-700">{tr ? 'Görseli sürükle bırak veya' : 'Drag & drop or'} <span className="text-blue-600">{tr ? 'bilgisayardan seç' : 'select from computer'}</span></p>
+                  <p className="mt-1 text-xs text-gray-400">{tr ? 'Yüksek çözünürlük daha iyi baskı sonucu verir' : 'Higher resolution gives better print quality'}</p>
                 </div>
               </div>
             </div>
@@ -228,8 +234,8 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
           {uploadedImages.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Yuklenenler</p>
-                <span className="text-[10px] text-gray-400">{uploadedImages.length} gorsel</span>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">{tr ? 'Yüklenenler' : 'Uploaded'}</p>
+                <span className="text-[10px] text-gray-400">{uploadedImages.length} {tr ? 'görsel' : 'image'}{uploadedImages.length !== 1 && !tr ? 's' : ''}</span>
               </div>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                 {uploadedImages.map((img) => (
@@ -282,7 +288,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
       )}
 
       {activeSource === 'qr' && (
-        <QrPanel onAddImage={onAddImage} />
+        <QrPanel onAddImage={onAddImage} locale={locale} />
       )}
 
       {activeSource === 'ai' && (
@@ -293,6 +299,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
           shop={shop}
           uploadEndpoint={uploadEndpoint}
           sessionId={sessionId}
+          locale={locale}
         />
       )}
     </div>
@@ -327,6 +334,7 @@ function AiPanel({
   shop,
   uploadEndpoint,
   sessionId,
+  locale,
 }: {
   onAddImage: (url: string) => void;
   onRemoveBg: (url: string) => Promise<string>;
@@ -334,7 +342,9 @@ function AiPanel({
   shop?: string;
   uploadEndpoint?: string;
   sessionId?: string;
+  locale?: string;
 }) {
+  const tr = isTR(locale);
   const { uploadedImages, addUploadedImage, removeUploadedImage } = useDesignerStore();
   const [prompt, setPrompt] = useState('');
   const [styleIdx, setStyleIdx] = useState(0);
@@ -422,7 +432,7 @@ function AiPanel({
       onAddImage(result);
       setError('');
     } catch {
-      setError('AI gorseli tisorte eklenemedi. Lutfen tekrar deneyin.');
+      setError(tr ? 'AI görseli tişörte eklenemedi. Lütfen tekrar deneyin.' : 'Could not add AI image. Please try again.');
     } finally {
       setAdding(false);
     }
@@ -464,9 +474,9 @@ function AiPanel({
       <div className="flex items-start gap-3 rounded-xl bg-violet-50 p-3.5">
         <span className="mt-0.5 text-lg leading-none">✦</span>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-violet-800">Yapay Zeka ile Görsel Üret</p>
+          <p className="text-sm font-semibold text-violet-800">{tr ? 'Yapay Zeka ile Görsel Üret' : 'Generate Image with AI'}</p>
           <p className="mt-0.5 text-xs text-violet-600">
-            Fikrini yaz, baskıya hazır görsel oluşturulsun.
+            {tr ? 'Fikrini yaz, baskıya hazır görsel oluşturulsun.' : 'Describe your idea and get a print-ready image.'}
           </p>
           {quota && (
             <div className="mt-2 flex flex-wrap gap-2">
@@ -599,8 +609,8 @@ function AiPanel({
       {aiImages.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">AI Gecmisi</p>
-            <span className="text-[10px] text-gray-400">{aiImages.length} gorsel</span>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">{tr ? 'AI Geçmişi' : 'AI History'}</p>
+            <span className="text-[10px] text-gray-400">{aiImages.length} {tr ? 'görsel' : 'image'}{aiImages.length !== 1 && !tr ? 's' : ''}</span>
           </div>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
             {aiImages.map((img) => (
@@ -679,7 +689,8 @@ const QR_COLORS = [
   { label: 'Beyaz', fg: '#ffffff', bg: '#000000' },
 ];
 
-function QrPanel({ onAddImage }: { onAddImage: (url: string) => void }) {
+function QrPanel({ onAddImage, locale }: { onAddImage: (url: string) => void; locale?: string }) {
+  const tr = isTR(locale);
   const [text, setText] = useState('');
   const [colorIdx, setColorIdx] = useState(0);
   const [preview, setPreview] = useState('');
@@ -731,8 +742,8 @@ function QrPanel({ onAddImage }: { onAddImage: (url: string) => void }) {
       <div className="flex items-start gap-3 rounded-xl bg-gray-50 p-3.5">
         <QrCode className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
         <div>
-          <p className="text-sm font-semibold text-gray-700">QR Kod Tasarıma Ekle</p>
-          <p className="mt-0.5 text-xs text-gray-400">URL, Instagram linki, telefon numarası veya herhangi bir metin girin. QR kodu tişörtün üzerine basılacak.</p>
+          <p className="text-sm font-semibold text-gray-700">{tr ? 'QR Kod Tasarıma Ekle' : 'Add QR Code to Design'}</p>
+          <p className="mt-0.5 text-xs text-gray-400">{tr ? 'URL, Instagram linki, telefon numarası veya herhangi bir metin girin. QR kodu tişörtün üzerine basılacak.' : 'Enter a URL, Instagram link, phone number or any text. The QR code will be printed on the garment.'}</p>
         </div>
       </div>
 
