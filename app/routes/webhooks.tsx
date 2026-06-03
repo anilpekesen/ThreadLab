@@ -22,33 +22,41 @@ import {
   renameDriveFolder,
 } from "~/lib/google-drive.server";
 
-function buildVariantSummary(
-  order: { orderNumber: string; customerName: string; customerEmail: string; productName: string; variantTitle: string; quantity: number; createdAt: string },
-  siblings: { variantTitle: string; quantity: number }[],
+function buildOrderSummary(
+  allRows: import("~/models/orders.server").Order[],
 ): string {
-  const allVariants = [
-    { variantTitle: order.variantTitle, quantity: order.quantity ?? 1 },
-    ...siblings.map((s) => ({ variantTitle: s.variantTitle, quantity: s.quantity ?? 1 })),
-  ].filter((v) => v.variantTitle);
+  if (!allRows.length) return "";
+  const first = allRows[0];
 
-  const totalQty = allVariants.reduce((s, v) => s + v.quantity, 0);
+  // Her ürünü (unique productName) ve varyantlarını listele
+  const productGroups = new Map<string, { variantTitle: string; quantity: number }[]>();
+  for (const row of allRows) {
+    const pName = (row.productName || "").split(" - ")[0] || "Ürün";
+    if (!productGroups.has(pName)) productGroups.set(pName, []);
+    productGroups.get(pName)!.push({ variantTitle: row.variantTitle, quantity: row.quantity ?? 1 });
+  }
+  const totalQty = allRows.reduce((s, r) => s + (r.quantity ?? 1), 0);
 
-  const variantRows = allVariants
-    .map((v) => `  ${(v.variantTitle || "—").padEnd(20)} × ${v.quantity}`)
-    .join("\n");
+  const productLines: string[] = [];
+  let idx = 1;
+  for (const [pName, variants] of productGroups) {
+    productLines.push(`  ${idx++}. ${pName}`);
+    for (const v of variants) {
+      productLines.push(`     ${(v.variantTitle || "—").padEnd(18)} × ${v.quantity}`);
+    }
+  }
 
   return [
     `SİPARİŞ`,
     `───────────────────────────────`,
-    `Sipariş No   : ${order.orderNumber}`,
-    `Müşteri      : ${order.customerName || "—"}`,
-    `E-posta      : ${order.customerEmail || "—"}`,
-    `Ürün         : ${(order.productName || "").split(" - ")[0] || "—"}`,
-    `Tarih        : ${new Date(order.createdAt).toLocaleString("tr-TR")}`,
+    `Sipariş No   : ${first.orderNumber}`,
+    `Müşteri      : ${first.customerName || "—"}`,
+    `E-posta      : ${first.customerEmail || "—"}`,
+    `Tarih        : ${new Date(first.createdAt).toLocaleString("tr-TR")}`,
     ``,
-    `BEDENLER / RENKLER`,
+    `ÜRÜNLER`,
     `───────────────────────────────`,
-    variantRows || "  —",
+    ...productLines,
     `───────────────────────────────`,
     `TOPLAM ADET  : ${totalQty}`,
   ].join("\n");
@@ -58,43 +66,66 @@ async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Pro
   const conn = await getDriveConnection(shop);
   if (!conn) return;
 
-  const order = await getOrderByShopifyId(shop, shopifyOrderId);
-  if (!order) return;
-  // 'pending' hariç gerçek bir klasör ID'si varsa zaten export edilmiş
-  if (order.driveFolderId && order.driveFolderId !== 'pending') return;
+  const firstOrder = await getOrderByShopifyId(shop, shopifyOrderId);
+  if (!firstOrder) return;
+  if (firstOrder.driveFolderId && firstOrder.driveFolderId !== 'pending') return;
 
-  const design = order.designToken ? await getDesignByToken(order.shop || shop, order.designToken) : null;
-  const frontPrint = design?.frontPrintUrl || order.designFrontPrintUrl || order.productionFileUrl || "";
-  const backPrint = design?.backPrintUrl || order.designBackPrintUrl || "";
-  const frontPreview = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
-  const backPreview = design?.backPreviewUrl || order.designBackPreviewUrl || "";
+  // Tüm satırları al (farklı ürünler dahil)
+  const siblings = await getSiblingOrders(shop, shopifyOrderId, "").catch(() => []);
+  const allRows = [firstOrder, ...siblings.filter((s) => s.id !== firstOrder.id)];
 
-  // Dosya yoksa claim etme — orders/paid gelince tekrar denensin
-  if (!frontPrint && !backPrint && !frontPreview && !backPreview) return;
+  // Unique design_token'lar → her biri bir ürünü temsil eder
+  const productRows = Array.from(
+    new Map(allRows.filter((r) => r.designToken).map((r) => [r.designToken, r])).values()
+  );
 
-  // Atomik kilit: dosyalar hazır, şimdi claim et
+  // En az bir üründe dosya olmalı
+  const hasAnyFile = await Promise.any(
+    productRows.map(async (row) => {
+      const design = row.designToken ? await getDesignByToken(row.shop || shop, row.designToken).catch(() => null) : null;
+      const fp = design?.frontPrintUrl || row.designFrontPrintUrl || row.productionFileUrl || "";
+      const bp = design?.backPrintUrl || row.designBackPrintUrl || "";
+      const fv = design?.frontPreviewUrl || row.designFrontPreviewUrl || row.previewUrl || "";
+      const bv = design?.backPreviewUrl || row.designBackPreviewUrl || "";
+      if (!fp && !bp && !fv && !bv) throw new Error("no files");
+      return true;
+    })
+  ).catch(() => false);
+
+  if (!hasAnyFile) return;
+
   const claimed = await claimDriveExport(shop, shopifyOrderId);
-  if (!claimed) return; // başka process aldı
-
-  const siblings = await getSiblingOrders(shop, shopifyOrderId, order.id).catch(() => []);
-  const summary = buildVariantSummary(order, siblings);
+  if (!claimed) return;
 
   const accessToken = await getValidAccessToken(shop);
   const rootId = await ensureRootFolder(shop, accessToken);
-  const folderName = (order.orderNumber || shopifyOrderId).replace(/^#/, "");
+  const folderName = (firstOrder.orderNumber || shopifyOrderId).replace(/^#/, "");
   const folderId = await ensureSubfolder(accessToken, rootId, folderName);
 
   const tasks: Promise<unknown>[] = [];
-  if (frontPrint) tasks.push(uploadFromUrl(accessToken, folderId, "front-print.png", frontPrint, "image/png"));
-  if (backPrint) tasks.push(uploadFromUrl(accessToken, folderId, "back-print.png", backPrint, "image/png"));
-  if (frontPreview) tasks.push(uploadFromUrl(accessToken, folderId, "front-mockup.png", frontPreview, "image/png"));
-  if (backPreview) tasks.push(uploadFromUrl(accessToken, folderId, "back-mockup.png", backPreview, "image/png"));
+
+  // Her ürün için dosyaları prefix'li yükle
+  const prefix = productRows.length > 1;
+  for (let i = 0; i < productRows.length; i++) {
+    const row = productRows[i];
+    const design = row.designToken ? await getDesignByToken(row.shop || shop, row.designToken).catch(() => null) : null;
+    const fp = design?.frontPrintUrl || row.designFrontPrintUrl || row.productionFileUrl || "";
+    const bp = design?.backPrintUrl || row.designBackPrintUrl || "";
+    const fv = design?.frontPreviewUrl || row.designFrontPreviewUrl || row.previewUrl || "";
+    const bv = design?.backPreviewUrl || row.designBackPreviewUrl || "";
+    const p = prefix ? `${i + 1}-` : "";
+    if (fp) tasks.push(uploadFromUrl(accessToken, folderId, `${p}front-print.png`, fp, "image/png"));
+    if (bp) tasks.push(uploadFromUrl(accessToken, folderId, `${p}back-print.png`, bp, "image/png"));
+    if (fv) tasks.push(uploadFromUrl(accessToken, folderId, `${p}front-mockup.png`, fv, "image/png"));
+    if (bv) tasks.push(uploadFromUrl(accessToken, folderId, `${p}back-mockup.png`, bv, "image/png"));
+  }
+
+  const summary = buildOrderSummary(allRows);
   tasks.push(uploadText(accessToken, folderId, "siparis.txt", summary, "text/plain; charset=utf-8"));
 
   await Promise.all(tasks);
-  // Tüm sibling'lere Drive klasör ID'sini yaz (Drive linki orders sayfasında görünsün)
   await setShopifyOrderDriveUpload(shop, shopifyOrderId, folderId);
-  console.log(`[webhook] auto drive export: order=${order.orderNumber} folder=${folderId}`);
+  console.log(`[webhook] auto drive export: order=${firstOrder.orderNumber} products=${productRows.length} folder=${folderId}`);
 }
 
 async function markDriveFolderCancelled(shop: string, shopifyOrderId: string): Promise<void> {
