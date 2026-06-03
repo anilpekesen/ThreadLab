@@ -611,10 +611,11 @@ export default function OrderDetail() {
                     </Text>
                     <BlockStack gap="100">
                       {otherProducts.map((p: Order) => (
-                        <a
+                        <button
                           key={p.id}
-                          href={`/app/orders/${p.id}`}
-                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, textDecoration: "none", color: "inherit" }}
+                          type="button"
+                          onClick={() => navigate(`/app/orders/${p.id}`)}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", textAlign: "left" }}
                         >
                           <div>
                             <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>
@@ -625,7 +626,7 @@ export default function OrderDetail() {
                             )}
                           </div>
                           <span style={{ fontSize: 12, color: "#6366f1" }}>Detay →</span>
-                        </a>
+                        </button>
                       ))}
                     </BlockStack>
                   </BlockStack>
