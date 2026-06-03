@@ -176,7 +176,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!order) throw new Response("Sipariş bulunamadı", { status: 404 });
 
   const orderShop = order.shop || session.shop;
-  const [design, siblings, driveConn] = await Promise.all([
+  const [design, allSiblings, driveConn] = await Promise.all([
     order.designToken ? getDesignByToken(orderShop, order.designToken) : null,
     getSiblingOrders(orderShop, order.shopifyOrderId, order.id),
     getDriveConnection(session.shop),
@@ -184,9 +184,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const frontObjects = design ? extractObjects(design.designJson, "front") : [];
   const backObjects = design ? extractObjects(design.designJson, "back") : [];
 
+  // Aynı designToken = aynı ürünün farklı bedeni, farklı = ayrı ürün
+  const siblings = allSiblings.filter((s) => s.designToken === order.designToken);
+  const otherProducts = allSiblings.filter((s) => s.designToken !== order.designToken);
+
   return json({
     order,
     siblings,
+    otherProducts,
     design,
     frontObjects,
     backObjects,
@@ -329,7 +334,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function OrderDetail() {
-  const { order, siblings = [], design, frontObjects = [], backObjects = [], shop, driveConnected } = useLoaderData<typeof loader>();
+  const { order, siblings = [], otherProducts = [], design, frontObjects = [], backObjects = [], shop, driveConnected } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const driveFetcher = useFetcher<{ ok?: boolean; error?: string; folderUrl?: string; uploaded?: number }>();
@@ -573,7 +578,7 @@ export default function OrderDetail() {
                 <Text as="span" fontWeight="semibold">{order.quantity ?? 1}</Text>
               </InlineStack>
 
-              {/* Aynı siparişin diğer bedenleri */}
+              {/* Aynı ürünün diğer bedenleri */}
               {siblings.length > 0 && (
                 <>
                   <Divider />
@@ -583,7 +588,6 @@ export default function OrderDetail() {
                       {[order, ...siblings].reduce((s: number, o: Order) => s + (o.quantity ?? 1), 0)} adet):
                     </Text>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {/* Mevcut kayıt */}
                       <span style={{ background: "#4f46e5", color: "#fff", padding: "3px 10px", borderRadius: 20, fontSize: 13, fontWeight: 600 }}>
                         {order.variantTitle || "—"} × {order.quantity ?? 1}
                       </span>
@@ -593,6 +597,37 @@ export default function OrderDetail() {
                         </span>
                       ))}
                     </div>
+                  </BlockStack>
+                </>
+              )}
+
+              {/* Bu siparişteki diğer ürünler (farklı tasarım) */}
+              {otherProducts.length > 0 && (
+                <>
+                  <Divider />
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Bu siparişteki diğer ürünler ({otherProducts.length}):
+                    </Text>
+                    <BlockStack gap="100">
+                      {otherProducts.map((p: Order) => (
+                        <a
+                          key={p.id}
+                          href={`/app/orders/${p.id}`}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, textDecoration: "none", color: "inherit" }}
+                        >
+                          <div>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>
+                              {(p.productName || "").split(" - ")[0] || "Ürün"}
+                            </span>
+                            {p.variantTitle && (
+                              <span style={{ marginLeft: 8, fontSize: 12, color: "#64748b" }}>{p.variantTitle} × {p.quantity ?? 1}</span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: 12, color: "#6366f1" }}>Detay →</span>
+                        </a>
+                      ))}
+                    </BlockStack>
                   </BlockStack>
                 </>
               )}
