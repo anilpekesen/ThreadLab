@@ -72,6 +72,7 @@ export interface PersonalizationConfig {
   removeBgAvailable: boolean;
   variantMockups?: Record<string, { front?: string; back?: string }>;
   termsUrl?: string;
+  minOrderQuantity?: number;
 }
 
 export interface UploadedImage {

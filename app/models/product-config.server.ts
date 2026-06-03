@@ -52,6 +52,7 @@ export interface ProductConfig {
   };
   volumeDiscounts: VolumeDiscountTier[];
   surchargeVariantId: string;
+  minOrderQuantity: number;
   variantMockups?: Record<string, { front?: string; back?: string }>;
   updatedAt?: string;
 }
@@ -360,6 +361,7 @@ export function buildDefaultConfig(product: Pick<ShopifyProductSummary, "title" 
     pricingBands: defaultPricingBands(),
     volumeDiscounts: [],
     surchargeVariantId: '',
+    minOrderQuantity: 1,
   };
 }
 
@@ -400,6 +402,7 @@ export function normalizeProductConfig(
     },
     volumeDiscounts: normalizeVolumeDiscounts((input as { volumeDiscounts?: unknown })?.volumeDiscounts ?? fallback.volumeDiscounts),
     surchargeVariantId: String((input as { surchargeVariantId?: unknown })?.surchargeVariantId || fallback.surchargeVariantId || ''),
+    minOrderQuantity: Math.max(1, Math.floor(Number((input as { minOrderQuantity?: unknown })?.minOrderQuantity || fallback.minOrderQuantity || 1))),
     variantMockups: (input as { variantMockups?: unknown })?.variantMockups as Record<string, { front?: string; back?: string }> | undefined ?? fallback.variantMockups,
     updatedAt: input?.updatedAt || fallback.updatedAt,
   };

@@ -205,6 +205,7 @@ function defaultPersonalization(): PersonalizationConfig {
     removeBgAvailable: false,
     variantMockups: {},
     termsUrl: '',
+    minOrderQuantity: 1,
   };
 }
 
@@ -356,6 +357,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
       surchargeVariantId?: string;
       removeBgAvailable?: boolean;
       termsUrl?: string;
+      minOrderQuantity?: number;
     };
     printAreas?: PrintAreaConfig[];
     product?: { surfaceMode?: SurfaceMode };
@@ -384,6 +386,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     removeBgAvailable: Boolean(source?.settings?.removeBgAvailable),
     variantMockups: source?.variantMockups ?? {},
     termsUrl: String(source?.settings?.termsUrl || ''),
+    minOrderQuantity: Math.max(1, Math.floor(Number(source?.settings?.minOrderQuantity || 1))),
   };
 }
 
@@ -956,11 +959,16 @@ export default function App() {
   const [isCartLoading, setIsCartLoading] = useState(false);
   const [showSizeErrorModal, setShowSizeErrorModal] = useState(false);
   const [cropModalState, setCropModalState] = useState<{ src: string; rect: CropRect } | null>(null);
-  const [noSizeQuantity, setNoSizeQuantity] = useState(1);
+  const minOrderQty = personalization.minOrderQuantity ?? 1;
+  const [noSizeQuantity, setNoSizeQuantity] = useState(minOrderQty);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'info' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const designerStartedAtRef = useRef(Date.now());
   const cropTargetRef = useRef<fabric.Image | null>(null);
+
+  useEffect(() => {
+    setNoSizeQuantity((prev) => Math.max(minOrderQty, prev));
+  }, [minOrderQty]);
 
   const showToast = useCallback((message: string, type: 'error' | 'warning' | 'info' = 'error') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -3161,13 +3169,13 @@ export default function App() {
                         <div className="mt-2 flex items-center justify-center gap-1">
                           <button
                             type="button"
-                            onClick={() => setSizeQuantity(size!, qty - 1)}
+                            onClick={() => setSizeQuantity(size!, qty <= minOrderQty ? 0 : qty - 1)}
                             className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
                           >−</button>
                           <span className={cn('w-5 text-center text-sm font-black tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>{qty}</span>
                           <button
                             type="button"
-                            onClick={() => setSizeQuantity(size!, qty + 1)}
+                            onClick={() => setSizeQuantity(size!, qty === 0 ? minOrderQty : qty + 1)}
                             className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
                           >+</button>
                         </div>
@@ -3182,7 +3190,7 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setNoSizeQuantity(Math.max(1, noSizeQuantity - 1))}
+                    onClick={() => setNoSizeQuantity(Math.max(minOrderQty, noSizeQuantity - 1))}
                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500 hover:bg-gray-200"
                   >−</button>
                   <span className="w-8 text-center text-sm font-black text-gray-700 tabular-nums">{noSizeQuantity}</span>
@@ -3192,6 +3200,9 @@ export default function App() {
                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500 hover:bg-gray-200"
                   >+</button>
                 </div>
+                {minOrderQty > 1 && (
+                  <span className="text-xs text-gray-400">Min: {minOrderQty}</span>
+                )}
               </div>
             )}
 
@@ -3317,13 +3328,13 @@ export default function App() {
                       <div className="mt-1 flex items-center gap-0.5">
                         <button
                           type="button"
-                          onClick={() => setSizeQuantity(size!, qty - 1)}
+                          onClick={() => setSizeQuantity(size!, qty <= minOrderQty ? 0 : qty - 1)}
                           className="flex h-5 w-5 items-center justify-center rounded-md bg-white text-xs font-bold text-gray-400 shadow-sm hover:bg-gray-100"
                         >−</button>
                         <span className={cn('w-4 text-center text-xs font-bold tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>{qty}</span>
                         <button
                           type="button"
-                          onClick={() => setSizeQuantity(size!, qty + 1)}
+                          onClick={() => setSizeQuantity(size!, qty === 0 ? minOrderQty : qty + 1)}
                           className="flex h-5 w-5 items-center justify-center rounded-md bg-white text-xs font-bold text-gray-400 shadow-sm hover:bg-gray-100"
                         >+</button>
                       </div>
@@ -3337,11 +3348,14 @@ export default function App() {
             <div className="border-b border-gray-100 px-3 py-3">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Adet</p>
+                {minOrderQty > 1 && (
+                  <span className="text-[9px] text-gray-400">Min: {minOrderQty}</span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setNoSizeQuantity(Math.max(1, noSizeQuantity - 1))}
+                  onClick={() => setNoSizeQuantity(Math.max(minOrderQty, noSizeQuantity - 1))}
                   className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500 hover:bg-gray-200"
                 >−</button>
                 <span className="w-8 text-center text-sm font-black text-gray-700 tabular-nums">{noSizeQuantity}</span>

@@ -704,6 +704,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     pricingBands: { front: [], back: [] },
     volumeDiscounts: [],
     surchargeVariantId: '',
+    minOrderQuantity: 1,
   };
 
   const frontBands = parseBandRows(form, "front");
@@ -732,6 +733,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       },
       volumeDiscounts: [],
       surchargeVariantId: String(form.get("surchargeVariantId") || "").trim(),
+      minOrderQuantity: Math.max(1, Math.floor(Number(form.get("minOrderQuantity") || 1))),
       updatedAt: new Date().toISOString(),
     },
     fallback,
@@ -757,6 +759,7 @@ export default function ProductSettingsRoute() {
   const [productType, setProductType] = useState<ProductConfig["productType"]>(config.productType);
   const [surfaceMode, setSurfaceMode] = useState<ProductConfig["surfaceMode"]>(config.surfaceMode);
   const [surchargeVariantId, setSurchargeVariantId] = useState(config.surchargeVariantId || "");
+  const [minOrderQuantity, setMinOrderQuantity] = useState(String(config.minOrderQuantity ?? 1));
   const [frontBands, setFrontBands] = useState<BandState[]>(toBandState(config, "front"));
   const [backBands, setBackBands] = useState<BandState[]>(toBandState(config, "back"));
   const [frontArea, setFrontArea] = useState<AreaState>(toAreaState(printAreas, "front"));
@@ -1174,6 +1177,26 @@ export default function ProductSettingsRoute() {
                   ) : (
                     <input type="hidden" name="backBandCount" value="0" />
                   )}
+                </BlockStack>
+              </Box>
+            </Card>
+
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">Minimum alım adeti</Text>
+                  <Text as="p" tone="subdued">
+                    Müşterinin seçebileceği minimum sipariş adeti. Girilmezse 1 adet kabul edilir.
+                  </Text>
+                  <TextField
+                    label="Minimum adet"
+                    type="number"
+                    name="minOrderQuantity"
+                    value={minOrderQuantity}
+                    onChange={setMinOrderQuantity}
+                    min={1}
+                    autoComplete="off"
+                  />
                 </BlockStack>
               </Box>
             </Card>
