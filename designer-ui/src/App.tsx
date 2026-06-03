@@ -1804,6 +1804,19 @@ export default function App() {
   const handleSceneMouseDown = (e: React.MouseEvent) => {
     if (interactionMode !== 'navigation') return;
     if (window.innerWidth < 860) return; // mobilde wrapper scroll devralır
+
+    const cv = getActiveCanvasHandle()?.getCanvas();
+    const target = cv?.findTarget(e.nativeEvent as MouseEvent, false);
+    if (cv && target) {
+      setInteractionMode('selection');
+      cv.selection = true;
+      cv.setActiveObject(target);
+      cv.renderAll();
+      handleObjectSelected(target);
+      setIsDraggingScene(false);
+      return;
+    }
+
     setIsDraggingScene(true);
     setDragStart({
       x: e.clientX - sceneOffset.x,
