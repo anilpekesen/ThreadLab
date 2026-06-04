@@ -1471,10 +1471,13 @@ export default function App() {
     setPreviewTab('front');
     setShowPreview(true);
 
-    // Lifestyle mockup'ları arka planda üret
+    // Lifestyle mockup'ları arka planda üret — cleanBg:true ile sadece tasarım layer'ı
     const frontHas = Boolean(frontCanvasRef.current?.getCanvas()?.getObjects().length);
     const backHas  = Boolean(backCanvasRef.current?.getCanvas()?.getObjects().length);
     if (!frontHas && !backHas) return;
+
+    const frontDesignOnly = frontHas ? (frontCanvasRef.current?.exportPng(2, true) ?? '') : '';
+    const backDesignOnly  = backHas  ? (backCanvasRef.current?.exportPng(2, true)  ?? '') : '';
 
     setLifestyleLoading(true);
     setLifestyleMockups([]);
@@ -1484,8 +1487,8 @@ export default function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        frontDesign: frontHas ? frontImg : undefined,
-        backDesign:  backHas  ? backImg  : undefined,
+        frontDesign: frontHas ? frontDesignOnly : undefined,
+        backDesign:  backHas  ? backDesignOnly  : undefined,
       }),
     })
       .then((r) => r.json())
