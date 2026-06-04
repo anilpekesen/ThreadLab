@@ -891,7 +891,14 @@ async function dataUrlToServerUrl(dataUrl: string, side: string): Promise<string
 function getAutoZoom() {
   if (typeof window === 'undefined') return 100;
   const w = window.innerWidth;
-  if (w >= 860) return 100;
+  const h = window.innerHeight;
+  if (w >= 860) {
+    const sidebarW = w >= 1280 ? 360 : 300;
+    const availableW = Math.max(0, w - sidebarW - 96);
+    const availableH = Math.max(0, h - 190);
+    const scale = Math.min(1.18, Math.max(1, Math.min(availableW / 520, availableH / 660)));
+    return Math.round(scale * 100);
+  }
   // Mobile: canvas area is full-width; 488 = PRINT_W (480) + card padding (8)
   const usable = w - 32; // subtract p-4 padding on each side
   return Math.max(50, Math.min(100, Math.floor(usable / 488 * 100)));
@@ -2299,7 +2306,7 @@ export default function App() {
         "flex h-full min-h-0 w-full max-w-none flex-1 flex-col bg-white shadow-none layout:flex-row layout:justify-center layout:overflow-hidden",
         isMobileLayout && interactionMode === 'navigation' ? "overflow-y-auto" : "overflow-hidden",
       )}>
-        <div className="flex min-h-0 h-screen w-full flex-col layout:h-full layout:min-w-0 layout:w-auto layout:flex-[0_1_980px] xl:flex-[0_1_1040px]">
+        <div className="flex min-h-0 h-screen w-full flex-col layout:h-full layout:min-w-0 layout:w-auto layout:flex-[1_1_1040px] xl:flex-[1_1_1180px]">
         <div className="hidden md:flex items-center justify-between border-b border-gray-100 bg-white px-3 py-2.5 md:px-4 md:py-3">
           <div className="flex items-center gap-2">
             <button className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-medium transition-colors hover:bg-gray-50 md:px-3 md:text-sm">
