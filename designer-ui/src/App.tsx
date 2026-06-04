@@ -2422,34 +2422,34 @@ export default function App() {
                 )}
 
 
-                <div className="pointer-events-none relative z-30 mx-auto mt-3 hidden w-[360px] rounded-xl border border-gray-200 bg-white/95 p-1.5 shadow-lg backdrop-blur md:block">
-                  <div className={cn('grid gap-1.5', availableSides.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+                <div className="pointer-events-none relative z-30 mx-auto mt-3 hidden rounded-xl border border-gray-200 bg-white/95 p-1.5 shadow-lg backdrop-blur md:block">
+                  <div className="flex gap-1.5">
                   {availableSides.map((side) => {
                     const label = side === 'front' ? t.frontSurface : t.backSurface;
                     const image = sidePreviews[side] || (side === 'front' ? config?.frontImage : config?.backImage);
                     const hasDesign = side === 'front' ? frontHasDesign : backHasDesign;
-                    const objectCount = side === 'front' ? frontMetrics.objectCount : backMetrics.objectCount;
                     const isActive = activeSide === side;
                     return (
                       <button
                         key={side}
                         type="button"
+                        aria-label={label}
                         onClick={() => setActiveSide(side)}
                         className={cn(
-                          'pointer-events-auto flex h-[72px] items-center gap-2 rounded-lg border px-2.5 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+                          'pointer-events-auto flex h-16 w-14 items-center justify-center rounded-lg border p-1 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
                           isActive
-                            ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
-                            : 'border-transparent bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-800',
+                            ? 'border-blue-500 bg-blue-50 shadow-sm'
+                            : 'border-transparent bg-white opacity-75 hover:opacity-100',
                         )}
                       >
                         <span
                           className={cn(
-                            'relative flex h-14 w-11 flex-none overflow-hidden rounded-md border bg-gray-100',
+                            'relative flex h-full w-full overflow-hidden rounded-md border bg-gray-100',
                             isActive ? 'border-blue-200' : 'border-gray-200',
                           )}
                         >
                         {image ? (
-                            <img src={image} className="h-full w-full object-cover" alt={label} />
+                            <img src={image} className="h-full w-full object-cover" alt="" />
                         ) : (
                             <span className="flex h-full w-full items-center justify-center text-[10px] font-bold text-gray-400">
                               {side === 'front' ? t.surfaceOn : t.surfaceBack}
@@ -2458,12 +2458,6 @@ export default function App() {
                           {hasDesign && (
                             <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
                           )}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-xs font-black leading-tight md:text-[13px]">{label}</span>
-                          <span className={cn('mt-1 block truncate text-[10px] font-semibold leading-none md:text-[11px]', isActive ? 'text-blue-500' : 'text-gray-400')}>
-                            {hasDesign ? `${objectCount} ${t.surfaceItems}` : t.surfaceEmpty}
-                          </span>
                         </span>
                       </button>
                     );
