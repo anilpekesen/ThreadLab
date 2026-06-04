@@ -948,8 +948,7 @@ export default function App() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewImages, setPreviewImages] = useState({ front: '', back: '' });
   const [previewTab, setPreviewTab] = useState<'front' | 'back'>('front');
-  const [lifestyleMockups, setLifestyleMockups] = useState<Array<{ id: string; label: string; side: string; imageData: string }>>([]);
-  const [lifestyleLoading, setLifestyleLoading] = useState(false);
+
   const [sidePreviews, setSidePreviews] = useState({ front: '', back: '' });
   const [textDraft, setTextDraft] = useState('');
   const [isEditingText, setIsEditingText] = useState(false);
@@ -1486,32 +1485,6 @@ export default function App() {
     setPreviewTab('front');
     setShowPreview(true);
 
-    // Lifestyle mockup'ları arka planda üret — cleanBg:true ile sadece tasarım layer'ı
-    const frontHas = Boolean(frontCanvasRef.current?.getCanvas()?.getObjects().length);
-    const backHas  = Boolean(backCanvasRef.current?.getCanvas()?.getObjects().length);
-    if (!frontHas && !backHas) return;
-
-    const frontDesignOnly = frontHas ? (frontCanvasRef.current?.exportPng(2, true) ?? '') : '';
-    const backDesignOnly  = backHas  ? (backCanvasRef.current?.exportPng(2, true)  ?? '') : '';
-
-    setLifestyleLoading(true);
-    setLifestyleMockups([]);
-
-    const appBase = config?.uploadEndpoint?.split('/apps/')[0] ?? window.location.origin;
-    fetch(`${appBase}/api/lifestyle-mockup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        frontDesign: frontHas ? frontDesignOnly : undefined,
-        backDesign:  backHas  ? backDesignOnly  : undefined,
-      }),
-    })
-      .then((r) => r.json())
-      .then((data: { mockups?: Array<{ id: string; label: string; side: string; imageData: string }> }) => {
-        setLifestyleMockups(data.mockups ?? []);
-      })
-      .catch(() => {/* sessizce geç */})
-      .finally(() => setLifestyleLoading(false));
   };
 
   const handleAddToCart = async () => {
@@ -3147,40 +3120,6 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                </div>
-
-                {/* Lifestyle Mockups */}
-                <div className="border-t border-gray-100 px-4 py-4 md:px-8">
-                  <div className="mb-3 flex items-center gap-2">
-                    <p className="text-xs font-black uppercase tracking-widest text-gray-400">Mankende Görünüm</p>
-                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-600">
-                      🚧 Beta
-                    </span>
-                  </div>
-                  <p className="mb-3 rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5 text-[11px] text-blue-700 leading-relaxed">
-                    Geliştirmelerimiz devam ediyor. Daha iyi görsellerinizi göstermek için çalışıyoruz. En yakın zamanda tam olarak gösterim yapılacaktır.
-                  </p>
-                  {lifestyleLoading && (
-                    <div className="flex items-center justify-center py-6">
-                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-blue-500" />
-                    </div>
-                  )}
-                  {!lifestyleLoading && lifestyleMockups.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-                      {lifestyleMockups.map((m) => (
-                        <div key={m.id} className="flex flex-col gap-1">
-                          <div className="overflow-hidden rounded-xl bg-gray-50 aspect-[4/5]">
-                            <img
-                              src={m.imageData}
-                              alt={m.label}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                          <p className="text-center text-[10px] font-medium text-gray-400">{m.label}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
                 {/* Footer */}
