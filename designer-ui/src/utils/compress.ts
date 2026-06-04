@@ -1,4 +1,5 @@
 export function compressImage(file: File, maxSide = 1800): Promise<string> {
+  const isPng = file.type === 'image/png';
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -11,8 +12,14 @@ export function compressImage(file: File, maxSide = 1800): Promise<string> {
         }
         const c = document.createElement('canvas');
         c.width = width; c.height = height;
-        c.getContext('2d')!.drawImage(img, 0, 0, width, height);
-        resolve(c.toDataURL('image/jpeg', 0.85));
+        const ctx = c.getContext('2d')!;
+        // PNG ise şeffaflığı koru — JPEG için beyaz arka plan ekle
+        if (!isPng) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, width, height);
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(isPng ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.85));
       };
       img.onerror = reject;
       img.src = e.target!.result as string;
