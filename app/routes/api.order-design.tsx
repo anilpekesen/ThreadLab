@@ -1,4 +1,5 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
+import { buildEmbeddedAppAdminUrl } from "~/lib/shopify-admin-url.server";
 import { getOrderByShopifyId } from "~/models/orders.server";
 import { getDesignByToken, extractObjects } from "~/models/designs.server";
 
@@ -30,7 +31,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const order = await getOrderByShopifyId(shop, shopifyOrderId);
   if (!order) {
     return json(
-      { found: false, appOrderUrl: "https://app.printlabapp.com/app/orders?sync=1" },
+      {
+        found: false,
+        appOrderUrl: buildEmbeddedAppAdminUrl(shop, "/app/orders?sync=1") ?? "https://app.printlabapp.com/app/orders?sync=1",
+      },
       { status: 200, headers: corsHeaders(request) },
     );
   }
@@ -67,7 +71,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         angle: o.angle != null ? Math.round(o.angle) : null,
       }));
 
-  const appOrderUrl = `https://app.printlabapp.com/app/orders/${order.id}`;
+  const appOrderUrl =
+    buildEmbeddedAppAdminUrl(order.shop || shop, `/app/orders/${order.id}`) ??
+    `https://app.printlabapp.com/app/orders/${order.id}`;
 
   return json(
     {

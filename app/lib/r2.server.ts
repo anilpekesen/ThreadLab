@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomBytes } from "node:crypto";
 
 const client = new S3Client({
@@ -12,6 +12,7 @@ const client = new S3Client({
 
 const BUCKET = process.env.R2_BUCKET ?? "printlabapp-designs";
 const PUBLIC_URL = process.env.R2_PUBLIC_URL ?? "";
+const TEMP_KEY_PREFIXES = ["uploads/", "ai-gen/"];
 
 export async function uploadToR2(
   buffer: Buffer,
@@ -33,4 +34,42 @@ export async function uploadToR2(
     })
   );
   return `${PUBLIC_URL}/${key}`;
+}
+
+export function getR2KeyFromPublicUrl(url: string, allowedPrefixes = TEMP_KEY_PREFIXES): string | null {
+  if (!PUBLIC_URL || !url) return null;
+
+  let publicUrl: URL;
+  let objectUrl: URL;
+  try {
+    publicUrl = new URL(PUBLIC_URL);
+    objectUrl = new URL(url);
+  } catch {
+    return null;
+  }
+
+  if (objectUrl.origin !== publicUrl.origin) return null;
+
+  const basePath = publicUrl.pathname.replace(/\/+$/, "");
+  const objectPath = decodeURIComponent(objectUrl.pathname);
+  if (basePath && objectPath !== basePath && !objectPath.startsWith(`${basePath}/`)) return null;
+
+  const key = objectPath.slice(basePath.length).replace(/^\/+/, "");
+  if (!key || !allowedPrefixes.some((prefix) => key.startsWith(prefix))) return null;
+
+  return key;
+}
+
+export async function deleteR2ObjectByUrl(url: string): Promise<string | null> {
+  const key = getR2KeyFromPublicUrl(url);
+  if (!key) return null;
+
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+    }),
+  );
+
+  return key;
 }

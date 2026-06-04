@@ -3,6 +3,7 @@ import { json } from "@remix-run/node";
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import nodePath from "node:path";
+import { buildEmbeddedAppAdminUrl } from "~/lib/shopify-admin-url.server";
 import { getUploadsDir } from "~/lib/storage.server";
 import { handleDesignerUpload } from "~/models/uploads.server";
 import { verifyProxyHmac, liquidResponse } from "~/lib/shopify.server";
@@ -78,10 +79,17 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const shopifyOrderId = url.searchParams.get("shopify_order_id") ?? "";
     if (!shopifyOrderId) return json({ found: false }, { status: 200 });
     const order = await getOrderByShopifyId(shop, shopifyOrderId);
-    if (!order) return json({ found: false, appOrderUrl: "https://app.printlabapp.com/app/orders?sync=1" }, { status: 200 });
+    if (!order) {
+      return json({
+        found: false,
+        appOrderUrl: buildEmbeddedAppAdminUrl(shop, "/app/orders?sync=1") ?? "https://app.printlabapp.com/app/orders?sync=1",
+      }, { status: 200 });
+    }
     return json({
       found: true,
-      appOrderUrl: `https://app.printlabapp.com/app/orders/${order.id}`,
+      appOrderUrl:
+        buildEmbeddedAppAdminUrl(order.shop || shop, `/app/orders/${order.id}`) ??
+        `https://app.printlabapp.com/app/orders/${order.id}`,
       frontPreviewUrl: order.designFrontPreviewUrl || order.previewUrl || null,
       backPreviewUrl: order.designBackPreviewUrl || null,
       frontPrintUrl: order.designFrontPrintUrl || order.productionFileUrl || null,
