@@ -49,6 +49,8 @@ export const tr = {
   backSurface: 'Arka Cephe',
   surfaceOn: 'Ön',
   surfaceBack: 'Arka',
+  surfaceEmpty: 'Boş',
+  surfaceItems: 'öğe',
 
   // Interaction modes
   modeSelection: 'Seçim',
@@ -165,6 +167,8 @@ export const en: { [K in keyof typeof tr]: string } = {
   backSurface: 'Back',
   surfaceOn: 'Front',
   surfaceBack: 'Back',
+  surfaceEmpty: 'Empty',
+  surfaceItems: 'items',
 
   modeSelection: 'Select',
   modeBulk: 'Multi',
