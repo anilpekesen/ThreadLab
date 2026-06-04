@@ -3136,8 +3136,14 @@ export default function App() {
 
                 {/* Lifestyle Mockups */}
                 <div className="border-t border-gray-100 px-4 py-4 md:px-8">
-                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-gray-400">
-                    {lifestyleLoading ? '⏳ Yükleniyor...' : lifestyleMockups.length > 0 ? 'Mankende Görünüm' : ''}
+                  <div className="mb-3 flex items-center gap-2">
+                    <p className="text-xs font-black uppercase tracking-widest text-gray-400">Mankende Görünüm</p>
+                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+                      🚧 Beta
+                    </span>
+                  </div>
+                  <p className="mb-3 rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5 text-[11px] text-blue-700 leading-relaxed">
+                    Geliştirmelerimiz devam ediyor. Daha iyi görsellerinizi göstermek için çalışıyoruz. En yakın zamanda tam olarak gösterim yapılacaktır.
                   </p>
                   {lifestyleLoading && (
                     <div className="flex items-center justify-center py-6">

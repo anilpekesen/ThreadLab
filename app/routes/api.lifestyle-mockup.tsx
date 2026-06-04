@@ -12,7 +12,15 @@ async function compositeMockup(
   area: { x: number; y: number; width: number; height: number },
 ): Promise<string> {
   const { x, y, width, height } = area;
-  const resized = await sharp(designBuffer)
+
+  // Şeffaf kenarları kırp → tasarım içeriğine zoom yap → template alanına sığdır
+  const trimmed = await sharp(designBuffer)
+    .trim({ threshold: 10 })
+    .png()
+    .toBuffer()
+    .catch(() => designBuffer);
+
+  const resized = await sharp(trimmed)
     .resize(width, height, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
     .toBuffer();
