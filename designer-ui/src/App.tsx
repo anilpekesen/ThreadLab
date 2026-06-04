@@ -2422,7 +2422,7 @@ export default function App() {
                 )}
 
 
-                <div className="pointer-events-none absolute bottom-4 left-1/2 z-30 w-[min(320px,calc(100%-24px))] -translate-x-1/2 rounded-xl border border-gray-200 bg-white/95 p-1.5 shadow-lg backdrop-blur md:relative md:bottom-auto md:left-auto md:top-auto md:mx-auto md:mt-3 md:w-[360px] md:translate-x-0">
+                <div className="pointer-events-none relative z-30 mx-auto mt-3 w-[min(320px,calc(100%-24px))] rounded-xl border border-gray-200 bg-white/95 p-1.5 shadow-lg backdrop-blur md:w-[360px]">
                   <div className={cn('grid gap-1.5', availableSides.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
                   {availableSides.map((side) => {
                     const label = side === 'front' ? t.frontSurface : t.backSurface;
