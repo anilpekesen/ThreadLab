@@ -967,6 +967,7 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'info' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const designerStartedAtRef = useRef(Date.now());
+  const designActivityTrackedRef = useRef(false);
   const cropTargetRef = useRef<fabric.Image | null>(null);
 
   useEffect(() => {
@@ -1062,6 +1063,16 @@ export default function App() {
       keepalive: true,
     }).catch(() => {});
   }, [analyticsEndpoint, config?.productHandle, config?.productId, config?.productTitle, config?.shop]);
+
+  const trackDesignActivity = useCallback((source: string) => {
+    if (designActivityTrackedRef.current) return;
+    designActivityTrackedRef.current = true;
+    trackDesignerEvent({
+      eventType: 'design_activity',
+      valueNumeric: Math.max(1, Math.round((Date.now() - designerStartedAtRef.current) / 1000)),
+      metadata: { source },
+    });
+  }, [trackDesignerEvent]);
 
   const updateToolbarPosition = useCallback((obj: CanvasSelection | null) => {
     const cv = getActiveCanvasHandle()?.getCanvas();
@@ -1332,6 +1343,7 @@ export default function App() {
     setInteractionMode('selection');
     if (cv) cv.selection = true;
     canvasHandle?.addImageFromUrl(url);
+    trackDesignActivity(template ? 'shop_template' : 'image');
     if (template) {
       trackDesignerEvent({
         eventType: 'template_applied',
@@ -1367,6 +1379,7 @@ export default function App() {
         textAlign: 'center',
       });
     }
+    trackDesignActivity('text');
     setTextDraft('');
     setIsEditingText(false);
     syncLayers();
@@ -1379,6 +1392,7 @@ export default function App() {
     setInteractionMode('selection');
     cv.selection = true;
     tpl.build(cv);
+    trackDesignActivity('text_template');
     trackDesignerEvent({
       eventType: 'template_applied',
       templateId: tpl.id,
@@ -1453,6 +1467,7 @@ export default function App() {
       }
       const blob2 = await res.blob();
       const serverUrl = await uploadBlob(blob2, 'user-upload');
+      trackDesignActivity('background_removed');
       if (serverUrl) return serverUrl;
       return new Promise<string>((resolve) => {
         const reader = new FileReader();

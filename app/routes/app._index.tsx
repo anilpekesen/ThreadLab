@@ -144,12 +144,16 @@ function activityLabel(type: string, fallback: string, lang: string): string {
     cart_add: "Sepete eklendi",
     template_applied: "Şablon kullanıldı",
     design_created: "Tasarım oluşturuldu",
+    design_activity: "Tasarım yapıldı",
+    background_removed: "Arka plan kaldırıldı",
   };
   const en: Record<string, string> = {
     order: "Order received",
     cart_add: "Added to cart",
     template_applied: "Template used",
     design_created: "Design created",
+    design_activity: "Design activity",
+    background_removed: "Background removed",
   };
   return (lang === "tr" ? tr : en)[type] ?? fallback ?? type;
 }
@@ -371,6 +375,51 @@ export default function Index() {
           <Text as="h2" variant="headingMd">
             {lang === "tr" ? "Gelişmiş Analitik" : "Advanced Analytics"}
           </Text>
+
+          <InlineGrid columns={{ xs: 1, sm: 2, md: 5 }} gap="400">
+            {[
+              {
+                label: lang === "tr" ? "Bugün tasarım yaptı" : "Designed today",
+                value: detail.todayFunnel.designUsers,
+                caption: lang === "tr" ? "farklı kişi" : "unique customers",
+                tone: undefined,
+              },
+              {
+                label: lang === "tr" ? "Arka plan kaldırdı" : "Removed background",
+                value: detail.todayFunnel.backgroundRemovedUsers,
+                caption: lang === "tr" ? "farklı kişi" : "unique customers",
+                tone: undefined,
+              },
+              {
+                label: lang === "tr" ? "Sepete ekledi" : "Added to cart",
+                value: detail.todayFunnel.cartAddUsers,
+                caption: lang === "tr" ? "farklı kişi" : "unique customers",
+                tone: undefined,
+              },
+              {
+                label: lang === "tr" ? "Sepette kaldı" : "Abandoned cart",
+                value: detail.todayFunnel.cartAbandonedUsers,
+                caption: lang === "tr" ? "aldı ama ödemedi" : "carted, not purchased",
+                tone: detail.todayFunnel.cartAbandonedUsers > 0 ? ("caution" as const) : undefined,
+              },
+              {
+                label: lang === "tr" ? "Satın aldı" : "Purchased",
+                value: detail.todayFunnel.purchasedUsers,
+                caption: `${detail.todayFunnel.purchasedOrders} ${lang === "tr" ? "sipariş" : "orders"}`,
+                tone: "success" as const,
+              },
+            ].map((item) => (
+              <Card key={item.label}>
+                <Box padding="400">
+                  <BlockStack gap="100">
+                    <Text as="p" variant="bodySm" tone="subdued">{item.label}</Text>
+                    <Text as="p" variant="headingXl" tone={item.tone}>{item.value}</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">{item.caption}</Text>
+                  </BlockStack>
+                </Box>
+              </Card>
+            ))}
+          </InlineGrid>
 
           <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
             <Card>

@@ -9,8 +9,10 @@ const CORS = {
 
 const EVENT_TYPES = new Set<AnalyticsEventType>([
   "design_created",
+  "design_activity",
   "template_applied",
   "cart_add",
+  "background_removed",
 ]);
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {

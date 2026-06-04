@@ -5,6 +5,7 @@ import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
 import { checkAndIncrementCustomerBg } from "~/models/customer-bg-quota.server";
 import { getTestStoreLimits } from "~/models/test-store-limits.server";
 import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
+import { trackAnalyticsEvent } from "~/models/analytics.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const WAVESPEED_MODEL = "wavespeed-ai/image-background-remover";
@@ -152,6 +153,17 @@ export async function handleWaveSpeedRemoveBackground(
     return json({ error: "Could not download result image" }, { status: 502 });
   }
   const imageBytes = await imageRes.arrayBuffer();
+
+  trackAnalyticsEvent({
+    shop,
+    eventType: "background_removed",
+    productId: String(form.get("productId") || form.get("handle") || ""),
+    sessionId,
+    metadata: {
+      filename: file.name,
+      mimeType,
+    },
+  }).catch((err) => console.error("[analytics] background_removed failed:", err));
 
   const headers: Record<string, string> = {
     "Cache-Control": "no-store",

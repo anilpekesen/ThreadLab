@@ -11,8 +11,10 @@ async function ensureMigrations() {
 
 export type AnalyticsEventType =
   | "design_created"
+  | "design_activity"
   | "template_applied"
-  | "cart_add";
+  | "cart_add"
+  | "background_removed";
 
 export async function trackAnalyticsEvent(input: {
   shop: string;
@@ -55,6 +57,14 @@ export async function trackAnalyticsEvent(input: {
 }
 
 export interface DashboardAnalyticsDetail {
+  todayFunnel: {
+    designUsers: number;
+    backgroundRemovedUsers: number;
+    cartAddUsers: number;
+    cartAbandonedUsers: number;
+    purchasedUsers: number;
+    purchasedOrders: number;
+  };
   conversion: {
     designs: number;
     cartAdds: number;
@@ -120,6 +130,7 @@ export async function getDashboardAnalyticsDetail(shop: string): Promise<Dashboa
     revenueImpact,
     recentOrders,
     recentEvents,
+    todayFunnel,
   ] = await Promise.all([
     query<{ count: string }>(
       "SELECT COUNT(*) AS count FROM designs WHERE shop = $1 AND created_at >= $2",
@@ -233,6 +244,8 @@ export async function getDashboardAnalyticsDetail(shop: string): Promise<Dashboa
         CASE
           WHEN event_type = 'template_applied' THEN COALESCE(NULLIF(template_name, ''), 'Template applied')
           WHEN event_type = 'cart_add' THEN 'Added to cart'
+          WHEN event_type = 'background_removed' THEN 'Background removed'
+          WHEN event_type = 'design_activity' THEN 'Design activity'
           WHEN event_type = 'design_created' THEN 'Design created'
           ELSE event_type
         END AS label,
@@ -240,7 +253,7 @@ export async function getDashboardAnalyticsDetail(shop: string): Promise<Dashboa
         created_at
        FROM analytics_events
        WHERE shop = $1
-         AND event_type IN ('template_applied', 'cart_add')
+         AND event_type IN ('template_applied', 'cart_add', 'background_removed', 'design_activity')
          AND NOT EXISTS (
            SELECT 1 FROM orders o
            WHERE o.shop = analytics_events.shop
@@ -248,7 +261,68 @@ export async function getDashboardAnalyticsDetail(shop: string): Promise<Dashboa
              AND o.design_token != ''
          )
        ORDER BY created_at DESC
-       LIMIT 8`,
+      LIMIT 8`,
+      [shop],
+    ),
+    query<{
+      design_users: string;
+      background_removed_users: string;
+      cart_add_users: string;
+      cart_abandoned_users: string;
+      purchased_users: string;
+      purchased_orders: string;
+    }>(
+      `WITH bounds AS (
+          SELECT
+            (date_trunc('day', now() AT TIME ZONE 'Europe/Istanbul') AT TIME ZONE 'Europe/Istanbul') AS day_start,
+            ((date_trunc('day', now() AT TIME ZONE 'Europe/Istanbul') + interval '1 day') AT TIME ZONE 'Europe/Istanbul') AS day_end
+        )
+       SELECT
+        COALESCE((
+          SELECT COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), design_token, id))
+          FROM analytics_events, bounds
+          WHERE shop = $1 AND event_type = 'design_activity'
+            AND created_at >= bounds.day_start AND created_at < bounds.day_end
+        ), 0) AS design_users,
+        COALESCE((
+          SELECT COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), id))
+          FROM analytics_events, bounds
+          WHERE shop = $1 AND event_type = 'background_removed'
+            AND created_at >= bounds.day_start AND created_at < bounds.day_end
+        ), 0) AS background_removed_users,
+        COALESCE((
+          SELECT COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), design_token, id))
+          FROM analytics_events, bounds
+          WHERE shop = $1 AND event_type = 'cart_add'
+            AND created_at >= bounds.day_start AND created_at < bounds.day_end
+        ), 0) AS cart_add_users,
+        COALESCE((
+          SELECT COUNT(DISTINCT COALESCE(NULLIF(e.session_id, ''), e.design_token, e.id))
+          FROM analytics_events e, bounds
+          WHERE e.shop = $1 AND e.event_type = 'cart_add'
+            AND e.created_at >= bounds.day_start AND e.created_at < bounds.day_end
+            AND NOT EXISTS (
+              SELECT 1 FROM orders o
+              WHERE o.shop = e.shop
+                AND o.design_token = e.design_token
+                AND o.design_token != ''
+                AND o.production_status != 'cancelled'
+            )
+        ), 0) AS cart_abandoned_users,
+        COALESCE((
+          SELECT COUNT(DISTINCT COALESCE(NULLIF(d.session_id, ''), NULLIF(o.customer_email, ''), o.shopify_order_id))
+          FROM orders o
+          LEFT JOIN designs d ON d.shop = o.shop AND d.token = o.design_token
+          CROSS JOIN bounds
+          WHERE o.shop = $1 AND o.design_token != '' AND o.production_status != 'cancelled'
+            AND o.created_at >= bounds.day_start AND o.created_at < bounds.day_end
+        ), 0) AS purchased_users,
+        COALESCE((
+          SELECT COUNT(DISTINCT o.shopify_order_id)
+          FROM orders o, bounds
+          WHERE o.shop = $1 AND o.design_token != '' AND o.production_status != 'cancelled'
+            AND o.created_at >= bounds.day_start AND o.created_at < bounds.day_end
+        ), 0) AS purchased_orders`,
       [shop],
     ),
   ]);
@@ -272,6 +346,14 @@ export async function getDashboardAnalyticsDetail(shop: string): Promise<Dashboa
     }));
 
   return {
+    todayFunnel: {
+      designUsers: Number(todayFunnel.rows[0]?.design_users ?? 0),
+      backgroundRemovedUsers: Number(todayFunnel.rows[0]?.background_removed_users ?? 0),
+      cartAddUsers: Number(todayFunnel.rows[0]?.cart_add_users ?? 0),
+      cartAbandonedUsers: Number(todayFunnel.rows[0]?.cart_abandoned_users ?? 0),
+      purchasedUsers: Number(todayFunnel.rows[0]?.purchased_users ?? 0),
+      purchasedOrders: Number(todayFunnel.rows[0]?.purchased_orders ?? 0),
+    },
     conversion: {
       designs: designCount,
       cartAdds: cartAddCount,

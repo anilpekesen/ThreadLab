@@ -22,6 +22,12 @@ interface ShopRow {
   subscription_status: string;
   total_orders: number;
   orders_this_month: number;
+  today_design_users: number;
+  today_bg_removed_users: number;
+  today_cart_add_users: number;
+  today_cart_abandoned_users: number;
+  today_purchased_users: number;
+  today_purchased_orders: number;
   total_revenue: string;
   currency: string;
   ai_this_month: number;
@@ -51,7 +57,60 @@ async function getShopsData() {
     WITH shop_list AS (
       SELECT DISTINCT shop FROM shopify_sessions WHERE shop != ''
       UNION SELECT DISTINCT shop FROM orders WHERE shop != ''
+      UNION SELECT DISTINCT shop FROM analytics_events WHERE shop != ''
       UNION SELECT DISTINCT shop FROM shop_subscriptions WHERE shop != ''
+    ),
+    bounds AS (
+      SELECT
+        (date_trunc('day', now() AT TIME ZONE 'Europe/Istanbul') AT TIME ZONE 'Europe/Istanbul') AS day_start,
+        ((date_trunc('day', now() AT TIME ZONE 'Europe/Istanbul') + interval '1 day') AT TIME ZONE 'Europe/Istanbul') AS day_end
+    ),
+    today_design AS (
+      SELECT shop, COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), design_token, id))::int AS count
+      FROM analytics_events, bounds
+      WHERE event_type = 'design_activity'
+        AND created_at >= bounds.day_start AND created_at < bounds.day_end
+      GROUP BY shop
+    ),
+    today_bg AS (
+      SELECT shop, COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), id))::int AS count
+      FROM analytics_events, bounds
+      WHERE event_type = 'background_removed'
+        AND created_at >= bounds.day_start AND created_at < bounds.day_end
+      GROUP BY shop
+    ),
+    today_cart AS (
+      SELECT shop, COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), design_token, id))::int AS count
+      FROM analytics_events, bounds
+      WHERE event_type = 'cart_add'
+        AND created_at >= bounds.day_start AND created_at < bounds.day_end
+      GROUP BY shop
+    ),
+    today_cart_abandoned AS (
+      SELECT e.shop, COUNT(DISTINCT COALESCE(NULLIF(e.session_id, ''), e.design_token, e.id))::int AS count
+      FROM analytics_events e, bounds
+      WHERE e.event_type = 'cart_add'
+        AND e.created_at >= bounds.day_start AND e.created_at < bounds.day_end
+        AND NOT EXISTS (
+          SELECT 1 FROM orders o
+          WHERE o.shop = e.shop
+            AND o.design_token = e.design_token
+            AND o.design_token != ''
+            AND o.production_status != 'cancelled'
+        )
+      GROUP BY e.shop
+    ),
+    today_purchases AS (
+      SELECT
+        o.shop,
+        COUNT(DISTINCT COALESCE(NULLIF(d.session_id, ''), NULLIF(o.customer_email, ''), o.shopify_order_id))::int AS users,
+        COUNT(DISTINCT o.shopify_order_id)::int AS orders
+      FROM orders o
+      LEFT JOIN designs d ON d.shop = o.shop AND d.token = o.design_token
+      CROSS JOIN bounds
+      WHERE o.design_token != '' AND o.production_status != 'cancelled'
+        AND o.created_at >= bounds.day_start AND o.created_at < bounds.day_end
+      GROUP BY o.shop
     )
     SELECT
       sl.shop,
@@ -59,6 +118,12 @@ async function getShopsData() {
       COALESCE(ss.subscription_status, 'none') as subscription_status,
       COUNT(DISTINCT o.shopify_order_id)::int as total_orders,
       COUNT(DISTINCT CASE WHEN o.created_at >= date_trunc('month', now()) THEN o.shopify_order_id END)::int as orders_this_month,
+      COALESCE(td.count, 0) as today_design_users,
+      COALESCE(tbg.count, 0) as today_bg_removed_users,
+      COALESCE(tc.count, 0) as today_cart_add_users,
+      COALESCE(tca.count, 0) as today_cart_abandoned_users,
+      COALESCE(tp.users, 0) as today_purchased_users,
+      COALESCE(tp.orders, 0) as today_purchased_orders,
       COALESCE(SUM(CASE WHEN o.design_token != '' AND o.production_status != 'cancelled' THEN o.line_total_price ELSE 0 END), 0)::numeric as total_revenue,
       COALESCE(MAX(o.currency_code) FILTER (WHERE o.currency_code != ''), 'USD') as currency,
       COALESCE(ai.count, 0) as ai_this_month,
@@ -71,7 +136,13 @@ async function getShopsData() {
     LEFT JOIN ai_generation_usage ai ON ai.shop = sl.shop AND ai.month = $1
     LEFT JOIN bg_removal_usage bg ON bg.shop = sl.shop AND bg.month = $1
     LEFT JOIN shop_google_drive sgd ON sgd.shop = sl.shop
-    GROUP BY sl.shop, ss.plan_key, ss.subscription_status, ai.count, bg.count, sgd.shop
+    LEFT JOIN today_design td ON td.shop = sl.shop
+    LEFT JOIN today_bg tbg ON tbg.shop = sl.shop
+    LEFT JOIN today_cart tc ON tc.shop = sl.shop
+    LEFT JOIN today_cart_abandoned tca ON tca.shop = sl.shop
+    LEFT JOIN today_purchases tp ON tp.shop = sl.shop
+    GROUP BY sl.shop, ss.plan_key, ss.subscription_status, ai.count, bg.count, sgd.shop,
+      td.count, tbg.count, tc.count, tca.count, tp.users, tp.orders
     ORDER BY total_orders DESC, sl.shop
   `, [month]);
   return result.rows;
@@ -84,17 +155,54 @@ async function getGlobalStats() {
     total_revenue: string;
     total_ai_gens: string;
     total_bg_removals: string;
+    today_design_users: string;
+    today_bg_removed_users: string;
+    today_cart_add_users: string;
+    today_cart_abandoned_users: string;
+    today_purchased_users: string;
+    today_purchased_orders: string;
     active_subs: string;
     open_tickets: string;
     active_bonus_credits: string;
     total_credit_sales: string;
   }>(`
+    WITH bounds AS (
+      SELECT
+        (date_trunc('day', now() AT TIME ZONE 'Europe/Istanbul') AT TIME ZONE 'Europe/Istanbul') AS day_start,
+        ((date_trunc('day', now() AT TIME ZONE 'Europe/Istanbul') + interval '1 day') AT TIME ZONE 'Europe/Istanbul') AS day_end
+    )
     SELECT
       (SELECT COUNT(DISTINCT shop)::text FROM shopify_sessions WHERE shop != '') as total_shops,
       (SELECT COUNT(*)::text FROM orders) as total_orders,
       (SELECT COALESCE(SUM(line_total_price), 0)::text FROM orders WHERE design_token != '' AND production_status != 'cancelled') as total_revenue,
       (SELECT COALESCE(SUM(count), 0)::text FROM ai_generation_usage) as total_ai_gens,
       (SELECT COALESCE(SUM(count), 0)::text FROM bg_removal_usage) as total_bg_removals,
+      (SELECT COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), design_token, id))::text
+       FROM analytics_events, bounds
+       WHERE event_type = 'design_activity' AND created_at >= bounds.day_start AND created_at < bounds.day_end) as today_design_users,
+      (SELECT COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), id))::text
+       FROM analytics_events, bounds
+       WHERE event_type = 'background_removed' AND created_at >= bounds.day_start AND created_at < bounds.day_end) as today_bg_removed_users,
+      (SELECT COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), design_token, id))::text
+       FROM analytics_events, bounds
+       WHERE event_type = 'cart_add' AND created_at >= bounds.day_start AND created_at < bounds.day_end) as today_cart_add_users,
+      (SELECT COUNT(DISTINCT COALESCE(NULLIF(e.session_id, ''), e.design_token, e.id))::text
+       FROM analytics_events e, bounds
+       WHERE e.event_type = 'cart_add' AND e.created_at >= bounds.day_start AND e.created_at < bounds.day_end
+         AND NOT EXISTS (
+           SELECT 1 FROM orders o
+           WHERE o.shop = e.shop AND o.design_token = e.design_token AND o.design_token != '' AND o.production_status != 'cancelled'
+         )) as today_cart_abandoned_users,
+      (SELECT COUNT(DISTINCT COALESCE(NULLIF(d.session_id, ''), NULLIF(o.customer_email, ''), o.shopify_order_id))::text
+       FROM orders o
+       LEFT JOIN designs d ON d.shop = o.shop AND d.token = o.design_token
+       CROSS JOIN bounds
+       WHERE o.design_token != '' AND o.production_status != 'cancelled'
+         AND o.created_at >= bounds.day_start AND o.created_at < bounds.day_end) as today_purchased_users,
+      (SELECT COUNT(DISTINCT o.shopify_order_id)::text
+       FROM orders o, bounds
+       WHERE o.design_token != '' AND o.production_status != 'cancelled'
+         AND o.created_at >= bounds.day_start AND o.created_at < bounds.day_end) as today_purchased_orders,
       (SELECT COUNT(*)::text FROM shop_subscriptions WHERE subscription_status = 'active') as active_subs,
       (SELECT COUNT(*)::text FROM support_tickets WHERE status = 'open') as open_tickets,
       (SELECT COALESCE(SUM(credits_added), 0)::text FROM ai_credit_purchases WHERE expires_at > now()) as active_bonus_credits,
@@ -107,6 +215,12 @@ async function getGlobalStats() {
     totalRevenue: parseFloat(r?.total_revenue ?? "0"),
     totalAiGens: parseInt(r?.total_ai_gens ?? "0", 10),
     totalBgRemovals: parseInt(r?.total_bg_removals ?? "0", 10),
+    todayDesignUsers: parseInt(r?.today_design_users ?? "0", 10),
+    todayBgRemovedUsers: parseInt(r?.today_bg_removed_users ?? "0", 10),
+    todayCartAddUsers: parseInt(r?.today_cart_add_users ?? "0", 10),
+    todayCartAbandonedUsers: parseInt(r?.today_cart_abandoned_users ?? "0", 10),
+    todayPurchasedUsers: parseInt(r?.today_purchased_users ?? "0", 10),
+    todayPurchasedOrders: parseInt(r?.today_purchased_orders ?? "0", 10),
     activeSubs: parseInt(r?.active_subs ?? "0", 10),
     openTickets: parseInt(r?.open_tickets ?? "0", 10),
     activeBonusCredits: parseInt(r?.active_bonus_credits ?? "0", 10),
@@ -315,6 +429,15 @@ function StatCard({ label, value, isRevenue, critical }: { label: string; value:
   );
 }
 
+function TinyMetric({ value, tone }: { value: number; tone?: "good" | "warn" }) {
+  const color = tone === "good" ? "#10b981" : tone === "warn" && value > 0 ? "#f59e0b" : "#cbd5e1";
+  return (
+    <span style={{ fontWeight: 700, color }}>
+      {Number(value ?? 0).toLocaleString("tr-TR")}
+    </span>
+  );
+}
+
 function ShopsTab({ shops }: { shops: ShopRow[] }) {
   const [bonusShop, setBonusShop] = React.useState<string | null>(null);
 
@@ -328,18 +451,21 @@ function ShopsTab({ shops }: { shops: ShopRow[] }) {
         <table style={css.table}>
           <thead>
             <tr>
-              {["Mağaza", "Plan", "Durum", "Top. Sipariş", "Bu Ay", "Gelir", "AI/Ay", "BG/Ay", "Drive", "Son Sipariş", "Bonus"].map((h) => (
+              {["Mağaza", "Plan", "Durum", "Top. Sipariş", "Bu Ay", "Bugün Tasarım", "BG", "Sepet", "Sepette", "Satın Alan", "Gelir", "AI/Ay", "BG/Ay", "Drive", "Son Sipariş", "Bonus"].map((h) => (
                 <th key={h} style={css.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {shops.length === 0 && (
-              <tr><td colSpan={11} style={{ ...css.td, textAlign: "center", color: "#475569", padding: 32 }}>Kayıt bulunamadı</td></tr>
+              <tr><td colSpan={16} style={{ ...css.td, textAlign: "center", color: "#475569", padding: 32 }}>Kayıt bulunamadı</td></tr>
             )}
             {shops.map((s) => {
               const revenue = parseFloat(s.total_revenue ?? "0");
               const isTopAi = top3AiShops.has(s.shop);
+              const todayPurchaseCaption = s.today_purchased_orders !== s.today_purchased_users
+                ? `${s.today_purchased_orders} sip.`
+                : "";
               return (
                 <React.Fragment key={s.shop}>
                   <tr
@@ -353,6 +479,16 @@ function ShopsTab({ shops }: { shops: ShopRow[] }) {
                     <td style={css.td}><span style={css.badge(STATUS_COLOR[s.subscription_status] ?? "#6b7280")}>{s.subscription_status}</span></td>
                     <td style={{ ...css.td, fontWeight: 700, color: "#f1f5f9" }}>{s.total_orders}</td>
                     <td style={css.td}>{s.orders_this_month}</td>
+                    <td style={css.td}><TinyMetric value={s.today_design_users} /></td>
+                    <td style={css.td}><TinyMetric value={s.today_bg_removed_users} /></td>
+                    <td style={css.td}><TinyMetric value={s.today_cart_add_users} /></td>
+                    <td style={css.td}><TinyMetric value={s.today_cart_abandoned_users} tone="warn" /></td>
+                    <td style={css.td}>
+                      <TinyMetric value={s.today_purchased_users} tone="good" />
+                      {todayPurchaseCaption && (
+                        <span style={{ display: "block", marginTop: 2, color: "#64748b", fontSize: 11 }}>{todayPurchaseCaption}</span>
+                      )}
+                    </td>
                     <td style={{ ...css.td, color: "#10b981", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>
                       {revenue.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {s.currency}
                     </td>
@@ -385,7 +521,7 @@ function ShopsTab({ shops }: { shops: ShopRow[] }) {
 
                   {bonusShop === s.shop && (
                     <tr style={{ background: "#162032" }}>
-                      <td colSpan={11} style={{ padding: "12px 14px" }}>
+                      <td colSpan={16} style={{ padding: "12px 14px" }}>
                         <form method="post" action="/admin" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                           <input type="hidden" name="intent" value="setBonus" />
                           <input type="hidden" name="shop" value={s.shop} />
@@ -723,6 +859,12 @@ export default function Admin() {
           <div style={css.statsGrid}>
             <StatCard label="Toplam Mağaza" value={gs.totalShops} />
             <StatCard label="Aktif Abonelik" value={gs.activeSubs} />
+            <StatCard label="Bugün Tasarım" value={gs.todayDesignUsers} />
+            <StatCard label="Bugün BG" value={gs.todayBgRemovedUsers} />
+            <StatCard label="Bugün Sepet" value={gs.todayCartAddUsers} />
+            <StatCard label="Sepette Kalan" value={gs.todayCartAbandonedUsers} critical />
+            <StatCard label="Bugün Satın Alan" value={gs.todayPurchasedUsers} />
+            <StatCard label="Bugün Sipariş" value={gs.todayPurchasedOrders} />
             <StatCard label="Toplam Gelir" value={gs.totalRevenue} isRevenue />
             <StatCard label="Toplam Sipariş" value={gs.totalOrders} />
             <StatCard label="AI Üretim" value={gs.totalAiGens} />
