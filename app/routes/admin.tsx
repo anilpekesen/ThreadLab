@@ -438,115 +438,253 @@ function TinyMetric({ value, tone }: { value: number; tone?: "good" | "warn" }) 
   );
 }
 
+function num(value: number | string | null | undefined): number {
+  const parsed = typeof value === "number" ? value : Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function pct(part: number, total: number): number {
+  if (!total) return 0;
+  return Math.round((part / total) * 100);
+}
+
+function shopHandle(shop: string): string {
+  return shop.replace(".myshopify.com", "");
+}
+
+function shopPerformanceScore(shop: ShopRow): number {
+  const cartRate = pct(shop.today_cart_add_users, shop.today_design_users);
+  const purchaseRate = pct(shop.today_purchased_users, shop.today_cart_add_users);
+  return Math.round(
+    shop.today_purchased_users * 100 +
+    shop.today_cart_add_users * 25 +
+    shop.today_design_users * 10 +
+    purchaseRate * 2 +
+    cartRate -
+    shop.today_cart_abandoned_users * 15
+  );
+}
+
+function scoreTone(score: number): string {
+  if (score >= 250) return "#10b981";
+  if (score >= 75) return "#0ea5e9";
+  if (score > 0) return "#f59e0b";
+  return "#64748b";
+}
+
+function FunnelBar({ shop }: { shop: ShopRow }) {
+  const max = Math.max(shop.today_design_users, shop.today_cart_add_users, shop.today_purchased_users, 1);
+  const steps = [
+    { label: "Tasarım", value: shop.today_design_users, color: "#818cf8" },
+    { label: "Sepet", value: shop.today_cart_add_users, color: "#38bdf8" },
+    { label: "Satın", value: shop.today_purchased_users, color: "#10b981" },
+  ];
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      {steps.map((step) => (
+        <div key={step.label} style={{ display: "grid", gridTemplateColumns: "76px 1fr 38px", alignItems: "center", gap: 10 }}>
+          <span style={{ color: "#94a3b8", fontSize: 12 }}>{step.label}</span>
+          <div style={{ height: 8, background: "#0f172a", borderRadius: 999, overflow: "hidden", border: "1px solid #334155" }}>
+            <div style={{ width: `${Math.max(3, Math.round((step.value / max) * 100))}%`, height: "100%", background: step.color }} />
+          </div>
+          <span style={{ color: "#f1f5f9", fontSize: 12, fontWeight: 700, textAlign: "right" }}>{step.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DetailMetric({ label, value, sub, tone }: { label: string; value: number | string; sub?: string; tone?: "good" | "warn" }) {
+  const color = tone === "good" ? "#10b981" : tone === "warn" ? "#f59e0b" : "#f1f5f9";
+  return (
+    <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "12px 14px" }}>
+      <div style={{ color: "#64748b", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7 }}>{label}</div>
+      <div style={{ color, fontSize: 24, fontWeight: 800, marginTop: 5 }}>{value}</div>
+      {sub && <div style={{ color: "#64748b", fontSize: 12, marginTop: 3 }}>{sub}</div>}
+    </div>
+  );
+}
+
 function ShopsTab({ shops }: { shops: ShopRow[] }) {
   const [bonusShop, setBonusShop] = React.useState<string | null>(null);
+  const rankedShops = React.useMemo(
+    () => [...shops].sort((a, b) => shopPerformanceScore(b) - shopPerformanceScore(a) || b.today_purchased_users - a.today_purchased_users || b.total_orders - a.total_orders),
+    [shops],
+  );
+  const [selectedShop, setSelectedShop] = React.useState<string>(rankedShops[0]?.shop ?? "");
+  const selected = rankedShops.find((s) => s.shop === selectedShop) ?? rankedShops[0] ?? null;
+  const best = rankedShops[0] ?? null;
 
   // Sort shops by ai_this_month desc to find top 3
   const sortedByAi = [...shops].sort((a, b) => b.ai_this_month - a.ai_this_month);
   const top3AiShops = new Set(sortedByAi.slice(0, 3).filter((s) => s.ai_this_month > 0).map((s) => s.shop));
 
   return (
-    <div>
-      <div style={css.card}>
-        <table style={css.table}>
-          <thead>
-            <tr>
-              {["Mağaza", "Plan", "Durum", "Top. Sipariş", "Bu Ay", "Bugün Tasarım", "BG", "Sepet", "Sepette", "Satın Alan", "Gelir", "AI/Ay", "BG/Ay", "Drive", "Son Sipariş", "Bonus"].map((h) => (
-                <th key={h} style={css.th}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {shops.length === 0 && (
-              <tr><td colSpan={16} style={{ ...css.td, textAlign: "center", color: "#475569", padding: 32 }}>Kayıt bulunamadı</td></tr>
-            )}
-            {shops.map((s) => {
-              const revenue = parseFloat(s.total_revenue ?? "0");
-              const isTopAi = top3AiShops.has(s.shop);
-              const todayPurchaseCaption = s.today_purchased_orders !== s.today_purchased_users
-                ? `${s.today_purchased_orders} sip.`
-                : "";
-              return (
-                <React.Fragment key={s.shop}>
-                  <tr
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#162032")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                    <td style={css.td}>
-                      <span style={{ fontWeight: 600, color: "#f1f5f9" }}>{s.shop.replace(".myshopify.com", "")}</span>
-                      <br /><span style={{ fontSize: 11, color: "#475569" }}>{s.shop}</span>
-                    </td>
-                    <td style={css.td}><span style={css.badge(PLAN_COLOR[s.plan_key] ?? "#6b7280")}>{s.plan_key}</span></td>
-                    <td style={css.td}><span style={css.badge(STATUS_COLOR[s.subscription_status] ?? "#6b7280")}>{s.subscription_status}</span></td>
-                    <td style={{ ...css.td, fontWeight: 700, color: "#f1f5f9" }}>{s.total_orders}</td>
-                    <td style={css.td}>{s.orders_this_month}</td>
-                    <td style={css.td}><TinyMetric value={s.today_design_users} /></td>
-                    <td style={css.td}><TinyMetric value={s.today_bg_removed_users} /></td>
-                    <td style={css.td}><TinyMetric value={s.today_cart_add_users} /></td>
-                    <td style={css.td}><TinyMetric value={s.today_cart_abandoned_users} tone="warn" /></td>
-                    <td style={css.td}>
-                      <TinyMetric value={s.today_purchased_users} tone="good" />
-                      {todayPurchaseCaption && (
-                        <span style={{ display: "block", marginTop: 2, color: "#64748b", fontSize: 11 }}>{todayPurchaseCaption}</span>
-                      )}
-                    </td>
-                    <td style={{ ...css.td, color: "#10b981", fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}>
-                      {revenue.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {s.currency}
-                    </td>
-                    <td style={css.td}>
-                      {s.ai_this_month}
-                      {isTopAi && (
-                        <span style={{ marginLeft: 4, display: "inline-block", padding: "1px 6px", borderRadius: 10, fontSize: 10, fontWeight: 700, background: "#f59e0b22", color: "#f59e0b" }}>
-                          TOP
-                        </span>
-                      )}
-                    </td>
-                    <td style={css.td}>{s.bg_this_month}</td>
-                    <td style={css.td}>
-                      {s.drive_connected
-                        ? <span style={{ color: "#10b981", fontWeight: 700 }}>✓</span>
-                        : <span style={{ color: "#475569" }}>—</span>}
-                    </td>
-                    <td style={{ ...css.td, color: "#64748b", fontSize: 12, whiteSpace: "nowrap" }}>
-                      {s.last_order_at ? new Date(s.last_order_at).toLocaleDateString("tr-TR") : "—"}
-                    </td>
-                    <td style={css.td}>
-                      <button
-                        onClick={() => setBonusShop(bonusShop === s.shop ? null : s.shop)}
-                        style={{ background: bonusShop === s.shop ? "#334155" : "transparent", border: "1px solid #334155", borderRadius: 6, padding: "3px 10px", color: "#94a3b8", cursor: "pointer", fontSize: 12 }}
-                      >
-                        {bonusShop === s.shop ? "İptal" : "+ Bonus"}
-                      </button>
-                    </td>
-                  </tr>
+    <div style={{ display: "grid", gap: 16 }}>
+      {best && (
+        <div style={{ ...css.card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, flexWrap: "wrap", padding: "16px 18px" }}>
+          <div>
+            <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7 }}>Bugünün en iyi mağazası</div>
+            <div style={{ color: "#f8fafc", fontSize: 22, fontWeight: 800, marginTop: 4 }}>{shopHandle(best.shop)}</div>
+          </div>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+            <div><TinyMetric value={shopPerformanceScore(best)} tone="good" /> <span style={{ color: "#64748b", fontSize: 12 }}>skor</span></div>
+            <div><TinyMetric value={best.today_purchased_users} tone="good" /> <span style={{ color: "#64748b", fontSize: 12 }}>satın alan</span></div>
+            <div><TinyMetric value={pct(best.today_purchased_users, best.today_cart_add_users)} tone="good" /> <span style={{ color: "#64748b", fontSize: 12 }}>sepet dönüşümü</span></div>
+          </div>
+        </div>
+      )}
 
-                  {bonusShop === s.shop && (
-                    <tr style={{ background: "#162032" }}>
-                      <td colSpan={16} style={{ padding: "12px 14px" }}>
-                        <form method="post" action="/admin" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                          <input type="hidden" name="intent" value="setBonus" />
-                          <input type="hidden" name="shop" value={s.shop} />
-                          <span style={{ color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>{s.shop.replace(".myshopify.com", "")} — Ekstra Kota:</span>
-                          <label style={{ display: "flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 13 }}>
-                            AI Bonus
-                            <input type="number" name="aiQuotaBonus" min="0" defaultValue="0" style={{ ...css.input, width: 80, padding: "4px 8px" }} />
-                          </label>
-                          <label style={{ display: "flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 13 }}>
-                            BG Bonus
-                            <input type="number" name="bgQuotaBonus" min="0" defaultValue="0" style={{ ...css.input, width: 80, padding: "4px 8px" }} />
-                          </label>
-                          <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "6px 16px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                            Kaydet
-                          </button>
-                          <span style={{ color: "#64748b", fontSize: 12 }}>0 girmek mevcut bonusu sıfırlar</span>
-                        </form>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(420px, 0.95fr) minmax(360px, 1.05fr)", gap: 16, alignItems: "start" }}>
+        <div style={css.card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0 14px", borderBottom: "1px solid #334155", marginBottom: 4 }}>
+            <div>
+              <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>Mağaza karşılaştırması</h2>
+              <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>Skora göre sıralı. Mağazaya basınca detay açılır.</p>
+            </div>
+            <span style={{ color: "#64748b", fontSize: 12 }}>{rankedShops.length} mağaza</span>
+          </div>
+
+          {rankedShops.length === 0 ? (
+            <div style={{ color: "#64748b", padding: 32, textAlign: "center" }}>Kayıt bulunamadı</div>
+          ) : (
+            <div style={{ display: "grid", gap: 6 }}>
+              {rankedShops.map((s, index) => {
+                const selectedRow = selected?.shop === s.shop;
+                const score = shopPerformanceScore(s);
+                const cartRate = pct(s.today_cart_add_users, s.today_design_users);
+                const purchaseRate = pct(s.today_purchased_users, s.today_cart_add_users);
+                return (
+                  <button
+                    key={s.shop}
+                    type="button"
+                    onClick={() => setSelectedShop(s.shop)}
+                    style={{
+                      width: "100%",
+                      display: "grid",
+                      gridTemplateColumns: "34px minmax(160px,1fr) 88px 88px 76px",
+                      gap: 12,
+                      alignItems: "center",
+                      background: selectedRow ? "#162032" : "transparent",
+                      border: selectedRow ? "1px solid #475569" : "1px solid transparent",
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      color: "#cbd5e1",
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span style={{ color: scoreTone(score), fontWeight: 800, fontSize: 13 }}>#{index + 1}</span>
+                    <span>
+                      <span style={{ display: "block", color: "#f1f5f9", fontWeight: 700 }}>{shopHandle(s.shop)}</span>
+                      <span style={{ display: "block", color: "#64748b", fontSize: 11, marginTop: 2 }}>
+                        {s.plan_key} · {s.subscription_status}
+                      </span>
+                    </span>
+                    <span>
+                      <span style={{ display: "block", color: scoreTone(score), fontWeight: 800 }}>{score}</span>
+                      <span style={{ display: "block", color: "#64748b", fontSize: 11 }}>skor</span>
+                    </span>
+                    <span>
+                      <span style={{ display: "block", color: "#f1f5f9", fontWeight: 800 }}>{purchaseRate}%</span>
+                      <span style={{ display: "block", color: "#64748b", fontSize: 11 }}>sepetten</span>
+                    </span>
+                    <span>
+                      <span style={{ display: "block", color: "#f1f5f9", fontWeight: 800 }}>{cartRate}%</span>
+                      <span style={{ display: "block", color: "#64748b", fontSize: 11 }}>tasarımdan</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {selected && (
+          <div style={{ ...css.card, padding: 0, overflow: "hidden" }}>
+            <div style={{ padding: "18px 20px", borderBottom: "1px solid #334155", background: "#162032" }}>
+              <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 20 }}>{shopHandle(selected.shop)}</h2>
+                  <p style={{ margin: "5px 0 0", color: "#64748b", fontSize: 12 }}>{selected.shop}</p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ color: scoreTone(shopPerformanceScore(selected)), fontSize: 24, fontWeight: 900 }}>{shopPerformanceScore(selected)}</div>
+                  <div style={{ color: "#64748b", fontSize: 11 }}>performans skoru</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <span style={css.badge(PLAN_COLOR[selected.plan_key] ?? "#6b7280")}>{selected.plan_key}</span>
+                <span style={css.badge(STATUS_COLOR[selected.subscription_status] ?? "#6b7280")}>{selected.subscription_status}</span>
+                {selected.drive_connected && <span style={css.badge("#10b981")}>Drive bağlı</span>}
+                {top3AiShops.has(selected.shop) && <span style={css.badge("#f59e0b")}>AI Top 3</span>}
+              </div>
+            </div>
+
+            <div style={{ padding: 20, display: "grid", gap: 18 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10 }}>
+                <DetailMetric label="Tasarım yapan" value={selected.today_design_users} />
+                <DetailMetric label="Sepete ekleyen" value={selected.today_cart_add_users} />
+                <DetailMetric label="Satın alan" value={selected.today_purchased_users} tone="good" />
+                <DetailMetric label="Arka plan" value={selected.today_bg_removed_users} />
+                <DetailMetric label="Sepette kalan" value={selected.today_cart_abandoned_users} tone="warn" />
+                <DetailMetric label="Bugün sipariş" value={selected.today_purchased_orders} tone="good" />
+              </div>
+
+              <div style={{ background: "#111827", border: "1px solid #334155", borderRadius: 8, padding: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <h3 style={{ margin: 0, color: "#f8fafc", fontSize: 14 }}>Bugünkü dönüşüm akışı</h3>
+                  <span style={{ color: "#64748b", fontSize: 12 }}>
+                    Sepet dönüşümü: {pct(selected.today_purchased_users, selected.today_cart_add_users)}%
+                  </span>
+                </div>
+                <FunnelBar shop={selected} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10 }}>
+                <DetailMetric
+                  label="Toplam gelir"
+                  value={`${num(selected.total_revenue).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selected.currency}`}
+                  tone="good"
+                />
+                <DetailMetric label="Toplam sipariş" value={selected.total_orders} sub={`Bu ay ${selected.orders_this_month}`} />
+                <DetailMetric label="AI bu ay" value={selected.ai_this_month} sub={top3AiShops.has(selected.shop) ? "AI kullanımında Top 3" : undefined} />
+                <DetailMetric label="BG bu ay" value={selected.bg_this_month} />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, borderTop: "1px solid #334155", paddingTop: 14, flexWrap: "wrap" }}>
+                <span style={{ color: "#64748b", fontSize: 12 }}>
+                  Son sipariş: {selected.last_order_at ? new Date(selected.last_order_at).toLocaleDateString("tr-TR") : "yok"}
+                </span>
+                <button
+                  onClick={() => setBonusShop(bonusShop === selected.shop ? null : selected.shop)}
+                  style={{ background: bonusShop === selected.shop ? "#334155" : "transparent", border: "1px solid #475569", borderRadius: 6, padding: "6px 12px", color: "#cbd5e1", cursor: "pointer", fontSize: 12 }}
+                >
+                  {bonusShop === selected.shop ? "Bonus formunu kapat" : "Bonus kota ver"}
+                </button>
+              </div>
+
+              {bonusShop === selected.shop && (
+                <form method="post" action="/admin" style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <input type="hidden" name="intent" value="setBonus" />
+                  <input type="hidden" name="shop" value={selected.shop} />
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 13 }}>
+                    AI Bonus
+                    <input type="number" name="aiQuotaBonus" min="0" defaultValue="0" style={{ ...css.input, width: 80, padding: "4px 8px" }} />
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 13 }}>
+                    BG Bonus
+                    <input type="number" name="bgQuotaBonus" min="0" defaultValue="0" style={{ ...css.input, width: 80, padding: "4px 8px" }} />
+                  </label>
+                  <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "6px 16px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                    Kaydet
+                  </button>
+                  <span style={{ color: "#64748b", fontSize: 12 }}>0 mevcut bonusu sıfırlar</span>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
