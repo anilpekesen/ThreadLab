@@ -284,8 +284,8 @@ export function defaultOverlayForType(productType: string) {
     };
   }
   return {
-    front: { x: 139, y: 157, width: 202, height: 325 },
-    back: { x: 139, y: 157, width: 202, height: 325 },
+    front: { x: 100, y: 130, width: 280, height: 390 },
+    back: { x: 100, y: 130, width: 280, height: 390 },
   };
 }
 
