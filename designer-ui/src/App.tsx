@@ -2422,8 +2422,8 @@ export default function App() {
                 )}
 
 
-                <div className="pointer-events-none relative z-30 mx-auto mt-3 w-[min(320px,calc(100%-24px))] rounded-xl border border-gray-200 bg-white/95 p-1.5 shadow-lg backdrop-blur md:w-[360px]">
-                  <div className={cn('grid gap-1.5', availableSides.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+                <div className="pointer-events-none absolute right-3 top-3 z-30 rounded-xl border border-gray-200 bg-white/95 p-1 shadow-lg backdrop-blur md:relative md:right-auto md:top-auto md:mx-auto md:mt-3 md:w-[360px] md:p-1.5">
+                  <div className={cn('flex flex-col gap-1.5 md:grid', availableSides.length === 1 ? 'md:grid-cols-1' : 'md:grid-cols-2')}>
                   {availableSides.map((side) => {
                     const label = side === 'front' ? t.frontSurface : t.backSurface;
                     const image = sidePreviews[side] || (side === 'front' ? config?.frontImage : config?.backImage);
@@ -2436,7 +2436,7 @@ export default function App() {
                         type="button"
                         onClick={() => setActiveSide(side)}
                         className={cn(
-                          'pointer-events-auto flex h-16 items-center gap-2 rounded-lg border px-2 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 md:h-[72px] md:px-2.5',
+                          'pointer-events-auto flex h-11 w-11 items-center justify-center rounded-lg border p-1 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 md:h-[72px] md:w-auto md:justify-start md:gap-2 md:px-2.5',
                           isActive
                             ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
                             : 'border-transparent bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-800',
@@ -2444,7 +2444,7 @@ export default function App() {
                       >
                         <span
                           className={cn(
-                            'relative flex h-12 w-10 flex-none overflow-hidden rounded-md border bg-gray-100 md:h-14 md:w-11',
+                            'relative flex h-full w-full flex-none overflow-hidden rounded-md border bg-gray-100 md:h-14 md:w-11',
                             isActive ? 'border-blue-200' : 'border-gray-200',
                           )}
                         >
@@ -2456,10 +2456,10 @@ export default function App() {
                             </span>
                         )}
                           {hasDesign && (
-                            <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                            <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 md:right-1 md:top-1" />
                           )}
                         </span>
-                        <span className="min-w-0 flex-1">
+                        <span className="sr-only md:not-sr-only md:min-w-0 md:flex-1">
                           <span className="block truncate text-xs font-black leading-tight md:text-[13px]">{label}</span>
                           <span className={cn('mt-1 block truncate text-[10px] font-semibold leading-none md:text-[11px]', isActive ? 'text-blue-500' : 'text-gray-400')}>
                             {hasDesign ? `${objectCount} ${t.surfaceItems}` : t.surfaceEmpty}
