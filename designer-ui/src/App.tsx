@@ -948,6 +948,8 @@ export default function App() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewImages, setPreviewImages] = useState({ front: '', back: '' });
   const [previewTab, setPreviewTab] = useState<'front' | 'back'>('front');
+  const [lifestyleMockups, setLifestyleMockups] = useState<Array<{ id: string; label: string; side: string; imageData: string }>>([]);
+  const [lifestyleLoading, setLifestyleLoading] = useState(false);
   const [sidePreviews, setSidePreviews] = useState({ front: '', back: '' });
   const [textDraft, setTextDraft] = useState('');
   const [isEditingText, setIsEditingText] = useState(false);
@@ -1463,12 +1465,35 @@ export default function App() {
   };
 
   const handlePreview = () => {
-    setPreviewImages({
-      front: frontCanvasRef.current?.exportPng(2) ?? '',
-      back: backCanvasRef.current?.exportPng(2) ?? '',
-    });
+    const frontImg = frontCanvasRef.current?.exportPng(2) ?? '';
+    const backImg  = backCanvasRef.current?.exportPng(2) ?? '';
+    setPreviewImages({ front: frontImg, back: backImg });
     setPreviewTab('front');
     setShowPreview(true);
+
+    // Lifestyle mockup'ları arka planda üret
+    const frontHas = Boolean(frontCanvasRef.current?.getCanvas()?.getObjects().length);
+    const backHas  = Boolean(backCanvasRef.current?.getCanvas()?.getObjects().length);
+    if (!frontHas && !backHas) return;
+
+    setLifestyleLoading(true);
+    setLifestyleMockups([]);
+
+    const appBase = config?.uploadEndpoint?.split('/apps/')[0] ?? window.location.origin;
+    fetch(`${appBase}/api/lifestyle-mockup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        frontDesign: frontHas ? frontImg : undefined,
+        backDesign:  backHas  ? backImg  : undefined,
+      }),
+    })
+      .then((r) => r.json())
+      .then((data: { mockups?: Array<{ id: string; label: string; side: string; imageData: string }> }) => {
+        setLifestyleMockups(data.mockups ?? []);
+      })
+      .catch(() => {/* sessizce geç */})
+      .finally(() => setLifestyleLoading(false));
   };
 
   const handleAddToCart = async () => {
@@ -3104,6 +3129,34 @@ export default function App() {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Lifestyle Mockups */}
+                <div className="border-t border-gray-100 px-4 py-4 md:px-8">
+                  <p className="mb-3 text-xs font-black uppercase tracking-widest text-gray-400">
+                    {lifestyleLoading ? '⏳ Yükleniyor...' : lifestyleMockups.length > 0 ? 'Mankende Görünüm' : ''}
+                  </p>
+                  {lifestyleLoading && (
+                    <div className="flex items-center justify-center py-6">
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-blue-500" />
+                    </div>
+                  )}
+                  {!lifestyleLoading && lifestyleMockups.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                      {lifestyleMockups.map((m) => (
+                        <div key={m.id} className="flex flex-col gap-1">
+                          <div className="overflow-hidden rounded-xl bg-gray-50 aspect-[4/5]">
+                            <img
+                              src={m.imageData}
+                              alt={m.label}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                          <p className="text-center text-[10px] font-medium text-gray-400">{m.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Footer */}

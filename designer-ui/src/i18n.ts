@@ -19,7 +19,7 @@ export const tr = {
   // Buttons
   btnAddToCart: 'Sepete Ekle',
   btnAddToCartLoading: 'Yükleniyor...',
-  btnPreview: 'Önizleme',
+  btnPreview: 'Mankende Gör',
   btnSave: 'Kaydet',
   btnSaved: 'Kayıtlar',
   btnTemplates: 'Şablonlar',
@@ -70,7 +70,7 @@ export const tr = {
   outOfStock: 'Tükendi',
 
   // Preview modal
-  previewTitle: 'Önizleme',
+  previewTitle: 'Mankende Görünüm',
 
   // Crop modal
   cropTitle: 'Görseli Kırp',
@@ -138,7 +138,7 @@ export const en: { [K in keyof typeof tr]: string } = {
 
   btnAddToCart: 'Add to Cart',
   btnAddToCartLoading: 'Loading...',
-  btnPreview: 'Preview',
+  btnPreview: 'View on Model',
   btnSave: 'Save',
   btnSaved: 'Saved',
   btnTemplates: 'Templates',
@@ -182,7 +182,7 @@ export const en: { [K in keyof typeof tr]: string } = {
   quantityLabel: 'Quantity',
   outOfStock: 'Out of stock',
 
-  previewTitle: 'Preview',
+  previewTitle: 'View on Model',
 
   cropTitle: 'Crop Image',
   cropApply: 'Crop',
