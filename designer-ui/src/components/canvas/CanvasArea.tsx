@@ -623,9 +623,11 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const undo = useCallback(() => {
     const cv = canvasRef.current;
     if (!cv || historyIdxRef.current <= 0) return;
+    const savedBg = cv.backgroundImage as fabric.Image | undefined;
     historyIdxRef.current -= 1;
     isRestoringRef.current = true;
     cv.loadFromJSON(historyRef.current[historyIdxRef.current], () => {
+      if (savedBg) cv.setBackgroundImage(savedBg, () => cv.renderAll());
       normalizeCanvasImages(cv);
       cv.renderAll();
       isRestoringRef.current = false;
@@ -636,9 +638,11 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const redo = useCallback(() => {
     const cv = canvasRef.current;
     if (!cv || historyIdxRef.current >= historyRef.current.length - 1) return;
+    const savedBg = cv.backgroundImage as fabric.Image | undefined;
     historyIdxRef.current += 1;
     isRestoringRef.current = true;
     cv.loadFromJSON(historyRef.current[historyIdxRef.current], () => {
+      if (savedBg) cv.setBackgroundImage(savedBg, () => cv.renderAll());
       normalizeCanvasImages(cv);
       cv.renderAll();
       isRestoringRef.current = false;
