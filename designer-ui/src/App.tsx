@@ -2386,7 +2386,7 @@ export default function App() {
                 cursor: interactionMode === 'navigation' ? (isDraggingScene ? 'grabbing' : 'grab') : 'default',
               }}
             >
-              <div className="relative rounded-3xl bg-white/40 p-2 shadow-inner backdrop-blur-sm md:p-4">
+              <div className="relative rounded-3xl bg-white/40 p-2 shadow-inner backdrop-blur-sm md:px-4 md:pb-4 md:pt-4">
                 <div className={activeSide === 'front' ? 'block' : 'hidden'}>
                   <CanvasArea
                     ref={frontCanvasRef}
@@ -2422,7 +2422,7 @@ export default function App() {
                 )}
 
 
-                <div className="pointer-events-none absolute bottom-14 left-1/2 z-30 flex -translate-x-1/2 gap-1.5 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:bottom-6 md:gap-3 md:p-2">
+                <div className="pointer-events-none absolute bottom-14 left-1/2 z-30 flex -translate-x-1/2 gap-1.5 rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-xl backdrop-blur md:relative md:bottom-auto md:left-auto md:top-auto md:mx-auto md:translate-x-0 md:mt-3 md:gap-3 md:p-2">
                   {availableSides.map((side) => {
                     const label = side === 'front' ? t.surfaceOn : t.surfaceBack;
                     const image = sidePreviews[side] || (side === 'front' ? config?.frontImage : config?.backImage);
