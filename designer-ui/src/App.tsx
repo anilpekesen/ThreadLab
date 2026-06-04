@@ -2422,7 +2422,7 @@ export default function App() {
                 )}
 
 
-                <div className="pointer-events-none relative z-30 mx-auto mt-3 hidden rounded-xl border border-gray-200 bg-white/95 p-1.5 shadow-lg backdrop-blur md:block">
+                <div className="pointer-events-none absolute right-4 top-4 z-30 hidden rounded-xl border border-gray-200 bg-white/95 p-1.5 shadow-lg backdrop-blur md:block">
                   <div className="flex gap-1.5">
                   {availableSides.map((side) => {
                     const label = side === 'front' ? t.frontSurface : t.backSurface;
