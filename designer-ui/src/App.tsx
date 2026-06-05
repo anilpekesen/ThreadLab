@@ -2436,7 +2436,7 @@ export default function App() {
                         aria-label={label}
                         onClick={() => setActiveSide(side)}
                         className={cn(
-                          'pointer-events-auto flex h-16 w-14 items-center justify-center rounded-lg border p-1 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+                          'pointer-events-auto flex h-[76px] w-16 flex-col items-center justify-center gap-1 rounded-lg border p-1 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
                           isActive
                             ? 'border-blue-500 bg-blue-50 shadow-sm'
                             : 'border-transparent bg-white opacity-75 hover:opacity-100',
@@ -2444,7 +2444,7 @@ export default function App() {
                       >
                         <span
                           className={cn(
-                            'relative flex h-full w-full overflow-hidden rounded-md border bg-gray-100',
+                            'relative flex h-12 w-full overflow-hidden rounded-md border bg-gray-100',
                             isActive ? 'border-blue-200' : 'border-gray-200',
                           )}
                         >
@@ -2458,6 +2458,12 @@ export default function App() {
                           {hasDesign && (
                             <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
                           )}
+                        </span>
+                        <span className={cn(
+                          'text-[11px] font-bold leading-none',
+                          isActive ? 'text-blue-700' : 'text-gray-600',
+                        )}>
+                          {side === 'front' ? t.surfaceOn : t.surfaceBack}
                         </span>
                       </button>
                     );
@@ -2481,7 +2487,7 @@ export default function App() {
                       aria-label={label}
                       onClick={() => setActiveSide(side)}
                       className={cn(
-                        'pointer-events-auto flex h-12 w-12 items-center justify-center rounded-lg border p-1 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+                        'pointer-events-auto flex h-[58px] w-12 flex-col items-center justify-center gap-0.5 rounded-lg border p-1 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
                         isActive
                           ? 'border-blue-500 bg-blue-50 shadow-sm'
                           : 'border-transparent bg-white opacity-75',
@@ -2489,7 +2495,7 @@ export default function App() {
                     >
                       <span
                         className={cn(
-                          'relative flex h-full w-full overflow-hidden rounded-md border bg-gray-100',
+                          'relative flex h-9 w-full overflow-hidden rounded-md border bg-gray-100',
                           isActive ? 'border-blue-200' : 'border-gray-200',
                         )}
                       >
@@ -2503,6 +2509,12 @@ export default function App() {
                         {hasDesign && (
                           <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
                         )}
+                      </span>
+                      <span className={cn(
+                        'text-[10px] font-bold leading-none',
+                        isActive ? 'text-blue-700' : 'text-gray-600',
+                      )}>
+                        {side === 'front' ? t.surfaceOn : t.surfaceBack}
                       </span>
                     </button>
                   );
