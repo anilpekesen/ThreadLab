@@ -2,7 +2,7 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useNavigate, useRevalidator } from "@remix-run/react";
 import { useEffect } from "react";
-import { useTranslation } from "~/i18n";
+import { useTranslation, type Lang } from "~/i18n";
 import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Text, BlockStack, InlineGrid, Box,
@@ -24,15 +24,24 @@ export const headers = () => ({
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
+  const lang = readLang(request);
   const [orders, analytics, production] = await Promise.all([
     getOrders(session.shop),
     getAnalytics(session.shop),
     getProductionAnalytics(session.shop),
   ]);
-  const detail = await getDashboardAnalyticsDetail(session.shop);
   const stats = summarizeGroupedStats(groupOrders(orders));
+  const detail = await getDashboardAnalyticsDetail(session.shop);
+  const chartDays = buildChartDays(production.dailyCounts, lang);
+  const displayDetail = {
+    ...detail,
+    recentActivity: detail.recentActivity.map((item) => ({
+      ...item,
+      displayDate: formatShortDate(item.createdAt, lang),
+    })),
+  };
 
-  return json({ stats, analytics, production, detail });
+  return json({ stats, analytics, production, detail: displayDetail, chartDays });
 };
 
 const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attention"> = {
@@ -47,44 +56,95 @@ function formatFulfillmentTime(hours: number | null, lang: string): string {
   return lang === "tr" ? `${days} gün` : `${days} days`;
 }
 
-function MiniBarChart({ data, lang }: { data: Array<{ day: string; count: number }>; lang: string }) {
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    return d.toISOString().slice(0, 10);
-  });
+type ChartDay = { day: string; label: string; count: number; isToday: boolean };
 
+function readLang(request: Request): Lang {
+  const cookieHeader = request.headers.get("Cookie") ?? "";
+  const langMatch = cookieHeader.match(/(?:^|; )dk_lang=([^;]*)/);
+  return langMatch?.[1] === "en" ? "en" : "tr";
+}
+
+function getIstanbulParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).formatToParts(date);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    year: Number(byType.year),
+    month: Number(byType.month),
+    day: Number(byType.day),
+    weekday: date.getUTCDay(),
+  };
+}
+
+const WEEKDAY_LABELS: Record<Lang, string[]> = {
+  tr: ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"],
+  en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+};
+
+const MONTH_LABELS: Record<Lang, string[]> = {
+  tr: ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"],
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+};
+
+function toIsoDay(date: Date): string {
+  const parts = getIstanbulParts(date);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+function buildChartDays(data: Array<{ day: string; count: number }>, lang: Lang): ChartDay[] {
+  const todayParts = getIstanbulParts(new Date());
+  const todayUtcNoon = Date.UTC(todayParts.year, todayParts.month - 1, todayParts.day, 12);
+  const todayIso = `${todayParts.year}-${String(todayParts.month).padStart(2, "0")}-${String(todayParts.day).padStart(2, "0")}`;
   const countByDay: Record<string, number> = {};
-  for (const r of data) countByDay[r.day] = r.count;
+  for (const row of data) countByDay[row.day] = row.count;
 
-  const values = days.map((d) => countByDay[d] ?? 0);
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(todayUtcNoon - (6 - index) * 24 * 60 * 60 * 1000);
+    const day = toIsoDay(date);
+    return {
+      day,
+      label: WEEKDAY_LABELS[lang][date.getUTCDay()],
+      count: countByDay[day] ?? 0,
+      isToday: day === todayIso,
+    };
+  });
+}
+
+function formatShortDate(value: string, lang: Lang): string {
+  const date = new Date(value);
+  const parts = getIstanbulParts(date);
+  return `${String(parts.day).padStart(2, "0")} ${MONTH_LABELS[lang][parts.month - 1]}`;
+}
+
+function MiniBarChart({ days }: { days: ChartDay[] }) {
+  const values = days.map((d) => d.count);
   const max = Math.max(...values, 1);
 
   return (
     <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 80, paddingTop: 4 }}>
-      {days.map((day, i) => {
-        const count = values[i];
+      {days.map((item) => {
+        const count = item.count;
         const barH = Math.max(3, Math.round((count / max) * 56));
-        const label = new Date(day + "T12:00:00").toLocaleDateString(
-          lang === "en" ? "en-US" : "tr-TR",
-          { weekday: "short" },
-        );
-        const isToday = day === new Date().toISOString().slice(0, 10);
         return (
-          <div key={day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+          <div key={item.day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
             {count > 0 && (
-              <Text as="span" variant="bodySm" fontWeight={isToday ? "semibold" : undefined}>{count}</Text>
+              <Text as="span" variant="bodySm" fontWeight={item.isToday ? "semibold" : undefined}>{count}</Text>
             )}
             <div style={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
               <div style={{
                 width: "100%",
                 height: barH,
-                background: isToday ? "#4f46e5" : "#c7d2fe",
+                background: item.isToday ? "#4f46e5" : "#c7d2fe",
                 borderRadius: "3px 3px 0 0",
                 minHeight: 3,
               }} />
             </div>
-            <Text as="span" variant="bodySm" tone="subdued">{label}</Text>
+            <Text as="span" variant="bodySm" tone="subdued">{item.label}</Text>
           </div>
         );
       })}
@@ -180,6 +240,7 @@ interface OrderGroup {
   shopifyOrderId: string;
   createdAt: string;
   status: string;
+  missingSurcharge: boolean;
 }
 
 const STATUS_PRIORITY: Record<string, number> = {
@@ -196,6 +257,7 @@ function groupOrders(orders: Order[]): OrderGroup[] {
         shopifyOrderId: key,
         createdAt: order.createdAt,
         status: order.productionStatus,
+        missingSurcharge: Boolean(order.missingSurcharge),
       });
       continue;
     }
@@ -207,6 +269,7 @@ function groupOrders(orders: Order[]): OrderGroup[] {
     if (new Date(order.createdAt).getTime() > new Date(group.createdAt).getTime()) {
       group.createdAt = order.createdAt;
     }
+    group.missingSurcharge = group.missingSurcharge || Boolean(order.missingSurcharge);
   }
 
   return Array.from(map.values());
@@ -221,11 +284,12 @@ function summarizeGroupedStats(groups: OrderGroup[]) {
     today: groups.filter((group) => new Date(group.createdAt) >= todayStart).length,
     pendingProduction: groups.filter((group) => group.status === "pending").length,
     ready: groups.filter((group) => group.status === "ready" || group.status === "shipped").length,
+    missingSurcharge: groups.filter((group) => group.missingSurcharge).length,
   };
 }
 
 export default function Index() {
-  const { stats, analytics, production, detail } = useLoaderData<typeof loader>();
+  const { stats, analytics, production, detail, chartDays } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
   const { t, lang } = useTranslation();
@@ -365,7 +429,7 @@ export default function Index() {
               <Text as="h2" variant="headingMd">
                 {lang === "tr" ? "Son 7 Gün — Sipariş Hacmi" : "Last 7 Days — Order Volume"}
               </Text>
-              <MiniBarChart data={production.dailyCounts} lang={lang} />
+              <MiniBarChart days={chartDays} />
             </BlockStack>
           </Box>
         </Card>
@@ -631,7 +695,7 @@ export default function Index() {
                             </Text>
                           </BlockStack>
                           <Text as="p" variant="bodySm" tone="subdued">
-                            {new Date(item.createdAt).toLocaleDateString(lang === "tr" ? "tr-TR" : "en-US", { day: "2-digit", month: "short" })}
+                            {item.displayDate}
                           </Text>
                         </InlineStack>
                       ))}
