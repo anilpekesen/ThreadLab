@@ -47,7 +47,7 @@ import { useDesignerI18n } from './i18n';
 import { useDesignerStore } from '@/store/designerStore';
 import CanvasArea, { type CanvasAreaHandle } from '@/components/canvas/CanvasArea';
 import type { Template } from '@/components/panels/TemplatesPanel';
-import type { DesignerConfig, PersonalizationConfig, PricingBand, PrintAreaConfig, SavedDesign, Side, SurfaceMode, VolumeDiscountTier } from '@/types';
+import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type PricingBand, type PrintAreaConfig, type SavedDesign, type Side, type SurfaceMode, type VolumeDiscountTier } from '@/types';
 import { generateId } from '@/utils/compress';
 
 const ImagePanel = lazy(() => import('@/components/panels/ImagePanel'));
@@ -84,7 +84,7 @@ interface CartItemPayload {
   properties?: Record<string, string>;
 }
 
-const TOOLBAR_FONTS = ['Inter', 'Roboto', 'Arial', 'Montserrat', 'Playfair Display', 'Oswald'];
+const TOOLBAR_FONTS = GOOGLE_FONTS;
 const TEXT_COLOR_SWATCHES = ['#111827', '#ffffff', '#2563eb', '#dc2626', '#16a34a', '#f59e0b', '#ec4899', '#7c3aed'];
 const CANVAS_W = 480;
 const CANVAS_H = 580;

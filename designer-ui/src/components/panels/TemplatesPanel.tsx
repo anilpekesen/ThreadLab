@@ -35,7 +35,7 @@ const TEXT_CATEGORIES = [
 ];
 
 const TEMPLATE_FONT_LINK_ID = 'printlab-template-fonts';
-const TEMPLATE_FONT_URL = 'https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Montserrat:wght@400;700&family=Oswald:wght@400;700&family=Playfair+Display:wght@700&family=Poppins:wght@400;700&family=Rock+Salt&display=swap';
+const TEMPLATE_FONT_URL = 'https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Anton&family=Bebas+Neue&family=Cinzel+Decorative:wght@400;700;900&family=Graduate&family=Montserrat:wght@400;700;800;900&family=Oswald:wght@400;700&family=Pacifico&family=Permanent+Marker&family=Playfair+Display:wght@700;900&family=Poppins:wght@400;700&family=Rock+Salt&family=Shrikhand&family=Space+Grotesk:wght@400;700&display=swap';
 
 function useTemplateFonts() {
   useEffect(() => {

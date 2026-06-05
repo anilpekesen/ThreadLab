@@ -100,11 +100,13 @@ export interface SavedDesign {
 }
 
 export const GOOGLE_FONTS = [
-  'Anton', 'Bebas Neue', 'Dancing Script', 'Lobster', 'Montserrat',
-  'Nunito', 'Open Sans', 'Oswald', 'Pacifico', 'Permanent Marker',
-  'Playfair Display', 'Poppins', 'Press Start 2P', 'Raleway', 'Righteous',
-  'Rock Salt', 'Roboto Condensed', 'Russo One', 'Satisfy', 'Special Elite',
-  'Teko', 'Ubuntu', 'Arial', 'Georgia', 'Impact',
+  'Montserrat', 'Bebas Neue', 'Space Grotesk', 'Shrikhand', 'Oswald',
+  'Graduate', 'Alfa Slab One', 'Playfair Display', 'Cinzel Decorative',
+  'Pacifico', 'Permanent Marker',
+  'Anton', 'Dancing Script', 'Lobster', 'Nunito', 'Open Sans',
+  'Poppins', 'Press Start 2P', 'Raleway', 'Righteous', 'Rock Salt',
+  'Roboto Condensed', 'Russo One', 'Satisfy', 'Special Elite', 'Teko',
+  'Ubuntu', 'Arial', 'Georgia', 'Impact',
 ];
 
 export const FILTER_PRESETS = [
