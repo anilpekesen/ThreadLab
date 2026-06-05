@@ -28,16 +28,17 @@ function PrintTypeField({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <BlockStack gap="200">
       <TextField
-        label="Ürün Tipi Adı"
+        label={t("productTypes.nameLabel")}
         name="name"
         value={value}
         onChange={onChange}
         autoComplete="off"
-        placeholder="örn. Tişört, Sweatshirt, Kupa..."
-        helpText="İstediğiniz ismi yazabilirsiniz."
+        placeholder={t("productTypes.categoryPlaceholder")}
+        helpText={t("productTypes.categoryHelp")}
         disabled={disabled}
       />
       {!disabled && (
@@ -122,7 +123,7 @@ export default function ProductTypesIndex() {
 
   return (
     <Page
-      title="Baskı Ayarı"
+      title={t("productTypes.printSettings")}
       primaryAction={{
         content: t("productTypes.newType"),
         disabled: !quota.allowed,
@@ -143,7 +144,7 @@ export default function ProductTypesIndex() {
             <BlockStack gap="200">
               <InlineStack align="space-between" blockAlign="center">
                 <InlineStack gap="200" blockAlign="center">
-                  <Text as="p" variant="bodySm" tone="subdued">Ürün Tipi Kullanımı</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{t("productTypes.usageLabel")}</Text>
                   <Badge>{quota.planKey}</Badge>
                 </InlineStack>
                 <Text as="p" variant="bodySm">
@@ -160,10 +161,10 @@ export default function ProductTypesIndex() {
               {!quota.allowed && (
                 <InlineStack gap="200" blockAlign="center">
                   <Text as="p" variant="bodySm" tone="caution">
-                    {quota.planKey} planında maksimum {quota.limit} ürün tipi oluşturabilirsiniz.
+                    {t("productTypes.limitReachedDesc").replace("{plan}", quota.planKey)}
                   </Text>
                   <Button size="slim" onClick={() => navigate("/app/billing")} variant="plain">
-                    Plan yükselt →
+                    {t("productTypes.upgradePlan")}
                   </Button>
                 </InlineStack>
               )}
@@ -179,7 +180,7 @@ export default function ProductTypesIndex() {
               action={{ content: t("productTypes.newType"), onAction: () => setShowCreate(true), disabled: !quota.allowed  }}
               image=""
             >
-              <p>Her ürün tipi bir Shopify ürününe bağlanır. {limitLabel} ürün tipi oluşturabilirsiniz.</p>
+              <p>{t("productTypes.emptyDesc").replace("{limit}", limitLabel)}</p>
             </EmptyState>
           ) : (
             <BlockStack>
@@ -196,15 +197,15 @@ export default function ProductTypesIndex() {
                         </InlineStack>
                         {pt.shopify_product_title ? (
                           <Text as="p" variant="bodySm" tone="subdued">
-                            Ürün: <strong>{pt.shopify_product_title}</strong>
+                            {t("productTypes.productLabel")}<strong>{pt.shopify_product_title}</strong>
                           </Text>
                         ) : (
-                          <Text as="p" variant="bodySm" tone="caution">Henüz ürün atanmadı</Text>
+                          <Text as="p" variant="bodySm" tone="caution">{t("productTypes.noProductAssigned")}</Text>
                         )}
                       </BlockStack>
                       <InlineStack gap="200">
                         <Button onClick={() => navigate(`/app/product-types/${pt.id}`)} variant="primary" size="slim">
-                          Düzenle
+                          {t("productTypes.edit")}
                         </Button>
                         {pt.shopify_product_id && (
                           <Button
@@ -214,14 +215,14 @@ export default function ProductTypesIndex() {
                             }}
                             size="slim"
                           >
-                            Baskı Alanı
+                            {t("productTypes.printArea")}
                           </Button>
                         )}
                         <Form method="post">
                           <input type="hidden" name="intent" value="delete" />
                           <input type="hidden" name="id" value={pt.id} />
                           <Button tone="critical" variant="plain" size="slim" submit loading={isSubmitting}>
-                            Sil
+                            {t("productTypes.delete")}
                           </Button>
                         </Form>
                       </InlineStack>

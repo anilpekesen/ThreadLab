@@ -23,16 +23,17 @@ function PrintTypeField({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <BlockStack gap="200">
       <TextField
-        label="Ürün Tipi Adı"
+        label={t("productTypes.nameLabel")}
         name="name"
         value={value}
         onChange={onChange}
         autoComplete="off"
-        placeholder="örn. Tişört, Sweatshirt, Kupa..."
-        helpText="İstediğiniz ismi yazabilirsiniz."
+        placeholder={t("productTypes.categoryPlaceholder")}
+        helpText={t("productTypes.categoryHelp")}
       />
       <InlineStack gap="150" wrap>
         {TYPE_SUGGESTIONS.map((s) => (
@@ -155,7 +156,7 @@ export default function ProductTypeDetail() {
             <Form method="post">
               <input type="hidden" name="intent" value="update" />
               <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">Ürün Tipi Ayarları</Text>
+                <Text as="h2" variant="headingMd">{t("productTypes.typeSettings")}</Text>
                 <PrintTypeField value={name} onChange={setName} />
                 <Select
                   label={t("productTypes.printSurface")}
@@ -168,7 +169,7 @@ export default function ProductTypeDetail() {
                   ]}
                 />
                 <InlineStack align="end">
-                  <Button submit variant="primary" loading={isSaving}>Kaydet</Button>
+                  <Button submit variant="primary" loading={isSaving}>{t("productTypes.save")}</Button>
                 </InlineStack>
               </BlockStack>
             </Form>
@@ -180,11 +181,11 @@ export default function ProductTypeDetail() {
           <Box padding="400">
             <BlockStack gap="300">
               <InlineStack align="space-between" blockAlign="center">
-                <Text as="h2" variant="headingMd">Shopify Ürünü</Text>
+                <Text as="h2" variant="headingMd">{t("productTypes.shopifyProduct")}</Text>
                 {productType.shopify_product_id && (
                   <Form method="post" style={{ display: "inline" }}>
                     <input type="hidden" name="intent" value="remove_product" />
-                    <Button tone="critical" variant="plain" size="slim" submit>Ürünü Kaldır</Button>
+                    <Button tone="critical" variant="plain" size="slim" submit>{t("productTypes.removeProduct")}</Button>
                   </Form>
                 )}
               </InlineStack>
@@ -192,26 +193,26 @@ export default function ProductTypeDetail() {
               {productType.shopify_product_id ? (
                 <BlockStack gap="300">
                   <InlineStack gap="300" blockAlign="center">
-                    <Badge tone="success">Atandı</Badge>
+                    <Badge tone="success">{t("productTypes.assigned")}</Badge>
                     <Text as="p" fontWeight="semibold">{productType.shopify_product_title}</Text>
                   </InlineStack>
                   <Banner tone="info">
                     <Text as="p" variant="bodySm">
-                      Baskı alanı, fiyatlandırma bantları ve tasarım ücretini aşağıdaki sayfadan yapılandırın.
+                      {t("productTypes.printAreaDesc")}
                     </Text>
                   </Banner>
                   <Button
                     onClick={() => navigate(`/app/products/${encodeProductToken(productType.shopify_product_id!)}`)}
                     variant="primary"
                   >
-                    Baskı Alanı &amp; Tasarım Ücreti →
+                    {t("productTypes.printAreaBtn")}
                   </Button>
                 </BlockStack>
               ) : (
                 <BlockStack gap="300">
-                  <Text as="p" tone="subdued">Bu ürün tipine bir Shopify ürünü atayın. Her ürün tipine 1 ürün atanabilir.</Text>
+                  <Text as="p" tone="subdued">{t("productTypes.assignDesc")}</Text>
                   <Button onClick={() => setShowSearch(true)} variant="secondary">
-                    Ürün Seç
+                    {t("productTypes.selectProduct")}
                   </Button>
                 </BlockStack>
               )}
@@ -233,9 +234,9 @@ export default function ProductTypeDetail() {
                           name="q"
                           value={search}
                           onChange={setSearch}
-                          placeholder="Ürün adı veya handle ile ara..."
+                          placeholder={t("productTypes.searchPlaceholder")}
                           autoComplete="off"
-                          connectedRight={<Button submit>Ara</Button>}
+                          connectedRight={<Button submit>{t("productTypes.searchBtn")}</Button>}
                         />
                       </div>
                     </InlineStack>
@@ -266,7 +267,7 @@ export default function ProductTypeDetail() {
                             <input type="hidden" name="productHandle" value={product.handle} />
                             <input type="hidden" name="type_name" value={name} />
                             <input type="hidden" name="surface_mode" value={surfaceMode} />
-                            <Button submit variant="primary" size="slim" loading={isSaving}>Seç</Button>
+                            <Button submit variant="primary" size="slim" loading={isSaving}>{t("productTypes.selectBtn")}</Button>
                           </Form>
                         </InlineStack>
                       </ResourceItem>
