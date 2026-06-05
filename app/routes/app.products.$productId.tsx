@@ -391,6 +391,7 @@ function PrintAreaEditor({
   imageUrl?: string | null;
   imageOptions?: string[];
 }) {
+  const { t } = useTranslation();
   // Kayıtlı mockupImageUrl varsa onu kullan, yoksa prop'tan gelen default'u kullan
   const savedImage = area.mockupImageUrl || null;
   const [activeImage, setActiveImage] = useState<string | null>(savedImage || imageUrl || null);
@@ -609,24 +610,24 @@ function PrintAreaEditor({
 
           <InlineStack gap="150">
             <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { x: String(Math.round((PREVIEW_WIDTH - width) / 2)) }))}>
-              Yatay ortala
+              {t("products.centerH")}
             </Button>
             <Button size="slim" onClick={() => onChange(patchAreaState(currentArea, { y: String(Math.round((PREVIEW_HEIGHT - height) / 2)) }))}>
-              Dikey ortala
+              {t("products.centerV")}
             </Button>
           </InlineStack>
 
           {/* Real print dimensions — critical for gang sheet calculations */}
           <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
             <TextField
-              label="Gerçek baskı genişliği (mm)"
+              label={t("products.realWidth")}
               value={currentArea.realWidthMm}
               onChange={(value) => onChange({ ...currentArea, realWidthMm: value })}
               autoComplete="off"
               type="number"
             />
             <TextField
-              label="Gerçek baskı yüksekliği (mm)"
+              label={t("products.realHeight")}
               value={currentArea.realHeightMm}
               onChange={(value) => onChange({ ...currentArea, realHeightMm: value })}
               autoComplete="off"
@@ -635,14 +636,14 @@ function PrintAreaEditor({
           </InlineGrid>
           <InlineGrid columns={{ xs: 1, md: 3 }} gap="300">
             <TextField
-              label="Güvenli kenar (mm)"
+              label={t("products.safeMargin")}
               value={currentArea.safeMargin}
               onChange={(value) => onChange({ ...currentArea, safeMargin: value })}
               autoComplete="off"
               type="number"
             />
             <TextField
-              label="Taşma payı (mm)"
+              label={t("products.bleedMargin")}
               value={currentArea.bleedMargin}
               onChange={(value) => onChange({ ...currentArea, bleedMargin: value })}
               autoComplete="off"
@@ -910,18 +911,15 @@ export default function ProductSettingsRoute() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Baski alani editoru</Text>
-                  <Text as="p" tone="subdued">
-                    Asagidaki kutu musterinin tasarim yapabilecegi alani temsil eder. Konum ve boyutu urune gore
-                    ayarlayabilirsin.
-                  </Text>
+                  <Text as="h2" variant="headingMd">{t("products.printAreaEditor")}</Text>
+                  <Text as="p" tone="subdued">{t("products.printAreaEditorDesc")}</Text>
 
                   <input type="hidden" name="variantMockups" value={JSON.stringify(variantMockups)} />
 
                   {uniqueColors.length > 0 && (
                     <BlockStack gap="150">
                       <Text as="p" variant="bodySm" fontWeight="semibold">
-                        Renk seç — seçili rengin mockup görseli editörde görünür:
+                        {t("products.colorSelect")}
                       </Text>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         {uniqueColors.map((color) => (
@@ -974,7 +972,7 @@ export default function ProductSettingsRoute() {
                   <input type="hidden" name="frontAreaDpi" value={frontArea.dpi} />
 
                   <PrintAreaEditor
-                    title="On yuz"
+                    title={t("products.frontSurface")}
                     area={frontArea}
                     onChange={(nextArea) => {
                       setFrontArea(nextArea);
@@ -1009,7 +1007,7 @@ export default function ProductSettingsRoute() {
                       <input type="hidden" name="backAreaDpi" value={backArea.dpi} />
 
                       <PrintAreaEditor
-                        title="Arka yuz"
+                        title={t("products.backSurface")}
                         area={backArea}
                         onChange={(nextArea) => {
                           setBackArea(nextArea);
@@ -1032,23 +1030,20 @@ export default function ProductSettingsRoute() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Baski fiyat bantlari</Text>
-                  <Text as="p" tone="subdued">
-                    Tasarimin fiziksel olcusune gore ek ucretleri burada yonet. Ornek olarak 10x15, 21x29, 29x42
-                    gibi esikler tanimlayabilirsin; bu degerler tamamen degistirilebilir.
-                  </Text>
+                  <Text as="h2" variant="headingMd">{t("products.pricingBands")}</Text>
+                  <Text as="p" tone="subdued">{t("products.pricingBandsDesc")}</Text>
                   <input type="hidden" name="surchargeVariantId" value={surchargeVariantId} />
 
                   <input type="hidden" name="frontBandCount" value={String(frontBands.length)} />
                   <BlockStack gap="400">
-                    <Text as="h3" variant="headingSm">On yuz bantlari</Text>
+                    <Text as="h3" variant="headingSm">{t("products.frontBands")}</Text>
                     <InlineStack gap="200">
                       <Button
                         onClick={() =>
                           setFrontBands((current) =>
                             current.concat({
                               key: buildBandKey("front", current.length),
-                              label: `Yeni bant ${current.length + 1}`,
+                              label: `${t("products.newBand")} ${current.length + 1}`,
                               maxWidthCm: "",
                               maxHeightCm: "",
                               surcharge: "0",
@@ -1056,7 +1051,7 @@ export default function ProductSettingsRoute() {
                           )
                         }
                       >
-                        Bant ekle
+                        {t("products.addBand")}
                       </Button>
                     </InlineStack>
                     {frontBands.map((band, index) => (
@@ -1066,14 +1061,14 @@ export default function ProductSettingsRoute() {
                             <input type="hidden" name={`frontBandKey_${index}`} value={band.key} />
                             <InlineGrid columns={{ xs: 1, md: 4 }} gap="300">
                               <TextField
-                                label="Etiket"
+                                label={t("products.bandLabel")}
                                 value={band.label}
                                 onChange={(value) => setFrontBands((current) => updateBandArray(current, index, "label", value))}
                                 autoComplete="off"
                                 name={`frontBandLabel_${index}`}
                               />
                               <TextField
-                                label="Maks genislik (cm)"
+                                label={t("products.bandMaxWidth")}
                                 value={band.maxWidthCm}
                                 onChange={(value) => setFrontBands((current) => updateBandArray(current, index, "maxWidthCm", value))}
                                 autoComplete="off"
@@ -1081,7 +1076,7 @@ export default function ProductSettingsRoute() {
                                 name={`frontBandMaxWidth_${index}`}
                               />
                               <TextField
-                                label="Maks yukseklik (cm)"
+                                label={t("products.bandMaxHeight")}
                                 value={band.maxHeightCm}
                                 onChange={(value) => setFrontBands((current) => updateBandArray(current, index, "maxHeightCm", value))}
                                 autoComplete="off"
@@ -1089,7 +1084,7 @@ export default function ProductSettingsRoute() {
                                 name={`frontBandMaxHeight_${index}`}
                               />
                               <TextField
-                                label="Ek ucret"
+                                label={t("products.bandSurcharge")}
                                 value={band.surcharge}
                                 onChange={(value) => setFrontBands((current) => updateBandArray(current, index, "surcharge", value))}
                                 autoComplete="off"
@@ -1117,14 +1112,14 @@ export default function ProductSettingsRoute() {
                     <>
                       <input type="hidden" name="backBandCount" value={String(backBands.length)} />
                       <BlockStack gap="400">
-                        <Text as="h3" variant="headingSm">Arka yuz bantlari</Text>
+                        <Text as="h3" variant="headingSm">{t("products.backBands")}</Text>
                         <InlineStack gap="200">
                           <Button
                             onClick={() =>
                               setBackBands((current) =>
                                 current.concat({
                                   key: buildBandKey("back", current.length),
-                                  label: `Yeni bant ${current.length + 1}`,
+                                  label: `${t("products.newBand")} ${current.length + 1}`,
                                   maxWidthCm: "",
                                   maxHeightCm: "",
                                   surcharge: "0",
@@ -1142,14 +1137,14 @@ export default function ProductSettingsRoute() {
                                 <input type="hidden" name={`backBandKey_${index}`} value={band.key} />
                                 <InlineGrid columns={{ xs: 1, md: 4 }} gap="300">
                                   <TextField
-                                    label="Etiket"
+                                    label={t("products.bandLabel")}
                                     value={band.label}
                                     onChange={(value) => setBackBands((current) => updateBandArray(current, index, "label", value))}
                                     autoComplete="off"
                                     name={`backBandLabel_${index}`}
                                   />
                                   <TextField
-                                    label="Maks genislik (cm)"
+                                    label={t("products.bandMaxWidth")}
                                     value={band.maxWidthCm}
                                     onChange={(value) => setBackBands((current) => updateBandArray(current, index, "maxWidthCm", value))}
                                     autoComplete="off"
@@ -1157,7 +1152,7 @@ export default function ProductSettingsRoute() {
                                     name={`backBandMaxWidth_${index}`}
                                   />
                                   <TextField
-                                    label="Maks yukseklik (cm)"
+                                    label={t("products.bandMaxHeight")}
                                     value={band.maxHeightCm}
                                     onChange={(value) => setBackBands((current) => updateBandArray(current, index, "maxHeightCm", value))}
                                     autoComplete="off"
@@ -1165,7 +1160,7 @@ export default function ProductSettingsRoute() {
                                     name={`backBandMaxHeight_${index}`}
                                   />
                                   <TextField
-                                    label="Ek ucret"
+                                    label={t("products.bandSurcharge")}
                                     value={band.surcharge}
                                     onChange={(value) => setBackBands((current) => updateBandArray(current, index, "surcharge", value))}
                                     autoComplete="off"
@@ -1180,7 +1175,7 @@ export default function ProductSettingsRoute() {
                                       setBackBands((current) => current.filter((_, currentIndex) => currentIndex !== index))
                                     }
                                   >
-                                    Sil
+                                    {t("products.delete")}
                                   </Button>
                                 </InlineStack>
                               </BlockStack>
@@ -1199,12 +1194,10 @@ export default function ProductSettingsRoute() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Minimum alım adeti</Text>
-                  <Text as="p" tone="subdued">
-                    Müşterinin seçebileceği minimum sipariş adeti. Girilmezse 1 adet kabul edilir.
-                  </Text>
+                  <Text as="h2" variant="headingMd">{t("products.minOrderQty")}</Text>
+                  <Text as="p" tone="subdued">{t("products.minOrderQtyDesc")}</Text>
                   <TextField
-                    label="Minimum adet"
+                    label={t("products.minOrderQtyLabel")}
                     type="number"
                     name="minOrderQuantity"
                     value={minOrderQuantity}
@@ -1219,11 +1212,8 @@ export default function ProductSettingsRoute() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Varyant referansi</Text>
-                  <Text as="p" tone="subdued">
-                    Ana fiyatlari Shopify varyantlarindan yonet. Buradaki liste, ek ucret varyanti seciminde
-                    referans olarak kullanilir.
-                  </Text>
+                  <Text as="h2" variant="headingMd">{t("products.variantRef")}</Text>
+                  <Text as="p" tone="subdued">{t("products.variantRefDesc")}</Text>
                   <BlockStack gap="200">
                     {product.variants.map((variant) => (
                       <Box key={variant.id} paddingBlockEnd="200">
@@ -1238,8 +1228,8 @@ export default function ProductSettingsRoute() {
             </Card>
 
             <InlineStack gap="200">
-              <Button submit variant="primary">Kaydet</Button>
-              {actionData ? <Text as="p" tone="critical">Kayit sirasinda bir sorun olustu.</Text> : null}
+              <Button submit variant="primary">{t("products.save")}</Button>
+              {actionData ? <Text as="p" tone="critical">{t("products.saveError")}</Text> : null}
             </InlineStack>
           </BlockStack>
         </Form>

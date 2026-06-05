@@ -18,6 +18,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
 import { shopifyGraphQL } from "~/lib/shopify.server";
+import { useTranslation } from "~/i18n";
 import { getValidAccessToken } from "~/lib/session.server";
 import { query } from "~/lib/db.server";
 import { getShopSettings } from "~/models/shop-settings.server";
@@ -126,6 +127,7 @@ export default function CreditsPage() {
     }
   }, [actionData]);
 
+  const { t } = useTranslation();
   const packList = Object.values(CREDIT_PACKS);
   const totalBonus = activePurchasedBonus + permanentBonus;
 
@@ -146,33 +148,32 @@ export default function CreditsPage() {
       </span>,
       <span key="expires" style={isExpired ? { opacity: 0.5 } : undefined}>
         {isExpired ? (
-          <Badge tone="critical">Süresi Doldu</Badge>
+          <Badge tone="critical">{t("credits.expired")}</Badge>
         ) : (
-          new Date(p.expires_at).toLocaleDateString("tr-TR")
+          new Date(p.expires_at).toLocaleDateString()
         )}
       </span>,
     ];
   });
 
   return (
-    <Page title="AI Kredi Paketleri">
+    <Page title={t("credits.title")}>
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
             {totalBonus > 0 && (
               <Banner tone="info">
                 <Text as="p" variant="bodyMd">
-                  Aktif kredi: <strong>{activePurchasedBonus}</strong> satın alınan +{" "}
-                  <strong>{permanentBonus}</strong> kalıcı ={" "}
-                  <strong>{totalBonus}</strong> toplam bonus — Bu ay kullanılan:{" "}
-                  <strong>{usedThisMonth}</strong>
+                  {t("credits.currentBonus")}: <strong>{activePurchasedBonus}</strong> {t("credits.purchased")} +{" "}
+                  <strong>{permanentBonus}</strong> {t("credits.permanent")} ={" "}
+                  <strong>{totalBonus}</strong> {t("credits.total")}
                 </Text>
               </Banner>
             )}
             {totalBonus === 0 && (
               <Banner tone="warning">
                 <Text as="p" variant="bodyMd">
-                  Bu ay kullanılan AI jenerasyon: <strong>{usedThisMonth}</strong>. Ek kredi satın alarak limitinizi artırabilirsiniz.
+                  {t("credits.noBonus")}
                 </Text>
               </Banner>
             )}
@@ -188,10 +189,10 @@ export default function CreditsPage() {
                       <strong>${pack.price.toFixed(2)}</strong> USD
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
-                      {pack.credits} AI görsel jenerasyonu
+                      {pack.credits} {t("credits.credits")}
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Satın alındığı tarihten itibaren 30 gün geçerli
+                      {t("credits.validDays")}
                     </Text>
                     <Box paddingBlockStart="200">
                       <Form method="post">
@@ -203,7 +204,7 @@ export default function CreditsPage() {
                           disabled={isLoading}
                           fullWidth
                         >
-                          Satın Al
+                          {t("credits.buy")}
                         </Button>
                       </Form>
                     </Box>
@@ -215,7 +216,7 @@ export default function CreditsPage() {
             {actionData?.error && (
               <Banner tone="critical">
                 <Text as="p" variant="bodyMd">
-                  Hata: {actionData.error}
+                  {actionData.error}
                 </Text>
               </Banner>
             )}
@@ -224,11 +225,11 @@ export default function CreditsPage() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    Son Satın Alımlar
+                    {t("credits.recentPurchases")}
                   </Text>
                   <DataTable
                     columnContentTypes={["text", "numeric", "text", "text", "text"]}
-                    headings={["Paket", "Kredi", "Fiyat", "Tarih", "Son Kullanım"]}
+                    headings={[t("credits.pack"), t("credits.amount"), t("credits.price"), t("credits.pack"), t("credits.expiry")]}
                     rows={purchaseRows}
                   />
                 </BlockStack>
