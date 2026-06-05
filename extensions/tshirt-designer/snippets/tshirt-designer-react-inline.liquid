@@ -27,8 +27,8 @@
 >
   <iframe
     class="dsgn-inline-react__frame"
-    title="Tişört Tasarım Aracı"
-    loading="eager"
+    title="DesignKit"
+    loading="lazy"
     allow="camera; microphone"
   ></iframe>
 </div>
@@ -265,17 +265,40 @@
       if (!iframe) return;
 
       var baseUrl = root.dataset.designerUrl || 'https://app.printlabapp.com/designer-app/';
-      iframe.src = baseUrl;
-      iframe.addEventListener('load', function() {
-        sendDesignerConfig(iframe, root);
-        window.setTimeout(function() { sendDesignerConfig(iframe, root); }, 80);
-        window.setTimeout(function() { sendDesignerConfig(iframe, root); }, 400);
-        window.setTimeout(function() { sendDesignerConfig(iframe, root); }, 1200);
-      });
+      var iframeLoaded = false;
+
+      function loadIframe() {
+        if (iframeLoaded) return;
+        iframeLoaded = true;
+        iframe.src = baseUrl;
+        iframe.addEventListener('load', function() {
+          sendDesignerConfig(iframe, root);
+          window.setTimeout(function() { sendDesignerConfig(iframe, root); }, 80);
+          window.setTimeout(function() { sendDesignerConfig(iframe, root); }, 400);
+          window.setTimeout(function() { sendDesignerConfig(iframe, root); }, 1200);
+        });
+      }
+
+      // Intersection Observer: iframe'i sadece viewport'a yaklaşınca yükle
+      // Sayfa ilk açılınca React + Fabric.js indirilmez → performans kazanımı
+      if ('IntersectionObserver' in window) {
+        var observer = new IntersectionObserver(function(entries) {
+          entries.forEach(function(entry) {
+            if (entry.isIntersecting) {
+              loadIframe();
+              observer.unobserve(root);
+            }
+          });
+        }, { rootMargin: '300px' }); // 300px önceden yükle → sorunsuz geçiş
+        observer.observe(root);
+      } else {
+        loadIframe(); // eski tarayıcılar için fallback
+      }
 
       document.addEventListener('change', function(event) {
         var target = event.target;
         if (!target || !target.matches || !target.matches('form[action*="/cart/add"] [name="id"], form[action*="/cart/add"] select[name^="options["], form[action*="/cart/add"] input[type="radio"], variant-selects select, variant-radios input')) return;
+        loadIframe(); // varyant değişince de yükle (henüz yüklenmediyse)
         window.setTimeout(function() { sendDesignerConfig(iframe, root); }, 50);
       });
     });
