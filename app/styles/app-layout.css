@@ -6,15 +6,7 @@
 }
 
 .app-sidebar {
-  width: 220px;
-  background: #fff;
-  border-right: 1px solid #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  height: 100vh;
-  position: sticky;
-  top: 0;
+  display: none; /* ui-nav-menu Shopify admin sidebar'ını kullanır */
 }
 
 .app-sidebar-logo {
@@ -177,11 +169,7 @@
   }
 
   .app-sidebar {
-    width: 100%;
-    height: auto;
-    position: static;
-    border-right: none;
-    border-bottom: 1px solid #e5e7eb;
+    display: none;
   }
 
   .app-sidebar-logo {
