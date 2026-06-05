@@ -513,14 +513,11 @@ export default function SettingsRoute() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Müşteri Başına Arka Plan Kaldırma Limiti</Text>
-                  <Text as="p" tone="subdued" variant="bodySm">
-                    Bir müşteri sipariş vermeden kaç kez arka plan kaldırabilir? Sipariş verdikten sonra limiti sıfırlanır.
-                    Kötüye kullanımı önlemek için bu değeri düşük tutmanızı öneririz (varsayılan: 5).
-                  </Text>
+                  <Text as="h2" variant="headingMd">{t("settings.bgLimitTitle")}</Text>
+                  <Text as="p" tone="subdued" variant="bodySm">{t("settings.bgLimitDesc")}</Text>
                   <div style={{ width: "100%", maxWidth: 200 }}>
                     <TextField
-                      label="Sipariş vermeden maksimum kullanım"
+                      label={t("settings.bgLimitLabel")}
                       name="customerBgLimit"
                       type="number"
                       value={customerBgLimit}
@@ -528,7 +525,7 @@ export default function SettingsRoute() {
                       autoComplete="off"
                       min="1"
                       max="100"
-                      suffix="adet"
+                      suffix={t("settings.limitSuffix")}
                     />
                   </div>
                 </BlockStack>
@@ -538,14 +535,11 @@ export default function SettingsRoute() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Yapay Zeka Görsel Limiti (Müşteri Başına)</Text>
-                  <Text as="p" tone="subdued" variant="bodySm">
-                    Bir müşteri sipariş vermeden kaç yapay zeka görseli üretebilir? Sipariş verdikten sonra limiti sıfırlanır.
-                    Varsayılan: 3 adet.
-                  </Text>
+                  <Text as="h2" variant="headingMd">{t("settings.aiLimitTitle")}</Text>
+                  <Text as="p" tone="subdued" variant="bodySm">{t("settings.aiLimitDesc")}</Text>
                   <div style={{ width: "100%", maxWidth: 200 }}>
                     <TextField
-                      label="Sipariş vermeden maksimum yapay zeka üretimi"
+                      label={t("settings.aiLimitLabel")}
                       name="customerAiLimit"
                       type="number"
                       value={customerAiLimit}
@@ -553,7 +547,7 @@ export default function SettingsRoute() {
                       autoComplete="off"
                       min="1"
                       max="50"
-                      suffix="adet"
+                      suffix={t("settings.limitSuffix")}
                     />
                   </div>
                 </BlockStack>
@@ -563,19 +557,16 @@ export default function SettingsRoute() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Kullanım Koşulları Bağlantısı</Text>
-                  <Text as="p" tone="subdued" variant="bodySm">
-                    Mağazanıza ait kullanım koşulları sayfasının URL'sini girin. Müşteriler tasarım aracında
-                    siparişi sepete eklemeden önce bu bağlantıyı görecek.
-                  </Text>
+                  <Text as="h2" variant="headingMd">{t("settings.termsTitle")}</Text>
+                  <Text as="p" tone="subdued" variant="bodySm">{t("settings.termsDesc")}</Text>
                   <TextField
-                    label="Kullanım Koşulları URL"
+                    label={t("settings.termsLabel")}
                     name="termsUrl"
                     value={termsUrl}
                     onChange={setTermsUrl}
                     autoComplete="off"
-                    placeholder="https://magazaniz.myshopify.com/pages/kullanim-kosullari"
-                    helpText="Boş bırakılırsa tasarım aracında gösterilmez."
+                    placeholder="https://yourstore.myshopify.com/pages/terms"
+                    helpText={t("settings.termsHelp")}
                   />
                   {termsUrl && (
                     <Text as="p" variant="bodySm" tone="subdued">
@@ -591,7 +582,7 @@ export default function SettingsRoute() {
 
             <InlineStack align="end">
               <Button variant="primary" submit loading={isSaving}>
-                Kaydet
+                {t("settings.save")}
               </Button>
             </InlineStack>
           </BlockStack>
