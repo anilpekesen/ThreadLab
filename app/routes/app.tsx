@@ -65,6 +65,15 @@ function AppInner() {
 
   return (
     <PolarisAppProvider i18n={lang === "en" ? enTranslations : trTranslations}>
+      {/* App Bridge navigation — Shopify admin sidebar entegrasyonu */}
+      <ui-nav-menu>
+        {navItems.map((item) => (
+          <a key={item.url} href={item.url} rel={item.end ? "home" : undefined}>
+            {item.label}
+          </a>
+        ))}
+      </ui-nav-menu>
+
       <div className="app-shell">
         <nav className="app-sidebar">
           <div className="app-sidebar-logo">
