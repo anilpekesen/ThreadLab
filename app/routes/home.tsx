@@ -17,7 +17,7 @@ const T = {
     htmlLang: "tr",
     nav: {
       features: "Özellikler", how: "Nasıl çalışır", pricing: "Fiyatlandırma",
-      faq: "SSS", login: "Giriş yap", cta: "Shopify'a ekle",
+      faq: "SSS", blog: "Blog", login: "Giriş yap", cta: "Shopify'a ekle",
     },
     hero: {
       eyebrow: "SHOPIFY ÜRÜN KİŞİSELLEŞTİRME UYGULAMASI",
@@ -109,7 +109,7 @@ const T = {
     htmlLang: "en",
     nav: {
       features: "Features", how: "How it works", pricing: "Pricing",
-      faq: "FAQ", login: "Sign in", cta: "Add to Shopify",
+      faq: "FAQ", blog: "Blog", login: "Sign in", cta: "Add to Shopify",
     },
     hero: {
       eyebrow: "SHOPIFY PRODUCT PERSONALIZATION APP",
@@ -213,6 +213,7 @@ function buildHtml(lang: Lang): string {
   const metaKeywords = lang === "tr"
     ? "shopify kişiselleştirme uygulaması, shopify ürün tasarım aracı, shopify tişört tasarım uygulaması, shopify baskı tasarım aracı, print on demand shopify"
     : "shopify product personalization app, shopify product customizer, shopify t-shirt designer app, shopify print designer, print on demand personalization";
+  const blogUrl = lang === "tr" ? "/blog" : "/en/blog";
 
   const featureIcons = [
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6 5 .4-3.8 3.3 1.2 4.9L12 13.8 7.7 16.2l1.2-4.9L5.1 8l5-.4z"/></svg>`,
@@ -316,6 +317,7 @@ function buildHtml(lang: Lang): string {
       <a href="#nasil">${t.nav.how}</a>
       <a href="#fiyatlandirma">${t.nav.pricing}</a>
       <a href="#sss">${t.nav.faq}</a>
+      <a href="${blogUrl}">${t.nav.blog}</a>
     </nav>
     <div class="nav-cta">
       <div class="nav-lang">
@@ -623,7 +625,7 @@ function buildHtml(lang: Lang): string {
       <div>
         <h5>${t.footer.company}</h5>
         <a href="#nasil">${t.footer.about}</a>
-        <a href="#ozellikler">${t.footer.blog}</a>
+        <a href="${blogUrl}">${t.footer.blog}</a>
         <a href="${DEMO_CONTACT_URL}">${t.footer.contact}</a>
       </div>
       <div>
