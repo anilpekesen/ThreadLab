@@ -1567,8 +1567,13 @@ export default function App() {
       // Export canvas: 1x preview + 3x print quality
       const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(1) ?? '') : '';
       const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(1) ?? '') : '';
-      const frontPrintDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(3, true) ?? '') : '';
-      const backPrintDataUrl = backHas ? (backCanvasRef.current?.exportPng(3, true) ?? '') : '';
+      // Print dosyasını gerçek mm boyutlarında 300 DPI export et
+      const frontPrintDataUrl = frontHas
+        ? (frontCanvasRef.current?.exportPrintFile(personalization.printAreas.front, 300) ?? '')
+        : '';
+      const backPrintDataUrl = backHas
+        ? (backCanvasRef.current?.exportPrintFile(personalization.printAreas.back, 300) ?? '')
+        : '';
       const designSourceCache = new Map<string, Promise<string>>();
       const frontDesignJson = frontCanvasRef.current?.saveDesign() ?? '';
       const backDesignJson = backCanvasRef.current?.saveDesign() ?? '';

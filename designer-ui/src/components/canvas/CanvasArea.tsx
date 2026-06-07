@@ -27,6 +27,8 @@ export interface CanvasAreaHandle {
   redo: () => void;
   getActiveObject: () => fabric.Object | null;
   exportPng: (multiplier?: number, cleanBg?: boolean) => string;
+  /** Print dosyası export: print area'ya clip edilmiş, gerçek mm boyutlarında 300 DPI PNG */
+  exportPrintFile: (area: { x: number; y: number; width: number; height: number; realWidthMm: number; realHeightMm: number }, dpi?: number) => string;
   loadDesign: (json: string) => void;
   saveDesign: () => string;
   getCanvas: () => fabric.Canvas | null;
@@ -670,6 +672,47 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     return dataUrl;
   }, []);
 
+  const exportPrintFile = useCallback((
+    area: { x: number; y: number; width: number; height: number; realWidthMm: number; realHeightMm: number },
+    dpi = 300,
+  ): string => {
+    const cv = canvasRef.current;
+    if (!cv) return '';
+
+    // Hedef boyut: gerçek mm → pixel (DPI bazında)
+    const targetW = Math.round((area.realWidthMm / 25.4) * dpi);
+    const targetH = Math.round((area.realHeightMm / 25.4) * dpi);
+    // Multiplier: print area canvas px → hedef px
+    const multiplier = targetW / Math.max(area.width, 1);
+
+    // Arka planı kaldır (sadece tasarım)
+    const bg = cv.backgroundImage as fabric.Image | undefined;
+    if (bg) {
+      cv.backgroundImage = undefined as unknown as fabric.Image;
+      cv.renderAll();
+    }
+
+    // Print area'ya clip + DPI'ya göre scale
+    const dataUrl = cv.toDataURL({
+      format: 'png',
+      left: area.x,
+      top: area.y,
+      width: area.width,
+      height: area.height,
+      multiplier,
+    }) ?? '';
+
+    if (bg) {
+      cv.backgroundImage = bg;
+      cv.renderAll();
+    }
+
+    // Kullanılmadı — sadece TS'i mutlu etmek için
+    void targetH;
+
+    return dataUrl;
+  }, []);
+
   const saveDesign = useCallback(() => {
     if (!canvasRef.current) return '';
     const json = JSON.stringify(canvasRef.current.toJSON(['id']));
@@ -700,11 +743,12 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     redo,
     getActiveObject: () => canvasRef.current?.getActiveObject() ?? null,
     exportPng,
+    exportPrintFile,
     loadDesign,
     saveDesign,
     getCanvas: () => canvasRef.current,
     canvas: canvasRef.current,
-  }), [addImageFromUrl, addText, cloneSelected, deleteSelected, undo, redo, exportPng, loadDesign, saveDesign]);
+  }), [addImageFromUrl, addText, cloneSelected, deleteSelected, undo, redo, exportPng, exportPrintFile, loadDesign, saveDesign]);
 
   useEffect(() => {
     const cv = canvasRef.current;
