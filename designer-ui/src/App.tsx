@@ -888,6 +888,45 @@ async function dataUrlToServerUrl(dataUrl: string, side: string): Promise<string
   return (await uploadBlob(blob, side)) ?? dataUrl;
 }
 
+function isDataImageUrl(value: unknown): value is string {
+  return typeof value === 'string' && /^data:image\/[a-z0-9.+-]+;base64,/i.test(value);
+}
+
+async function persistDesignJsonImages(json: string | undefined, cache: Map<string, Promise<string>>): Promise<string> {
+  if (!json) return '';
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return json;
+  }
+
+  const persistUrl = (dataUrl: string) => {
+    const existing = cache.get(dataUrl);
+    if (existing) return existing;
+    const promise = dataUrlToServerUrl(dataUrl, 'design-source');
+    cache.set(dataUrl, promise);
+    return promise;
+  };
+
+  const walk = async (value: unknown): Promise<void> => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) {
+      await Promise.all(value.map((item) => walk(item)));
+      return;
+    }
+
+    const record = value as Record<string, unknown>;
+    if (isDataImageUrl(record.src)) {
+      record.src = await persistUrl(record.src);
+    }
+    await Promise.all(Object.values(record).map((item) => walk(item)));
+  };
+
+  await walk(parsed);
+  return JSON.stringify(parsed);
+}
+
 function getAutoZoom() {
   if (typeof window === 'undefined') return 100;
   const w = window.innerWidth;
@@ -1530,13 +1569,25 @@ export default function App() {
       const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(1) ?? '') : '';
       const frontPrintDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(3, true) ?? '') : '';
       const backPrintDataUrl = backHas ? (backCanvasRef.current?.exportPng(3, true) ?? '') : '';
+      const designSourceCache = new Map<string, Promise<string>>();
+      const frontDesignJson = frontCanvasRef.current?.saveDesign() ?? '';
+      const backDesignJson = backCanvasRef.current?.saveDesign() ?? '';
 
       // Upload all to server in parallel to get permanent URLs
-      const [frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl] = await Promise.all([
+      const [
+        frontPreviewUrl,
+        backPreviewUrl,
+        frontPrintUrl,
+        backPrintUrl,
+        compactFrontDesignJson,
+        compactBackDesignJson,
+      ] = await Promise.all([
         frontPreviewDataUrl ? dataUrlToServerUrl(frontPreviewDataUrl, 'front-preview') : Promise.resolve(''),
         backPreviewDataUrl ? dataUrlToServerUrl(backPreviewDataUrl, 'back-preview') : Promise.resolve(''),
         frontPrintDataUrl ? dataUrlToServerUrl(frontPrintDataUrl, 'front-print') : Promise.resolve(''),
         backPrintDataUrl ? dataUrlToServerUrl(backPrintDataUrl, 'back-print') : Promise.resolve(''),
+        persistDesignJsonImages(frontDesignJson, designSourceCache),
+        persistDesignJsonImages(backDesignJson, designSourceCache),
       ]);
 
       const designRes = await fetch('/api/storefront/designs', {
@@ -1548,8 +1599,8 @@ export default function App() {
           shop: config?.shop || '',
           sessionId: getBgSessionId(),
           designJson: {
-            front: frontCanvasRef.current?.saveDesign(),
-            back: backCanvasRef.current?.saveDesign(),
+            front: compactFrontDesignJson,
+            back: compactBackDesignJson,
           },
           frontPreviewUrl,
           backPreviewUrl,
