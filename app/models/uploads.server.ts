@@ -3,10 +3,11 @@ import { randomBytes } from "node:crypto";
 import { createReadStream, existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import sharp from "sharp";
 import { getUploadsDir } from "~/lib/storage.server";
 import { uploadToR2 } from "~/lib/r2.server";
 
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB — 300 DPI print dosyaları için
 const MIME_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -57,16 +58,22 @@ export async function handleDesignerUpload(request: Request) {
     return json({ error: "PNG, JPG or WEBP required" }, { status: 422 });
   }
 
-  const buffer = Buffer.from(await image.arrayBuffer());
+  let buffer = Buffer.from(await image.arrayBuffer());
+  const side = sanitizeName(form.get("side"));
+
+  // Print dosyaları için PNG optimizasyonu (lossless, daha küçük dosya)
+  if (ext === "png") {
+    try {
+      buffer = Buffer.from(await sharp(buffer).png({ compressionLevel: 9, effort: 10 }).toBuffer());
+    } catch { /* optimizasyon başarısız olursa orijinali kullan */ }
+  }
 
   if (useR2) {
-    const side = sanitizeName(form.get("side"));
     const url = await uploadToR2(buffer, ext, `uploads/${side}`);
     return json({ url });
   }
 
   // Fallback: local disk
-  const side = sanitizeName(form.get("side"));
   const filename = `${side}-${randomBytes(12).toString("hex")}.${ext}`;
   const uploadDir = getUploadsDir();
   await writeFile(path.join(uploadDir, filename), buffer);
