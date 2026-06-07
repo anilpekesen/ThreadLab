@@ -830,10 +830,25 @@ function readStoredCanvasState(productKey: string) {
 
 function writeStoredCanvasState(productKey: string, value: { frontJson: string; backJson: string }) {
   if (typeof window === 'undefined' || !productKey) return;
+  const serialized = JSON.stringify(value);
   try {
-    localStorage.setItem(canvasStorageKey(productKey), JSON.stringify(value));
+    localStorage.setItem(canvasStorageKey(productKey), serialized);
   } catch {
-    /* ignore quota/storage errors */
+    // QuotaExceededError — localStorage dolu, eski tasarımları temizle ve tekrar dene
+    try {
+      // Bu ürün dışındaki tüm bkf_canvas_state:* anahtarlarını sil
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('bkf_canvas_state:') && k !== canvasStorageKey(productKey)) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      localStorage.setItem(canvasStorageKey(productKey), serialized);
+    } catch {
+      // Yine de olmazsa sessizce geç
+    }
   }
 }
 
@@ -1332,9 +1347,14 @@ export default function App() {
       [`${side}Json`]: nextJson,
     } as typeof canvasState;
     setCanvasJson(side, nextJson);
-    // Sadece restore tamamlandıktan sonra yaz — init sırasında boş canvas ile üzerine yazma
-    if (productCanvasKey && restoredCanvasRef.current === productCanvasKey) {
-      writeStoredCanvasState(productCanvasKey, nextState);
+    // Canvas'ta nesne varsa her zaman kaydet, yoksa sadece restore bittiyse kaydet
+    // (init sırasında boş canvas ile stored tasarımın üzerine yazılmasını engelle)
+    if (productCanvasKey) {
+      const cv = getCanvasHandle(side)?.getCanvas();
+      const hasObjects = (cv?.getObjects().length ?? 0) > 0;
+      if (hasObjects || restoredCanvasRef.current === productCanvasKey) {
+        writeStoredCanvasState(productCanvasKey, nextState);
+      }
     }
     setCanvasRevisions((prev) => ({ ...prev, [side]: prev[side] + 1 }));
     window.setTimeout(() => {
