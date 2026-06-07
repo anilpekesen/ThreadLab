@@ -104,8 +104,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  if (intent === "bulkDriveExport") {
-    const shopifyOrderIds = ((form.get("shopifyOrderIds") as string) || "").split(",").filter(Boolean);
+  if (intent === "bulkDriveExport" || intent === "bulkDriveExportAll") {
+    let shopifyOrderIds = ((form.get("shopifyOrderIds") as string) || "").split(",").filter(Boolean);
+    if (intent === "bulkDriveExportAll") {
+      const statusFilter = String(form.get("status") || "");
+      const orders = statusFilter ? await getOrders(session.shop, statusFilter) : await getOrders(session.shop);
+      shopifyOrderIds = groupOrders(orders)
+        .filter((group) => group.frontPrintUrl || group.backPrintUrl)
+        .map((group) => group.shopifyOrderId);
+    }
     let success = 0, failed = 0;
     const errors: string[] = [];
 
@@ -136,10 +143,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const existingFolderId = order.driveFolderId && order.driveFolderId !== "pending" ? order.driveFolderId : "";
         const folderId = existingFolderId || await ensureSubfolder(accessToken, rootId, folderName);
 
-        const tasks: Promise<unknown>[] = [];
-        tasks.push(uploadOrderProductsToDrive(accessToken, folderId, products));
-        tasks.push(uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8"));
-        await Promise.all(tasks);
+        await uploadOrderProductsToDrive(accessToken, folderId, products);
+        await uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8");
         await setShopifyOrderDriveUpload(session.shop, shopifyOrderId, folderId);
         success++;
       } catch (err) {
@@ -468,17 +473,32 @@ export default function Orders() {
         {/* Filtre + Tablo */}
         <Card padding="0">
           <Box padding="400" borderBlockEndWidth="025" borderColor="border">
-            <InlineStack gap="200" wrap>
-              {STATUSES.map((s) => (
-                <Button
-                  key={s.value}
-                  pressed={status === s.value || (!status && s.value === "")}
-                  size="slim"
-                  onClick={() => navigate(`/app/orders${s.value ? `?status=${s.value}` : ""}`)}
-                >
-                  {t(s.labelKey)}
+            <InlineStack gap="300" wrap align="space-between" blockAlign="center">
+              <InlineStack gap="200" wrap>
+                {STATUSES.map((s) => (
+                  <Button
+                    key={s.value}
+                    pressed={status === s.value || (!status && s.value === "")}
+                    size="slim"
+                    onClick={() => navigate(`/app/orders${s.value ? `?status=${s.value}` : ""}`)}
+                  >
+                    {t(s.labelKey)}
+                  </Button>
+                ))}
+              </InlineStack>
+              {driveConnected ? (
+                <driveFetcher.Form method="post">
+                  <input type="hidden" name="intent" value="bulkDriveExportAll" />
+                  <input type="hidden" name="status" value={status} />
+                  <Button submit loading={isDriveExporting} disabled={groups.length === 0} variant="secondary" size="slim">
+                    {isDriveExporting ? "Drive'a aktarılıyor..." : "Tüm uygun siparişleri Drive'a aktar"}
+                  </Button>
+                </driveFetcher.Form>
+              ) : (
+                <Button variant="secondary" size="slim" onClick={() => navigate("/app/settings")}>
+                  Drive Bağla
                 </Button>
-              ))}
+              )}
             </InlineStack>
           </Box>
 

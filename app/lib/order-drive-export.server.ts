@@ -1,6 +1,6 @@
 import type { Order } from "~/models/orders.server";
 import { getDesignByToken, type DesignRecord } from "~/models/designs.server";
-import { uploadBytes, uploadFromUrl, uploadText } from "~/lib/google-drive.server";
+import { clearGeneratedOrderFiles, uploadBytes, uploadFromUrl, uploadText } from "~/lib/google-drive.server";
 
 export interface DriveExportProduct {
   row: Order;
@@ -153,6 +153,8 @@ export async function uploadOrderProductsToDrive(
 ): Promise<number> {
   let uploaded = 0;
   const totalProducts = products.length;
+
+  await clearGeneratedOrderFiles(accessToken, folderId);
 
   for (let index = 0; index < products.length; index++) {
     const product = products[index];

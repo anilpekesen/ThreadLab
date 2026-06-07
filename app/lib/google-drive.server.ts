@@ -151,6 +151,92 @@ async function createFolder(
   return data.id;
 }
 
+function driveQueryValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+async function findSubfolder(
+  accessToken: string,
+  parentId: string,
+  name: string,
+): Promise<string | null> {
+  const q = [
+    `'${driveQueryValue(parentId)}' in parents`,
+    `name = '${driveQueryValue(name)}'`,
+    `mimeType = 'application/vnd.google-apps.folder'`,
+    `trashed = false`,
+  ].join(" and ");
+
+  try {
+    const data = await driveJson<{ files?: DriveFile[] }>(
+      accessToken,
+      `/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=1`,
+    );
+    return data.files?.[0]?.id ?? null;
+  } catch (err) {
+    // Some accounts reject listing with drive.file; uploading still works.
+    console.warn("[google-drive] folder lookup skipped", err);
+    return null;
+  }
+}
+
+function isGeneratedOrderFileName(name: string): boolean {
+  return /^(\d+-)?(front|back)-(print(-\d+)?|mockup)\.png$/i.test(name)
+    || /^(\d+-)?design\.json$/i.test(name)
+    || /^(siparis|order|quality-report)\.(txt|json)$/i.test(name);
+}
+
+async function listFolderFiles(accessToken: string, folderId: string): Promise<DriveFile[]> {
+  const q = [
+    `'${driveQueryValue(folderId)}' in parents`,
+    "trashed = false",
+  ].join(" and ");
+  const files: DriveFile[] = [];
+  let pageToken = "";
+
+  do {
+    const page = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
+    const data = await driveJson<{ files?: DriveFile[]; nextPageToken?: string }>(
+      accessToken,
+      `/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType)&pageSize=100${page}`,
+    );
+    files.push(...(data.files ?? []));
+    pageToken = data.nextPageToken ?? "";
+  } while (pageToken);
+
+  return files;
+}
+
+async function deleteDriveFile(accessToken: string, fileId: string): Promise<void> {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text();
+    throw new Error(`Drive delete ${res.status}: ${text}`);
+  }
+}
+
+export async function clearGeneratedOrderFiles(
+  accessToken: string,
+  folderId: string,
+): Promise<number> {
+  try {
+    const files = await listFolderFiles(accessToken, folderId);
+    const deletable = files.filter((file) =>
+      file.mimeType !== "application/vnd.google-apps.folder" && isGeneratedOrderFileName(file.name),
+    );
+    await Promise.all(deletable.map((file) => deleteDriveFile(accessToken, file.id)));
+    return deletable.length;
+  } catch (err) {
+    // With drive.file some accounts can upload but cannot list existing files.
+    // In that case we skip cleanup instead of blocking production exports.
+    console.warn("[google-drive] generated file cleanup skipped", err);
+    return 0;
+  }
+}
+
 export async function ensureRootFolder(shop: string, accessToken: string): Promise<string> {
   const conn = await getDriveConnection(shop);
   if (conn?.rootFolderId) return conn.rootFolderId;
@@ -168,6 +254,8 @@ export async function ensureSubfolder(
   parentId: string,
   name: string,
 ): Promise<string> {
+  const existingId = await findSubfolder(accessToken, parentId, name);
+  if (existingId) return existingId;
   return createFolder(accessToken, name, parentId);
 }
 

@@ -54,11 +54,8 @@ async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Pro
   const folderName = (firstOrder.orderNumber || shopifyOrderId).replace(/^#/, "");
   const folderId = await ensureSubfolder(accessToken, rootId, folderName);
 
-  const tasks: Promise<unknown>[] = [];
-  tasks.push(uploadOrderProductsToDrive(accessToken, folderId, resolvedProducts));
-  tasks.push(uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8"));
-
-  await Promise.all(tasks);
+  await uploadOrderProductsToDrive(accessToken, folderId, resolvedProducts);
+  await uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8");
   await setShopifyOrderDriveUpload(shop, shopifyOrderId, folderId);
   console.log(`[webhook] auto drive export: order=${firstOrder.orderNumber} products=${resolvedProducts.length} folder=${folderId}`);
 }
