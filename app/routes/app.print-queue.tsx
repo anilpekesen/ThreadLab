@@ -350,7 +350,7 @@ export default function PrintQueue() {
                               <BlockStack gap="100">
                                 <InlineStack gap="200" blockAlign="center">
                                   <Text as="span" variant="bodySm" fontWeight="semibold">{group.orderNumber}</Text>
-                                  <Badge tone="warning">{group.totalQty} adet</Badge>
+                                  <Badge tone="warning">{`${group.totalQty} adet`}</Badge>
                                   <Badge tone={group.status === "pending" ? "attention" : "info"}>{STATUS_LABELS[group.status] ?? group.status}</Badge>
                                   {group.hasFront && <Badge tone="success">Ön</Badge>}
                                   {group.hasBack && <Badge>Arka</Badge>}
@@ -361,7 +361,7 @@ export default function PrintQueue() {
                                 {group.variants.length > 0 && (
                                   <InlineStack gap="100" wrap>
                                     {group.variants.map((v, idx) => (
-                                      <Badge key={`${v.title}-${idx}`} tone="info">{v.title} ×{v.qty}</Badge>
+                                      <Badge key={`${v.title}-${idx}`} tone="info">{`${v.title} ×${v.qty}`}</Badge>
                                     ))}
                                   </InlineStack>
                                 )}

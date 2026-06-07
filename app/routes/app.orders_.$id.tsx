@@ -18,7 +18,7 @@ import {
   Box, Divider, Grid, Thumbnail, Banner, Tabs,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
-import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders, setOrderDriveUpload, setShopifyOrderDriveUpload } from "~/models/orders.server";
+import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders, setShopifyOrderDriveUpload } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
 import { getDriveConnection } from "~/models/shop-google-drive.server";
@@ -26,10 +26,14 @@ import {
   getValidAccessToken,
   ensureRootFolder,
   ensureSubfolder,
-  uploadFromUrl,
   uploadText,
   getFolderWebUrl,
 } from "~/lib/google-drive.server";
+import {
+  buildOrderDriveSummary,
+  resolveDriveExportProducts,
+  uploadOrderProductsToDrive,
+} from "~/lib/order-drive-export.server";
 
 function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHref?: string }) {
   const { t } = useTranslation();
@@ -210,17 +214,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const order = await getOrder(appOrderId);
     if (!order) return json({ ok: false, error: "Sipariş bulunamadı" }, { status: 404 });
     const orderShop = order.shop || session.shop;
-    const [design, siblings] = await Promise.all([
-      order.designToken ? getDesignByToken(orderShop, order.designToken) : Promise.resolve(null),
-      getSiblingOrders(orderShop, order.shopifyOrderId, order.id).catch(() => [] as Order[]),
-    ]);
+    const siblings = await getSiblingOrders(orderShop, order.shopifyOrderId, "").catch(() => [] as Order[]);
+    const allRows = [order, ...siblings.filter((row) => row.id !== order.id)];
+    const products = await resolveDriveExportProducts(orderShop, allRows);
+    const hasAnyFile = products.some((product) =>
+      product.frontPrint || product.backPrint || product.frontPreview || product.backPreview || product.design,
+    );
 
-    const frontPreview = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
-    const backPreview = design?.backPreviewUrl || order.designBackPreviewUrl || "";
-    const frontPrint = design?.frontPrintUrl || order.designFrontPrintUrl || order.productionFileUrl || "";
-    const backPrint = design?.backPrintUrl || order.designBackPrintUrl || "";
-
-    if (!frontPreview && !backPreview && !frontPrint && !backPrint && !design) {
+    if (!hasAnyFile) {
       return json({ ok: false, error: "Yüklenecek tasarım dosyası bulunamadı" }, { status: 400 });
     }
 
@@ -231,77 +232,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       // Eski klasör ID'sini yeniden kullanmıyoruz — silinmiş olabilir, her zaman yeni oluştur
       const folderId = await ensureSubfolder(accessToken, rootId, folderName);
 
-      const orderSnapshot = {
-        id: order.id,
-        shop: order.shop,
-        shopifyOrderId: order.shopifyOrderId,
-        orderNumber: order.orderNumber,
-        customer: {
-          name: order.customerName,
-          email: order.customerEmail,
-        },
-        product: {
-          id: order.productId,
-          name: order.productName,
-          variantId: order.variantId,
-          variantTitle: order.variantTitle,
-          quantity: order.quantity,
-        },
-        designToken: order.designToken,
-        productionStatus: order.productionStatus,
-        missingSurcharge: order.missingSurcharge ?? false,
-        createdAt: order.createdAt,
-        files: {
-          frontPrint: frontPrint || null,
-          backPrint: backPrint || null,
-          frontMockup: frontPreview || null,
-          backMockup: backPreview || null,
-        },
-        exportedAt: new Date().toISOString(),
-      };
-
-      const allVariants = [
-        { variantTitle: order.variantTitle, quantity: order.quantity ?? 1 },
-        ...siblings.map((s: Order) => ({ variantTitle: s.variantTitle, quantity: s.quantity ?? 1 })),
-      ].filter((v) => v.variantTitle);
-      const totalQty = allVariants.reduce((s, v) => s + v.quantity, 0);
-      const variantRows = allVariants
-        .map((v) => `  ${(v.variantTitle || "—").padEnd(20)} × ${v.quantity}`)
-        .join("\n");
-
-      const summaryLines = [
-        `SİPARİŞ`,
-        `───────────────────────────────`,
-        `Sipariş No   : ${order.orderNumber || order.shopifyOrderId}`,
-        `Müşteri      : ${order.customerName || "—"}`,
-        `E-posta      : ${order.customerEmail || "—"}`,
-        `Ürün         : ${(order.productName || "").split(" - ")[0] || "—"}`,
-        `Durum        : ${order.productionStatus || "—"}`,
-        order.missingSurcharge ? `⚠ Baskı ücreti eksik` : "",
-        `Tarih        : ${new Date(order.createdAt).toLocaleString("tr-TR")}`,
-        `Aktarma      : ${new Date().toLocaleString("tr-TR")}`,
-        ``,
-        `BEDENLER / RENKLER`,
-        `───────────────────────────────`,
-        variantRows || "  —",
-        `───────────────────────────────`,
-        `TOPLAM ADET  : ${totalQty}`,
-      ].filter(Boolean).join("\n");
-
-      const tasks: Promise<unknown>[] = [];
-      if (frontPrint) tasks.push(uploadFromUrl(accessToken, folderId, "front-print.png", frontPrint, "image/png"));
-      if (backPrint) tasks.push(uploadFromUrl(accessToken, folderId, "back-print.png", backPrint, "image/png"));
-      if (frontPreview) tasks.push(uploadFromUrl(accessToken, folderId, "front-mockup.png", frontPreview, "image/png"));
-      if (backPreview) tasks.push(uploadFromUrl(accessToken, folderId, "back-mockup.png", backPreview, "image/png"));
-      tasks.push(uploadText(accessToken, folderId, "siparis.txt", summaryLines, "text/plain; charset=utf-8"));
-
-      await Promise.all(tasks);
+      const uploadedFiles = await uploadOrderProductsToDrive(accessToken, folderId, products);
+      await uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8");
       await setShopifyOrderDriveUpload(orderShop, order.shopifyOrderId, folderId);
 
       return json({
         ok: true,
         folderUrl: await getFolderWebUrl(folderId),
-        uploaded: tasks.length,
+        uploaded: uploadedFiles + 1,
       });
     } catch (err) {
       console.error("[google-drive] export failed", err);

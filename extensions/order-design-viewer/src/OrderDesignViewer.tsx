@@ -116,7 +116,7 @@ function OrderDesignViewer() {
   if (loading) {
     return (
       <AdminBlock title="Printlabapp">
-        <Text tone="subdued">Yükleniyor...</Text>
+        <Text>Yükleniyor...</Text>
       </AdminBlock>
     );
   }
@@ -130,16 +130,16 @@ function OrderDesignViewer() {
         {(design.frontPreviewUrl || design.backPreviewUrl) && (
           <InlineStack gap="base">
             {design.frontPreviewUrl && (
-              <BlockStack gap="tight">
-                <Text tone="subdued">Ön Yüz</Text>
+              <BlockStack gap="small">
+                <Text>Ön Yüz</Text>
                 <Box maxInlineSize={140}>
                   <Image source={design.frontPreviewUrl} alt="Ön yüz önizlemesi" />
                 </Box>
               </BlockStack>
             )}
             {design.backPreviewUrl && (
-              <BlockStack gap="tight">
-                <Text tone="subdued">Arka Yüz</Text>
+              <BlockStack gap="small">
+                <Text>Arka Yüz</Text>
                 <Box maxInlineSize={140}>
                   <Image source={design.backPreviewUrl} alt="Arka yüz önizlemesi" />
                 </Box>
@@ -151,8 +151,8 @@ function OrderDesignViewer() {
         {(design.frontPrintUrl || design.backPrintUrl) && (
           <>
             <Divider />
-            <BlockStack gap="tight">
-              <Text tone="subdued">Baskı Dosyaları</Text>
+            <BlockStack gap="small">
+              <Text>Baskı Dosyaları</Text>
               <InlineStack gap="base">
                 {design.frontPrintUrl && (
                   <Link href={downloadUrl(design.frontPrintUrl, 'on-baski.png')} target="_blank">⬇ Ön Baskı İndir</Link>

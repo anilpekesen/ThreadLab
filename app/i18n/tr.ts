@@ -283,8 +283,6 @@ const tr = {
   "products.variantRefDesc": "Ana fiyatları Shopify varyantlarından yönet. Buradaki liste, ek ücret varyantı seçiminde referans olarak kullanılır.",
   "products.save": "Kaydet",
   "products.saveError": "Kayıt sırasında bir sorun oluştu.",
-  "products.typeSettingsDesc": "Bu ürün için hangi yüzlerde çalışacağı, varsayılan yerleşim ve baskı sınırları burada belirlenir.",
-
   // Helper toggle
   "helper.show": "Bu sayfa nasıl çalışır?",
   "helper.hide": "Kapat",

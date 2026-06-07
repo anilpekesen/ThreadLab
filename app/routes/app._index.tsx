@@ -497,8 +497,8 @@ export default function Index() {
                     {detail.conversion.designs} {lang === "tr" ? "tasarım" : "designs"} · {detail.conversion.cartAdds} {lang === "tr" ? "sepete ekleme" : "cart adds"} · {detail.conversion.orders} {lang === "tr" ? "sipariş" : "orders"}
                   </Text>
                   <InlineStack gap="200">
-                    <Badge tone="info">{lang === "tr" ? "Sepete" : "To cart"} {formatPercent(detail.conversion.designToCartPercent)}</Badge>
-                    <Badge tone="success">{lang === "tr" ? "Siparişe" : "To order"} {formatPercent(detail.conversion.cartToOrderPercent)}</Badge>
+                    <Badge tone="info">{`${lang === "tr" ? "Sepete" : "To cart"} ${formatPercent(detail.conversion.designToCartPercent)}`}</Badge>
+                    <Badge tone="success">{`${lang === "tr" ? "Siparişe" : "To order"} ${formatPercent(detail.conversion.cartToOrderPercent)}`}</Badge>
                   </InlineStack>
                 </BlockStack>
               </Box>
@@ -551,7 +551,7 @@ export default function Index() {
                             <Text as="p" variant="bodyMd" fontWeight="semibold">{item.productName}</Text>
                             <Text as="p" variant="bodySm" tone="subdued">{item.quantity} {lang === "tr" ? "adet" : "units"}</Text>
                           </BlockStack>
-                          <Badge tone="info">{item.orders} {lang === "tr" ? "sipariş" : "orders"}</Badge>
+                          <Badge tone="info">{`${item.orders} ${lang === "tr" ? "sipariş" : "orders"}`}</Badge>
                         </InlineStack>
                       ))}
                     </BlockStack>
@@ -578,7 +578,7 @@ export default function Index() {
                                 : (lang === "tr" ? "Yazı şablonu" : "Text template")}
                             </Text>
                           </BlockStack>
-                          <Badge tone="success">{item.uses} {lang === "tr" ? "kullanım" : "uses"}</Badge>
+                          <Badge tone="success">{`${item.uses} ${lang === "tr" ? "kullanım" : "uses"}`}</Badge>
                         </InlineStack>
                       ))}
                     </BlockStack>

@@ -1529,11 +1529,11 @@ export default function App() {
 
     setIsCartLoading(true);
     try {
-      // Export canvas: 1x preview + 2x print quality
+      // Export canvas: 1x preview + 3x print quality
       const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(1) ?? '') : '';
       const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(1) ?? '') : '';
-      const frontPrintDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(2, true) ?? '') : '';
-      const backPrintDataUrl = backHas ? (backCanvasRef.current?.exportPng(2, true) ?? '') : '';
+      const frontPrintDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(3, true) ?? '') : '';
+      const backPrintDataUrl = backHas ? (backCanvasRef.current?.exportPng(3, true) ?? '') : '';
 
       // Upload all to server in parallel to get permanent URLs
       const [frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl] = await Promise.all([

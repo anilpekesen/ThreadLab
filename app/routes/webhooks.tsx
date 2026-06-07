@@ -3,10 +3,10 @@ import { json } from "@remix-run/node";
 import { randomBytes } from "crypto";
 import { verifyWebhookHmac } from "~/lib/shopify.server";
 import { processOrderBgRemoval } from "~/models/auto-bg-removal.server";
-import { getOrderByShopifyId, updateOrderStatus, setOrderDriveUpload, setShopifyOrderDriveUpload, claimDriveExport, getSiblingOrders } from "~/models/orders.server";
+import { getOrderByShopifyId, updateOrderStatus, setShopifyOrderDriveUpload, claimDriveExport, getSiblingOrders } from "~/models/orders.server";
 import { resetCustomerBgQuota } from "~/models/customer-bg-quota.server";
 import { resetCustomerAiQuota } from "~/models/customer-ai-quota.server";
-import { getSessionForDesignToken, getDesignByToken } from "~/models/designs.server";
+import { getSessionForDesignToken } from "~/models/designs.server";
 import { query } from "~/lib/db.server";
 import { upsertShopSubscription } from "~/models/billing.server";
 import { PLAN_NAMES } from "~/lib/plans";
@@ -16,65 +16,15 @@ import {
   getValidAccessToken,
   ensureRootFolder,
   ensureSubfolder,
-  uploadFromUrl,
   uploadText,
   getDriveFolderName,
   renameDriveFolder,
 } from "~/lib/google-drive.server";
-
-function buildOrderSummary(
-  allRows: import("~/models/orders.server").Order[],
-): string {
-  if (!allRows.length) return "";
-  const first = allRows[0];
-  const multiProduct = new Set(allRows.map((r) => (r.productName || "").split(" - ")[0])).size > 1;
-
-  const totalQty = allRows.reduce((s, r) => s + (r.quantity ?? 1), 0);
-  const hasMissingSurcharge = allRows.some((r) => r.missingSurcharge);
-
-  let variantSection: string[];
-  if (multiProduct) {
-    // Birden fazla ürün: ürün bazlı gruplama
-    const productGroups = new Map<string, { variantTitle: string; quantity: number }[]>();
-    for (const row of allRows) {
-      const pName = (row.productName || "").split(" - ")[0] || "Ürün";
-      if (!productGroups.has(pName)) productGroups.set(pName, []);
-      productGroups.get(pName)!.push({ variantTitle: row.variantTitle, quantity: row.quantity ?? 1 });
-    }
-    const lines: string[] = [];
-    let idx = 1;
-    for (const [pName, variants] of productGroups) {
-      lines.push(`  ${idx++}. ${pName}`);
-      for (const v of variants) {
-        lines.push(`     ${(v.variantTitle || "—").padEnd(18)} × ${v.quantity}`);
-      }
-    }
-    variantSection = [`ÜRÜNLER`, `───────────────────────────────`, ...lines];
-  } else {
-    // Tek ürün: varyant listesi (order detail sayfasıyla aynı format)
-    const variantRows = allRows
-      .map((r) => `  ${(r.variantTitle || "—").padEnd(20)} × ${r.quantity ?? 1}`)
-      .join("\n");
-    variantSection = [`BEDENLER / RENKLER`, `───────────────────────────────`, variantRows || "  —"];
-  }
-
-  return [
-    `SİPARİŞ`,
-    `───────────────────────────────`,
-    `Sipariş No   : ${first.orderNumber || first.shopifyOrderId}`,
-    `Müşteri      : ${first.customerName || "—"}`,
-    `E-posta      : ${first.customerEmail || "—"}`,
-    `Ürün         : ${(first.productName || "").split(" - ")[0] || "—"}`,
-    `Durum        : ${first.productionStatus || "—"}`,
-    hasMissingSurcharge ? `⚠ Baskı ücreti eksik` : "",
-    `Tarih        : ${new Date(first.createdAt).toLocaleString("tr-TR")}`,
-    `Aktarma      : ${new Date().toLocaleString("tr-TR")}`,
-    ``,
-    ...variantSection,
-    `───────────────────────────────`,
-    `TOPLAM ADET  : ${totalQty}`,
-  ].filter(Boolean).join("\n");
-}
+import {
+  buildOrderDriveSummary,
+  resolveDriveExportProducts,
+  uploadOrderProductsToDrive,
+} from "~/lib/order-drive-export.server";
 
 async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Promise<void> {
   const conn = await getDriveConnection(shop);
@@ -88,28 +38,9 @@ async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Pro
   const siblings = await getSiblingOrders(shop, shopifyOrderId, "").catch(() => []);
   const allRows = [firstOrder, ...siblings.filter((s) => s.id !== firstOrder.id)];
 
-  // Unique design_token'lar → her biri bir ürünü temsil eder
-  const productRows = Array.from(
-    new Map(allRows.filter((r) => r.designToken).map((r) => [r.designToken, r])).values()
-  );
+  const resolvedProducts = await resolveDriveExportProducts(shop, allRows);
 
-  // Design'ları bir kez çek, hem kontrol hem upload için kullan
-  const resolvedProducts = await Promise.all(
-    productRows.map(async (row) => {
-      const design = row.designToken
-        ? await getDesignByToken(row.shop || shop, row.designToken).catch(() => null)
-        : null;
-      return {
-        row,
-        fp: design?.frontPrintUrl || row.designFrontPrintUrl || row.productionFileUrl || "",
-        bp: design?.backPrintUrl || row.designBackPrintUrl || "",
-        fv: design?.frontPreviewUrl || row.designFrontPreviewUrl || row.previewUrl || "",
-        bv: design?.backPreviewUrl || row.designBackPreviewUrl || "",
-      };
-    })
-  );
-
-  const hasAnyFile = resolvedProducts.some((p) => p.fp || p.bp || p.fv || p.bv);
+  const hasAnyFile = resolvedProducts.some((p) => p.frontPrint || p.backPrint || p.frontPreview || p.backPreview);
   if (!hasAnyFile) {
     console.log(`[webhook] drive export skipped — no files for order=${firstOrder.orderNumber}`);
     return;
@@ -124,24 +55,12 @@ async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Pro
   const folderId = await ensureSubfolder(accessToken, rootId, folderName);
 
   const tasks: Promise<unknown>[] = [];
-
-  // Her ürün için dosyaları prefix'li yükle
-  const usePrefix = resolvedProducts.length > 1;
-  for (let i = 0; i < resolvedProducts.length; i++) {
-    const { fp, bp, fv, bv } = resolvedProducts[i];
-    const p = usePrefix ? `${i + 1}-` : "";
-    if (fp) tasks.push(uploadFromUrl(accessToken, folderId, `${p}front-print.png`, fp, "image/png"));
-    if (bp) tasks.push(uploadFromUrl(accessToken, folderId, `${p}back-print.png`, bp, "image/png"));
-    if (fv) tasks.push(uploadFromUrl(accessToken, folderId, `${p}front-mockup.png`, fv, "image/png"));
-    if (bv) tasks.push(uploadFromUrl(accessToken, folderId, `${p}back-mockup.png`, bv, "image/png"));
-  }
-
-  const summary = buildOrderSummary(allRows);
-  tasks.push(uploadText(accessToken, folderId, "siparis.txt", summary, "text/plain; charset=utf-8"));
+  tasks.push(uploadOrderProductsToDrive(accessToken, folderId, resolvedProducts));
+  tasks.push(uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8"));
 
   await Promise.all(tasks);
   await setShopifyOrderDriveUpload(shop, shopifyOrderId, folderId);
-  console.log(`[webhook] auto drive export: order=${firstOrder.orderNumber} products=${productRows.length} folder=${folderId}`);
+  console.log(`[webhook] auto drive export: order=${firstOrder.orderNumber} products=${resolvedProducts.length} folder=${folderId}`);
 }
 
 async function markDriveFolderCancelled(shop: string, shopifyOrderId: string): Promise<void> {
