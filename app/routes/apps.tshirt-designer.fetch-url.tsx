@@ -1,9 +1,4 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-run/node";
-import { randomBytes } from "node:crypto";
-import { writeFile } from "node:fs/promises";
-import nodePath from "node:path";
-import { getUploadsDir } from "~/lib/storage.server";
-import { uploadToR2 } from "~/lib/r2.server";
 
 const ALLOWED_IMAGE_MIME: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -11,6 +6,7 @@ const ALLOWED_IMAGE_MIME: Record<string, string> = {
   "image/webp": "webp",
   "image/gif": "gif",
 };
+const MAX_FETCHED_IMAGE_BYTES = 8 * 1024 * 1024;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ error: `Method ${request.method} not allowed` }, { status: 405 });
@@ -41,15 +37,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const contentType = (res.headers.get("content-type") || "").split(";")[0].trim();
   const ext = ALLOWED_IMAGE_MIME[contentType];
   if (!ext) return json({ error: "Desteklenmeyen resim formatı" }, { status: 422 });
+  const contentLength = Number(res.headers.get("content-length") || 0);
+  if (contentLength > MAX_FETCHED_IMAGE_BYTES) {
+    return json({ error: "Resim çok büyük" }, { status: 422 });
+  }
 
   const buffer = Buffer.from(await res.arrayBuffer());
-  const useR2 = Boolean(process.env.R2_ACCESS_KEY_ID && process.env.R2_PUBLIC_URL);
-  if (useR2) {
-    const url = await uploadToR2(buffer, ext, "uploads/url-img");
-    return json({ url });
+  if (buffer.length > MAX_FETCHED_IMAGE_BYTES) {
+    return json({ error: "Resim çok büyük" }, { status: 422 });
   }
-  const filename = `url-img-${randomBytes(12).toString("hex")}.${ext}`;
-  await writeFile(nodePath.join(getUploadsDir(), filename), buffer);
-  const appUrl = process.env.SHOPIFY_APP_URL || new URL(request.url).origin;
-  return json({ url: `${appUrl}/uploads/${filename}` });
+  return json({ url: `data:${contentType};base64,${buffer.toString("base64")}` });
 };

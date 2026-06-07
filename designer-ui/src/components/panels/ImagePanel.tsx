@@ -51,17 +51,8 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) continue;
       const dataUrl = await compressImage(file, 1800);
-      let serverUrl: string | undefined;
-      try {
-        const blob = await fetch(dataUrl).then((r) => r.blob());
-        const form = new FormData();
-        form.append('image', blob, 'user-upload.png');
-        form.append('side', 'user-upload');
-        const res = await fetch('/apps/tshirt-designer/upload', { method: 'POST', body: form });
-        if (res.ok) serverUrl = ((await res.json()) as { url?: string }).url;
-      } catch { }
-      addUploadedImage({ id: generateId(), dataUrl, serverUrl, name: file.name.replace(/\.[^.]+$/, '').slice(0, 40), addedAt: Date.now() });
-      if (!firstUrl) firstUrl = serverUrl ?? dataUrl;
+      addUploadedImage({ id: generateId(), dataUrl, name: file.name.replace(/\.[^.]+$/, '').slice(0, 40), addedAt: Date.now() });
+      if (!firstUrl) firstUrl = dataUrl;
     }
     if (fileRef.current) fileRef.current.value = '';
     if (!firstUrl) return;
@@ -721,14 +712,7 @@ function QrPanel({ onAddImage, locale }: { onAddImage: (url: string) => void; lo
     if (!preview) return;
     setAdding(true);
     try {
-      // Upload to server for a permanent URL
-      const blob = await fetch(preview).then((r) => r.blob());
-      const form = new FormData();
-      form.append('image', blob, 'qrcode.png');
-      form.append('side', 'user-upload');
-      const res = await fetch('/apps/tshirt-designer/upload', { method: 'POST', body: form });
-      const data = res.ok ? (await res.json() as { url?: string }) : {};
-      onAddImage(data.url ?? preview);
+      onAddImage(preview);
     } catch {
       onAddImage(preview);
     } finally {

@@ -4,7 +4,6 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import nodePath from "node:path";
 import { buildEmbeddedAppAdminUrl } from "~/lib/shopify-admin-url.server";
-import { getUploadsDir } from "~/lib/storage.server";
 import { handleDesignerUpload } from "~/models/uploads.server";
 import { verifyProxyHmac, liquidResponse } from "~/lib/shopify.server";
 import { findConfigForStorefront, toStorefrontSettings } from "~/models/product-config.server";
@@ -38,6 +37,7 @@ const ALLOWED_IMAGE_MIME: Record<string, string> = {
   "image/webp": "webp",
   "image/gif": "gif",
 };
+const MAX_FETCHED_IMAGE_BYTES = 8 * 1024 * 1024;
 
 async function handleFetchUrl(request: Request) {
   const body = await request.json().catch(() => null) as { url?: string } | null;
@@ -60,12 +60,16 @@ async function handleFetchUrl(request: Request) {
   const contentType = (res.headers.get("content-type") || "").split(";")[0].trim();
   const ext = ALLOWED_IMAGE_MIME[contentType];
   if (!ext) return json({ error: "Desteklenmeyen resim formatı" }, { status: 422 });
+  const contentLength = Number(res.headers.get("content-length") || 0);
+  if (contentLength > MAX_FETCHED_IMAGE_BYTES) {
+    return json({ error: "Resim çok büyük" }, { status: 422 });
+  }
 
   const buffer = Buffer.from(await res.arrayBuffer());
-  const filename = `url-img-${randomBytes(12).toString("hex")}.${ext}`;
-  await writeFile(nodePath.join(getUploadsDir(), filename), buffer);
-  const appUrl = process.env.SHOPIFY_APP_URL || new URL(request.url).origin;
-  return json({ url: `${appUrl}/uploads/${filename}` });
+  if (buffer.length > MAX_FETCHED_IMAGE_BYTES) {
+    return json({ error: "Resim çok büyük" }, { status: 422 });
+  }
+  return json({ url: `data:${contentType};base64,${buffer.toString("base64")}` });
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {

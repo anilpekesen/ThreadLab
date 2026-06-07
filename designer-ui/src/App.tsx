@@ -1436,8 +1436,6 @@ export default function App() {
 
       // Arka plan zaten kaldırılmışsa API'ye gönderme
       if (await imageHasTransparentBg(blob)) {
-        const serverUrl = await uploadBlob(blob, 'user-upload');
-        if (serverUrl) return serverUrl;
         return await new Promise<string>((resolve) => {
           const reader = new FileReader();
           reader.onload = (e) => resolve(e.target?.result as string);
@@ -1465,9 +1463,7 @@ export default function App() {
         showToast(`⚠️ ${remaining} background removal use left — resets after your next order`, 'warning');
       }
       const blob2 = await res.blob();
-      const serverUrl = await uploadBlob(blob2, 'user-upload');
       trackDesignActivity('background_removed');
-      if (serverUrl) return serverUrl;
       return new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target?.result as string);
@@ -1745,9 +1741,7 @@ export default function App() {
       const origH = selectedImage.getScaledHeight();
       const normalizedRect = normalizeCropRect(rect);
       const croppedDataUrl = await cropImageDataUrl(state.src, normalizedRect);
-      const blob = await fetch(croppedDataUrl).then((r) => r.blob());
-      const serverUrl = await uploadBlob(blob, 'cropped-image');
-      const finalUrl = serverUrl ?? croppedDataUrl;
+      const finalUrl = croppedDataUrl;
       addUploadedImage({ id: generateId(), dataUrl: finalUrl, serverUrl: finalUrl, name: t.croppedLabel, addedAt: Date.now() });
       // Target visual size = original size × crop fraction (prevents stretching)
       await applyUrlToImageObject(selectedImage, finalUrl, {
