@@ -64,7 +64,7 @@ export async function handleDesignerUpload(request: Request) {
   // Print dosyaları için PNG optimizasyonu (lossless, daha küçük dosya)
   if (ext === "png") {
     try {
-      buffer = Buffer.from(await sharp(buffer).png({ compressionLevel: 9, effort: 10 }).toBuffer());
+      buffer = Buffer.from(await sharp(buffer).png({ compressionLevel: 6 }).toBuffer());
     } catch { /* optimizasyon başarısız olursa orijinali kullan */ }
   }
 

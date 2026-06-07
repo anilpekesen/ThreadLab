@@ -1332,7 +1332,10 @@ export default function App() {
       [`${side}Json`]: nextJson,
     } as typeof canvasState;
     setCanvasJson(side, nextJson);
-    if (productCanvasKey) writeStoredCanvasState(productCanvasKey, nextState);
+    // Sadece restore tamamlandıktan sonra yaz — init sırasında boş canvas ile üzerine yazma
+    if (productCanvasKey && restoredCanvasRef.current === productCanvasKey) {
+      writeStoredCanvasState(productCanvasKey, nextState);
+    }
     setCanvasRevisions((prev) => ({ ...prev, [side]: prev[side] + 1 }));
     window.setTimeout(() => {
       const png = getCanvasHandle(side)?.exportPng(0.35) ?? '';
@@ -1567,12 +1570,13 @@ export default function App() {
       // Export canvas: 1x preview + 3x print quality
       const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(1) ?? '') : '';
       const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(1) ?? '') : '';
-      // Print dosyasını gerçek mm boyutlarında 300 DPI export et
+      // Print dosyasını gerçek mm boyutlarında 200 DPI export et
+      // (300 DPI dosyalar çok büyük olup upload'u yavaşlatır; 200 DPI baskı için yeterli)
       const frontPrintDataUrl = frontHas
-        ? (frontCanvasRef.current?.exportPrintFile(personalization.printAreas.front, 300) ?? '')
+        ? (frontCanvasRef.current?.exportPrintFile(personalization.printAreas.front, 200) ?? '')
         : '';
       const backPrintDataUrl = backHas
-        ? (backCanvasRef.current?.exportPrintFile(personalization.printAreas.back, 300) ?? '')
+        ? (backCanvasRef.current?.exportPrintFile(personalization.printAreas.back, 200) ?? '')
         : '';
       const designSourceCache = new Map<string, Promise<string>>();
       const frontDesignJson = frontCanvasRef.current?.saveDesign() ?? '';
