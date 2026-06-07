@@ -140,8 +140,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (!hasAnyFile) { failed++; errors.push(`#${shopifyOrderId}: yüklenecek dosya yok`); continue; }
 
         const folderName = (order.orderNumber || shopifyOrderId).replace(/^#/, "");
-        const existingFolderId = order.driveFolderId && order.driveFolderId !== "pending" ? order.driveFolderId : "";
-        const folderId = existingFolderId || await ensureSubfolder(accessToken, rootId, folderName);
+        const folderId = await ensureSubfolder(accessToken, rootId, folderName);
 
         await uploadOrderProductsToDrive(accessToken, folderId, products);
         await uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8");
