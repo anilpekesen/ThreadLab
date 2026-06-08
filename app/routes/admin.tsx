@@ -63,11 +63,39 @@ async function ensurePartnerSchema() {
     CREATE UNIQUE INDEX IF NOT EXISTS partner_shop_assignments_shop_unique
       ON partner_shop_assignments (shop)
   `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS partner_assignment_requests (
+      id TEXT PRIMARY KEY,
+      partner_id TEXT NOT NULL REFERENCES partners(id) ON DELETE CASCADE,
+      shop TEXT NOT NULL,
+      message TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      reviewed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS partner_assignment_requests_pending_unique
+      ON partner_assignment_requests (partner_id, shop)
+      WHERE status = 'pending'
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS partner_assignment_requests_status_idx
+      ON partner_assignment_requests (status, created_at DESC)
+  `);
   partnerSchemaReady = true;
 }
 
 function newId(prefix: string) {
   return `${prefix}_${randomBytes(8).toString("hex")}`;
+}
+
+function normalizeShopInput(value: string) {
+  let shop = value.trim().toLowerCase();
+  shop = shop.replace(/^https?:\/\//, "").split("/")[0].split("?")[0];
+  if (shop && !shop.includes(".")) shop = `${shop}.myshopify.com`;
+  return shop;
 }
 
 function hashPassword(password: string) {
@@ -125,6 +153,19 @@ interface PartnerAssignment {
   partner_email: string;
   partner_name: string;
   commission_rate: string;
+}
+
+interface PartnerAssignmentRequest {
+  id: string;
+  partner_id: string;
+  partner_email: string;
+  partner_name: string;
+  shop: string;
+  message: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  reviewed_at: string | null;
 }
 
 interface PartnerCommissionSummary {
@@ -313,6 +354,35 @@ async function getPartnerAssignments(partnerId?: string) {
   return result.rows;
 }
 
+async function getPartnerAssignmentRequests(partnerId?: string) {
+  await ensurePartnerSchema();
+  const params: string[] = [];
+  const where = partnerId ? "WHERE par.partner_id = $1" : "";
+  if (partnerId) params.push(partnerId);
+  const result = await query<PartnerAssignmentRequest>(
+    `SELECT
+       par.id,
+       par.partner_id,
+       p.email as partner_email,
+       p.name as partner_name,
+       par.shop,
+       par.message,
+       par.status,
+       par.created_at,
+       par.updated_at,
+       par.reviewed_at
+     FROM partner_assignment_requests par
+     JOIN partners p ON p.id = par.partner_id
+     ${where}
+     ORDER BY
+       CASE par.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,
+       par.created_at DESC
+     LIMIT 200`,
+    params,
+  );
+  return result.rows;
+}
+
 async function getPartnersData(shops: ShopRow[]) {
   await ensurePartnerSchema();
   const [partnersResult, assignments] = await Promise.all([
@@ -445,7 +515,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shops: [] as ShopRow[], globalStats: null,
       aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "",
       tickets: [] as TicketRow[], openCount: 0, supportStatus: "all", supportSearch: "",
-      partners: [], assignments: [], currentPartner: null, partnerSummary: null,
+      partners: [], assignments: [], partnerRequests: [], currentPartner: null, partnerSummary: null,
     });
   }
 
@@ -455,7 +525,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const filterShop = url.searchParams.get("shop") ?? "";
 
   if (partner) {
-    const [allShops, assignments] = await Promise.all([getShopsData(), getPartnerAssignments(partner.id)]);
+    const [allShops, assignments, partnerRequests] = await Promise.all([
+      getShopsData(),
+      getPartnerAssignments(partner.id),
+      getPartnerAssignmentRequests(partner.id),
+    ]);
     const assigned = new Set(assignments.map((a) => a.shop));
     const shops = allShops.filter((shop) => assigned.has(shop.shop));
     return json({
@@ -474,6 +548,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       supportSearch: "",
       partners: [],
       assignments,
+      partnerRequests,
       currentPartner: publicPartner(partner),
       partnerSummary: commissionSummary(shops, num(partner.commission_rate)),
     });
@@ -488,7 +563,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json({
       authed: true, role: "admin" as const, tab, shops: [] as ShopRow[], globalStats, aiLogs, aiLogsCount, aiLogsPage: page, filterShop,
       tickets: [] as TicketRow[], openCount: 0, supportStatus: "all", supportSearch: "",
-      partners: [], assignments: [], currentPartner: null, partnerSummary: null,
+      partners: [], assignments: [], partnerRequests: [], currentPartner: null, partnerSummary: null,
     });
   }
 
@@ -520,12 +595,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       authed: true, role: "admin" as const, tab, shops: [] as ShopRow[], globalStats,
       aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "",
       tickets, openCount, supportStatus, supportSearch,
-      partners: [], assignments: [], currentPartner: null, partnerSummary: null,
+      partners: [], assignments: [], partnerRequests: [], currentPartner: null, partnerSummary: null,
     });
   }
 
   const [shops, globalStats] = await Promise.all([getShopsData(), getGlobalStats()]);
   const { partners, assignments } = await getPartnersData(shops);
+  const partnerRequests = await getPartnerAssignmentRequests();
   return json({
     authed: true,
     role: "admin" as const,
@@ -542,6 +618,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     supportSearch: "",
     partners: partners.map(publicPartner),
     assignments,
+    partnerRequests,
     currentPartner: null,
     partnerSummary: null,
   });
@@ -642,6 +719,81 @@ export const action = async ({ request }: ActionFunctionArgs) => {
            VALUES ($1, $2)
            ON CONFLICT (partner_id, shop) DO NOTHING`,
           [partnerId, shop],
+        );
+      }
+    }
+    return redirect("/admin?tab=partners");
+  }
+
+  if (intent === "requestAssignment") {
+    const partner = await getPartnerFromRequest(request);
+    if (!partner) return redirect("/admin");
+    await ensurePartnerSchema();
+    const shop = normalizeShopInput(String(form.get("shop") ?? ""));
+    const message = String(form.get("message") ?? "").trim().slice(0, 500);
+    if (shop) {
+      const existingAssignment = await query(
+        `SELECT 1 FROM partner_shop_assignments WHERE partner_id = $1 AND shop = $2 LIMIT 1`,
+        [partner.id, shop],
+      );
+      if (existingAssignment.rowCount === 0) {
+        await query(
+          `INSERT INTO partner_assignment_requests (id, partner_id, shop, message)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (partner_id, shop) WHERE status = 'pending'
+           DO UPDATE SET message = EXCLUDED.message, updated_at = now()`,
+          [newId("partner_req"), partner.id, shop, message],
+        );
+      }
+    }
+    return redirect("/admin?tab=shops");
+  }
+
+  if (intent === "reviewAssignmentRequest") {
+    if (!isAuthed(request)) return redirect("/admin");
+    await ensurePartnerSchema();
+    const requestId = String(form.get("requestId") ?? "");
+    const decision = String(form.get("decision") ?? "");
+    const result = await query<PartnerAssignmentRequest>(
+      `SELECT
+         par.id,
+         par.partner_id,
+         p.email as partner_email,
+         p.name as partner_name,
+         par.shop,
+         par.message,
+         par.status,
+         par.created_at,
+         par.updated_at,
+         par.reviewed_at
+       FROM partner_assignment_requests par
+       JOIN partners p ON p.id = par.partner_id
+       WHERE par.id = $1 AND par.status = 'pending'
+       LIMIT 1`,
+      [requestId],
+    );
+    const pendingRequest = result.rows[0];
+    if (pendingRequest) {
+      if (decision === "approve") {
+        await query(`DELETE FROM partner_shop_assignments WHERE shop = $1`, [pendingRequest.shop]);
+        await query(
+          `INSERT INTO partner_shop_assignments (partner_id, shop)
+           VALUES ($1, $2)
+           ON CONFLICT (partner_id, shop) DO NOTHING`,
+          [pendingRequest.partner_id, pendingRequest.shop],
+        );
+        await query(
+          `UPDATE partner_assignment_requests
+           SET status = 'approved', reviewed_at = now(), updated_at = now()
+           WHERE id = $1`,
+          [pendingRequest.id],
+        );
+      } else if (decision === "reject") {
+        await query(
+          `UPDATE partner_assignment_requests
+           SET status = 'rejected', reviewed_at = now(), updated_at = now()
+           WHERE id = $1`,
+          [pendingRequest.id],
         );
       }
     }
@@ -873,7 +1025,25 @@ function moneyUsd(value: number | string) {
   return `$${num(value).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function ShopsTab({ shops, readOnly = false, partnerSummary }: { shops: ShopRow[]; readOnly?: boolean; partnerSummary?: PartnerCommissionSummary | null }) {
+function requestStatusLabel(status: string) {
+  return ({ pending: "Bekliyor", approved: "Onaylandı", rejected: "Reddedildi" } as Record<string, string>)[status] ?? status;
+}
+
+function requestStatusColor(status: string) {
+  return ({ pending: "#f59e0b", approved: "#10b981", rejected: "#ef4444" } as Record<string, string>)[status] ?? "#6b7280";
+}
+
+function ShopsTab({
+  shops,
+  readOnly = false,
+  partnerSummary,
+  partnerRequests = [],
+}: {
+  shops: ShopRow[];
+  readOnly?: boolean;
+  partnerSummary?: PartnerCommissionSummary | null;
+  partnerRequests?: PartnerAssignmentRequest[];
+}) {
   const [bonusShop, setBonusShop] = React.useState<string | null>(null);
   const rankedShops = React.useMemo(
     () => [...shops].sort((a, b) => shopPerformanceScore(b) - shopPerformanceScore(a) || b.today_purchased_users - a.today_purchased_users || b.total_orders - a.total_orders),
@@ -896,6 +1066,40 @@ function ShopsTab({ shops, readOnly = false, partnerSummary }: { shops: ShopRow[
           <DetailMetric label="Aylık paket tutarı" value={moneyUsd(partnerSummary.monthlyPlanRevenue)} tone="good" />
           <DetailMetric label="Aylık komisyon" value={moneyUsd(partnerSummary.monthlyCommission)} tone="good" />
         </div>
+      )}
+
+      {readOnly && (
+        <section style={{ ...css.card, padding: 16, display: "grid", gap: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>Mağaza atama isteği</h2>
+              <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>Admin onayladığında mağaza bu panele ve komisyon hesabına eklenir.</p>
+            </div>
+            <span style={{ color: "#64748b", fontSize: 12 }}>{partnerRequests.filter((r) => r.status === "pending").length} bekleyen</span>
+          </div>
+          <form method="post" action="/admin" style={{ display: "grid", gridTemplateColumns: "minmax(220px,0.7fr) minmax(260px,1fr) auto", gap: 10, alignItems: "center" }}>
+            <input type="hidden" name="intent" value="requestAssignment" />
+            <input name="shop" placeholder="ornek-magaza veya ornek.myshopify.com" required style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+            <input name="message" placeholder="Not (opsiyonel)" maxLength={500} style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+            <button type="submit" style={{ background: "#0ea5e9", border: "none", borderRadius: 6, padding: "8px 14px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+              İstek gönder
+            </button>
+          </form>
+          {partnerRequests.length > 0 && (
+            <div style={{ display: "grid", gap: 6 }}>
+              {partnerRequests.slice(0, 6).map((request) => (
+                <div key={request.id} style={{ display: "grid", gridTemplateColumns: "minmax(180px,1fr) 100px 130px", gap: 10, alignItems: "center", background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "9px 12px" }}>
+                  <span>
+                    <span style={{ display: "block", color: "#f1f5f9", fontWeight: 700 }}>{shopHandle(request.shop)}</span>
+                    {request.message && <span style={{ display: "block", color: "#64748b", fontSize: 12, marginTop: 2 }}>{request.message}</span>}
+                  </span>
+                  <span style={css.badge(requestStatusColor(request.status))}>{requestStatusLabel(request.status)}</span>
+                  <span style={{ color: "#64748b", fontSize: 12, textAlign: "right" }}>{new Date(request.created_at).toLocaleDateString("tr-TR")}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {best && (
@@ -1069,22 +1273,97 @@ function ShopsTab({ shops, readOnly = false, partnerSummary }: { shops: ShopRow[
   );
 }
 
-function PartnersTab({ partners, shops, assignments }: { partners: PartnerView[]; shops: ShopRow[]; assignments: PartnerAssignment[] }) {
+function PartnersTab({
+  partners,
+  shops,
+  assignments,
+  requests,
+}: {
+  partners: PartnerView[];
+  shops: ShopRow[];
+  assignments: PartnerAssignment[];
+  requests: PartnerAssignmentRequest[];
+}) {
   const assignmentByShop = React.useMemo(() => {
     const map = new Map<string, PartnerAssignment>();
     assignments.forEach((assignment) => map.set(assignment.shop, assignment));
     return map;
   }, [assignments]);
   const activeCommission = partners.reduce((sum, partner) => sum + num(partner.monthly_commission), 0);
+  const pendingRequests = requests.filter((request) => request.status === "pending");
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
         <DetailMetric label="Partner" value={partners.length} />
         <DetailMetric label="Atanmış mağaza" value={assignments.length} />
+        <DetailMetric label="Bekleyen istek" value={pendingRequests.length} tone={pendingRequests.length ? "warn" : undefined} />
         <DetailMetric label="Aktif komisyon" value={moneyUsd(activeCommission)} tone="good" />
-        <DetailMetric label="Atanmamış mağaza" value={Math.max(0, shops.length - assignments.length)} />
       </div>
+
+      <section style={css.card}>
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid #334155", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+          <div>
+            <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>Atama istekleri</h2>
+            <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>Partnerin gönderdiği mağaza taleplerini buradan onaylayın.</p>
+          </div>
+          <span style={{ color: "#64748b", fontSize: 12 }}>{requests.length} kayıt</span>
+        </div>
+        <table style={css.table}>
+          <thead>
+            <tr>
+              {["Partner", "Mağaza", "Not", "Durum", "Tarih", "Aksiyon"].map((h) => (
+                <th key={h} style={css.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {requests.length === 0 && (
+              <tr><td colSpan={6} style={{ ...css.td, textAlign: "center", color: "#64748b", padding: 28 }}>Atama isteği yok</td></tr>
+            )}
+            {requests.map((request) => {
+              const knownShop = shops.some((shop) => shop.shop === request.shop);
+              return (
+                <tr key={request.id}>
+                  <td style={css.td}>
+                    <div style={{ color: "#f1f5f9", fontWeight: 800 }}>{request.partner_name || request.partner_email}</div>
+                    <div style={{ color: "#64748b", fontSize: 12 }}>{request.partner_email}</div>
+                  </td>
+                  <td style={css.td}>
+                    <div style={{ color: "#f1f5f9", fontWeight: 800 }}>{shopHandle(request.shop)}</div>
+                    <div style={{ color: knownShop ? "#64748b" : "#f59e0b", fontSize: 12 }}>{knownShop ? request.shop : "Mağaza listesinde bulunamadı"}</div>
+                  </td>
+                  <td style={{ ...css.td, maxWidth: 280, color: request.message ? "#cbd5e1" : "#64748b" }}>{request.message || "Not yok"}</td>
+                  <td style={css.td}><span style={css.badge(requestStatusColor(request.status))}>{requestStatusLabel(request.status)}</span></td>
+                  <td style={{ ...css.td, color: "#64748b", fontSize: 12, whiteSpace: "nowrap" }}>{new Date(request.created_at).toLocaleString("tr-TR")}</td>
+                  <td style={css.td}>
+                    {request.status === "pending" ? (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <form method="post" action="/admin">
+                          <input type="hidden" name="intent" value="reviewAssignmentRequest" />
+                          <input type="hidden" name="requestId" value={request.id} />
+                          <input type="hidden" name="decision" value="approve" />
+                          <button type="submit" disabled={!knownShop} title={knownShop ? "Mağazayı partnere ata" : "Önce mağaza uygulamada kayıtlı olmalı"} style={{ ...css.btn, background: knownShop ? "#10b981" : "#334155", color: "#fff", opacity: knownShop ? 1 : 0.55, cursor: knownShop ? "pointer" : "not-allowed" }}>
+                            Onayla
+                          </button>
+                        </form>
+                        <form method="post" action="/admin">
+                          <input type="hidden" name="intent" value="reviewAssignmentRequest" />
+                          <input type="hidden" name="requestId" value={request.id} />
+                          <input type="hidden" name="decision" value="reject" />
+                          <button type="submit" style={{ ...css.btn, background: "#334155" }}>Reddet</button>
+                        </form>
+                      </div>
+                    ) : (
+                      <span style={{ color: "#64748b", fontSize: 12 }}>{request.reviewed_at ? new Date(request.reviewed_at).toLocaleDateString("tr-TR") : "-"}</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(320px,0.8fr) minmax(520px,1.2fr)", gap: 16, alignItems: "start" }}>
         <section style={{ ...css.card, padding: 16 }}>
@@ -1539,12 +1818,20 @@ export default function Admin() {
           </div>
         )}
 
-        {data.tab === "shops" && <ShopsTab shops={data.shops as ShopRow[]} readOnly={!isAdmin} partnerSummary={data.partnerSummary as PartnerCommissionSummary | null} />}
+        {data.tab === "shops" && (
+          <ShopsTab
+            shops={data.shops as ShopRow[]}
+            readOnly={!isAdmin}
+            partnerSummary={data.partnerSummary as PartnerCommissionSummary | null}
+            partnerRequests={data.partnerRequests as PartnerAssignmentRequest[]}
+          />
+        )}
         {isAdmin && data.tab === "partners" && (
           <PartnersTab
             partners={data.partners as PartnerView[]}
             shops={data.shops as ShopRow[]}
             assignments={data.assignments as PartnerAssignment[]}
+            requests={data.partnerRequests as PartnerAssignmentRequest[]}
           />
         )}
         {isAdmin && data.tab === "ai-logs" && (

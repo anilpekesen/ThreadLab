@@ -121,6 +121,27 @@ async function _runMigrationsLocked() {
       ON partner_shop_assignments (shop)
   `);
   await query(`
+    CREATE TABLE IF NOT EXISTS partner_assignment_requests (
+      id TEXT PRIMARY KEY,
+      partner_id TEXT NOT NULL REFERENCES partners(id) ON DELETE CASCADE,
+      shop TEXT NOT NULL,
+      message TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      reviewed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS partner_assignment_requests_pending_unique
+      ON partner_assignment_requests (partner_id, shop)
+      WHERE status = 'pending'
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS partner_assignment_requests_status_idx
+      ON partner_assignment_requests (status, created_at DESC)
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS shop_templates (
       id         TEXT PRIMARY KEY,
       shop       TEXT NOT NULL,
