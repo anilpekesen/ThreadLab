@@ -1398,12 +1398,23 @@ export default function App() {
     syncLayers();
   }, [syncLayers, updateToolbarPosition]);
 
-  const handleAddImage = (url: string, template?: import('@/types').ShopTemplate) => {
+  const handleAddImage = async (url: string, template?: import('@/types').ShopTemplate) => {
+    let finalUrl = url;
+    // Data URL (base64) ise önce sunucuya yükle — canvas'ta base64 tutmak
+    // saveDesign JSON'ını şişirir ve localStorage kotasını aşar (tasarım uçar).
+    if (url.startsWith('data:')) {
+      setIsBgRemoving(true);
+      try {
+        const serverUrl = await dataUrlToServerUrl(url, 'user-upload');
+        if (serverUrl && !serverUrl.startsWith('data:')) finalUrl = serverUrl;
+      } catch { /* yükleme başarısızsa data URL ile devam et */ }
+      setIsBgRemoving(false);
+    }
     const canvasHandle = getActiveCanvasHandle();
     const cv = canvasHandle?.getCanvas();
     setInteractionMode('selection');
     if (cv) cv.selection = true;
-    canvasHandle?.addImageFromUrl(url);
+    canvasHandle?.addImageFromUrl(finalUrl);
     trackDesignActivity(template ? 'shop_template' : 'image');
     if (template) {
       trackDesignerEvent({
