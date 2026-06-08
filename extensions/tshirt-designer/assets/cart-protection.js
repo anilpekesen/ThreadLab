@@ -158,6 +158,19 @@
     return { front: front, back: back };
   }
 
+  function designDetailUrlForItem(item) {
+    var props = item.properties || {};
+    var url = firstValue(props, ['_design_detail_url', 'Tasarım Detayı', 'Müşteri Tasarım Linki']);
+    if (url) return url;
+
+    var token = firstValue(props, ['_design_token', 'design_token']);
+    if (!token) return '';
+
+    var shop = (window.Shopify && window.Shopify.shop) || window.location.hostname;
+    if (!shop) return '';
+    return 'https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=' + encodeURIComponent(shop) + '&token=' + encodeURIComponent(token);
+  }
+
   function rowForLine(item, line) {
     var key = item.key ? cssEscape(item.key) : '';
     var selectors = [
@@ -189,6 +202,8 @@
     style.id = 'printlab-cart-design-preview-style';
     style.textContent = [
       '.printlab-cart-design-preview{display:grid;gap:8px;margin-top:10px;max-width:156px}',
+      '.printlab-cart-design-preview__link{display:inline-flex;align-items:center;justify-content:center;width:max-content;max-width:100%;padding:7px 10px;border:1px solid rgba(37,99,235,.20);border-radius:8px;background:rgba(37,99,235,.06);color:#1d4ed8!important;font-size:12px;line-height:1.2;font-weight:700;text-decoration:none!important}',
+      '.printlab-cart-design-preview__link:hover{background:rgba(37,99,235,.10);border-color:rgba(37,99,235,.34);text-decoration:none!important}',
       '.printlab-cart-design-preview__item{display:grid;gap:4px}',
       '.printlab-cart-design-preview__label{font-size:11px;line-height:1.2;font-weight:700;color:rgba(17,24,39,.72)}',
       '.printlab-cart-design-preview__trigger{display:block;width:100%;padding:0;border:0;background:transparent;cursor:zoom-in;text-align:left}',
@@ -287,7 +302,8 @@
     _cartItems.forEach(function (item, idx) {
       if (isSurcharge(item)) return;
       var urls = previewUrlsForItem(item);
-      if (!urls.front && !urls.back) return;
+      var designDetailUrl = designDetailUrlForItem(item);
+      if (!urls.front && !urls.back && !designDetailUrl) return;
 
       var row = rowForLine(item, idx + 1);
       if (!row) return;
@@ -298,6 +314,16 @@
       var wrap = document.createElement('div');
       wrap.className = 'printlab-cart-design-preview';
       wrap.setAttribute('aria-label', 'Tasarım önizlemesi');
+
+      if (designDetailUrl) {
+        var designLink = document.createElement('a');
+        designLink.className = 'printlab-cart-design-preview__link';
+        designLink.href = designDetailUrl;
+        designLink.target = '_blank';
+        designLink.rel = 'noopener';
+        designLink.textContent = 'Müşteri Tasarım Linki';
+        wrap.appendChild(designLink);
+      }
 
       [
         { label: 'Ön tasarım', url: urls.front },
