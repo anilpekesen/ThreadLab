@@ -1,0 +1,16 @@
+# Learn more about configuring your checkout UI extension:
+# https://shopify.dev/docs/api/checkout-ui-extensions/latest/configuration
+
+# The version of APIs your extension will receive. Learn more:
+# https://shopify.dev/docs/api/usage/versioning
+api_version = "2026-04"
+
+[[extensions]]
+name = "checkout-design-link"
+handle = "checkout-design-link"
+type = "ui_extension"
+uid = "6dcf454d-4dfc-ca47-4fb2-df538ddd6f53ac87b0e0"
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.cart-line-item.render-after"

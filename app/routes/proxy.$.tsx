@@ -266,52 +266,10 @@ function myOrderEsc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-const MY_ORDER_CSS_COLORS: Record<string, string> = {
-  black:"#000000",white:"#ffffff",red:"#ff0000",green:"#008000",blue:"#0000ff",
-  yellow:"#ffff00",orange:"#ffa500",purple:"#800080",pink:"#ffc0cb",gray:"#808080",
-  grey:"#808080",cyan:"#00ffff",magenta:"#ff00ff",lime:"#00ff00",navy:"#000080",
-  teal:"#008080",maroon:"#800000",olive:"#808000",silver:"#c0c0c0",brown:"#a52a2a",transparent:"#ffffff",
-};
-function myOrderToHex(color?: string): string {
-  if (!color) return "#000000";
-  const c = color.trim().toLowerCase();
-  if (c.startsWith("#")) return color.toLowerCase();
-  if (MY_ORDER_CSS_COLORS[c]) return MY_ORDER_CSS_COLORS[c];
-  const rgb = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-  if (rgb) return "#" + [rgb[1], rgb[2], rgb[3]].map((n) => parseInt(n).toString(16).padStart(2,"0")).join("");
-  return color;
-}
-function myOrderIsDark(color?: string): boolean {
-  const hex = myOrderToHex(color).replace("#","");
-  if (hex.length < 6) return true;
-  return (parseInt(hex.slice(0,2),16)*299 + parseInt(hex.slice(2,4),16)*587 + parseInt(hex.slice(4,6),16)*114)/1000 < 128;
-}
-
-function myOrderRenderObject(obj: ReturnType<typeof extractObjects>[number]) {
-  const isText = obj.type === "i-text" || obj.type === "textbox";
-  const isImage = obj.type === "image";
-  const label = isImage ? "Görsel" : isText ? "Metin" : obj.type;
-  const dark = myOrderIsDark(obj.fill);
-  return `<div class="obj-card">
-    ${isImage && obj.src ? `<img class="obj-img" src="${myOrderEsc(obj.src)}" alt="Eklenen görsel" />` : ""}
-    ${isText ? `<div class="color-swatch" style="background:${myOrderEsc(myOrderToHex(obj.fill))}"><span style="color:${dark?"#fff":"#000"};font-family:${myOrderEsc(obj.fontFamily??"sans-serif")}">${myOrderEsc(obj.text?.charAt(0)??"A")}</span></div>` : ""}
-    <div style="flex:1;min-width:0">
-      <div class="obj-label">${label}</div>
-      ${isText && obj.text ? `<div class="obj-text">"${myOrderEsc(obj.text)}"</div>` : ""}
-      <div class="meta-row">
-        ${isText && obj.fontFamily ? `<span class="meta">Font: <strong>${myOrderEsc(obj.fontFamily)}</strong></span>` : ""}
-        ${isText && obj.fontSize ? `<span class="meta">Boyut: <strong>${obj.fontSize}px</strong></span>` : ""}
-        ${isImage && obj.src ? `<a class="download-link" href="${myOrderEsc(obj.src)}" download target="_blank" rel="noopener">Görseli İndir</a>` : ""}
-      </div>
-    </div>
-  </div>`;
-}
-
 function myOrderRenderSide(
   title: string,
   previewUrl: string | undefined,
   printUrl: string | undefined,
-  objects: ReturnType<typeof extractObjects>,
 ) {
   return `<div class="card">
     <div class="card-header"><h2>${title}</h2></div>
@@ -321,7 +279,6 @@ function myOrderRenderSide(
         ${printUrl ? `<a class="btn btn-primary" href="${myOrderEsc(printUrl)}" download target="_blank" rel="noopener">⬇ Baskı Dosyasını İndir (Yüksek Kalite)</a>` : ""}
         ${previewUrl ? `<a class="btn btn-secondary" href="${myOrderEsc(previewUrl)}" download target="_blank" rel="noopener">⬇ Önizlemeyi İndir</a>` : ""}
       </div>
-      ${objects.length > 0 ? `<div class="section-title">Tasarım Öğeleri</div>${objects.map(myOrderRenderObject).join("")}` : ""}
     </div>
   </div>`;
 }
@@ -377,8 +334,8 @@ function myOrderRenderPage(
   </div>
   <div class="container">
     <div class="grid">
-      ${hasFront ? myOrderRenderSide("Ön Yüz", design.frontPreviewUrl, design.frontPrintUrl, frontObjs) : ""}
-      ${hasBack  ? myOrderRenderSide("Arka Yüz", design.backPreviewUrl, design.backPrintUrl, backObjs) : ""}
+      ${hasFront ? myOrderRenderSide("Ön Yüz", design.frontPreviewUrl, design.frontPrintUrl) : ""}
+      ${hasBack  ? myOrderRenderSide("Arka Yüz", design.backPreviewUrl, design.backPrintUrl) : ""}
       ${!hasFront && !hasBack ? `<div class="card" style="grid-column:1/-1"><div class="card-body"><div class="no-preview">Tasarım verisi bulunamadı.</div></div></div>` : ""}
     </div>
   </div>

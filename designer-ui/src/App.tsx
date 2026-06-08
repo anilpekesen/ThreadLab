@@ -1672,20 +1672,18 @@ export default function App() {
         'Tişört ara toplamı': formatMoney(pricingSummary.baseSubtotal),
         'Toplam fiyat': formatMoney(pricingSummary.total),
       };
-      if (customerDesignUrl) properties['Tasarım Detayı'] = customerDesignUrl;
+      if (customerDesignUrl) properties['_design_detail_url'] = customerDesignUrl;
       if (frontPreviewUrl) properties['_front_preview_url'] = frontPreviewUrl;
       if (backPreviewUrl) properties['_back_preview_url'] = backPreviewUrl;
       if (frontPrintUrl) properties['_front_print_url'] = frontPrintUrl;
       if (backPrintUrl) properties['_back_print_url'] = backPrintUrl;
     if (resolvedSide !== 'front') properties['Arka Tasarım'] = backHas ? 'Var' : 'Yok';
       if (pricingSummary.front.hasContent) {
-        properties['Ön öğe sayısı'] = String(pricingSummary.front.metrics.objectCount);
         properties['Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
         properties['Ön alan fiyatı'] = formatMoney(pricingSummary.front.surcharge);
       properties['Ön fiyat bandı'] = pricingSummary.front.band.label;
     }
     if (pricingSummary.back.hasContent) {
-      properties['Arka öğe sayısı'] = String(pricingSummary.back.metrics.objectCount);
       properties['Arka ölçü'] = formatMetricSize(pricingSummary.back.metrics);
         properties['Arka alan fiyatı'] = formatMoney(pricingSummary.back.surcharge);
         properties['Arka fiyat bandı'] = pricingSummary.back.band.label;

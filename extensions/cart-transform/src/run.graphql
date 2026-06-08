@@ -27,6 +27,7 @@ query RunInput {
       a18: attribute(key: "Toplu alım indirimi") { value }
       a19: attribute(key: "Baskı indirimi") { value }
       a20: attribute(key: "Tasarım Detayı") { value }
+      a20Hidden: attribute(key: "_design_detail_url") { value }
       merchandise {
         ... on ProductVariant { id }
       }

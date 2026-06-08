@@ -16,7 +16,6 @@ const PROP_KEYS = [
   ['a17', 'Arka fiyat bandı'],
   ['a18', 'Toplu alım indirimi'],
   ['a19', 'Baskı indirimi'],
-  ['a20', 'Tasarım Detayı'],
 ];
 
 export function run(input) {
@@ -37,6 +36,8 @@ export function run(input) {
     const baseAttrs = [{ key: '_design_role', value: 'base_expanded' }];
     const designToken = line.a05Hidden?.value ?? line.a05?.value;
     if (designToken) baseAttrs.push({ key: '_design_token', value: designToken });
+    const designDetailUrl = line.a20Hidden?.value ?? line.a20?.value;
+    if (designDetailUrl) baseAttrs.push({ key: '_design_detail_url', value: designDetailUrl });
     for (const [alias, key] of PROP_KEYS) {
       const v = line[alias]?.value;
       if (v != null && v !== '') baseAttrs.push({ key, value: v });
