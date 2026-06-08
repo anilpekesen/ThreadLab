@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
+import { useMemo } from "react";
 import { useTranslation } from "~/i18n";
 
 const APP_URL = "https://app.printlabapp.com";
@@ -15,7 +16,7 @@ function imageDownloadUrl(shop: string, orderId: string, side: "front" | "back",
 }
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
-  Box, Divider, Grid, Thumbnail, Banner, Tabs,
+  Box, Divider, Grid, Thumbnail, Banner,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
 import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders, setShopifyOrderDriveUpload } from "~/models/orders.server";
@@ -169,6 +170,35 @@ const NEXT_STATUS: Record<string, string> = {
   ready: "shipped",
 };
 
+function productTitle(order: Order): string {
+  return (order.productName || "").split(" - ")[0] || order.productName || "Ürün";
+}
+
+function productGroupKey(order: Order): string {
+  return order.designToken || `${order.productId}:${order.variantId}:${order.id}`;
+}
+
+function compactVariants(rows: Order[]): string {
+  const variants = rows
+    .map((row) => row.variantTitle || "Varyant yok")
+    .filter(Boolean);
+  const unique = [...new Set(variants)];
+  if (unique.length <= 2) return unique.join(", ");
+  return `${unique.slice(0, 2).join(", ")} +${unique.length - 2}`;
+}
+
+function groupTotalQty(rows: Order[]): number {
+  return rows.reduce((total, row) => total + (row.quantity ?? 1), 0);
+}
+
+function hasFrontFiles(rows: Order[]): boolean {
+  return rows.some((row) => Boolean(row.designFrontPreviewUrl || row.designFrontPrintUrl || row.previewUrl || row.productionFileUrl));
+}
+
+function hasBackFiles(rows: Order[]): boolean {
+  return rows.some((row) => Boolean(row.designBackPreviewUrl || row.designBackPrintUrl));
+}
+
 export const headers = () => ({
   "Cache-Control": "no-store, no-cache, must-revalidate",
   "Pragma": "no-cache",
@@ -285,6 +315,21 @@ export default function OrderDetail() {
   const customerDesignUrl = order.designToken
     ? `${APP_URL}/apps/tshirt-designer/my-order?shop=${encodeURIComponent(order.shop || shop)}&token=${encodeURIComponent(order.designToken)}`
     : null;
+  const productGroups = useMemo(() => {
+    const groups = new Map<string, Order[]>();
+    for (const row of [order, ...siblings, ...otherProducts]) {
+      const key = productGroupKey(row);
+      const list = groups.get(key) ?? [];
+      list.push(row);
+      groups.set(key, list);
+    }
+    return Array.from(groups.entries()).map(([key, rows]) => ({
+      key,
+      rows,
+      representative: rows[0],
+      selected: key === productGroupKey(order),
+    }));
+  }, [order, siblings, otherProducts]);
 
   // Fallback URLs: design record → order JOIN data → order own columns
   const frontPreviewUrl = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
@@ -313,34 +358,93 @@ export default function OrderDetail() {
     >
       <BlockStack gap="500">
 
-        {/* Siparişteki ürün tabları — çoklu ürün varsa göster */}
-        {otherProducts.length > 0 && (
-          <Tabs
-            tabs={[
-              {
-                id: order.id,
-                content: (order.productName || "").split(" - ")[0] || "Bu Ürün",
-                accessibilityLabel: (order.productName || "").split(" - ")[0],
-              },
-              ...otherProducts.map((p: Order) => ({
-                id: p.id,
-                content: (p.productName || "").split(" - ")[0] || "Ürün",
-                accessibilityLabel: (p.productName || "").split(" - ")[0],
-              })),
-            ]}
-            selected={0}
-            onSelect={(index) => {
-              const allTabs = [order, ...otherProducts];
-              const target = allTabs[index];
-              if (target && target.id !== order.id) navigate(`/app/orders/${target.id}`);
-            }}
-          >
-            <Box paddingBlockStart="200">
-              <Text as="p" variant="bodySm" tone="subdued">
-                {order.orderNumber} — {otherProducts.length + 1} farklı ürün
-              </Text>
+        {/* Siparişteki farklı tasarımlar */}
+        {productGroups.length > 1 && (
+          <Card>
+            <Box padding="400">
+              <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center" gap="300">
+                  <BlockStack gap="050">
+                    <Text as="h2" variant="headingMd">Siparişteki tasarımlar</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {order.orderNumber} içinde {productGroups.length} farklı ürün/tasarım var. Kart seçerek detayını açın.
+                    </Text>
+                  </BlockStack>
+                  <Badge tone="info">{`${productGroups.length} tasarım`}</Badge>
+                </InlineStack>
+
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                  gap: 12,
+                }}>
+                  {productGroups.map((group, index) => {
+                    const representative = group.representative;
+                    const selected = group.selected;
+                    const totalQty = groupTotalQty(group.rows);
+                    const front = hasFrontFiles(group.rows);
+                    const back = hasBackFiles(group.rows);
+                    return (
+                      <div
+                        key={group.key}
+                        style={{
+                          border: "1px solid #d9d9d9",
+                          borderRadius: 8,
+                          background: selected ? "#f4f8ff" : "#ffffff",
+                          padding: 12,
+                          outline: selected ? "2px solid #2c6ecb" : "none",
+                          boxShadow: selected ? "0 0 0 1px rgba(44,110,203,.12)" : "none",
+                        }}
+                      >
+                        <BlockStack gap="300">
+                          <InlineStack align="space-between" blockAlign="start" gap="300">
+                            <InlineStack gap="300" blockAlign="center" wrap={false}>
+                              <div style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: 8,
+                                background: selected ? "#2c6ecb" : "#f1f2f4",
+                                color: selected ? "#fff" : "#4a4a4a",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 13,
+                                fontWeight: 700,
+                                flexShrink: 0,
+                              }}>
+                                {index + 1}
+                              </div>
+                              <BlockStack gap="050">
+                                <Text as="h3" variant="headingSm">{productTitle(representative)}</Text>
+                                <Text as="p" variant="bodySm" tone="subdued">{compactVariants(group.rows)}</Text>
+                              </BlockStack>
+                            </InlineStack>
+                            {selected && <Badge tone="success">Açık</Badge>}
+                          </InlineStack>
+
+                          <InlineStack gap="200" wrap>
+                            <Badge>{`${totalQty} adet`}</Badge>
+                            {front && <Badge tone="info">Ön baskı</Badge>}
+                            {back && <Badge tone="attention">Arka baskı</Badge>}
+                            {group.rows.length > 1 && <Badge tone="new">{`${group.rows.length} varyant`}</Badge>}
+                          </InlineStack>
+
+                          <Button
+                            fullWidth
+                            variant={selected ? "primary" : "secondary"}
+                            disabled={selected}
+                            onClick={() => navigate(`/app/orders/${representative.id}`)}
+                          >
+                            {selected ? "Bu tasarım açık" : "Bu tasarımı aç"}
+                          </Button>
+                        </BlockStack>
+                      </div>
+                    );
+                  })}
+                </div>
+              </BlockStack>
             </Box>
-          </Tabs>
+          </Card>
         )}
 
         {/* Google Drive Export */}
