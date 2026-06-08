@@ -1,19 +1,87 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, Form, useActionData } from "@remix-run/react";
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { query } from "~/lib/db.server";
+import { PLANS } from "~/lib/plans";
 import { getAiPromptLogs, getAiPromptLogsCount, type AiPromptLog } from "~/models/ai-prompt-logs.server";
 import { saveShopSettings, getShopSettings } from "~/models/shop-settings.server";
 import React from "react";
 
 const AUTH_COOKIE = "panel_auth";
+const PARTNER_COOKIE = "partner_auth";
 const PAGE_SIZE = 100;
+const DEFAULT_COMMISSION_RATE = 20;
 
 function isAuthed(request: Request): boolean {
   const secret = process.env.ADMIN_PANEL_SECRET ?? "";
   if (!secret) return false;
   const cookie = request.headers.get("Cookie") ?? "";
   return cookie.split(";").some((c) => c.trim() === `${AUTH_COOKIE}=${encodeURIComponent(secret)}`);
+}
+
+function getCookieValue(request: Request, name: string): string {
+  const cookie = request.headers.get("Cookie") ?? "";
+  const prefix = `${name}=`;
+  const pair = cookie.split(";").map((c) => c.trim()).find((c) => c.startsWith(prefix));
+  return pair ? decodeURIComponent(pair.slice(prefix.length)) : "";
+}
+
+function clearAuthHeaders() {
+  const headers = new Headers();
+  headers.append("Set-Cookie", `${AUTH_COOKIE}=; Path=/admin; Max-Age=0; HttpOnly`);
+  headers.append("Set-Cookie", `${PARTNER_COOKIE}=; Path=/admin; Max-Age=0; HttpOnly`);
+  return headers;
+}
+
+let partnerSchemaReady = false;
+
+async function ensurePartnerSchema() {
+  if (partnerSchemaReady) return;
+  await query(`
+    CREATE TABLE IF NOT EXISTS partners (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL DEFAULT '',
+      commission_rate NUMERIC NOT NULL DEFAULT 20,
+      password_hash TEXT NOT NULL DEFAULT '',
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`ALTER TABLE partners ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS partner_shop_assignments (
+      partner_id TEXT NOT NULL REFERENCES partners(id) ON DELETE CASCADE,
+      shop TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (partner_id, shop)
+    )
+  `);
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS partner_shop_assignments_shop_unique
+      ON partner_shop_assignments (shop)
+  `);
+  partnerSchemaReady = true;
+}
+
+function newId(prefix: string) {
+  return `${prefix}_${randomBytes(8).toString("hex")}`;
+}
+
+function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string) {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  const actual = Buffer.from(hash, "hex");
+  const expected = scryptSync(password, salt, 64);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 interface ShopRow {
@@ -34,6 +102,43 @@ interface ShopRow {
   bg_this_month: number;
   drive_connected: boolean;
   last_order_at: string | null;
+}
+
+interface PartnerRow {
+  id: string;
+  email: string;
+  name: string;
+  commission_rate: string;
+  password_hash: string;
+  is_active: boolean;
+  assigned_shops: number;
+  active_assigned_shops: number;
+  monthly_plan_revenue: string;
+  monthly_commission: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface PartnerAssignment {
+  shop: string;
+  partner_id: string;
+  partner_email: string;
+  partner_name: string;
+  commission_rate: string;
+}
+
+interface PartnerCommissionSummary {
+  assignedShops: number;
+  activeAssignedShops: number;
+  monthlyPlanRevenue: number;
+  monthlyCommission: number;
+}
+
+type PartnerView = Omit<PartnerRow, "password_hash">;
+
+function publicPartner(partner: PartnerRow) {
+  const { password_hash, ...safePartner } = partner;
+  return safePartner;
 }
 
 interface TicketRow {
@@ -148,6 +253,108 @@ async function getShopsData() {
   return result.rows;
 }
 
+function planMonthlyPrice(planKey: string): number {
+  const plan = PLANS[planKey as keyof typeof PLANS];
+  return typeof plan?.price === "number" ? plan.price : 0;
+}
+
+function isCommissionableShop(shop: ShopRow): boolean {
+  return shop.subscription_status === "active" && planMonthlyPrice(shop.plan_key) > 0;
+}
+
+function commissionSummary(shops: ShopRow[], rate: number): PartnerCommissionSummary {
+  const monthlyPlanRevenue = shops.reduce((sum, shop) => sum + (isCommissionableShop(shop) ? planMonthlyPrice(shop.plan_key) : 0), 0);
+  return {
+    assignedShops: shops.length,
+    activeAssignedShops: shops.filter(isCommissionableShop).length,
+    monthlyPlanRevenue,
+    monthlyCommission: monthlyPlanRevenue * (rate / 100),
+  };
+}
+
+async function getPartnerFromRequest(request: Request): Promise<PartnerRow | null> {
+  const id = getCookieValue(request, PARTNER_COOKIE);
+  if (!id) return null;
+  await ensurePartnerSchema();
+  const result = await query<PartnerRow>(
+    `SELECT
+       p.id, p.email, p.name, p.commission_rate::text, p.password_hash, p.is_active,
+       0::int as assigned_shops,
+       0::int as active_assigned_shops,
+       '0'::text as monthly_plan_revenue,
+       '0'::text as monthly_commission,
+       p.created_at, p.updated_at
+     FROM partners p
+     WHERE p.id = $1 AND p.is_active = TRUE
+     LIMIT 1`,
+    [id],
+  );
+  return result.rows[0] ?? null;
+}
+
+async function getPartnerAssignments(partnerId?: string) {
+  await ensurePartnerSchema();
+  const params: string[] = [];
+  const where = partnerId ? "WHERE psa.partner_id = $1" : "";
+  if (partnerId) params.push(partnerId);
+  const result = await query<PartnerAssignment>(
+    `SELECT
+       psa.shop,
+       p.id as partner_id,
+       p.email as partner_email,
+       p.name as partner_name,
+       p.commission_rate::text
+     FROM partner_shop_assignments psa
+     JOIN partners p ON p.id = psa.partner_id
+     ${where}
+     ORDER BY psa.created_at DESC`,
+    params,
+  );
+  return result.rows;
+}
+
+async function getPartnersData(shops: ShopRow[]) {
+  await ensurePartnerSchema();
+  const [partnersResult, assignments] = await Promise.all([
+    query<PartnerRow>(
+      `SELECT
+         p.id, p.email, p.name, p.commission_rate::text, p.password_hash, p.is_active,
+         COUNT(psa.shop)::int as assigned_shops,
+         0::int as active_assigned_shops,
+         '0'::text as monthly_plan_revenue,
+         '0'::text as monthly_commission,
+         p.created_at, p.updated_at
+       FROM partners p
+       LEFT JOIN partner_shop_assignments psa ON psa.partner_id = p.id
+       GROUP BY p.id
+       ORDER BY p.created_at DESC`,
+    ),
+    getPartnerAssignments(),
+  ]);
+  const shopsByPartner = new Map<string, ShopRow[]>();
+  for (const assignment of assignments) {
+    const shop = shops.find((s) => s.shop === assignment.shop);
+    if (!shop) continue;
+    const list = shopsByPartner.get(assignment.partner_id) ?? [];
+    list.push(shop);
+    shopsByPartner.set(assignment.partner_id, list);
+  }
+  return {
+    partners: partnersResult.rows.map((partner) => {
+      const rate = num(partner.commission_rate);
+      const summary = commissionSummary(shopsByPartner.get(partner.id) ?? [], rate);
+      return {
+        ...partner,
+        assigned_shops: summary.assignedShops,
+        active_assigned_shops: summary.activeAssignedShops,
+        monthly_plan_revenue: summary.monthlyPlanRevenue.toFixed(2),
+        monthly_commission: summary.monthlyCommission.toFixed(2),
+      };
+    }),
+    assignments,
+  };
+}
+
 async function getGlobalStats() {
   const result = await query<{
     total_shops: string;
@@ -229,12 +436,16 @@ async function getGlobalStats() {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  if (!isAuthed(request)) {
+  const adminAuthed = isAuthed(request);
+  const partner = adminAuthed ? null : await getPartnerFromRequest(request);
+
+  if (!adminAuthed && !partner) {
     return json({
-      authed: false, tab: "login",
+      authed: false, role: "guest" as const, tab: "login",
       shops: [] as ShopRow[], globalStats: null,
       aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "",
       tickets: [] as TicketRow[], openCount: 0, supportStatus: "all", supportSearch: "",
+      partners: [], assignments: [], currentPartner: null, partnerSummary: null,
     });
   }
 
@@ -243,13 +454,42 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const page = Math.max(0, parseInt(url.searchParams.get("page") ?? "0", 10));
   const filterShop = url.searchParams.get("shop") ?? "";
 
+  if (partner) {
+    const [allShops, assignments] = await Promise.all([getShopsData(), getPartnerAssignments(partner.id)]);
+    const assigned = new Set(assignments.map((a) => a.shop));
+    const shops = allShops.filter((shop) => assigned.has(shop.shop));
+    return json({
+      authed: true,
+      role: "partner" as const,
+      tab: "shops",
+      shops,
+      globalStats: null,
+      aiLogs: [] as AiPromptLog[],
+      aiLogsCount: 0,
+      aiLogsPage: 0,
+      filterShop: "",
+      tickets: [] as TicketRow[],
+      openCount: 0,
+      supportStatus: "all",
+      supportSearch: "",
+      partners: [],
+      assignments,
+      currentPartner: publicPartner(partner),
+      partnerSummary: commissionSummary(shops, num(partner.commission_rate)),
+    });
+  }
+
   if (tab === "ai-logs") {
     const [aiLogs, aiLogsCount, globalStats] = await Promise.all([
       getAiPromptLogs({ shop: filterShop || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
       getAiPromptLogsCount(filterShop || undefined),
       getGlobalStats(),
     ]);
-    return json({ authed: true, tab, shops: [] as ShopRow[], globalStats, aiLogs, aiLogsCount, aiLogsPage: page, filterShop, tickets: [] as TicketRow[], openCount: 0, supportStatus: "all", supportSearch: "" });
+    return json({
+      authed: true, role: "admin" as const, tab, shops: [] as ShopRow[], globalStats, aiLogs, aiLogsCount, aiLogsPage: page, filterShop,
+      tickets: [] as TicketRow[], openCount: 0, supportStatus: "all", supportSearch: "",
+      partners: [], assignments: [], currentPartner: null, partnerSummary: null,
+    });
   }
 
   if (tab === "support") {
@@ -277,14 +517,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const tickets = ticketsResult.rows;
     const openCount = tickets.filter((t) => t.status === "open").length;
     return json({
-      authed: true, tab, shops: [] as ShopRow[], globalStats,
+      authed: true, role: "admin" as const, tab, shops: [] as ShopRow[], globalStats,
       aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "",
       tickets, openCount, supportStatus, supportSearch,
+      partners: [], assignments: [], currentPartner: null, partnerSummary: null,
     });
   }
 
   const [shops, globalStats] = await Promise.all([getShopsData(), getGlobalStats()]);
-  return json({ authed: true, tab: "shops", shops, globalStats, aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "", tickets: [] as TicketRow[], openCount: 0, supportStatus: "all", supportSearch: "" });
+  const { partners, assignments } = await getPartnersData(shops);
+  return json({
+    authed: true,
+    role: "admin" as const,
+    tab: tab === "partners" ? "partners" : "shops",
+    shops,
+    globalStats,
+    aiLogs: [] as AiPromptLog[],
+    aiLogsCount: 0,
+    aiLogsPage: 0,
+    filterShop: "",
+    tickets: [] as TicketRow[],
+    openCount: 0,
+    supportStatus: "all",
+    supportSearch: "",
+    partners: partners.map(publicPartner),
+    assignments,
+    currentPartner: null,
+    partnerSummary: null,
+  });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -293,11 +553,103 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "logout") {
     return redirect("/admin", {
-      headers: { "Set-Cookie": `${AUTH_COOKIE}=; Path=/admin; Max-Age=0; HttpOnly` },
+      headers: clearAuthHeaders(),
     });
   }
 
+  if (intent === "partnerLogin") {
+    await ensurePartnerSchema();
+    const email = String(form.get("email") ?? "").trim().toLowerCase();
+    const password = String(form.get("partnerPassword") ?? "");
+    const result = await query<PartnerRow>(
+      `SELECT
+         p.id, p.email, p.name, p.commission_rate::text, p.password_hash, p.is_active,
+         0::int as assigned_shops,
+         0::int as active_assigned_shops,
+         '0'::text as monthly_plan_revenue,
+         '0'::text as monthly_commission,
+         p.created_at, p.updated_at
+       FROM partners p
+       WHERE p.email = $1 AND p.is_active = TRUE
+       LIMIT 1`,
+      [email],
+    );
+    const partner = result.rows[0];
+    if (!partner || !verifyPassword(password, partner.password_hash)) {
+      return json({ error: "Hatalı e-posta veya şifre" });
+    }
+    return redirect("/admin", {
+      headers: {
+        "Set-Cookie": `${PARTNER_COOKIE}=${encodeURIComponent(partner.id)}; Path=/admin; HttpOnly; SameSite=Strict; Max-Age=${60 * 60 * 8}`,
+      },
+    });
+  }
+
+  if (intent === "savePartner") {
+    if (!isAuthed(request)) return redirect("/admin");
+    await ensurePartnerSchema();
+    const id = String(form.get("partnerId") ?? "");
+    const email = String(form.get("email") ?? "").trim().toLowerCase();
+    const name = String(form.get("name") ?? "").trim();
+    const password = String(form.get("partnerPassword") ?? "");
+    const commissionRate = Math.max(0, Math.min(100, num(String(form.get("commissionRate") ?? DEFAULT_COMMISSION_RATE))));
+    const isActive = form.get("isActive") === "on";
+
+    if (email) {
+      if (id) {
+        if (password) {
+          await query(
+            `UPDATE partners
+             SET email = $2, name = $3, commission_rate = $4, password_hash = $5, is_active = $6, updated_at = now()
+             WHERE id = $1`,
+            [id, email, name, commissionRate, hashPassword(password), isActive],
+          );
+        } else {
+          await query(
+            `UPDATE partners
+             SET email = $2, name = $3, commission_rate = $4, is_active = $5, updated_at = now()
+             WHERE id = $1`,
+            [id, email, name, commissionRate, isActive],
+          );
+        }
+      } else if (password) {
+        await query(
+          `INSERT INTO partners (id, email, name, commission_rate, password_hash, is_active)
+           VALUES ($1, $2, $3, $4, $5, TRUE)
+           ON CONFLICT (email) DO UPDATE SET
+             name = EXCLUDED.name,
+             commission_rate = EXCLUDED.commission_rate,
+             password_hash = EXCLUDED.password_hash,
+             is_active = TRUE,
+             updated_at = now()`,
+          [newId("partner"), email, name, commissionRate, hashPassword(password)],
+        );
+      }
+    }
+    return redirect("/admin?tab=partners");
+  }
+
+  if (intent === "assignPartner") {
+    if (!isAuthed(request)) return redirect("/admin");
+    await ensurePartnerSchema();
+    const shop = String(form.get("shop") ?? "").trim();
+    const partnerId = String(form.get("partnerId") ?? "").trim();
+    if (shop) {
+      await query(`DELETE FROM partner_shop_assignments WHERE shop = $1`, [shop]);
+      if (partnerId) {
+        await query(
+          `INSERT INTO partner_shop_assignments (partner_id, shop)
+           VALUES ($1, $2)
+           ON CONFLICT (partner_id, shop) DO NOTHING`,
+          [partnerId, shop],
+        );
+      }
+    }
+    return redirect("/admin?tab=partners");
+  }
+
   if (intent === "setBonus") {
+    if (!isAuthed(request)) return redirect("/admin");
     const shop = String(form.get("shop") ?? "");
     const aiBonus = Math.max(0, parseInt(String(form.get("aiQuotaBonus") ?? "0"), 10) || 0);
     const bgBonus = Math.max(0, parseInt(String(form.get("bgQuotaBonus") ?? "0"), 10) || 0);
@@ -401,8 +753,8 @@ const TICKET_STATUS_COLOR: Record<string, string> = { open: "#f59e0b", answered:
 function LoginPage({ error }: { error?: string }) {
   return (
     <div style={{ ...css.page, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 14, padding: "40px 44px", width: 340 }}>
-        <div style={{ fontSize: 36, textAlign: "center", marginBottom: 6 }}>🖥</div>
+      <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 14, padding: "34px 38px", width: 380 }}>
+        <div style={{ fontSize: 13, textAlign: "center", marginBottom: 6, color: "#818cf8", fontWeight: 800, letterSpacing: 1 }}>PRINTLAB</div>
         <h1 style={{ margin: "0 0 24px", fontSize: 19, fontWeight: 700, color: "#f8fafc", textAlign: "center" }}>Admin Panel</h1>
         <form method="post" action="/admin">
           <input type="password" name="password" placeholder="Yönetici şifresi" required autoFocus
@@ -410,6 +762,18 @@ function LoginPage({ error }: { error?: string }) {
           {error && <p style={{ color: "#ef4444", fontSize: 13, margin: "0 0 10px" }}>{error}</p>}
           <button type="submit" style={{ width: "100%", background: "#6366f1", border: "none", borderRadius: 8, padding: 10, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
             Giriş
+          </button>
+        </form>
+        <div style={{ height: 1, background: "#334155", margin: "22px 0" }} />
+        <form method="post" action="/admin" style={{ display: "grid", gap: 10 }}>
+          <input type="hidden" name="intent" value="partnerLogin" />
+          <div style={{ color: "#94a3b8", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7 }}>Partner girişi</div>
+          <input type="email" name="email" placeholder="Partner e-posta" required
+            style={{ ...css.input, width: "100%", boxSizing: "border-box", fontSize: 14, padding: "10px 14px" }} />
+          <input type="password" name="partnerPassword" placeholder="Partner şifre" required
+            style={{ ...css.input, width: "100%", boxSizing: "border-box", fontSize: 14, padding: "10px 14px" }} />
+          <button type="submit" style={{ width: "100%", background: "#0ea5e9", border: "none", borderRadius: 8, padding: 10, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+            Partner olarak giriş
           </button>
         </form>
       </div>
@@ -505,7 +869,11 @@ function DetailMetric({ label, value, sub, tone }: { label: string; value: numbe
   );
 }
 
-function ShopsTab({ shops }: { shops: ShopRow[] }) {
+function moneyUsd(value: number | string) {
+  return `$${num(value).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function ShopsTab({ shops, readOnly = false, partnerSummary }: { shops: ShopRow[]; readOnly?: boolean; partnerSummary?: PartnerCommissionSummary | null }) {
   const [bonusShop, setBonusShop] = React.useState<string | null>(null);
   const rankedShops = React.useMemo(
     () => [...shops].sort((a, b) => shopPerformanceScore(b) - shopPerformanceScore(a) || b.today_purchased_users - a.today_purchased_users || b.total_orders - a.total_orders),
@@ -521,6 +889,15 @@ function ShopsTab({ shops }: { shops: ShopRow[] }) {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
+      {partnerSummary && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
+          <DetailMetric label="Atanmış mağaza" value={partnerSummary.assignedShops} />
+          <DetailMetric label="Aktif paket" value={partnerSummary.activeAssignedShops} tone="good" />
+          <DetailMetric label="Aylık paket tutarı" value={moneyUsd(partnerSummary.monthlyPlanRevenue)} tone="good" />
+          <DetailMetric label="Aylık komisyon" value={moneyUsd(partnerSummary.monthlyCommission)} tone="good" />
+        </div>
+      )}
+
       {best && (
         <div style={{ ...css.card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, flexWrap: "wrap", padding: "16px 18px" }}>
           <div>
@@ -656,15 +1033,17 @@ function ShopsTab({ shops }: { shops: ShopRow[] }) {
                 <span style={{ color: "#64748b", fontSize: 12 }}>
                   Son sipariş: {selected.last_order_at ? new Date(selected.last_order_at).toLocaleDateString("tr-TR") : "yok"}
                 </span>
-                <button
-                  onClick={() => setBonusShop(bonusShop === selected.shop ? null : selected.shop)}
-                  style={{ background: bonusShop === selected.shop ? "#334155" : "transparent", border: "1px solid #475569", borderRadius: 6, padding: "6px 12px", color: "#cbd5e1", cursor: "pointer", fontSize: 12 }}
-                >
-                  {bonusShop === selected.shop ? "Bonus formunu kapat" : "Bonus kota ver"}
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={() => setBonusShop(bonusShop === selected.shop ? null : selected.shop)}
+                    style={{ background: bonusShop === selected.shop ? "#334155" : "transparent", border: "1px solid #475569", borderRadius: 6, padding: "6px 12px", color: "#cbd5e1", cursor: "pointer", fontSize: 12 }}
+                  >
+                    {bonusShop === selected.shop ? "Bonus formunu kapat" : "Bonus kota ver"}
+                  </button>
+                )}
               </div>
 
-              {bonusShop === selected.shop && (
+              {!readOnly && bonusShop === selected.shop && (
                 <form method="post" action="/admin" style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                   <input type="hidden" name="intent" value="setBonus" />
                   <input type="hidden" name="shop" value={selected.shop} />
@@ -686,6 +1065,148 @@ function ShopsTab({ shops }: { shops: ShopRow[] }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PartnersTab({ partners, shops, assignments }: { partners: PartnerView[]; shops: ShopRow[]; assignments: PartnerAssignment[] }) {
+  const assignmentByShop = React.useMemo(() => {
+    const map = new Map<string, PartnerAssignment>();
+    assignments.forEach((assignment) => map.set(assignment.shop, assignment));
+    return map;
+  }, [assignments]);
+  const activeCommission = partners.reduce((sum, partner) => sum + num(partner.monthly_commission), 0);
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
+        <DetailMetric label="Partner" value={partners.length} />
+        <DetailMetric label="Atanmış mağaza" value={assignments.length} />
+        <DetailMetric label="Aktif komisyon" value={moneyUsd(activeCommission)} tone="good" />
+        <DetailMetric label="Atanmamış mağaza" value={Math.max(0, shops.length - assignments.length)} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(320px,0.8fr) minmax(520px,1.2fr)", gap: 16, alignItems: "start" }}>
+        <section style={{ ...css.card, padding: 16 }}>
+          <h2 style={{ margin: "0 0 12px", color: "#f8fafc", fontSize: 16 }}>Partner ekle</h2>
+          <form method="post" action="/admin" style={{ display: "grid", gap: 10 }}>
+            <input type="hidden" name="intent" value="savePartner" />
+            <input name="name" placeholder="İsim / şirket" style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+            <input type="email" name="email" placeholder="E-posta" required style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+            <input type="password" name="partnerPassword" placeholder="Şifre" required style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+            <label style={{ display: "grid", gap: 6, color: "#94a3b8", fontSize: 12, fontWeight: 700 }}>
+              Komisyon %
+              <input type="number" name="commissionRate" min="0" max="100" step="0.1" defaultValue={DEFAULT_COMMISSION_RATE} style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+            </label>
+            <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "9px 14px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+              Partner oluştur
+            </button>
+          </form>
+        </section>
+
+        <section style={css.card}>
+          <table style={css.table}>
+            <thead>
+              <tr>
+                {["Partner", "Komisyon", "Mağaza", "Aktif", "Aylık komisyon", "Güncelle"].map((h) => (
+                  <th key={h} style={css.th}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {partners.length === 0 && (
+                <tr><td colSpan={6} style={{ ...css.td, textAlign: "center", color: "#64748b", padding: 28 }}>Partner kaydı yok</td></tr>
+              )}
+              {partners.map((partner) => (
+                <tr key={partner.id}>
+                  <td style={css.td}>
+                    <div style={{ color: "#f1f5f9", fontWeight: 800 }}>{partner.name || partner.email}</div>
+                    <div style={{ color: "#64748b", fontSize: 12 }}>{partner.email}</div>
+                  </td>
+                  <td style={css.td}>{num(partner.commission_rate)}%</td>
+                  <td style={css.td}>
+                    <span style={css.badge("#0ea5e9")}>{partner.assigned_shops} atanmış</span>
+                    <span style={{ marginLeft: 6, ...css.badge("#10b981") }}>{partner.active_assigned_shops} aktif</span>
+                  </td>
+                  <td style={css.td}><span style={css.badge(partner.is_active ? "#10b981" : "#6b7280")}>{partner.is_active ? "Aktif" : "Pasif"}</span></td>
+                  <td style={{ ...css.td, color: "#10b981", fontWeight: 800 }}>{moneyUsd(partner.monthly_commission)}</td>
+                  <td style={css.td}>
+                    <details>
+                      <summary style={{ color: "#94a3b8", cursor: "pointer", fontSize: 12 }}>Düzenle</summary>
+                      <form method="post" action="/admin" style={{ display: "grid", gap: 8, marginTop: 10, minWidth: 240 }}>
+                        <input type="hidden" name="intent" value="savePartner" />
+                        <input type="hidden" name="partnerId" value={partner.id} />
+                        <input name="name" defaultValue={partner.name} placeholder="İsim" style={css.input} />
+                        <input type="email" name="email" defaultValue={partner.email} required style={css.input} />
+                        <input type="password" name="partnerPassword" placeholder="Yeni şifre (boşsa değişmez)" style={css.input} />
+                        <input type="number" name="commissionRate" min="0" max="100" step="0.1" defaultValue={num(partner.commission_rate)} style={css.input} />
+                        <label style={{ display: "flex", gap: 8, alignItems: "center", color: "#cbd5e1", fontSize: 12 }}>
+                          <input type="checkbox" name="isActive" defaultChecked={partner.is_active} /> Aktif
+                        </label>
+                        <button type="submit" style={{ ...css.btn, background: "#6366f1", color: "#fff", fontWeight: 700 }}>Kaydet</button>
+                      </form>
+                    </details>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <section style={css.card}>
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid #334155", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+          <div>
+            <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>Mağaza atamaları</h2>
+            <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>Her mağaza tek bir partnere atanır. Boş seçim atamayı kaldırır.</p>
+          </div>
+          <span style={{ color: "#64748b", fontSize: 12 }}>{shops.length} mağaza</span>
+        </div>
+        <table style={css.table}>
+          <thead>
+            <tr>
+              {["Mağaza", "Paket", "Durum", "Mevcut partner", "Atama"].map((h) => (
+                <th key={h} style={css.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {shops.length === 0 && (
+              <tr><td colSpan={5} style={{ ...css.td, textAlign: "center", color: "#64748b", padding: 28 }}>Mağaza yok</td></tr>
+            )}
+            {shops.map((shop) => {
+              const assignment = assignmentByShop.get(shop.shop);
+              return (
+                <tr key={shop.shop}>
+                  <td style={css.td}>
+                    <div style={{ color: "#f1f5f9", fontWeight: 800 }}>{shopHandle(shop.shop)}</div>
+                    <div style={{ color: "#64748b", fontSize: 12 }}>{shop.shop}</div>
+                  </td>
+                  <td style={css.td}>
+                    <span style={css.badge(PLAN_COLOR[shop.plan_key] ?? "#6b7280")}>{shop.plan_key}</span>
+                    <span style={{ marginLeft: 6, color: "#64748b", fontSize: 12 }}>{moneyUsd(planMonthlyPrice(shop.plan_key))}/ay</span>
+                  </td>
+                  <td style={css.td}><span style={css.badge(STATUS_COLOR[shop.subscription_status] ?? "#6b7280")}>{shop.subscription_status}</span></td>
+                  <td style={css.td}>{assignment ? `${assignment.partner_name || assignment.partner_email} (${num(assignment.commission_rate)}%)` : <span style={{ color: "#64748b" }}>Atanmamış</span>}</td>
+                  <td style={css.td}>
+                    <form method="post" action="/admin" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input type="hidden" name="intent" value="assignPartner" />
+                      <input type="hidden" name="shop" value={shop.shop} />
+                      <select name="partnerId" defaultValue={assignment?.partner_id ?? ""} style={{ ...css.input, minWidth: 220 }}>
+                        <option value="">Partner yok</option>
+                        {partners.map((partner) => (
+                          <option key={partner.id} value={partner.id}>{partner.name || partner.email}</option>
+                        ))}
+                      </select>
+                      <button type="submit" style={{ ...css.btn, background: "#334155" }}>Ata</button>
+                    </form>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
     </div>
   );
 }
@@ -968,22 +1489,28 @@ export default function Admin() {
 
   const gs = data.globalStats;
   const openCount = data.openCount ?? 0;
+  const isAdmin = data.role === "admin";
+  const partnerName = data.currentPartner?.name || data.currentPartner?.email || "";
 
   return (
     <div style={css.page}>
       <header style={css.header}>
-        <span style={css.logo}>Admin Panel</span>
+        <span style={css.logo}>{isAdmin ? "Admin Panel" : "Partner Panel"}</span>
         <nav style={{ display: "flex", gap: 4, flex: 1 }}>
           <a href="/admin?tab=shops" style={css.navLink(data.tab === "shops")}>Mağazalar</a>
-          <a href="/admin?tab=ai-logs" style={css.navLink(data.tab === "ai-logs")}>AI Logları</a>
-          <a href="/admin?tab=support" style={css.navLink(data.tab === "support")}>
-            Destek{openCount > 0 && (
-              <span style={{ marginLeft: 5, display: "inline-block", padding: "1px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: "#f59e0b", color: "#0f172a" }}>
-                {openCount}
-              </span>
-            )}
-          </a>
+          {isAdmin && <a href="/admin?tab=partners" style={css.navLink(data.tab === "partners")}>Partnerler</a>}
+          {isAdmin && <a href="/admin?tab=ai-logs" style={css.navLink(data.tab === "ai-logs")}>AI Logları</a>}
+          {isAdmin && (
+            <a href="/admin?tab=support" style={css.navLink(data.tab === "support")}>
+              Destek{openCount > 0 && (
+                <span style={{ marginLeft: 5, display: "inline-block", padding: "1px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: "#f59e0b", color: "#0f172a" }}>
+                  {openCount}
+                </span>
+              )}
+            </a>
+          )}
         </nav>
+        {!isAdmin && partnerName && <span style={{ color: "#94a3b8", fontSize: 12 }}>{partnerName}</span>}
         <form method="post" action="/admin">
           <input type="hidden" name="intent" value="logout" />
           <button type="submit" style={{ background: "transparent", border: "1px solid #334155", color: "#94a3b8", borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontSize: 13 }}>
@@ -1012,8 +1539,15 @@ export default function Admin() {
           </div>
         )}
 
-        {data.tab === "shops" && <ShopsTab shops={data.shops as ShopRow[]} />}
-        {data.tab === "ai-logs" && (
+        {data.tab === "shops" && <ShopsTab shops={data.shops as ShopRow[]} readOnly={!isAdmin} partnerSummary={data.partnerSummary as PartnerCommissionSummary | null} />}
+        {isAdmin && data.tab === "partners" && (
+          <PartnersTab
+            partners={data.partners as PartnerView[]}
+            shops={data.shops as ShopRow[]}
+            assignments={data.assignments as PartnerAssignment[]}
+          />
+        )}
+        {isAdmin && data.tab === "ai-logs" && (
           <AiLogsTab
             logs={data.aiLogs as AiPromptLog[]}
             count={data.aiLogsCount}
@@ -1021,7 +1555,7 @@ export default function Admin() {
             filterShop={data.filterShop}
           />
         )}
-        {data.tab === "support" && (
+        {isAdmin && data.tab === "support" && (
           <SupportTab
             tickets={data.tickets as TicketRow[]}
             status={data.supportStatus ?? "all"}

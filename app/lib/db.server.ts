@@ -93,6 +93,34 @@ async function _runMigrationsLocked() {
       ADD COLUMN IF NOT EXISTS shopify_subscription_id TEXT
   `);
   await query(`
+    CREATE TABLE IF NOT EXISTS partners (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL DEFAULT '',
+      commission_rate NUMERIC NOT NULL DEFAULT 20,
+      password_hash TEXT NOT NULL DEFAULT '',
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    ALTER TABLE partners
+      ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS partner_shop_assignments (
+      partner_id TEXT NOT NULL REFERENCES partners(id) ON DELETE CASCADE,
+      shop TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (partner_id, shop)
+    )
+  `);
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS partner_shop_assignments_shop_unique
+      ON partner_shop_assignments (shop)
+  `);
+  await query(`
     CREATE TABLE IF NOT EXISTS shop_templates (
       id         TEXT PRIMARY KEY,
       shop       TEXT NOT NULL,
