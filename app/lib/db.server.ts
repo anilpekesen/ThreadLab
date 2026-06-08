@@ -344,13 +344,8 @@ async function _runMigrationsLocked() {
 
   // Drop old single-column unique on shopify_order_id, add shop-scoped unique
   await query(`ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_shopify_order_id_key`);
-  // Drop old (shop, shopify_order_id) unique — replaced by per-variant unique below
+  // Drop old (shop, shopify_order_id) unique — replaced by line-item unique below
   await query(`DROP INDEX IF EXISTS orders_shop_shopify_order_id`);
-  // One row per (shop, shopify_order_id, variant_id): supports multi-variant orders
-  await query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS orders_shop_shopify_order_variant
-      ON orders (shop, shopify_order_id, variant_id)
-  `);
 
   // Indexes for shop-scoped queries
   await query(`CREATE INDEX IF NOT EXISTS orders_shop_idx ON orders (shop, created_at DESC)`);
@@ -366,14 +361,23 @@ async function _runMigrationsLocked() {
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_email TEXT NOT NULL DEFAULT ''`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_total_price NUMERIC NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_item_id TEXT NOT NULL DEFAULT ''`);
 
-  // ── Ensure per-variant unique index exists (re-run safe) ────────────────
-  // Drop legacy single-column unique first, then ensure the composite index.
+  // ── Ensure per-line-item unique indexes exist (re-run safe) ─────────────
+  // variant_id is not unique inside a Shopify order: two separate line items can
+  // share the same size/color variant but carry different design_token values.
   await query(`ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_shopify_order_id_key`);
   await query(`DROP INDEX IF EXISTS orders_shop_shopify_order_id`);
+  await query(`DROP INDEX IF EXISTS orders_shop_shopify_order_variant`);
   await query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS orders_shop_shopify_order_variant
-      ON orders (shop, shopify_order_id, variant_id)
+    CREATE UNIQUE INDEX IF NOT EXISTS orders_shop_shopify_order_line_item
+      ON orders (shop, shopify_order_id, line_item_id)
+      WHERE line_item_id != ''
+  `);
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS orders_shop_shopify_order_variant_token_fallback
+      ON orders (shop, shopify_order_id, variant_id, design_token)
+      WHERE line_item_id = ''
   `);
 
   // ── Soft delete for product_categories (prevents slot-cycling exploit) ────

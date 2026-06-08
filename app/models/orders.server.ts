@@ -337,6 +337,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
 
   type Attr = { key: string; value: string };
   type LineItem = {
+    id: string;
     name: string;
     quantity: number;
     requiresShipping: boolean;
@@ -365,6 +366,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           lineItems(first: 20) {
             nodes {
               name quantity requiresShipping
+              id
               product { id }
               variant { id title }
               discountedTotalSet { shopMoney { amount currencyCode } }
@@ -443,6 +445,19 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     for (const item of itemsToProcess) {
       const variantId = item.variant?.id.split("/").pop() ?? "";
       const token = getAttr(item.customAttributes, "design_token") ?? sharedToken;
+      const lineItemId = item.id?.split("/").pop() ?? `${variantId}:${token || "no-design"}`;
+      if (item.id) {
+        await query(
+          `UPDATE orders
+           SET line_item_id = $4, updated_at = now()
+           WHERE shop = $1
+             AND shopify_order_id = $2
+             AND variant_id = $3
+             AND design_token = $5
+             AND line_item_id = ''`,
+          [shop, shopifyOrderId, variantId, lineItemId, token],
+        );
+      }
       const frontPreviewUrl =
         getAttr(item.customAttributes, "_front_preview_url") ??
         getAttr(so.customAttributes, "_front_preview_url") ??
@@ -465,11 +480,11 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
       const id = `order_${randomBytes(8).toString("hex")}`;
       const result = await query(
         `INSERT INTO orders (id, shop, shopify_order_id, order_number, product_id, product_name,
-          variant_id, variant_title, quantity, design_token, preview_url, production_file_url,
+          variant_id, variant_title, line_item_id, quantity, design_token, preview_url, production_file_url,
           customer_name, customer_email, production_status, missing_surcharge, created_at,
           line_total_price, currency_code)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,FALSE,$16,$17,$18)
-         ON CONFLICT (shop, shopify_order_id, variant_id) DO NOTHING`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,FALSE,$17,$18,$19)
+         ON CONFLICT DO NOTHING`,
         [
           id,
           shop,
@@ -479,6 +494,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           item.name ?? "",
           variantId,
           item.variant?.title ?? "",
+          lineItemId,
           item.quantity ?? 1,
           token,
           frontPreviewUrl,
@@ -502,11 +518,11 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
                ELSE production_status
              END,
              updated_at = now()
-           WHERE shop = $1 AND shopify_order_id = $2 AND variant_id = $3`,
+           WHERE shop = $1 AND shopify_order_id = $2 AND line_item_id = $3`,
           [
             shop,
             shopifyOrderId,
-            variantId,
+            lineItemId,
             Number.isFinite(lineTotalPrice) ? lineTotalPrice : 0,
             currencyCode,
             initialStatus,
@@ -521,8 +537,8 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
       } else if (token) {
         // Existing row — refresh metafields so app_order_id and print URLs stay current
         query<{ id: string }>(
-          `SELECT id FROM orders WHERE shop = $1 AND shopify_order_id = $2 AND variant_id = $3 LIMIT 1`,
-          [shop, shopifyOrderId, variantId],
+          `SELECT id FROM orders WHERE shop = $1 AND shopify_order_id = $2 AND line_item_id = $3 LIMIT 1`,
+          [shop, shopifyOrderId, lineItemId],
         ).then((r) => {
           if (r.rows.length) {
             writeDesignMetafields(admin, shop, so.id, r.rows[0].id, frontPreviewUrl, backPreviewUrl, frontPrintUrl, backPrintUrl, token)
@@ -714,10 +730,10 @@ export async function createOrderFromPixel(data: {
   const id = `order_${randomBytes(8).toString("hex")}`;
   await query(
     `INSERT INTO orders (id, shop, shopify_order_id, order_number, product_id, product_name,
-      variant_id, design_token, preview_url, production_file_url, production_status,
+      variant_id, line_item_id, design_token, preview_url, production_file_url, production_status,
       missing_surcharge)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',FALSE)
-     ON CONFLICT (shop, shopify_order_id, variant_id) DO NOTHING`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',FALSE)
+     ON CONFLICT DO NOTHING`,
     [
       id,
       data.shop,
@@ -726,6 +742,7 @@ export async function createOrderFromPixel(data: {
       data.productId ?? "",
       data.productName ?? "",
       data.variantId ?? "",
+      `${data.variantId ?? ""}:${data.designToken}`,
       data.designToken,
       data.frontPreviewUrl ?? "",
       data.frontPrintUrl ?? "",

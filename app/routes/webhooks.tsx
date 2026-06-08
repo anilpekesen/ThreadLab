@@ -97,6 +97,7 @@ async function deleteShopData(shop: string): Promise<void> {
 // Shopify uses both {name, value} (REST) and {key, value} (some contexts)
 type Attr = { name?: string; key?: string; value: string };
 type LineItem = {
+  id?: number;
   product_id?: number;
   variant_id?: number;
   variant_title?: string | null;
@@ -171,18 +172,26 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
 
   for (const item of itemsToProcess) {
     const variantId = String(item.variant_id ?? "");
-
-    const exists = await query(
-      "SELECT 1 FROM orders WHERE shop = $1 AND shopify_order_id = $2 AND variant_id = $3",
-      [shop, shopifyOrderId, variantId],
-    );
-    if (exists.rows.length > 0) continue;
-
     const token =
       getAttr(item.properties, "design_token") ??
       getAttr(item.attributes, "design_token") ??
       orderToken ??
       "";
+    const lineItemId = item.id ? String(item.id) : `${variantId}:${token || "no-design"}`;
+
+    if (item.id) {
+      await query(
+        `UPDATE orders
+         SET line_item_id = $4, updated_at = now()
+         WHERE shop = $1
+           AND shopify_order_id = $2
+           AND variant_id = $3
+           AND design_token = $5
+           AND line_item_id = ''`,
+        [shop, shopifyOrderId, variantId, lineItemId, token],
+      );
+    }
+
     const frontPreviewUrl =
       getAttr(item.properties, "_front_preview_url") ??
       getAttr(item.attributes, "_front_preview_url") ??
@@ -201,12 +210,12 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
     await query(
       `INSERT INTO orders
          (id, shop, shopify_order_id, order_number, product_id, product_name,
-          variant_id, variant_title, quantity, design_token, preview_url,
+          variant_id, variant_title, line_item_id, quantity, design_token, preview_url,
           production_file_url, customer_name, customer_email,
           production_status, missing_surcharge, created_at,
           line_total_price, currency_code)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'pending',FALSE,$15,$16,$17)
-       ON CONFLICT (shop, shopify_order_id, variant_id) DO NOTHING`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'pending',FALSE,$16,$17,$18)
+       ON CONFLICT DO NOTHING`,
       [
         id,
         shop,
@@ -216,6 +225,7 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
         item.name ?? "",
         variantId,
         item.variant_title ?? "",
+        lineItemId,
         qty,
         token,
         frontPreviewUrl,
