@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { useTranslation } from "~/i18n";
 
 const APP_URL = "https://app.printlabapp.com";
@@ -13,6 +13,37 @@ function dlUrl(fileUrl: string, filename: string): string {
 
 function imageDownloadUrl(shop: string, orderId: string, side: "front" | "back", imgIndex: number): string {
   return `${APP_URL}/api/design-image?order_id=${encodeURIComponent(orderId)}&shop=${encodeURIComponent(shop)}&side=${side}&index=${imgIndex}`;
+}
+
+function shopAdminHandle(shop?: string | null): string {
+  return (shop || "").replace(".myshopify.com", "");
+}
+
+function adminAppOrderUrl(shop: string, orderId: string): string {
+  return `https://admin.shopify.com/store/${shopAdminHandle(shop)}/apps/printlabapp/app/orders/${orderId}`;
+}
+
+function adminShopifyOrderUrl(shop: string, shopifyOrderId: string): string {
+  return `https://admin.shopify.com/store/${shopAdminHandle(shop)}/orders/${shopifyOrderId}`;
+}
+
+function cardActionStyle(selected: boolean): CSSProperties {
+  return {
+    display: "block",
+    width: "100%",
+    minHeight: 36,
+    borderRadius: 8,
+    border: selected ? "1px solid #91b7ff" : "1px solid #babfc3",
+    background: selected ? "#2c6ecb" : "#ffffff",
+    color: selected ? "#ffffff" : "#202223",
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: "34px",
+    textAlign: "center",
+    textDecoration: "none",
+    cursor: selected ? "default" : "pointer",
+    opacity: selected ? 0.86 : 1,
+  };
 }
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
@@ -399,6 +430,7 @@ export default function OrderDetail() {
                     const totalQty = groupTotalQty(group.rows);
                     const front = hasFrontFiles(group.rows);
                     const back = hasBackFiles(group.rows);
+                    const targetUrl = adminAppOrderUrl(representative.shop || shop, representative.id);
                     return (
                       <div
                         key={group.key}
@@ -444,14 +476,13 @@ export default function OrderDetail() {
                             {group.rows.length > 1 && <Badge tone="new">{`${group.rows.length} varyant`}</Badge>}
                           </InlineStack>
 
-                          <Button
-                            fullWidth
-                            variant={selected ? "primary" : "secondary"}
-                            disabled={selected}
-                            url={selected ? undefined : `/app/orders/${representative.id}`}
-                          >
-                            {selected ? "Bu tasarım açık" : "Bu tasarımı aç"}
-                          </Button>
+                          {selected ? (
+                            <span style={cardActionStyle(true)}>Bu tasarım açık</span>
+                          ) : (
+                            <a href={targetUrl} target="_top" style={cardActionStyle(false)}>
+                              Bu tasarımı aç
+                            </a>
+                          )}
                         </BlockStack>
                       </div>
                     );
@@ -642,7 +673,7 @@ export default function OrderDetail() {
               <InlineStack align="space-between">
                 <Text as="span" tone="subdued">Sipariş No</Text>
                 <a
-                  href={`https://admin.shopify.com/store/whanotify-dev/orders/${order.shopifyOrderId}`}
+                  href={adminShopifyOrderUrl(order.shop || shop, order.shopifyOrderId)}
                   target="_blank"
                   rel="noreferrer"
                   style={{ color: "#2c6ecb", fontWeight: 600, textDecoration: "none" }}
