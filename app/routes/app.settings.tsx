@@ -634,6 +634,62 @@ export default function SettingsRoute() {
           </Box>
         </Card>
 
+        {/* Teşekkür Sayfası Tasarım Linki Kurulumu */}
+        <Card>
+          <Box padding="400">
+            <BlockStack gap="400">
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingMd">
+                  {lang === "tr" ? "Teşekkür Sayfası — Tasarım Linki" : "Thank You Page — Design Link"}
+                </Text>
+                <Text as="p" tone="subdued" variant="bodySm">
+                  {lang === "tr"
+                    ? "Müşteri siparişi tamamladıktan sonra teşekkür sayfasında 'Tasarım Detayı' linkinin görünmesi için aşağıdaki adımları izleyin."
+                    : "Follow the steps below to show the 'Design Detail' link on the thank you page after the customer completes their order."}
+                </Text>
+              </BlockStack>
+              <BlockStack gap="200">
+                {[
+                  {
+                    step: "1",
+                    tr: "Shopify Admin → Ayarlar → Ödeme sayfasına gidin ve 'Özelleştir' butonuna tıklayın.",
+                    en: "Go to Shopify Admin → Settings → Checkout and click the 'Customize' button.",
+                  },
+                  {
+                    step: "2",
+                    tr: "Editörün üst kısmındaki sayfa seçiciden 'Teşekkürler' sayfasını seçin.",
+                    en: "In the page selector at the top of the editor, choose the 'Thank you' page.",
+                  },
+                  {
+                    step: "3",
+                    tr: "Sol panelde Sipariş özeti → Sepet → Sepetteki ürünler bölümüne gidin.",
+                    en: "In the left panel, navigate to Order summary → Cart → Items in cart.",
+                  },
+                  {
+                    step: "4",
+                    tr: "'checkout-design-link' bloğunu bulun. Yanındaki göz ikonuna tıklayarak görünür hale getirin.",
+                    en: "Find the 'checkout-design-link' block. Click the eye icon next to it to make it visible.",
+                  },
+                  {
+                    step: "5",
+                    tr: "Kaydet butonuna basın. Artık müşteriler sipariş tamamlandığında tasarım detaylarını teşekkür sayfasında görebilir.",
+                    en: "Click Save. Customers will now see their design detail link on the thank you page after placing an order.",
+                  },
+                ].map((item) => (
+                  <Box key={item.step} padding="300" background="bg-fill-secondary" borderRadius="200">
+                    <InlineStack gap="300" blockAlign="start">
+                      <Box minWidth="24px">
+                        <Text as="span" variant="bodySm" fontWeight="bold" tone="subdued">{item.step}.</Text>
+                      </Box>
+                      <Text as="p" variant="bodySm">{lang === "tr" ? item.tr : item.en}</Text>
+                    </InlineStack>
+                  </Box>
+                ))}
+              </BlockStack>
+            </BlockStack>
+          </Box>
+        </Card>
+
         {/* Tema Kurulumu */}
         <Card>
           <Box padding="400">

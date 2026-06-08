@@ -14,3 +14,7 @@ uid = "6dcf454d-4dfc-ca47-4fb2-df538ddd6f53ac87b0e0"
 [[extensions.targeting]]
 module = "./src/Checkout.jsx"
 target = "purchase.checkout.cart-line-item.render-after"
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.thank-you.cart-line-item.render-after"
