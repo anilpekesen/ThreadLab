@@ -28,6 +28,10 @@ function attr(attrs, key) {
   return attrs?.find((item) => item.key === key || item.name === key)?.value;
 }
 
+function designToken(attrs) {
+  return attr(attrs, "_design_token") || attr(attrs, "design_token");
+}
+
 function moneyAmount(line) {
   const amount = Number(line.discountedTotalSet?.shopMoney?.amount ?? 0);
   return Number.isFinite(amount) ? amount : 0;
@@ -109,8 +113,8 @@ try {
     if (onlyOrder && orderNumber !== onlyOrder && shopifyOrderId !== onlyOrder) continue;
     if (order.cancelledAt) continue;
 
-    const orderToken = attr(order.customAttributes, "design_token");
-    const designLines = order.lineItems.nodes.filter((line) => attr(line.customAttributes, "design_token"));
+    const orderToken = designToken(order.customAttributes);
+    const designLines = order.lineItems.nodes.filter((line) => designToken(line.customAttributes));
     if (!orderToken && designLines.length === 0) continue;
 
     const customerName = "Müşteri";
@@ -120,7 +124,7 @@ try {
     for (const line of designLines.length ? designLines : order.lineItems.nodes.filter((line) => line.requiresShipping)) {
       const lineItemId = line.id.split("/").pop();
       const variantId = line.variant?.id?.split("/").pop() || "";
-      const token = attr(line.customAttributes, "design_token") || orderToken || "";
+      const token = designToken(line.customAttributes) || orderToken || "";
       if (!token) {
         skipped++;
         continue;

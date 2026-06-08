@@ -125,16 +125,20 @@ function getAttr(attrs: Attr[] | undefined, key: string): string | undefined {
   return attrs?.find((a) => (a.name ?? a.key) === key)?.value;
 }
 
+function getDesignToken(attrs: Attr[] | undefined): string | undefined {
+  return getAttr(attrs, "_design_token") ?? getAttr(attrs, "design_token");
+}
+
 function extractDesignToken(payload: OrderPayload): string | undefined {
   const fromOrder =
-    getAttr(payload.note_attributes, "design_token") ??
-    getAttr(payload.attributes, "design_token");
+    getDesignToken(payload.note_attributes) ??
+    getDesignToken(payload.attributes);
   if (fromOrder) return fromOrder;
 
   for (const item of payload.line_items ?? []) {
     const token =
-      getAttr(item.properties, "design_token") ??
-      getAttr(item.attributes, "design_token");
+      getDesignToken(item.properties) ??
+      getDesignToken(item.attributes);
     if (token) return token;
   }
   return undefined;
@@ -144,12 +148,12 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
   const shopifyOrderId = String(payload.id ?? "");
   if (!shopifyOrderId) return;
 
-  const orderToken = getAttr(payload.note_attributes, "design_token") ?? getAttr(payload.attributes, "design_token");
+  const orderToken = getDesignToken(payload.note_attributes) ?? getDesignToken(payload.attributes);
   const lineItems = payload.line_items ?? [];
   const designItems = lineItems.filter(
     (li) =>
-      getAttr(li.properties, "design_token") !== undefined ||
-      getAttr(li.attributes, "design_token") !== undefined,
+      getDesignToken(li.properties) !== undefined ||
+      getDesignToken(li.attributes) !== undefined,
   );
   const itemsToProcess =
     designItems.length > 0 ? designItems : lineItems.filter((li) => li.requires_shipping);
@@ -173,8 +177,8 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
   for (const item of itemsToProcess) {
     const variantId = String(item.variant_id ?? "");
     const token =
-      getAttr(item.properties, "design_token") ??
-      getAttr(item.attributes, "design_token") ??
+      getDesignToken(item.properties) ??
+      getDesignToken(item.attributes) ??
       orderToken ??
       "";
     const lineItemId = item.id ? String(item.id) : `${variantId}:${token || "no-design"}`;

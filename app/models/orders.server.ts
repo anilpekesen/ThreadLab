@@ -392,6 +392,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
 
   const shopifyOrders = data.data?.orders?.nodes ?? [];
   const getAttr = (attrs: Attr[], key: string) => attrs.find((a) => a.key === key)?.value;
+  const getDesignToken = (attrs: Attr[]) => getAttr(attrs, "_design_token") ?? getAttr(attrs, "design_token");
   let added = 0;
 
   // Purge orders in our DB that no longer exist in Shopify (deleted by merchant).
@@ -428,9 +429,9 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
     }
 
     // Only import design orders (must have a design_token somewhere)
-    const orderToken = getAttr(so.customAttributes, "design_token");
+    const orderToken = getDesignToken(so.customAttributes);
     const designItems = so.lineItems.nodes.filter(
-      (li) => getAttr(li.customAttributes, "design_token") !== undefined,
+      (li) => getDesignToken(li.customAttributes) !== undefined,
     );
 
     const hasDesignToken = orderToken || designItems.length > 0;
@@ -438,13 +439,13 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
 
     // Always capture ALL shipping items — size variants share the same design.
     // The design_token may be on only one line item; fall back to that token for siblings.
-    const sharedToken = orderToken || (designItems.length > 0 ? getAttr(designItems[0].customAttributes, "design_token") : "");
+    const sharedToken = orderToken || (designItems.length > 0 ? getDesignToken(designItems[0].customAttributes) : "");
     const itemsToProcess: LineItem[] = so.lineItems.nodes.filter((li) => li.requiresShipping);
     if (itemsToProcess.length === 0) continue;
 
     for (const item of itemsToProcess) {
       const variantId = item.variant?.id.split("/").pop() ?? "";
-      const token = getAttr(item.customAttributes, "design_token") ?? sharedToken;
+      const token = getDesignToken(item.customAttributes) ?? sharedToken;
       const lineItemId = item.id?.split("/").pop() ?? `${variantId}:${token || "no-design"}`;
       if (item.id) {
         await query(

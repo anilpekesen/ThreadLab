@@ -388,10 +388,10 @@
             return res.json();
           })
           .then(function() {
-            // Save design_token + image URLs to cart attributes so they survive
+            // Save hidden design token + image URLs to cart attributes so they survive
             // Cart Transform line item expansion and are readable from the order record.
             var cartAttrs = {};
-            if (e.data.designToken) cartAttrs['design_token'] = e.data.designToken;
+            if (e.data.designToken) cartAttrs['_design_token'] = e.data.designToken;
             if (props['_front_preview_url']) cartAttrs['_front_preview_url'] = props['_front_preview_url'];
             if (props['_front_print_url']) cartAttrs['_front_print_url'] = props['_front_print_url'];
             if (props['_back_preview_url']) cartAttrs['_back_preview_url'] = props['_back_preview_url'];

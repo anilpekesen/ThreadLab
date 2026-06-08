@@ -11,6 +11,7 @@ query RunInput {
       a03: attribute(key: "Ön Tasarım") { value }
       a04: attribute(key: "Arka Tasarım") { value }
       a05: attribute(key: "design_token") { value }
+      a05Hidden: attribute(key: "_design_token") { value }
       a06: attribute(key: "Toplam adet") { value }
       a07: attribute(key: "Tişört birim fiyatı") { value }
       a08: attribute(key: "Tişört ara toplamı") { value }
@@ -25,6 +26,7 @@ query RunInput {
       a17: attribute(key: "Arka fiyat bandı") { value }
       a18: attribute(key: "Toplu alım indirimi") { value }
       a19: attribute(key: "Baskı indirimi") { value }
+      a20: attribute(key: "Tasarım Detayı") { value }
       merchandise {
         ... on ProductVariant { id }
       }

@@ -1650,6 +1650,9 @@ export default function App() {
       }).then((r) => r.json());
 
       const token = (designRes as { token?: string }).token ?? '';
+      const customerDesignUrl = token
+        ? `https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=${encodeURIComponent(config?.shop || '')}&token=${encodeURIComponent(token)}`
+        : '';
       trackDesignerEvent({
         eventType: 'cart_add',
         designToken: token,
@@ -1663,12 +1666,13 @@ export default function App() {
       });
       const properties: Record<string, string> = {
         'Ön Tasarım': frontHas ? 'Var' : 'Yok',
-        design_token: token,
+        '_design_token': token,
         'Toplam adet': String(totalQuantity),
         'Tişört birim fiyatı': formatMoney(pricingSummary.baseUnitPrice),
         'Tişört ara toplamı': formatMoney(pricingSummary.baseSubtotal),
         'Toplam fiyat': formatMoney(pricingSummary.total),
       };
+      if (customerDesignUrl) properties['Tasarım Detayı'] = customerDesignUrl;
       if (frontPreviewUrl) properties['_front_preview_url'] = frontPreviewUrl;
       if (backPreviewUrl) properties['_back_preview_url'] = backPreviewUrl;
       if (frontPrintUrl) properties['_front_print_url'] = frontPrintUrl;
@@ -1677,14 +1681,12 @@ export default function App() {
       if (pricingSummary.front.hasContent) {
         properties['Ön öğe sayısı'] = String(pricingSummary.front.metrics.objectCount);
         properties['Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
-        properties['Ön alan'] = `${roundMetric(pricingSummary.front.metrics.areaCm2)} cm²`;
         properties['Ön alan fiyatı'] = formatMoney(pricingSummary.front.surcharge);
       properties['Ön fiyat bandı'] = pricingSummary.front.band.label;
     }
     if (pricingSummary.back.hasContent) {
       properties['Arka öğe sayısı'] = String(pricingSummary.back.metrics.objectCount);
       properties['Arka ölçü'] = formatMetricSize(pricingSummary.back.metrics);
-      properties['Arka alan'] = `${roundMetric(pricingSummary.back.metrics.areaCm2)} cm²`;
         properties['Arka alan fiyatı'] = formatMoney(pricingSummary.back.surcharge);
         properties['Arka fiyat bandı'] = pricingSummary.back.band.label;
       }

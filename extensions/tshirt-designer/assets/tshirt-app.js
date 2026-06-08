@@ -2913,12 +2913,10 @@
       if (S.colorName) properties['Renk'] = S.colorName;
       if (pricing.front.hasContent) {
         properties['Ön ölçü'] = formatMetricSize(pricing.front.metrics);
-        properties['Ön alan'] = roundMetric(pricing.front.metrics.areaCm2) + ' cm²';
         properties['Ön fiyat bandı'] = pricing.front.band.label;
       }
       if (pricing.back.hasContent) {
         properties['Arka ölçü'] = formatMetricSize(pricing.back.metrics);
-        properties['Arka alan'] = roundMetric(pricing.back.metrics.areaCm2) + ' cm²';
         properties['Arka fiyat bandı'] = pricing.back.band.label;
       }
 
@@ -2930,7 +2928,10 @@
         }
         if (frontUrl) properties['Ön önizleme'] = frontUrl;
         if (backUrl)  properties['Arka önizleme'] = backUrl;
-        if (design && design.token) properties.design_token = design.token;
+        if (design && design.token) {
+          properties._design_token = design.token;
+          properties['Tasarım Detayı'] = 'https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=' + encodeURIComponent(cfg.shop || '') + '&token=' + encodeURIComponent(design.token);
+        }
         if (design && design.downloadUrl) properties['Tasarımı indir'] = design.downloadUrl;
         if (design && design.editUrl) properties['Tasarımı düzenle'] = design.editUrl;
         var frontUnitSurcharge = (cfg.surchargeVariantId && pricing.front.hasContent && pricing.front.surcharge > 0)

@@ -749,7 +749,7 @@ async function handleOrderWebhook(req, res) {
 
   for (const item of (orderData.line_items || [])) {
     const props = item.properties || [];
-    const tokenProp = props.find((p) => p.name === "design_token");
+    const tokenProp = props.find((p) => p.name === "_design_token" || p.name === "design_token");
     if (!tokenProp) continue;
     const designs = readData("designs.json", {});
     const design = designs[tokenProp.value];

@@ -147,8 +147,8 @@
     var props = item.properties || {};
     var front = firstValue(props, ['_front_preview_url', 'Ön önizleme', 'On onizleme', 'Front preview']);
     var back = firstValue(props, ['_back_preview_url', 'Arka önizleme', 'Arka onizleme', 'Back preview']);
-    var token = firstValue(props, ['design_token']);
-    var attrToken = firstValue(_cartAttributes, ['design_token']);
+    var token = firstValue(props, ['_design_token', 'design_token']);
+    var attrToken = firstValue(_cartAttributes, ['_design_token', 'design_token']);
 
     if ((!front || !back) && token && attrToken && token === attrToken) {
       if (!front && hasFrontDesign(props)) front = firstValue(_cartAttributes, ['_front_preview_url']);
