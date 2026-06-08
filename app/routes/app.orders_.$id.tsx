@@ -199,6 +199,21 @@ function hasBackFiles(rows: Order[]): boolean {
   return rows.some((row) => Boolean(row.designBackPreviewUrl || row.designBackPrintUrl));
 }
 
+function formatOrderDateTime(value?: string | null, lang: string = "tr"): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat(lang === "en" ? "en-US" : "tr-TR", {
+    timeZone: "Europe/Istanbul",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export const headers = () => ({
   "Cache-Control": "no-store, no-cache, must-revalidate",
   "Pragma": "no-cache",
@@ -433,7 +448,7 @@ export default function OrderDetail() {
                             fullWidth
                             variant={selected ? "primary" : "secondary"}
                             disabled={selected}
-                            onClick={() => navigate(`/app/orders/${representative.id}`)}
+                            url={selected ? undefined : `/app/orders/${representative.id}`}
                           >
                             {selected ? "Bu tasarım açık" : "Bu tasarımı aç"}
                           </Button>
@@ -456,7 +471,7 @@ export default function OrderDetail() {
           const uploadedFolderUrl = liveFolderUrl || persistedFolderUrl;
           const uploadedAt = driveResult?.ok ? new Date().toISOString() : order.driveUploadedAt;
           const isUploaded = Boolean(uploadedFolderUrl);
-          const formattedDate = uploadedAt ? new Date(uploadedAt).toLocaleString("tr-TR") : "";
+          const formattedDate = formatOrderDateTime(uploadedAt, lang);
 
           return (
             <Card>
@@ -684,10 +699,7 @@ export default function OrderDetail() {
               <InlineStack align="space-between">
                 <Text as="span" tone="subdued">Tarih</Text>
                 <Text as="span">
-                  {new Date(order.createdAt).toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", {
-                    day: "2-digit", month: "long", year: "numeric",
-                    hour: "2-digit", minute: "2-digit",
-                  })}
+                  {formatOrderDateTime(order.createdAt, lang)}
                 </Text>
               </InlineStack>
               {!design && !hasDesignFiles && (
