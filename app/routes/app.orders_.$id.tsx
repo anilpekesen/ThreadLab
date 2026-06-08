@@ -282,9 +282,8 @@ export default function OrderDetail() {
   const driveResult = driveFetcher.data;
 
   const next = NEXT_STATUS[order.productionStatus];
-  const shopDomain = shop.replace(".myshopify.com", "");
   const customerDesignUrl = order.designToken
-    ? `https://${shopDomain}.myshopify.com/apps/tshirt-designer/my-order?token=${encodeURIComponent(order.designToken)}`
+    ? `${APP_URL}/apps/tshirt-designer/my-order?shop=${encodeURIComponent(order.shop || shop)}&token=${encodeURIComponent(order.designToken)}`
     : null;
 
   // Fallback URLs: design record → order JOIN data → order own columns
