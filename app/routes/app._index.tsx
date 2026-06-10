@@ -3,6 +3,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useNavigate, useRevalidator } from "@remix-run/react";
 import { useEffect } from "react";
 import { useTranslation, type Lang } from "~/i18n";
+import type { TranslationKey } from "~/i18n/tr";
 import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Text, BlockStack, InlineGrid, Box,
@@ -50,8 +51,8 @@ const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attentio
 
 function formatFulfillmentTime(hours: number | null, lang: string): string {
   if (hours === null) return lang === "tr" ? "Veri yok" : "No data";
-  if (hours < 1) return lang === "tr" ? "< 1 saat" : "< 1 hr";
-  if (hours < 24) return lang === "tr" ? `${hours} saat` : `${hours} hrs`;
+  if (hours < 1) return lang === "tr" ? "< 1 sa" : "< 1 hr";
+  if (hours < 24) return lang === "tr" ? `${hours} sa` : `${hours} hrs`;
   const days = (hours / 24).toFixed(1);
   return lang === "tr" ? `${days} gün` : `${days} days`;
 }
@@ -178,60 +179,46 @@ function formatMoneyValue(value: number | null, currencyCode: string, lang: stri
   }
 }
 
-function statusLabel(status: string, lang: string): string {
-  const tr: Record<string, string> = {
-    pending: "Bekliyor",
-    preparing: "Hazırlanıyor",
-    printed: "Basılı",
-    ready: "Hazır",
-    shipped: "Gönderildi",
-    cancelled: "İptal",
-  };
-  const en: Record<string, string> = {
-    pending: "Pending",
-    preparing: "Preparing",
-    printed: "Printed",
-    ready: "Ready",
-    shipped: "Shipped",
-    cancelled: "Cancelled",
-  };
-  return (lang === "tr" ? tr : en)[status] ?? status;
+const STATUS_LABEL_KEYS: Record<string, TranslationKey> = {
+  pending: "status.pending",
+  preparing: "status.preparing",
+  printed: "status.printed",
+  ready: "status.ready",
+  shipped: "status.shipped",
+  cancelled: "common.cancel",
+};
+
+function statusLabel(status: string, t: (k: TranslationKey) => string): string {
+  return STATUS_LABEL_KEYS[status] ? t(STATUS_LABEL_KEYS[status]) : status;
 }
 
-function activityLabel(type: string, fallback: string, lang: string): string {
-  const tr: Record<string, string> = {
-    order: "Sipariş alındı",
-    cart_add: "Sepete eklendi",
-    template_applied: "Şablon kullanıldı",
-    design_created: "Tasarım oluşturuldu",
-    design_activity: "Tasarım yapıldı",
-    background_removed: "Arka plan kaldırıldı",
-  };
-  const en: Record<string, string> = {
-    order: "Order received",
-    cart_add: "Added to cart",
-    template_applied: "Template used",
-    design_created: "Design created",
-    design_activity: "Design activity",
-    background_removed: "Background removed",
-  };
-  return (lang === "tr" ? tr : en)[type] ?? fallback ?? type;
+const ACTIVITY_LABEL_KEYS: Record<string, TranslationKey> = {
+  order: "activity.order",
+  cart_add: "activity.cartAdd",
+  template_applied: "activity.templateApplied",
+  design_created: "activity.designCreated",
+  design_activity: "activity.designActivity",
+  background_removed: "activity.backgroundRemoved",
+};
+
+function activityLabel(type: string, fallback: string, t: (k: TranslationKey) => string): string {
+  return ACTIVITY_LABEL_KEYS[type] ? t(ACTIVITY_LABEL_KEYS[type]) : fallback ?? type;
 }
 
-function activityDetail(type: string, label: string, detail: string, lang: string): string {
+function activityDetail(type: string, label: string, detail: string, t: (k: TranslationKey) => string): string {
   const cleanDetail = detail && !detail.startsWith("d_") ? detail : "";
-  if (type === "order") return cleanDetail || (lang === "tr" ? "Özel tasarım siparişi" : "Custom design order");
+  if (type === "order") return cleanDetail || t("activity.customDesignOrder");
   if (type === "template_applied") {
-    const template = label && !label.startsWith("d_") ? label : (lang === "tr" ? "Şablon" : "Template");
+    const template = label && !label.startsWith("d_") ? label : t("activity.templateLabel");
     return cleanDetail ? `${template} · ${cleanDetail}` : template;
   }
-  return cleanDetail || (lang === "tr" ? "Tasarım aktivitesi" : "Design activity");
+  return cleanDetail || t("activity.designActivityDetail");
 }
 
-function EmptyMetric({ lang }: { lang: string }) {
+function EmptyMetric({ t }: { t: (k: TranslationKey) => string }) {
   return (
     <Text as="p" variant="bodySm" tone="subdued">
-      {lang === "tr" ? "Henüz veri yok" : "No data yet"}
+      {t("dashboard.noDataYet")}
     </Text>
   );
 }
@@ -362,18 +349,15 @@ export default function Index() {
             title={lang === "tr"
               ? `${production.lateCount} sipariş 2 günden uzun süredir bekliyor`
               : `${production.lateCount} order${production.lateCount > 1 ? "s" : ""} waiting for over 2 days`}
-            action={{ content: lang === "tr" ? "Siparişlere Git" : "Go to Orders", onAction: () => navigate("/app/orders") }}
+            action={{ content: t("dashboard.goToOrders"), onAction: () => navigate("/app/orders") }}
           />
         )}
 
         <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
-          {/* Ort. karşılama süresi */}
           <Card>
             <Box padding="400">
               <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {lang === "tr" ? "Ort. Karşılama Süresi" : "Avg. Fulfillment Time"}
-                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.avgFulfillmentTime")}</Text>
                 <Text as="p" variant="headingXl" tone={
                   production.avgFulfillmentHours === null ? undefined
                   : production.avgFulfillmentHours <= 24 ? "success"
@@ -382,94 +366,76 @@ export default function Index() {
                 }>
                   {formatFulfillmentTime(production.avgFulfillmentHours, lang)}
                 </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {lang === "tr" ? "Son 30 gün · gönderildi olanlar" : "Last 30 days · shipped orders"}
-                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.fulfillmentSubtitle")}</Text>
               </BlockStack>
             </Box>
           </Card>
 
-          {/* Bu hafta */}
           <Card>
             <Box padding="400">
               <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {lang === "tr" ? "Bu Hafta" : "This Week"}
-                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.thisWeek")}</Text>
                 <Text as="p" variant="headingXl">{production.weekCount}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {lang === "tr" ? "Son 7 günde gelen sipariş" : "Orders in the last 7 days"}
-                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.thisWeekSubtitle")}</Text>
               </BlockStack>
             </Box>
           </Card>
 
-          {/* Geciken */}
           <Card>
             <Box padding="400">
               <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {lang === "tr" ? "Geciken Sipariş" : "Late Orders"}
-                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.lateOrders")}</Text>
                 <Text as="p" variant="headingXl" tone={production.lateCount > 0 ? "caution" : undefined}>
                   {production.lateCount}
                 </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {lang === "tr" ? "2 günden uzun bekliyor / hazırlanıyor" : "Pending / preparing over 2 days"}
-                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.lateOrdersSubtitle")}</Text>
               </BlockStack>
             </Box>
           </Card>
         </InlineGrid>
 
-        {/* 7 günlük sipariş grafiği */}
         <Card>
           <Box padding="400">
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">
-                {lang === "tr" ? "Son 7 Gün — Sipariş Hacmi" : "Last 7 Days — Order Volume"}
-              </Text>
+              <Text as="h2" variant="headingMd">{t("dashboard.last7DaysVolume")}</Text>
               <MiniBarChart days={chartDays} />
             </BlockStack>
           </Box>
         </Card>
 
-        {/* Gelişmiş analitik */}
         <BlockStack gap="300">
-          <Text as="h2" variant="headingMd">
-            {lang === "tr" ? "Gelişmiş Analitik" : "Advanced Analytics"}
-          </Text>
+          <Text as="h2" variant="headingMd">{t("dashboard.advancedAnalytics")}</Text>
 
           <InlineGrid columns={{ xs: 1, sm: 2, md: 5 }} gap="400">
             {[
               {
-                label: lang === "tr" ? "Bugün tasarım yaptı" : "Designed today",
+                label: t("dashboard.designedToday"),
                 value: detail.todayFunnel.designUsers,
-                caption: lang === "tr" ? "farklı kişi" : "unique customers",
+                caption: t("dashboard.uniqueCustomers"),
                 tone: undefined,
               },
               {
-                label: lang === "tr" ? "Arka plan kaldırdı" : "Removed background",
+                label: t("dashboard.removedBackground"),
                 value: detail.todayFunnel.backgroundRemovedUsers,
-                caption: lang === "tr" ? "farklı kişi" : "unique customers",
+                caption: t("dashboard.uniqueCustomers"),
                 tone: undefined,
               },
               {
-                label: lang === "tr" ? "Sepete ekledi" : "Added to cart",
+                label: t("dashboard.addedToCart"),
                 value: detail.todayFunnel.cartAddUsers,
-                caption: lang === "tr" ? "farklı kişi" : "unique customers",
+                caption: t("dashboard.uniqueCustomers"),
                 tone: undefined,
               },
               {
-                label: lang === "tr" ? "Sepette kaldı" : "Abandoned cart",
+                label: t("dashboard.abandonedCart"),
                 value: detail.todayFunnel.cartAbandonedUsers,
-                caption: lang === "tr" ? "aldı ama ödemedi" : "carted, not purchased",
+                caption: t("dashboard.cartedNotPurchased"),
                 tone: detail.todayFunnel.cartAbandonedUsers > 0 ? ("caution" as const) : undefined,
               },
               {
-                label: lang === "tr" ? "Satın aldı" : "Purchased",
+                label: t("dashboard.purchased"),
                 value: detail.todayFunnel.purchasedUsers,
-                caption: `${detail.todayFunnel.purchasedOrders} ${lang === "tr" ? "sipariş" : "orders"}`,
+                caption: `${detail.todayFunnel.purchasedOrders} ${t("dashboard.ordersLabel")}`,
                 tone: "success" as const,
               },
             ].map((item) => (
@@ -489,16 +455,14 @@ export default function Index() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="200">
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {lang === "tr" ? "Tasarım → Sipariş" : "Design → Order"}
-                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.designToOrder")}</Text>
                   <Text as="p" variant="headingXl">{formatPercent(detail.conversion.designToOrderPercent)}</Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {detail.conversion.designs} {lang === "tr" ? "tasarım" : "designs"} · {detail.conversion.cartAdds} {lang === "tr" ? "sepete ekleme" : "cart adds"} · {detail.conversion.orders} {lang === "tr" ? "sipariş" : "orders"}
+                    {detail.conversion.designs} {t("dashboard.designsLabel")} · {detail.conversion.cartAdds} {t("dashboard.cartAddsLabel")} · {detail.conversion.orders} {t("dashboard.ordersLabel")}
                   </Text>
                   <InlineStack gap="200">
-                    <Badge tone="info">{`${lang === "tr" ? "Sepete" : "To cart"} ${formatPercent(detail.conversion.designToCartPercent)}`}</Badge>
-                    <Badge tone="success">{`${lang === "tr" ? "Siparişe" : "To order"} ${formatPercent(detail.conversion.cartToOrderPercent)}`}</Badge>
+                    <Badge tone="info">{`${t("dashboard.toCartBadge")} ${formatPercent(detail.conversion.designToCartPercent)}`}</Badge>
+                    <Badge tone="success">{`${t("dashboard.toOrderBadge")} ${formatPercent(detail.conversion.cartToOrderPercent)}`}</Badge>
                   </InlineStack>
                 </BlockStack>
               </Box>
@@ -507,12 +471,10 @@ export default function Index() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="200">
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {lang === "tr" ? "Ortalama Tasarım Süresi" : "Avg. Design Time"}
-                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.avgDesignTime")}</Text>
                   <Text as="p" variant="headingXl">{formatDuration(detail.designDuration.avgSeconds, lang)}</Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {detail.designDuration.samples} {lang === "tr" ? "sepete ekleme örneği" : "cart-add samples"}
+                    {detail.designDuration.samples} {t("dashboard.cartAddSamples")}
                   </Text>
                 </BlockStack>
               </Box>
@@ -521,15 +483,13 @@ export default function Index() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="200">
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {lang === "tr" ? "AI Kullanım Verimi" : "AI Usage Efficiency"}
-                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.aiUsageEfficiency")}</Text>
                   <Text as="p" variant="headingXl">{formatPercent(detail.aiEfficiency.bgToOrderPercent)}</Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {detail.aiEfficiency.bgUses} {lang === "tr" ? "arka plan silme" : "background removals"} · {detail.aiEfficiency.ordersWithBgSession} {lang === "tr" ? "siparişe dönen" : "converted orders"}
+                    {detail.aiEfficiency.bgUses} {t("dashboard.bgRemovalsLabel")} · {detail.aiEfficiency.ordersWithBgSession} {t("dashboard.convertedOrders")}
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {detail.aiEfficiency.bgCustomers} {lang === "tr" ? "müşteri kullandı" : "customers used it"}
+                    {detail.aiEfficiency.bgCustomers} {t("dashboard.customersUsedIt")}
                   </Text>
                 </BlockStack>
               </Box>
@@ -540,18 +500,16 @@ export default function Index() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h3" variant="headingSm">
-                    {lang === "tr" ? "En Çok Tasarlanan Ürünler" : "Top Designed Products"}
-                  </Text>
-                  {detail.topProducts.length === 0 ? <EmptyMetric lang={lang} /> : (
+                  <Text as="h3" variant="headingSm">{t("dashboard.topProducts")}</Text>
+                  {detail.topProducts.length === 0 ? <EmptyMetric t={t} /> : (
                     <BlockStack gap="200">
                       {detail.topProducts.map((item) => (
                         <InlineStack key={`${item.productId}-${item.productName}`} align="space-between" blockAlign="center">
                           <BlockStack gap="050">
                             <Text as="p" variant="bodyMd" fontWeight="semibold">{item.productName}</Text>
-                            <Text as="p" variant="bodySm" tone="subdued">{item.quantity} {lang === "tr" ? "adet" : "units"}</Text>
+                            <Text as="p" variant="bodySm" tone="subdued">{item.quantity} {t("dashboard.unitsLabel")}</Text>
                           </BlockStack>
-                          <Badge tone="info">{`${item.orders} ${lang === "tr" ? "sipariş" : "orders"}`}</Badge>
+                          <Badge tone="info">{`${item.orders} ${t("dashboard.ordersLabel")}`}</Badge>
                         </InlineStack>
                       ))}
                     </BlockStack>
@@ -563,22 +521,18 @@ export default function Index() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h3" variant="headingSm">
-                    {lang === "tr" ? "En Çok Kullanılan Şablonlar" : "Most Used Templates"}
-                  </Text>
-                  {detail.topTemplates.length === 0 ? <EmptyMetric lang={lang} /> : (
+                  <Text as="h3" variant="headingSm">{t("dashboard.topTemplates")}</Text>
+                  {detail.topTemplates.length === 0 ? <EmptyMetric t={t} /> : (
                     <BlockStack gap="200">
                       {detail.topTemplates.map((item) => (
                         <InlineStack key={`${item.templateKind}-${item.templateId}`} align="space-between" blockAlign="center">
                           <BlockStack gap="050">
                             <Text as="p" variant="bodyMd" fontWeight="semibold">{item.templateName}</Text>
                             <Text as="p" variant="bodySm" tone="subdued">
-                              {item.templateKind === "shop"
-                                ? (lang === "tr" ? "Mağaza görsel şablonu" : "Store image template")
-                                : (lang === "tr" ? "Yazı şablonu" : "Text template")}
+                              {item.templateKind === "shop" ? t("dashboard.storeImageTemplate") : t("dashboard.textTemplate")}
                             </Text>
                           </BlockStack>
-                          <Badge tone="success">{`${item.uses} ${lang === "tr" ? "kullanım" : "uses"}`}</Badge>
+                          <Badge tone="success">{`${item.uses} ${t("dashboard.usesLabel")}`}</Badge>
                         </InlineStack>
                       ))}
                     </BlockStack>
@@ -592,10 +546,8 @@ export default function Index() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h3" variant="headingSm">
-                    {lang === "tr" ? "Üretim Durum Dağılımı" : "Production Status Breakdown"}
-                  </Text>
-                  {detail.productionStatus.length === 0 ? <EmptyMetric lang={lang} /> : (
+                  <Text as="h3" variant="headingSm">{t("dashboard.productionStatusTitle")}</Text>
+                  {detail.productionStatus.length === 0 ? <EmptyMetric t={t} /> : (
                     <BlockStack gap="200">
                       {detail.productionStatus.map((item) => {
                         const total = detail.productionStatus.reduce((sum, s) => sum + s.count, 0);
@@ -603,7 +555,7 @@ export default function Index() {
                         return (
                           <BlockStack gap="100" key={item.status}>
                             <InlineStack align="space-between">
-                              <Text as="p" variant="bodySm">{statusLabel(item.status, lang)}</Text>
+                              <Text as="p" variant="bodySm">{statusLabel(item.status, t)}</Text>
                               <Text as="p" variant="bodySm" tone="subdued">{item.count} · {p}%</Text>
                             </InlineStack>
                             <ProgressBar progress={p} size="small" />
@@ -619,15 +571,13 @@ export default function Index() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h3" variant="headingSm">
-                    {lang === "tr" ? "Baskı Dosyası Sağlığı" : "Print File Health"}
-                  </Text>
+                  <Text as="h3" variant="headingSm">{t("dashboard.printFileHealth")}</Text>
                   <InlineGrid columns={2} gap="300">
                     {[
-                      { label: lang === "tr" ? "Tasarım kaydı yok" : "Missing design", value: detail.fileHealth.missingDesign },
-                      { label: lang === "tr" ? "Baskı dosyası yok" : "Missing print file", value: detail.fileHealth.missingPrintFile },
-                      { label: lang === "tr" ? "Önizleme yok" : "Missing preview", value: detail.fileHealth.missingPreview },
-                      { label: lang === "tr" ? "Katman verisi eksik" : "Missing layer data", value: detail.fileHealth.incompleteDesignData },
+                      { label: t("dashboard.missingDesign"), value: detail.fileHealth.missingDesign },
+                      { label: t("dashboard.missingPrintFile"), value: detail.fileHealth.missingPrintFile },
+                      { label: t("dashboard.missingPreview"), value: detail.fileHealth.missingPreview },
+                      { label: t("dashboard.missingLayerData"), value: detail.fileHealth.incompleteDesignData },
                     ].map((item) => (
                       <BlockStack gap="050" key={item.label}>
                         <Text as="p" variant="headingLg" tone={item.value > 0 ? "caution" : "success"}>{item.value}</Text>
@@ -637,7 +587,7 @@ export default function Index() {
                   </InlineGrid>
                   {(detail.fileHealth.missingDesign + detail.fileHealth.missingPrintFile + detail.fileHealth.missingPreview) > 0 && (
                     <Button onClick={() => navigate("/app/orders")}>
-                      {lang === "tr" ? "Siparişleri Kontrol Et" : "Check Orders"}
+                      {t("dashboard.checkOrdersBtn")}
                     </Button>
                   )}
                 </BlockStack>
@@ -649,28 +599,24 @@ export default function Index() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="200">
-                  <Text as="h3" variant="headingSm">
-                    {lang === "tr" ? "Gelir Etkisi" : "Revenue Impact"}
-                  </Text>
+                  <Text as="h3" variant="headingSm">{t("dashboard.revenueImpact")}</Text>
                   <InlineGrid columns={2} gap="300">
                     <BlockStack gap="050">
                       <Text as="p" variant="headingLg">
                         {formatMoneyValue(detail.revenueImpact.customOrderValue, detail.revenueImpact.currencyCode, lang)}
                       </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">{lang === "tr" ? "özel tasarım geliri" : "custom design revenue"}</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.customDesignRevenue")}</Text>
                     </BlockStack>
                     <BlockStack gap="050">
                       <Text as="p" variant="headingLg">
                         {formatMoneyValue(detail.revenueImpact.avgCustomOrderValue, detail.revenueImpact.currencyCode, lang)}
                       </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">{lang === "tr" ? "ortalama özel sipariş" : "avg. custom order"}</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.avgCustomOrder")}</Text>
                     </BlockStack>
                   </InlineGrid>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {detail.revenueImpact.customOrders} {lang === "tr" ? "sipariş" : "orders"} · {detail.revenueImpact.customUnits} {lang === "tr" ? "adet" : "units"}
-                    {!detail.revenueImpact.valueTracked
-                      ? (lang === "tr" ? " · Yeni siparişlerde tutar otomatik dolacak." : " · Value will populate automatically for new orders.")
-                      : ""}
+                    {detail.revenueImpact.customOrders} {t("dashboard.ordersLabel")} · {detail.revenueImpact.customUnits} {t("dashboard.unitsLabel")}
+                    {!detail.revenueImpact.valueTracked ? t("dashboard.valueAutoPopulate") : ""}
                   </Text>
                 </BlockStack>
               </Box>
@@ -679,19 +625,17 @@ export default function Index() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h3" variant="headingSm">
-                    {lang === "tr" ? "Son Aktiviteler" : "Recent Activity"}
-                  </Text>
-                  {detail.recentActivity.length === 0 ? <EmptyMetric lang={lang} /> : (
+                  <Text as="h3" variant="headingSm">{t("dashboard.recentActivity")}</Text>
+                  {detail.recentActivity.length === 0 ? <EmptyMetric t={t} /> : (
                     <BlockStack gap="200">
                       {detail.recentActivity.map((item, index) => (
                         <InlineStack key={`${item.type}-${item.createdAt}-${index}`} align="space-between" blockAlign="start">
                           <BlockStack gap="050">
                             <Text as="p" variant="bodyMd" fontWeight="semibold">
-                              {activityLabel(item.type, item.label, lang)}
+                              {activityLabel(item.type, item.label, t)}
                             </Text>
                             <Text as="p" variant="bodySm" tone="subdued">
-                              {activityDetail(item.type, item.label, item.detail, lang)}
+                              {activityDetail(item.type, item.label, item.detail, t)}
                             </Text>
                           </BlockStack>
                           <Text as="p" variant="bodySm" tone="subdued">
@@ -737,7 +681,7 @@ export default function Index() {
                 <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.bgTotal")} <strong>{analytics.bgAllTime}</strong> {t("dashboard.bgRemovals")}</Text>
                 {analytics.customerBgSessionsThisMonth > 0 && (
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {analytics.customerBgSessionsThisMonth} {lang === "tr" ? "müşteri" : "customers"} · {lang === "tr" ? "ort." : "avg."} {analytics.customerBgAvgPerSession} {lang === "tr" ? "kullanım/kişi" : "uses/customer"}
+                    {analytics.customerBgSessionsThisMonth} {t("dashboard.customersLabel")} · {t("dashboard.avgLabel")} {analytics.customerBgAvgPerSession} {t("dashboard.usesPerCustomer")}
                   </Text>
                 )}
               </BlockStack>

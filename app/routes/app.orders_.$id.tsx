@@ -104,7 +104,7 @@ function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHr
             {obj.fontSize && <MetaChip label={t("orderDetail.size")} value={`${obj.fontSize}px`} />}
             {obj.fill && (
               <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#6b7280" }}>
-                <span>Renk</span>
+                <span>{t("orderDetail.colorLabel")}</span>
                 <span style={{ display: "inline-block", width: 14, height: 14, borderRadius: 3, background: toHex(obj.fill), border: "1px solid #d1d5db", verticalAlign: "middle" }} />
                 <span style={{ fontFamily: "monospace" }}>{toHex(obj.fill)}</span>
               </span>
@@ -123,7 +123,7 @@ function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHr
           </div>
         )}
         <Text as="span" variant="bodySm" tone="subdued">
-          Konum: {Math.round(obj.left ?? 0)}, {Math.round(obj.top ?? 0)}
+          {t("orderDetail.positionLabel")}: {Math.round(obj.left ?? 0)}, {Math.round(obj.top ?? 0)}
         </Text>
         {isImage && obj.src && (
           <a
@@ -132,7 +132,7 @@ function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHr
             rel="noopener noreferrer"
             style={{ fontSize: 12, color: "#2c6ecb" }}
           >
-            Görseli İndir
+            {t("orderDetail.downloadImage")}
           </a>
         )}
       </BlockStack>
@@ -201,17 +201,17 @@ const NEXT_STATUS: Record<string, string> = {
   ready: "shipped",
 };
 
-function productTitle(order: Order): string {
-  return (order.productName || "").split(" - ")[0] || order.productName || "Ürün";
+function productTitle(order: Order, fallback: string): string {
+  return (order.productName || "").split(" - ")[0] || order.productName || fallback;
 }
 
 function productGroupKey(order: Order): string {
   return order.designToken || `${order.productId}:${order.variantId}:${order.id}`;
 }
 
-function compactVariants(rows: Order[]): string {
+function compactVariants(rows: Order[], noVariantLabel: string): string {
   const variants = rows
-    .map((row) => row.variantTitle || "Varyant yok")
+    .map((row) => row.variantTitle || noVariantLabel)
     .filter(Boolean);
   const unique = [...new Set(variants)];
   if (unique.length <= 2) return unique.join(", ");
@@ -411,12 +411,12 @@ export default function OrderDetail() {
               <BlockStack gap="300">
                 <InlineStack align="space-between" blockAlign="center" gap="300">
                   <BlockStack gap="050">
-                    <Text as="h2" variant="headingMd">Siparişteki tasarımlar</Text>
+                    <Text as="h2" variant="headingMd">{t("orderDetail.orderDesigns")}</Text>
                     <Text as="p" variant="bodySm" tone="subdued">
-                      {order.orderNumber} içinde {productGroups.length} farklı ürün/tasarım var. Kart seçerek detayını açın.
+                      {order.orderNumber} · {productGroups.length} {t("orderDetail.variantCount")}
                     </Text>
                   </BlockStack>
-                  <Badge tone="info">{`${productGroups.length} tasarım`}</Badge>
+                  <Badge tone="info">{`${productGroups.length} ${t("orderDetail.variantCount")}`}</Badge>
                 </InlineStack>
 
                 <div style={{
@@ -462,25 +462,25 @@ export default function OrderDetail() {
                                 {index + 1}
                               </div>
                               <BlockStack gap="050">
-                                <Text as="h3" variant="headingSm">{productTitle(representative)}</Text>
-                                <Text as="p" variant="bodySm" tone="subdued">{compactVariants(group.rows)}</Text>
+                                <Text as="h3" variant="headingSm">{productTitle(representative, t("orderDetail.productFallback"))}</Text>
+                                <Text as="p" variant="bodySm" tone="subdued">{compactVariants(group.rows, t("orderDetail.noVariant"))}</Text>
                               </BlockStack>
                             </InlineStack>
                             {selected && <Badge tone="success">Açık</Badge>}
                           </InlineStack>
 
                           <InlineStack gap="200" wrap>
-                            <Badge>{`${totalQty} adet`}</Badge>
-                            {front && <Badge tone="info">Ön baskı</Badge>}
-                            {back && <Badge tone="attention">Arka baskı</Badge>}
-                            {group.rows.length > 1 && <Badge tone="new">{`${group.rows.length} varyant`}</Badge>}
+                            <Badge>{`${totalQty} ${t("orderDetail.piecesLabel")}`}</Badge>
+                            {front && <Badge tone="info">{t("orderDetail.frontPrint")}</Badge>}
+                            {back && <Badge tone="attention">{t("orderDetail.backPrint")}</Badge>}
+                            {group.rows.length > 1 && <Badge tone="new">{`${group.rows.length} ${t("orderDetail.variantCount")}`}</Badge>}
                           </InlineStack>
 
                           {selected ? (
-                            <span style={cardActionStyle(true)}>Bu tasarım açık</span>
+                            <span style={cardActionStyle(true)}>{t("orderDetail.thisDesignOpen")}</span>
                           ) : (
                             <a href={targetUrl} target="_top" style={cardActionStyle(false)}>
-                              Bu tasarımı aç
+                              {t("orderDetail.openThisDesign")}
                             </a>
                           )}
                         </BlockStack>
@@ -510,25 +510,17 @@ export default function OrderDetail() {
                 <InlineStack align="space-between" blockAlign="center" gap="400" wrap={false}>
                   <BlockStack gap="100">
                     <InlineStack gap="200" blockAlign="center">
-                      <Text as="h2" variant="headingMd">
-                        {lang === "tr" ? "Google Drive'a Yedekle" : "Back up to Google Drive"}
-                      </Text>
+                      <Text as="h2" variant="headingMd">{t("orderDetail.googleDriveBackup")}</Text>
                       {isUploaded && (
-                        <Badge tone="success">
-                          {lang === "tr" ? "✓ Yüklendi" : "✓ Uploaded"}
-                        </Badge>
+                        <Badge tone="success">{t("orderDetail.driveUploaded")}</Badge>
                       )}
                     </InlineStack>
-                    <Text as="p" tone="subdued" variant="bodySm">
-                      {lang === "tr"
-                        ? "Baskı PNG'leri, mockup'lar, design.json, order.json ve sipariş özeti Drive klasörünüze yüklenir."
-                        : "Print PNGs, mockups, design.json, order.json and order summary upload to your Drive folder."}
-                    </Text>
+                    <Text as="p" tone="subdued" variant="bodySm">{t("orderDetail.driveDesc")}</Text>
                     {isUploaded && (
                       <Text as="p" variant="bodySm" tone="success">
-                        {formattedDate && (lang === "tr" ? `Aktarıldı: ${formattedDate} · ` : `Uploaded: ${formattedDate} · `)}
+                        {formattedDate && `${t("orderDetail.driveUploadedPrefix")}${formattedDate} · `}
                         <a href={uploadedFolderUrl!} target="_blank" rel="noopener noreferrer">
-                          {lang === "tr" ? "Drive'da Aç" : "Open in Drive"}
+                          {t("orderDetail.driveOpenFolder")}
                         </a>
                       </Text>
                     )}
@@ -548,13 +540,11 @@ export default function OrderDetail() {
                         driveFetcher.submit(fd, { method: "post" });
                       }}
                     >
-                      {isUploaded
-                        ? (lang === "tr" ? "Tekrar Yükle" : "Re-upload")
-                        : (lang === "tr" ? "Drive'a Aktar" : "Export to Drive")}
+                      {isUploaded ? t("orderDetail.driveReUpload") : t("orderDetail.driveExport")}
                     </Button>
                   ) : (
                     <Button url="/app/settings">
-                      {lang === "tr" ? "Drive Bağla" : "Connect Drive"}
+                      {t("orderDetail.driveConnect")}
                     </Button>
                   )}
                 </InlineStack>
@@ -569,35 +559,35 @@ export default function OrderDetail() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Ön Yüz</Text>
+                  <Text as="h2" variant="headingMd">{t("orderDetail.frontFace")}</Text>
                   {frontPreviewUrl ? (
                     <div style={{ display: "flex", justifyContent: "center", background: "#f9fafb", borderRadius: 8, padding: 16 }}>
                       <img
                         src={frontPreviewUrl}
-                        alt="Ön tasarım önizlemesi"
+                        alt={t("orderDetail.frontPreview")}
                         style={{ maxWidth: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 4 }}
                       />
                     </div>
                   ) : (
                     <Box background="bg-surface-secondary" padding="800" borderRadius="200">
-                      <Text as="p" tone="subdued" alignment="center">Önizleme yok</Text>
+                      <Text as="p" tone="subdued" alignment="center">{t("orderDetail.noPreview")}</Text>
                     </Box>
                   )}
                   <InlineStack gap="300">
                     {frontPreviewUrl && (
                       <a href={dlUrl(frontPreviewUrl, "on-onizleme.png")} download>
-                        <Button variant="plain" size="slim">⬇ Önizlemeyi İndir</Button>
+                        <Button variant="plain" size="slim">{t("orderDetail.downloadPreview")}</Button>
                       </a>
                     )}
                     {frontPrintUrl && (
                       <a href={dlUrl(frontPrintUrl, "on-baski.png")} download>
-                        <Button variant="secondary" size="slim">⬇ Baskı Dosyası (Yüksek Kalite)</Button>
+                        <Button variant="secondary" size="slim">{t("orderDetail.downloadPrintFile")}</Button>
                       </a>
                     )}
                   </InlineStack>
                   {frontObjects.length > 0 && (
                     <BlockStack gap="300">
-                      <Text as="p" variant="bodySm" tone="subdued">Ön yüz öğeleri ({frontObjects.length})</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">{t("orderDetail.frontElements")} ({frontObjects.length})</Text>
                       {(() => {
                         let imgIdx = 0;
                         return frontObjects.map((obj, i) => {
@@ -618,35 +608,35 @@ export default function OrderDetail() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Arka Yüz</Text>
+                  <Text as="h2" variant="headingMd">{t("orderDetail.backFace")}</Text>
                   {backPreviewUrl ? (
                     <div style={{ display: "flex", justifyContent: "center", background: "#f9fafb", borderRadius: 8, padding: 16 }}>
                       <img
                         src={backPreviewUrl}
-                        alt="Arka tasarım önizlemesi"
+                        alt={t("orderDetail.backPreview")}
                         style={{ maxWidth: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 4 }}
                       />
                     </div>
                   ) : (
                     <Box background="bg-surface-secondary" padding="800" borderRadius="200">
-                      <Text as="p" tone="subdued" alignment="center">Arka tasarım yok</Text>
+                      <Text as="p" tone="subdued" alignment="center">{t("orderDetail.noBackDesign")}</Text>
                     </Box>
                   )}
                   <InlineStack gap="300">
                     {backPreviewUrl && (
                       <a href={dlUrl(backPreviewUrl, "arka-onizleme.png")} download>
-                        <Button variant="plain" size="slim">⬇ Önizlemeyi İndir</Button>
+                        <Button variant="plain" size="slim">{t("orderDetail.downloadPreview")}</Button>
                       </a>
                     )}
                     {backPrintUrl && (
                       <a href={dlUrl(backPrintUrl, "arka-baski.png")} download>
-                        <Button variant="secondary" size="slim">⬇ Baskı Dosyası (Yüksek Kalite)</Button>
+                        <Button variant="secondary" size="slim">{t("orderDetail.downloadPrintFile")}</Button>
                       </a>
                     )}
                   </InlineStack>
                   {backObjects.length > 0 && (
                     <BlockStack gap="300">
-                      <Text as="p" variant="bodySm" tone="subdued">Arka yüz öğeleri ({backObjects.length})</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">{t("orderDetail.backElements")} ({backObjects.length})</Text>
                       {(() => {
                         let imgIdx = 0;
                         return backObjects.map((obj, i) => {
@@ -668,10 +658,10 @@ export default function OrderDetail() {
         <Card>
           <Box padding="400">
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">Sipariş Bilgileri</Text>
+              <Text as="h2" variant="headingMd">{t("orderDetail.orderInfo")}</Text>
               <Divider />
               <InlineStack align="space-between">
-                <Text as="span" tone="subdued">Sipariş No</Text>
+                <Text as="span" tone="subdued">{t("orderDetail.orderNo")}</Text>
                 <a
                   href={adminShopifyOrderUrl(order.shop || shop, order.shopifyOrderId)}
                   target="_blank"
@@ -682,17 +672,17 @@ export default function OrderDetail() {
                 </a>
               </InlineStack>
               <InlineStack align="space-between">
-                <Text as="span" tone="subdued">Ürün</Text>
+                <Text as="span" tone="subdued">{t("orderDetail.productLabel")}</Text>
                 <Text as="span">{order.productName?.split(" - ")[0] || order.productName || "—"}</Text>
               </InlineStack>
               {order.variantTitle && (
                 <InlineStack align="space-between">
-                  <Text as="span" tone="subdued">Bu kayıt (beden)</Text>
+                  <Text as="span" tone="subdued">{t("orderDetail.thisRecord")}</Text>
                   <Badge tone="info">{order.variantTitle}</Badge>
                 </InlineStack>
               )}
               <InlineStack align="space-between">
-                <Text as="span" tone="subdued">Adet</Text>
+                <Text as="span" tone="subdued">{t("orderDetail.quantity")}</Text>
                 <Text as="span" fontWeight="semibold">{order.quantity ?? 1}</Text>
               </InlineStack>
 
@@ -702,8 +692,7 @@ export default function OrderDetail() {
                   <Divider />
                   <BlockStack gap="200">
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Bu tasarımın diğer bedenleri ({siblings.length + 1} beden toplam{" "}
-                      {[order, ...siblings].reduce((s: number, o: Order) => s + (o.quantity ?? 1), 0)} adet):
+                      {t("orderDetail.otherSizes")} ({siblings.length + 1} · {[order, ...siblings].reduce((s: number, o: Order) => s + (o.quantity ?? 1), 0)} {t("orderDetail.piecesLabel")}):
                     </Text>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       <span style={{ background: "#4f46e5", color: "#fff", padding: "3px 10px", borderRadius: 20, fontSize: 13, fontWeight: 600 }}>
@@ -722,29 +711,25 @@ export default function OrderDetail() {
 
               <Divider />
               <InlineStack align="space-between">
-                <Text as="span" tone="subdued">Durum</Text>
+                <Text as="span" tone="subdued">{t("orderDetail.statusLabel")}</Text>
                 <Badge tone={BADGE_TONE[order.productionStatus] ?? "new"}>
                   {STATUS_KEYS[order.productionStatus] ? t(STATUS_KEYS[order.productionStatus]) : order.productionStatus}
                 </Badge>
               </InlineStack>
               <InlineStack align="space-between">
-                <Text as="span" tone="subdued">Tarih</Text>
+                <Text as="span" tone="subdued">{t("orderDetail.dateLabel")}</Text>
                 <Text as="span">
                   {formatOrderDateTime(order.createdAt, lang)}
                 </Text>
               </InlineStack>
               {!design && !hasDesignFiles && (
                 <Banner tone="warning" title={t("orderDetail.noDesignData")}>
-                  <p>Bu sipariş için tasarım dosyası sunucuda mevcut değil. Tasarım token: {order.designToken || "—"}</p>
+                  <p>{t("orderDetail.noDesignDataDesc")} {order.designToken || "—"}</p>
                 </Banner>
               )}
               {!design && hasDesignFiles && (
-                <Banner tone="info" title={lang === "tr" ? "Tasarım katman verisi bulunamadı" : "Design layer data not found"}>
-                  <p>
-                    {lang === "tr"
-                      ? "Önizleme ve baskı dosyaları mevcut; yalnızca düzenlenebilir tasarım katmanları bulunamadı."
-                      : "Preview and print files are available; only editable design layers are missing."}
-                  </p>
+                <Banner tone="info" title={t("orderDetail.layerDataMissing")}>
+                  <p>{t("orderDetail.layerDataMissingDesc")}</p>
                 </Banner>
               )}
             </BlockStack>
@@ -756,10 +741,8 @@ export default function OrderDetail() {
           <Card>
             <Box padding="400">
               <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">Müşteri Tasarım Linki</Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Bu linki müşteriye gönderin — kendi tasarımını görebilir ve indirebilir.
-                </Text>
+                <Text as="h2" variant="headingMd">{t("orderDetail.customerLink")}</Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("orderDetail.customerLinkDesc")}</Text>
                 <div style={{ background: "#f9fafb", borderRadius: 8, padding: "10px 14px", wordBreak: "break-all", fontFamily: "monospace", fontSize: 13, color: "#374151" }}>
                   {customerDesignUrl}
                 </div>
@@ -768,10 +751,10 @@ export default function OrderDetail() {
                     variant="secondary"
                     onClick={() => navigator.clipboard.writeText(customerDesignUrl)}
                   >
-                    Linki Kopyala
+                    {t("orderDetail.copyLinkBtn")}
                   </Button>
                   <a href={customerDesignUrl} target="_blank" rel="noreferrer">
-                    <Button variant="plain">Önizle →</Button>
+                    <Button variant="plain">{t("orderDetail.previewLink")}</Button>
                   </a>
                 </InlineStack>
               </BlockStack>

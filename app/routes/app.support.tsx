@@ -10,6 +10,7 @@ import { authenticate } from "~/lib/authenticate.server";
 import { query } from "~/lib/db.server";
 import { useState } from "react";
 import { useTranslation } from "~/i18n";
+import type { TranslationKey } from "~/i18n/tr";
 
 interface Message { role: "merchant" | "admin"; text: string; at: string }
 
@@ -88,6 +89,19 @@ function normalizePriority(value: FormDataEntryValue | null) {
   return ["normal", "high", "urgent"].includes(priority) ? priority : "normal";
 }
 
+const CATEGORY_LABEL_KEYS: Record<string, TranslationKey> = {
+  general: "support.catGeneral",
+  setup: "support.catSetup",
+  billing: "support.catBilling",
+  designer: "support.catDesigner",
+  orders: "support.catOrders",
+  bug: "support.catBug",
+};
+
+function categoryLabel(category: string, t: (k: TranslationKey) => string): string {
+  return CATEGORY_LABEL_KEYS[category] ? t(CATEGORY_LABEL_KEYS[category]) : category;
+}
+
 function StatusBadge({ status, t }: { status: string; t: (k: never) => string }) {
   if (status === "open") return <Badge tone="attention">{t("support.statusOpen" as never)}</Badge>;
   if (status === "answered") return <Badge tone="success">{t("support.statusAnswered" as never)}</Badge>;
@@ -95,33 +109,13 @@ function StatusBadge({ status, t }: { status: string; t: (k: never) => string })
   return <Badge>{status}</Badge>;
 }
 
-function PriorityBadge({ priority, lang }: { priority: string; lang: string }) {
-  if (priority === "urgent") return <Badge tone="critical">{lang === "tr" ? "Acil" : "Urgent"}</Badge>;
-  if (priority === "high") return <Badge tone="warning">{lang === "tr" ? "Yüksek" : "High"}</Badge>;
-  return <Badge>{lang === "tr" ? "Normal" : "Normal"}</Badge>;
+function PriorityBadge({ priority, t }: { priority: string; t: (k: never) => string }) {
+  if (priority === "urgent") return <Badge tone="critical">{t("support.priorityUrgent" as never)}</Badge>;
+  if (priority === "high") return <Badge tone="warning">{t("support.priorityHigh" as never)}</Badge>;
+  return <Badge>{t("support.priorityNormal" as never)}</Badge>;
 }
 
-function categoryLabel(category: string, lang: string) {
-  const tr: Record<string, string> = {
-    setup: "Kurulum",
-    billing: "Ödeme",
-    designer: "Tasarım editörü",
-    orders: "Siparişler",
-    bug: "Hata bildirimi",
-    general: "Genel",
-  };
-  const en: Record<string, string> = {
-    setup: "Setup",
-    billing: "Billing",
-    designer: "Designer",
-    orders: "Orders",
-    bug: "Bug report",
-    general: "General",
-  };
-  return (lang === "tr" ? tr : en)[category] ?? category;
-}
-
-function ConversationThread({ messages, lang }: { messages: Message[]; lang: string }) {
+function ConversationThread({ messages, t }: { messages: Message[]; t: (k: never) => string }) {
   return (
     <BlockStack gap="200">
       {messages.map((m, i) => (
@@ -136,11 +130,11 @@ function ConversationThread({ messages, lang }: { messages: Message[]; lang: str
           }}
         >
           <Text as="p" variant="bodySm" fontWeight="semibold" tone={m.role === "admin" ? "magic" : undefined}>
-            {m.role === "admin" ? "PrintLab" : lang === "tr" ? "Siz" : "You"}
+            {m.role === "admin" ? "PrintLab" : t("support.you" as never)}
           </Text>
           <Text as="p" variant="bodySm">{m.text}</Text>
           <Text as="p" variant="bodySm" tone="subdued">
-            {new Date(m.at).toLocaleString(lang === "tr" ? "tr-TR" : "en-US")}
+            {new Date(m.at).toLocaleString()}
           </Text>
         </div>
       ))}
@@ -152,7 +146,7 @@ export default function SupportPage() {
   const { tickets } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
-  const { t, lang } = useTranslation();
+  const { t } = useTranslation();
   const isSubmitting = navigation.state === "submitting";
 
   const [subject, setSubject] = useState("");
@@ -165,20 +159,19 @@ export default function SupportPage() {
   const showSuccess = actionData?.success === true;
   const openCount = tickets.filter((ticket) => ticket.status === "open").length;
   const answeredCount = tickets.filter((ticket) => ticket.status === "answered").length;
-  const locale = lang === "tr" ? "tr-TR" : "en-US";
 
   const categoryOptions = [
-    { label: lang === "tr" ? "Genel soru" : "General question", value: "general" },
-    { label: lang === "tr" ? "Kurulum / entegrasyon" : "Setup / integration", value: "setup" },
-    { label: lang === "tr" ? "Ödeme / abonelik" : "Billing / subscription", value: "billing" },
-    { label: lang === "tr" ? "Tasarım editörü" : "Designer", value: "designer" },
-    { label: lang === "tr" ? "Sipariş / üretim" : "Orders / production", value: "orders" },
-    { label: lang === "tr" ? "Hata bildirimi" : "Bug report", value: "bug" },
+    { label: t("support.catGeneral" as never), value: "general" },
+    { label: t("support.catSetup" as never), value: "setup" },
+    { label: t("support.catBilling" as never), value: "billing" },
+    { label: t("support.catDesigner" as never), value: "designer" },
+    { label: t("support.catOrders" as never), value: "orders" },
+    { label: t("support.catBug" as never), value: "bug" },
   ];
   const priorityOptions = [
-    { label: lang === "tr" ? "Normal" : "Normal", value: "normal" },
-    { label: lang === "tr" ? "Yüksek" : "High", value: "high" },
-    { label: lang === "tr" ? "Acil" : "Urgent", value: "urgent" },
+    { label: t("support.priorityNormal" as never), value: "normal" },
+    { label: t("support.priorityHigh" as never), value: "high" },
+    { label: t("support.priorityUrgent" as never), value: "urgent" },
   ];
 
   return (
@@ -197,13 +190,13 @@ export default function SupportPage() {
             <InlineStack gap="300" wrap>
               <Card>
                 <BlockStack gap="100">
-                  <Text as="p" tone="subdued">{lang === "tr" ? "Açık talep" : "Open tickets"}</Text>
+                  <Text as="p" tone="subdued">{t("support.openTickets" as never)}</Text>
                   <Text as="p" variant="headingLg">{openCount}</Text>
                 </BlockStack>
               </Card>
               <Card>
                 <BlockStack gap="100">
-                  <Text as="p" tone="subdued">{lang === "tr" ? "Yanıt bekleyen" : "Waiting for you"}</Text>
+                  <Text as="p" tone="subdued">{t("support.waitingForYou" as never)}</Text>
                   <Text as="p" variant="headingLg">{answeredCount}</Text>
                 </BlockStack>
               </Card>
@@ -225,7 +218,7 @@ export default function SupportPage() {
                     <InlineStack gap="300" wrap>
                       <Box minWidth="220px">
                         <Select
-                          label={lang === "tr" ? "Kategori" : "Category"}
+                          label={t("support.category" as never)}
                           name="category"
                           options={categoryOptions}
                           value={category}
@@ -234,7 +227,7 @@ export default function SupportPage() {
                       </Box>
                       <Box minWidth="220px">
                         <Select
-                          label={lang === "tr" ? "Öncelik" : "Priority"}
+                          label={t("support.priority" as never)}
                           name="priority"
                           options={priorityOptions}
                           value={priority}
@@ -275,7 +268,6 @@ export default function SupportPage() {
                         key={ticket.id}
                         style={{ border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden" }}
                       >
-                        {/* Başlık satırı */}
                         <button
                           type="button"
                           onClick={() => setExpanded(expanded === ticket.id ? null : ticket.id)}
@@ -288,17 +280,17 @@ export default function SupportPage() {
                           >
                           <InlineStack gap="200" blockAlign="center" wrap={false}>
                             <StatusBadge status={ticket.status} t={t as never} />
-                            <PriorityBadge priority={ticket.priority} lang={lang} />
+                            <PriorityBadge priority={ticket.priority} t={t as never} />
                             <Box>
                               <Text as="span" variant="bodyMd" fontWeight="semibold">{ticket.subject}</Text>
                               <Text as="p" variant="bodySm" tone="subdued">
-                                {categoryLabel(ticket.category, lang)}
-                                {lastMessage ? ` · ${lastMessage.role === "admin" ? "PrintLab" : lang === "tr" ? "Siz" : "You"}` : ""}
+                                {categoryLabel(ticket.category, t as never)}
+                                {lastMessage ? ` · ${lastMessage.role === "admin" ? "PrintLab" : t("support.you" as never)}` : ""}
                               </Text>
                             </Box>
                           </InlineStack>
                           <Text as="span" variant="bodySm" tone="subdued">
-                            {new Date(ticket.updated_at ?? ticket.created_at).toLocaleDateString(locale)}
+                            {new Date(ticket.updated_at ?? ticket.created_at).toLocaleDateString()}
                             {" "}{expanded === ticket.id ? "▲" : "▼"}
                           </Text>
                         </button>
@@ -308,11 +300,11 @@ export default function SupportPage() {
                             <BlockStack gap="300">
                               <InlineStack gap="200" wrap>
                                 <Badge>{ticket.id}</Badge>
-                                <Badge>{categoryLabel(ticket.category, lang)}</Badge>
-                                <Badge>{`${messages.length} ${lang === "tr" ? "mesaj" : "messages"}`}</Badge>
+                                <Badge>{categoryLabel(ticket.category, t as never)}</Badge>
+                                <Badge>{`${messages.length} ${t("support.messagesCount" as never)}`}</Badge>
                               </InlineStack>
                               <Divider />
-                              <ConversationThread messages={messages} lang={lang} />
+                              <ConversationThread messages={messages} t={t as never} />
 
                               {ticket.status !== "closed" ? (
                                 <Form method="post">
@@ -320,7 +312,7 @@ export default function SupportPage() {
                                   <input type="hidden" name="ticketId" value={ticket.id} />
                                   <BlockStack gap="200">
                                     <TextField
-                                      label={lang === "tr" ? "Yanıt yaz..." : "Write a reply..."}
+                                      label={t("support.replyPlaceholder" as never)}
                                       name="text"
                                       value={replyText[ticket.id] ?? ""}
                                       onChange={(v) => setReplyText((p) => ({ ...p, [ticket.id]: v }))}
@@ -329,14 +321,14 @@ export default function SupportPage() {
                                     />
                                     <Box>
                                       <Button variant="primary" submit loading={isSubmitting} size="slim">
-                                        {lang === "tr" ? "Gönder" : "Send"}
+                                        {t("support.send" as never)}
                                       </Button>
                                     </Box>
                                   </BlockStack>
                                 </Form>
                               ) : (
                                 <Banner tone="info">
-                                  <p>{lang === "tr" ? "Bu talep kapatılmış. Yeni bir konu için yeni destek talebi oluşturabilirsiniz." : "This request is closed. Create a new request for a new issue."}</p>
+                                  <p>{t("support.closedNotice" as never)}</p>
                                 </Banner>
                               )}
                             </BlockStack>

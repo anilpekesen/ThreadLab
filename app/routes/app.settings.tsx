@@ -444,7 +444,7 @@ export default function SettingsRoute() {
   const [customerAiLimit, setCustomerAiLimit] = useState(String(settings.customerAiLimit ?? 3));
   const selectedVariantExists = surchargeVariantOptions.some((option) => option.value === surchargeVariantId);
   const variantSelectOptions = [
-    { label: lang === "tr" ? "Ürün / varyant seçin" : "Select product / variant", value: "" },
+    { label: t("settings.variantSelectPlaceholder"), value: "" },
     ...surchargeVariantOptions,
   ];
 
@@ -486,15 +486,13 @@ export default function SettingsRoute() {
               <Box padding="400">
                 <BlockStack gap="300">
                   <Select
-                    label={lang === "tr" ? "Baskı ücreti ürünü / varyantı" : "Print fee product / variant"}
+                    label={t("settings.printFeeVariantLabel")}
                     options={variantSelectOptions}
                     value={selectedVariantExists ? surchargeVariantId : ""}
                     onChange={(value) => {
                       if (value) setSurchargeVariantId(value);
                     }}
-                    helpText={lang === "tr"
-                      ? "Shopify ürünlerinizden ilgili varyantı seçin; Variant ID otomatik doldurulur."
-                      : "Choose the related variant from your Shopify products; the Variant ID is filled automatically."}
+                    helpText={t("settings.variantSelectHelp")}
                   />
                   <TextField
                     label={t("settings.variantIdLabel")}
@@ -589,36 +587,30 @@ export default function SettingsRoute() {
         </Form>
 
         {/* Google Drive */}
-        {gdriveConnected && <Banner tone="success" title={lang === "tr" ? "Google Drive bağlandı" : "Google Drive connected"} />}
-        {gdriveError && <Banner tone="critical" title={(lang === "tr" ? "Google Drive bağlantı hatası: " : "Google Drive connection error: ") + gdriveError} />}
+        {gdriveConnected && <Banner tone="success" title={t("settings.gdriveConnected")} />}
+        {gdriveError && <Banner tone="critical" title={t("settings.gdriveConnectionError") + gdriveError} />}
 
         <Card>
           <Box padding="400">
             <BlockStack gap="300">
               <BlockStack gap="100">
-                <Text as="h2" variant="headingMd">
-                  {lang === "tr" ? "Google Drive Entegrasyonu" : "Google Drive Integration"}
-                </Text>
-                <Text as="p" tone="subdued" variant="bodySm">
-                  {lang === "tr"
-                    ? "Sipariş detayında 'Drive'a aktar' butonuyla baskı dosyalarını (PNG'ler, mockup, design.json) kendi Drive hesabınıza yedekleyin. Sadece bu uygulamanın oluşturduğu dosyalara erişim alır — diğer Drive dosyalarınız gizli kalır."
-                    : "Use the 'Export to Drive' button on order detail pages to back up print files (PNGs, mockup, design.json) to your own Drive. Only files this app creates are accessible — your other Drive files remain private."}
-                </Text>
+                <Text as="h2" variant="headingMd">{t("settings.gdriveTitle")}</Text>
+                <Text as="p" tone="subdued" variant="bodySm">{t("settings.gdriveDesc")}</Text>
               </BlockStack>
               {drive ? (
                 <BlockStack gap="200">
                   <Text as="p" variant="bodyMd">
-                    {lang === "tr" ? "Bağlı hesap: " : "Connected as: "}
+                    {t("settings.gdriveConnectedAs")}
                     <strong>{drive.connectedEmail || "—"}</strong>
                   </Text>
                   <InlineStack gap="200">
                     <Button url={`/auth/google?shop=${encodeURIComponent(shop)}`} target="_blank">
-                      {lang === "tr" ? "Hesabı Değiştir" : "Switch account"}
+                      {t("settings.gdriveSwitchAccount")}
                     </Button>
                     <Form method="post">
                       <input type="hidden" name="intent" value="disconnectGoogleDrive" />
                       <Button submit tone="critical" variant="plain">
-                        {lang === "tr" ? "Bağlantıyı Kaldır" : "Disconnect"}
+                        {t("settings.gdriveDisconnect")}
                       </Button>
                     </Form>
                   </InlineStack>
@@ -626,7 +618,7 @@ export default function SettingsRoute() {
               ) : (
                 <InlineStack>
                   <Button url={`/auth/google?shop=${encodeURIComponent(shop)}`} target="_blank" variant="primary">
-                    {lang === "tr" ? "Google Drive Bağla" : "Connect Google Drive"}
+                    {t("settings.gdriveConnect")}
                   </Button>
                 </InlineStack>
               )}
@@ -639,49 +631,17 @@ export default function SettingsRoute() {
           <Box padding="400">
             <BlockStack gap="400">
               <BlockStack gap="100">
-                <Text as="h2" variant="headingMd">
-                  {lang === "tr" ? "Teşekkür Sayfası — Tasarım Linki" : "Thank You Page — Design Link"}
-                </Text>
-                <Text as="p" tone="subdued" variant="bodySm">
-                  {lang === "tr"
-                    ? "Müşteri siparişi tamamladıktan sonra teşekkür sayfasında 'Tasarım Detayı' linkinin görünmesi için aşağıdaki adımları izleyin."
-                    : "Follow the steps below to show the 'Design Detail' link on the thank you page after the customer completes their order."}
-                </Text>
+                <Text as="h2" variant="headingMd">{t("settings.thankYouTitle")}</Text>
+                <Text as="p" tone="subdued" variant="bodySm">{t("settings.thankYouDesc")}</Text>
               </BlockStack>
               <BlockStack gap="200">
-                {[
-                  {
-                    step: "1",
-                    tr: "Shopify Admin → Ayarlar → Ödeme sayfasına gidin ve 'Özelleştir' butonuna tıklayın.",
-                    en: "Go to Shopify Admin → Settings → Checkout and click the 'Customize' button.",
-                  },
-                  {
-                    step: "2",
-                    tr: "Editörün üst kısmındaki sayfa seçiciden 'Teşekkürler' sayfasını seçin.",
-                    en: "In the page selector at the top of the editor, choose the 'Thank you' page.",
-                  },
-                  {
-                    step: "3",
-                    tr: "Sol panelde Sipariş özeti → Sepet → Sepetteki ürünler bölümüne gidin.",
-                    en: "In the left panel, navigate to Order summary → Cart → Items in cart.",
-                  },
-                  {
-                    step: "4",
-                    tr: "'checkout-design-link' bloğunu bulun. Yanındaki göz ikonuna tıklayarak görünür hale getirin.",
-                    en: "Find the 'checkout-design-link' block. Click the eye icon next to it to make it visible.",
-                  },
-                  {
-                    step: "5",
-                    tr: "Kaydet butonuna basın. Artık müşteriler sipariş tamamlandığında tasarım detaylarını teşekkür sayfasında görebilir.",
-                    en: "Click Save. Customers will now see their design detail link on the thank you page after placing an order.",
-                  },
-                ].map((item) => (
-                  <Box key={item.step} padding="300" background="bg-fill-secondary" borderRadius="200">
+                {(["settings.thankYouStep1", "settings.thankYouStep2", "settings.thankYouStep3", "settings.thankYouStep4", "settings.thankYouStep5"] as const).map((key, i) => (
+                  <Box key={key} padding="300" background="bg-fill-secondary" borderRadius="200">
                     <InlineStack gap="300" blockAlign="start">
                       <Box minWidth="24px">
-                        <Text as="span" variant="bodySm" fontWeight="bold" tone="subdued">{item.step}.</Text>
+                        <Text as="span" variant="bodySm" fontWeight="bold" tone="subdued">{i + 1}.</Text>
                       </Box>
-                      <Text as="p" variant="bodySm">{lang === "tr" ? item.tr : item.en}</Text>
+                      <Text as="p" variant="bodySm">{t(key)}</Text>
                     </InlineStack>
                   </Box>
                 ))}
@@ -695,25 +655,19 @@ export default function SettingsRoute() {
           <Box padding="400">
             <BlockStack gap="400">
               <BlockStack gap="100">
-                <Text as="h2" variant="headingMd">
-                  {lang === "tr" ? "Tema Kurulumu" : "Theme Setup"}
-                </Text>
-                <Text as="p" tone="subdued" variant="bodySm">
-                  {lang === "tr"
-                    ? "Tasarım aracını ürün sayfasına eklemek için tema editörünü açın ve DesignKit bloğunu ekleyin."
-                    : "Open the theme editor and add the DesignKit block to display the design tool on your product page."}
-                </Text>
+                <Text as="h2" variant="headingMd">{t("settings.themeTitle")}</Text>
+                <Text as="p" tone="subdued" variant="bodySm">{t("settings.themeDesc")}</Text>
               </BlockStack>
               {(newAppsSectionUrl || mainSectionUrl) && (
                 <InlineStack gap="200">
                   {newAppsSectionUrl && (
                     <Button url={newAppsSectionUrl} target="_blank" variant="primary">
-                      {lang === "tr" ? "Yeni Apps Section Ekle" : "Add Apps Section"}
+                      {t("settings.addAppsSection")}
                     </Button>
                   )}
                   {mainSectionUrl && (
                     <Button url={mainSectionUrl} target="_blank">
-                      {lang === "tr" ? "Ana Bölüme Ekle" : "Add to Main Section"}
+                      {t("settings.addToMainSection")}
                     </Button>
                   )}
                 </InlineStack>
@@ -724,33 +678,31 @@ export default function SettingsRoute() {
                 style={{ width: "100%", borderRadius: 8, border: "1px solid #e1e3e5" }}
               />
               <BlockStack gap="200">
-                <Text as="p" variant="bodyMd" fontWeight="semibold">
-                  {lang === "tr" ? "Blok ayarları açıklaması:" : "Block settings explained:"}
-                </Text>
+                <Text as="p" variant="bodyMd" fontWeight="semibold">{t("settings.blockSettingsExplained")}</Text>
                 {[
                   {
-                    label: lang === "tr" ? "Ön tişört görseli / Arka tişört görseli" : "Front / Back t-shirt image",
-                    desc: lang === "tr" ? "Tasarım önizlemesinde kullanılacak mockup görseli. Her ürün için farklı renk/model yükleyin." : "Mockup image shown in the design preview. Upload per product for different colors/styles.",
+                    label: t("settings.blockFrontBackImage"),
+                    desc: t("settings.blockFrontBackImageDesc"),
                   },
                   {
-                    label: lang === "tr" ? "Varsayılan tişört rengi" : "Default shirt color",
-                    desc: lang === "tr" ? "Müşteri seçim yapmadığında gösterilecek renk (hex kodu). Ürünün ana rengiyle eşleştirin." : "Color shown when no selection is made (hex code). Match your product's main color.",
+                    label: t("settings.blockDefaultColor"),
+                    desc: t("settings.blockDefaultColorDesc"),
                   },
                   {
-                    label: lang === "tr" ? "Tek taraf / Ön+Arka variant ID & fiyat" : "Single / Double-side variant ID & price",
-                    desc: lang === "tr" ? "Artık kullanılmıyor. Fiyat ve variant ayarları Ayarlar sayfasından ve Ürünler'den yönetilir." : "No longer used. Pricing and variant settings are managed from the Settings and Products pages.",
+                    label: t("settings.blockSingleDouble"),
+                    desc: t("settings.blockSingleDoubleDesc"),
                     deprecated: true,
                   },
                   {
-                    label: lang === "tr" ? "3D model JSON URL / React designer URL" : "3D model JSON URL / React designer URL",
-                    desc: lang === "tr" ? "İleri düzey ayarlar. Boş bırakırsanız varsayılan değerler kullanılır." : "Advanced settings. Leave blank to use defaults.",
+                    label: t("settings.blockAdvanced"),
+                    desc: t("settings.blockAdvancedDesc"),
                   },
                 ].map((item) => (
                   <Box key={item.label} padding="300" background={item.deprecated ? "bg-fill-caution" : "bg-fill-secondary"} borderRadius="200">
                     <BlockStack gap="100">
                       <InlineStack gap="200" blockAlign="center">
                         <Text as="p" variant="bodySm" fontWeight="semibold">{item.label}</Text>
-                        {item.deprecated && <Text as="span" variant="bodySm" tone="caution">{lang === "tr" ? "Artık kullanılmıyor" : "Deprecated"}</Text>}
+                        {item.deprecated && <Text as="span" variant="bodySm" tone="caution">{t("settings.blockDeprecated")}</Text>}
                       </InlineStack>
                       <Text as="p" variant="bodySm" tone="subdued">{item.desc}</Text>
                     </BlockStack>
