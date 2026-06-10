@@ -3,7 +3,7 @@ export const tr = {
   tabImage: 'Görsel',
   tabText: 'Metin',
   tabLayers: 'Katmanlar',
-  tabTemplates: 'Şablonlar',
+  tabTemplates: 'İlham al',
   tabSaved: 'Kayıtlı Tasarımlar',
 
   // Toolbar / object actions
@@ -22,7 +22,7 @@ export const tr = {
   btnPreview: 'Önizleme',
   btnSave: 'Kaydet',
   btnSaved: 'Kayıtlar',
-  btnTemplates: 'Şablonlar',
+  btnTemplates: 'İlham al',
   btnClose: 'Kapat',
   btnApply: 'Uygula',
   btnCancel: 'İptal',
@@ -126,7 +126,7 @@ export const en: { [K in keyof typeof tr]: string } = {
   tabImage: 'Images',
   tabText: 'Text',
   tabLayers: 'Layers',
-  tabTemplates: 'Templates',
+  tabTemplates: 'Inspiration',
   tabSaved: 'Saved Designs',
 
   toolbarCenter: 'Center',
@@ -143,7 +143,7 @@ export const en: { [K in keyof typeof tr]: string } = {
   btnPreview: 'Preview',
   btnSave: 'Save',
   btnSaved: 'Saved',
-  btnTemplates: 'Templates',
+  btnTemplates: 'Inspiration',
   btnClose: 'Close',
   btnApply: 'Apply',
   btnCancel: 'Cancel',

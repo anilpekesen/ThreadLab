@@ -1815,13 +1815,16 @@ export default function App() {
   const openCropForSelectedImage = useCallback(() => {
     const selectedImage = getSelectedImageObject();
     if (!selectedImage) return;
+    scrollDesignerToTop('smooth');
+    window.requestAnimationFrame(() => scrollDesignerToTop('smooth'));
+    window.setTimeout(() => scrollDesignerToTop('smooth'), 120);
     cropTargetRef.current = selectedImage;
     const src = selectedImage.toDataURL({ format: 'png', multiplier: 2 });
     setCropModalState({
       src,
       rect: { x: 0, y: 0, width: 1, height: 1 },
     });
-  }, [getSelectedImageObject]);
+  }, [getSelectedImageObject, scrollDesignerToTop]);
 
   const applyCropToSelectedImage = useCallback(async (rect: CropRect) => {
     const selectedImage = cropTargetRef.current;

@@ -890,6 +890,7 @@ export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = []
   useTemplateFonts();
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeTextCategory, setActiveTextCategory] = useState('all');
+  const hasShopTemplates = shopTemplates.length > 0;
 
   // Only show category tabs that have at least one template (plus Tümü)
   const presentCategories = SHOP_CATEGORIES.filter(
@@ -909,20 +910,15 @@ export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = []
   return (
     <div className="space-y-8">
 
-      {/* ── Mağaza Şablonları ── */}
-      <div className="space-y-4">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-600">Mağaza Şablonları</p>
-          <p className="text-sm font-semibold text-slate-500">Bir görsele tıklayarak tuvale ekleyin.</p>
-        </div>
+      {hasShopTemplates && (
+        <>
+          {/* ── Mağaza Şablonları ── */}
+          <div className="space-y-4">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-600">Mağaza Şablonları</p>
+              <p className="text-sm font-semibold text-slate-500">Bir görsele tıklayarak tuvale ekleyin.</p>
+            </div>
 
-        {shopTemplates.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center">
-            <p className="text-sm font-semibold text-slate-400">Henüz şablon eklenmemiş.</p>
-            <p className="mt-1 text-xs text-slate-400">Mağaza yöneticisi Şablonlar sayfasından görsel yükleyebilir.</p>
-          </div>
-        ) : (
-          <>
             {/* Category filter tabs */}
             {presentCategories.length > 1 && (
               <div className="flex flex-wrap gap-2">
@@ -962,12 +958,12 @@ export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = []
                 </button>
               ))}
             </div>
-          </>
-        )}
-      </div>
+          </div>
 
-      {/* Ayraç */}
-      <div className="border-t border-gray-100" />
+          {/* Ayraç */}
+          <div className="border-t border-gray-100" />
+        </>
+      )}
 
       {/* ── Yazı Şablonları ── */}
       <div className="space-y-4">
