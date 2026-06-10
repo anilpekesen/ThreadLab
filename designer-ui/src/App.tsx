@@ -716,7 +716,7 @@ function ImageCropModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[180] flex items-start justify-center overflow-y-auto bg-black/55 px-4 py-3 backdrop-blur-sm sm:py-6">
       <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
           <div>
@@ -1815,9 +1815,9 @@ export default function App() {
   const openCropForSelectedImage = useCallback(() => {
     const selectedImage = getSelectedImageObject();
     if (!selectedImage) return;
-    scrollDesignerToTop('smooth');
-    window.requestAnimationFrame(() => scrollDesignerToTop('smooth'));
-    window.setTimeout(() => scrollDesignerToTop('smooth'), 120);
+    scrollDesignerToTop('auto');
+    window.requestAnimationFrame(() => scrollDesignerToTop('auto'));
+    window.setTimeout(() => scrollDesignerToTop('auto'), 120);
     cropTargetRef.current = selectedImage;
     const src = selectedImage.toDataURL({ format: 'png', multiplier: 2 });
     setCropModalState({
