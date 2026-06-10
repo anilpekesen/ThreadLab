@@ -7,6 +7,9 @@ import { PLANS } from "~/lib/plans";
 import { getAiPromptLogs, getAiPromptLogsCount, type AiPromptLog } from "~/models/ai-prompt-logs.server";
 import { saveShopSettings, getShopSettings } from "~/models/shop-settings.server";
 import React from "react";
+import { LanguageProvider, useTranslation, type Lang } from "~/i18n";
+import trDict, { type TranslationKey } from "~/i18n/tr";
+import enDict from "~/i18n/en";
 
 const AUTH_COOKIE = "panel_auth";
 const PARTNER_COOKIE = "partner_auth";
@@ -25,6 +28,11 @@ function getCookieValue(request: Request, name: string): string {
   const prefix = `${name}=`;
   const pair = cookie.split(";").map((c) => c.trim()).find((c) => c.startsWith(prefix));
   return pair ? decodeURIComponent(pair.slice(prefix.length)) : "";
+}
+
+function serverT(request: Request, key: TranslationKey): string {
+  const lang: Lang = getCookieValue(request, "dk_lang") === "en" ? "en" : "tr";
+  return (lang === "en" ? enDict : trDict)[key];
 }
 
 function clearAuthHeaders() {
@@ -508,10 +516,11 @@ async function getGlobalStats() {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const adminAuthed = isAuthed(request);
   const partner = adminAuthed ? null : await getPartnerFromRequest(request);
+  const lang: Lang = getCookieValue(request, "dk_lang") === "en" ? "en" : "tr";
 
   if (!adminAuthed && !partner) {
     return json({
-      authed: false, role: "guest" as const, tab: "login",
+      authed: false, role: "guest" as const, tab: "login", lang,
       shops: [] as ShopRow[], globalStats: null,
       aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "",
       tickets: [] as TicketRow[], openCount: 0, supportStatus: "all", supportSearch: "",
@@ -536,6 +545,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       authed: true,
       role: "partner" as const,
       tab: "shops",
+      lang,
       shops,
       globalStats: null,
       aiLogs: [] as AiPromptLog[],
@@ -561,7 +571,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       getGlobalStats(),
     ]);
     return json({
-      authed: true, role: "admin" as const, tab, shops: [] as ShopRow[], globalStats, aiLogs, aiLogsCount, aiLogsPage: page, filterShop,
+      authed: true, role: "admin" as const, tab, lang, shops: [] as ShopRow[], globalStats, aiLogs, aiLogsCount, aiLogsPage: page, filterShop,
       tickets: [] as TicketRow[], openCount: 0, supportStatus: "all", supportSearch: "",
       partners: [], assignments: [], partnerRequests: [], currentPartner: null, partnerSummary: null,
     });
@@ -592,7 +602,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const tickets = ticketsResult.rows;
     const openCount = tickets.filter((t) => t.status === "open").length;
     return json({
-      authed: true, role: "admin" as const, tab, shops: [] as ShopRow[], globalStats,
+      authed: true, role: "admin" as const, tab, lang, shops: [] as ShopRow[], globalStats,
       aiLogs: [] as AiPromptLog[], aiLogsCount: 0, aiLogsPage: 0, filterShop: "",
       tickets, openCount, supportStatus, supportSearch,
       partners: [], assignments: [], partnerRequests: [], currentPartner: null, partnerSummary: null,
@@ -606,6 +616,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     authed: true,
     role: "admin" as const,
     tab: tab === "partners" ? "partners" : "shops",
+    lang,
     shops,
     globalStats,
     aiLogs: [] as AiPromptLog[],
@@ -653,7 +664,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
     const partner = result.rows[0];
     if (!partner || !verifyPassword(password, partner.password_hash)) {
-      return json({ error: "Hatalı e-posta veya şifre" });
+      return json({ error: serverT(request, "admin.invalidPartnerCredentials") });
     }
     return redirect("/admin", {
       headers: {
@@ -863,7 +874,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const password = String(form.get("password") ?? "");
   const secret = process.env.ADMIN_PANEL_SECRET ?? "";
   if (!secret || password !== secret) {
-    return json({ error: "Hatalı şifre" });
+    return json({ error: serverT(request, "admin.invalidPassword") });
   }
   return redirect("/admin", {
     headers: {
@@ -903,29 +914,30 @@ const TICKET_STATUS_COLOR: Record<string, string> = { open: "#f59e0b", answered:
 // ── Components ────────────────────────────────────────────────────────────────
 
 function LoginPage({ error }: { error?: string }) {
+  const { t } = useTranslation();
   return (
     <div style={{ ...css.page, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 14, padding: "34px 38px", width: 380 }}>
         <div style={{ fontSize: 13, textAlign: "center", marginBottom: 6, color: "#818cf8", fontWeight: 800, letterSpacing: 1 }}>PRINTLAB</div>
-        <h1 style={{ margin: "0 0 24px", fontSize: 19, fontWeight: 700, color: "#f8fafc", textAlign: "center" }}>Admin Panel</h1>
+        <h1 style={{ margin: "0 0 24px", fontSize: 19, fontWeight: 700, color: "#f8fafc", textAlign: "center" }}>{t("admin.adminPanel")}</h1>
         <form method="post" action="/admin">
-          <input type="password" name="password" placeholder="Yönetici şifresi" required autoFocus
+          <input type="password" name="password" placeholder={t("admin.adminPasswordPlaceholder")} required autoFocus
             style={{ ...css.input, width: "100%", boxSizing: "border-box", marginBottom: 12, fontSize: 14, padding: "10px 14px" }} />
           {error && <p style={{ color: "#ef4444", fontSize: 13, margin: "0 0 10px" }}>{error}</p>}
           <button type="submit" style={{ width: "100%", background: "#6366f1", border: "none", borderRadius: 8, padding: 10, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-            Giriş
+            {t("admin.loginBtn")}
           </button>
         </form>
         <div style={{ height: 1, background: "#334155", margin: "22px 0" }} />
         <form method="post" action="/admin" style={{ display: "grid", gap: 10 }}>
           <input type="hidden" name="intent" value="partnerLogin" />
-          <div style={{ color: "#94a3b8", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7 }}>Partner girişi</div>
-          <input type="email" name="email" placeholder="Partner e-posta" required
+          <div style={{ color: "#94a3b8", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7 }}>{t("admin.partnerLoginLabel")}</div>
+          <input type="email" name="email" placeholder={t("admin.partnerEmailPlaceholder")} required
             style={{ ...css.input, width: "100%", boxSizing: "border-box", fontSize: 14, padding: "10px 14px" }} />
-          <input type="password" name="partnerPassword" placeholder="Partner şifre" required
+          <input type="password" name="partnerPassword" placeholder={t("admin.partnerPasswordPlaceholder")} required
             style={{ ...css.input, width: "100%", boxSizing: "border-box", fontSize: 14, padding: "10px 14px" }} />
           <button type="submit" style={{ width: "100%", background: "#0ea5e9", border: "none", borderRadius: 8, padding: 10, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-            Partner olarak giriş
+            {t("admin.partnerLoginBtn")}
           </button>
         </form>
       </div>
@@ -989,11 +1001,12 @@ function scoreTone(score: number): string {
 }
 
 function FunnelBar({ shop }: { shop: ShopRow }) {
+  const { t } = useTranslation();
   const max = Math.max(shop.today_design_users, shop.today_cart_add_users, shop.today_purchased_users, 1);
   const steps = [
-    { label: "Tasarım", value: shop.today_design_users, color: "#818cf8" },
-    { label: "Sepet", value: shop.today_cart_add_users, color: "#38bdf8" },
-    { label: "Satın", value: shop.today_purchased_users, color: "#10b981" },
+    { label: t("admin.funnelDesign"), value: shop.today_design_users, color: "#818cf8" },
+    { label: t("admin.funnelCart"), value: shop.today_cart_add_users, color: "#38bdf8" },
+    { label: t("admin.funnelPurchase"), value: shop.today_purchased_users, color: "#10b981" },
   ];
   return (
     <div style={{ display: "grid", gap: 10 }}>
@@ -1025,8 +1038,13 @@ function moneyUsd(value: number | string) {
   return `$${num(value).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function requestStatusLabel(status: string) {
-  return ({ pending: "Bekliyor", approved: "Onaylandı", rejected: "Reddedildi" } as Record<string, string>)[status] ?? status;
+function requestStatusLabel(status: string, t: (k: TranslationKey) => string) {
+  const KEYS: Record<string, TranslationKey> = {
+    pending: "admin.statusPending",
+    approved: "admin.statusApproved",
+    rejected: "admin.statusRejected",
+  };
+  return KEYS[status] ? t(KEYS[status]) : status;
 }
 
 function requestStatusColor(status: string) {
@@ -1044,6 +1062,7 @@ function ShopsTab({
   partnerSummary?: PartnerCommissionSummary | null;
   partnerRequests?: PartnerAssignmentRequest[];
 }) {
+  const { t, lang } = useTranslation();
   const [bonusShop, setBonusShop] = React.useState<string | null>(null);
   const rankedShops = React.useMemo(
     () => [...shops].sort((a, b) => shopPerformanceScore(b) - shopPerformanceScore(a) || b.today_purchased_users - a.today_purchased_users || b.total_orders - a.total_orders),
@@ -1061,10 +1080,10 @@ function ShopsTab({
     <div style={{ display: "grid", gap: 16 }}>
       {partnerSummary && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
-          <DetailMetric label="Atanmış mağaza" value={partnerSummary.assignedShops} />
-          <DetailMetric label="Aktif paket" value={partnerSummary.activeAssignedShops} tone="good" />
-          <DetailMetric label="Aylık paket tutarı" value={moneyUsd(partnerSummary.monthlyPlanRevenue)} tone="good" />
-          <DetailMetric label="Aylık komisyon" value={moneyUsd(partnerSummary.monthlyCommission)} tone="good" />
+          <DetailMetric label={t("admin.assignedShops")} value={partnerSummary.assignedShops} />
+          <DetailMetric label={t("admin.activePlan")} value={partnerSummary.activeAssignedShops} tone="good" />
+          <DetailMetric label={t("admin.monthlyPlanRevenue")} value={moneyUsd(partnerSummary.monthlyPlanRevenue)} tone="good" />
+          <DetailMetric label={t("admin.monthlyCommission")} value={moneyUsd(partnerSummary.monthlyCommission)} tone="good" />
         </div>
       )}
 
@@ -1072,17 +1091,17 @@ function ShopsTab({
         <section style={{ ...css.card, padding: 16, display: "grid", gap: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <div>
-              <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>Mağaza atama isteği</h2>
-              <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>Admin onayladığında mağaza bu panele ve komisyon hesabına eklenir.</p>
+              <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>{t("admin.assignmentRequestTitle")}</h2>
+              <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>{t("admin.assignmentRequestDesc")}</p>
             </div>
-            <span style={{ color: "#64748b", fontSize: 12 }}>{partnerRequests.filter((r) => r.status === "pending").length} bekleyen</span>
+            <span style={{ color: "#64748b", fontSize: 12 }}>{partnerRequests.filter((r) => r.status === "pending").length} {t("admin.pendingSuffix")}</span>
           </div>
           <form method="post" action="/admin" style={{ display: "grid", gridTemplateColumns: "minmax(220px,0.7fr) minmax(260px,1fr) auto", gap: 10, alignItems: "center" }}>
             <input type="hidden" name="intent" value="requestAssignment" />
-            <input name="shop" placeholder="ornek-magaza veya ornek.myshopify.com" required style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
-            <input name="message" placeholder="Not (opsiyonel)" maxLength={500} style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+            <input name="shop" placeholder={t("admin.shopPlaceholder")} required style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+            <input name="message" placeholder={t("admin.notePlaceholderOptional")} maxLength={500} style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
             <button type="submit" style={{ background: "#0ea5e9", border: "none", borderRadius: 6, padding: "8px 14px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-              İstek gönder
+              {t("admin.sendRequest")}
             </button>
           </form>
           {partnerRequests.length > 0 && (
@@ -1093,8 +1112,8 @@ function ShopsTab({
                     <span style={{ display: "block", color: "#f1f5f9", fontWeight: 700 }}>{shopHandle(request.shop)}</span>
                     {request.message && <span style={{ display: "block", color: "#64748b", fontSize: 12, marginTop: 2 }}>{request.message}</span>}
                   </span>
-                  <span style={css.badge(requestStatusColor(request.status))}>{requestStatusLabel(request.status)}</span>
-                  <span style={{ color: "#64748b", fontSize: 12, textAlign: "right" }}>{new Date(request.created_at).toLocaleDateString("tr-TR")}</span>
+                  <span style={css.badge(requestStatusColor(request.status))}>{requestStatusLabel(request.status, t)}</span>
+                  <span style={{ color: "#64748b", fontSize: 12, textAlign: "right" }}>{new Date(request.created_at).toLocaleDateString(lang === "tr" ? "tr-TR" : "en-US")}</span>
                 </div>
               ))}
             </div>
@@ -1105,13 +1124,13 @@ function ShopsTab({
       {best && (
         <div style={{ ...css.card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, flexWrap: "wrap", padding: "16px 18px" }}>
           <div>
-            <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7 }}>Bugünün en iyi mağazası</div>
+            <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.7 }}>{t("admin.bestShopToday")}</div>
             <div style={{ color: "#f8fafc", fontSize: 22, fontWeight: 800, marginTop: 4 }}>{shopHandle(best.shop)}</div>
           </div>
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-            <div><TinyMetric value={shopPerformanceScore(best)} tone="good" /> <span style={{ color: "#64748b", fontSize: 12 }}>skor</span></div>
-            <div><TinyMetric value={best.today_purchased_users} tone="good" /> <span style={{ color: "#64748b", fontSize: 12 }}>satın alan</span></div>
-            <div><TinyMetric value={pct(best.today_purchased_users, best.today_cart_add_users)} tone="good" /> <span style={{ color: "#64748b", fontSize: 12 }}>sepet dönüşümü</span></div>
+            <div><TinyMetric value={shopPerformanceScore(best)} tone="good" /> <span style={{ color: "#64748b", fontSize: 12 }}>{t("admin.score")}</span></div>
+            <div><TinyMetric value={best.today_purchased_users} tone="good" /> <span style={{ color: "#64748b", fontSize: 12 }}>{t("admin.purchasers")}</span></div>
+            <div><TinyMetric value={pct(best.today_purchased_users, best.today_cart_add_users)} tone="good" /> <span style={{ color: "#64748b", fontSize: 12 }}>{t("admin.cartConversion")}</span></div>
           </div>
         </div>
       )}
@@ -1120,14 +1139,14 @@ function ShopsTab({
         <div style={css.card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0 14px", borderBottom: "1px solid #334155", marginBottom: 4 }}>
             <div>
-              <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>Mağaza karşılaştırması</h2>
-              <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>Skora göre sıralı. Mağazaya basınca detay açılır.</p>
+              <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>{t("admin.shopComparison")}</h2>
+              <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>{t("admin.shopComparisonDesc")}</p>
             </div>
-            <span style={{ color: "#64748b", fontSize: 12 }}>{rankedShops.length} mağaza</span>
+            <span style={{ color: "#64748b", fontSize: 12 }}>{rankedShops.length} {t("admin.shopsUnit")}</span>
           </div>
 
           {rankedShops.length === 0 ? (
-            <div style={{ color: "#64748b", padding: 32, textAlign: "center" }}>Kayıt bulunamadı</div>
+            <div style={{ color: "#64748b", padding: 32, textAlign: "center" }}>{t("admin.noRecordsFound")}</div>
           ) : (
             <div style={{ display: "grid", gap: 6 }}>
               {rankedShops.map((s, index) => {
@@ -1164,15 +1183,15 @@ function ShopsTab({
                     </span>
                     <span>
                       <span style={{ display: "block", color: scoreTone(score), fontWeight: 800 }}>{score}</span>
-                      <span style={{ display: "block", color: "#64748b", fontSize: 11 }}>skor</span>
+                      <span style={{ display: "block", color: "#64748b", fontSize: 11 }}>{t("admin.score")}</span>
                     </span>
                     <span>
                       <span style={{ display: "block", color: "#f1f5f9", fontWeight: 800 }}>{purchaseRate}%</span>
-                      <span style={{ display: "block", color: "#64748b", fontSize: 11 }}>sepetten</span>
+                      <span style={{ display: "block", color: "#64748b", fontSize: 11 }}>{t("admin.fromCart")}</span>
                     </span>
                     <span>
                       <span style={{ display: "block", color: "#f1f5f9", fontWeight: 800 }}>{cartRate}%</span>
-                      <span style={{ display: "block", color: "#64748b", fontSize: 11 }}>tasarımdan</span>
+                      <span style={{ display: "block", color: "#64748b", fontSize: 11 }}>{t("admin.fromDesign")}</span>
                     </span>
                   </button>
                 );
@@ -1191,32 +1210,32 @@ function ShopsTab({
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ color: scoreTone(shopPerformanceScore(selected)), fontSize: 24, fontWeight: 900 }}>{shopPerformanceScore(selected)}</div>
-                  <div style={{ color: "#64748b", fontSize: 11 }}>performans skoru</div>
+                  <div style={{ color: "#64748b", fontSize: 11 }}>{t("admin.performanceScore")}</div>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                 <span style={css.badge(PLAN_COLOR[selected.plan_key] ?? "#6b7280")}>{selected.plan_key}</span>
                 <span style={css.badge(STATUS_COLOR[selected.subscription_status] ?? "#6b7280")}>{selected.subscription_status}</span>
-                {selected.drive_connected && <span style={css.badge("#10b981")}>Drive bağlı</span>}
-                {top3AiShops.has(selected.shop) && <span style={css.badge("#f59e0b")}>AI Top 3</span>}
+                {selected.drive_connected && <span style={css.badge("#10b981")}>{t("admin.driveConnected")}</span>}
+                {top3AiShops.has(selected.shop) && <span style={css.badge("#f59e0b")}>{t("admin.aiTop3")}</span>}
               </div>
             </div>
 
             <div style={{ padding: 20, display: "grid", gap: 18 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10 }}>
-                <DetailMetric label="Tasarım yapan" value={selected.today_design_users} />
-                <DetailMetric label="Sepete ekleyen" value={selected.today_cart_add_users} />
-                <DetailMetric label="Satın alan" value={selected.today_purchased_users} tone="good" />
-                <DetailMetric label="Arka plan" value={selected.today_bg_removed_users} />
-                <DetailMetric label="Sepette kalan" value={selected.today_cart_abandoned_users} tone="warn" />
-                <DetailMetric label="Bugün sipariş" value={selected.today_purchased_orders} tone="good" />
+                <DetailMetric label={t("admin.designingUsers")} value={selected.today_design_users} />
+                <DetailMetric label={t("admin.cartAddingUsers")} value={selected.today_cart_add_users} />
+                <DetailMetric label={t("admin.purchasingUsers")} value={selected.today_purchased_users} tone="good" />
+                <DetailMetric label={t("admin.backgroundUsers")} value={selected.today_bg_removed_users} />
+                <DetailMetric label={t("admin.statCartAbandoned")} value={selected.today_cart_abandoned_users} tone="warn" />
+                <DetailMetric label={t("admin.statTodayOrders")} value={selected.today_purchased_orders} tone="good" />
               </div>
 
               <div style={{ background: "#111827", border: "1px solid #334155", borderRadius: 8, padding: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <h3 style={{ margin: 0, color: "#f8fafc", fontSize: 14 }}>Bugünkü dönüşüm akışı</h3>
+                  <h3 style={{ margin: 0, color: "#f8fafc", fontSize: 14 }}>{t("admin.todayFunnelTitle")}</h3>
                   <span style={{ color: "#64748b", fontSize: 12 }}>
-                    Sepet dönüşümü: {pct(selected.today_purchased_users, selected.today_cart_add_users)}%
+                    {t("admin.cartConversionLabel")} {pct(selected.today_purchased_users, selected.today_cart_add_users)}%
                   </span>
                 </div>
                 <FunnelBar shop={selected} />
@@ -1224,25 +1243,25 @@ function ShopsTab({
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10 }}>
                 <DetailMetric
-                  label="Toplam gelir"
+                  label={t("admin.statTotalRevenue")}
                   value={`${num(selected.total_revenue).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selected.currency}`}
                   tone="good"
                 />
-                <DetailMetric label="Toplam sipariş" value={selected.total_orders} sub={`Bu ay ${selected.orders_this_month}`} />
-                <DetailMetric label="AI bu ay" value={selected.ai_this_month} sub={top3AiShops.has(selected.shop) ? "AI kullanımında Top 3" : undefined} />
-                <DetailMetric label="BG bu ay" value={selected.bg_this_month} />
+                <DetailMetric label={t("admin.statTotalOrders")} value={selected.total_orders} sub={`${t("admin.thisMonthPrefix")} ${selected.orders_this_month}`} />
+                <DetailMetric label={t("admin.aiThisMonth")} value={selected.ai_this_month} sub={top3AiShops.has(selected.shop) ? t("admin.aiTop3Usage") : undefined} />
+                <DetailMetric label={t("admin.bgThisMonth")} value={selected.bg_this_month} />
               </div>
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, borderTop: "1px solid #334155", paddingTop: 14, flexWrap: "wrap" }}>
                 <span style={{ color: "#64748b", fontSize: 12 }}>
-                  Son sipariş: {selected.last_order_at ? new Date(selected.last_order_at).toLocaleDateString("tr-TR") : "yok"}
+                  {t("admin.lastOrderPrefix")} {selected.last_order_at ? new Date(selected.last_order_at).toLocaleDateString(lang === "tr" ? "tr-TR" : "en-US") : t("admin.none")}
                 </span>
                 {!readOnly && (
                   <button
                     onClick={() => setBonusShop(bonusShop === selected.shop ? null : selected.shop)}
                     style={{ background: bonusShop === selected.shop ? "#334155" : "transparent", border: "1px solid #475569", borderRadius: 6, padding: "6px 12px", color: "#cbd5e1", cursor: "pointer", fontSize: 12 }}
                   >
-                    {bonusShop === selected.shop ? "Bonus formunu kapat" : "Bonus kota ver"}
+                    {bonusShop === selected.shop ? t("admin.closeBonusForm") : t("admin.giveBonusQuota")}
                   </button>
                 )}
               </div>
@@ -1260,9 +1279,9 @@ function ShopsTab({
                     <input type="number" name="bgQuotaBonus" min="0" defaultValue="0" style={{ ...css.input, width: 80, padding: "4px 8px" }} />
                   </label>
                   <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "6px 16px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                    Kaydet
+                    {t("admin.save")}
                   </button>
-                  <span style={{ color: "#64748b", fontSize: 12 }}>0 mevcut bonusu sıfırlar</span>
+                  <span style={{ color: "#64748b", fontSize: 12 }}>{t("admin.bonusResetNote")}</span>
                 </form>
               )}
             </div>
@@ -1284,6 +1303,7 @@ function PartnersTab({
   assignments: PartnerAssignment[];
   requests: PartnerAssignmentRequest[];
 }) {
+  const { t, lang } = useTranslation();
   const assignmentByShop = React.useMemo(() => {
     const map = new Map<string, PartnerAssignment>();
     assignments.forEach((assignment) => map.set(assignment.shop, assignment));
@@ -1295,31 +1315,31 @@ function PartnersTab({
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
-        <DetailMetric label="Partner" value={partners.length} />
-        <DetailMetric label="Atanmış mağaza" value={assignments.length} />
-        <DetailMetric label="Bekleyen istek" value={pendingRequests.length} tone={pendingRequests.length ? "warn" : undefined} />
-        <DetailMetric label="Aktif komisyon" value={moneyUsd(activeCommission)} tone="good" />
+        <DetailMetric label={t("admin.partner")} value={partners.length} />
+        <DetailMetric label={t("admin.assignedShops")} value={assignments.length} />
+        <DetailMetric label={t("admin.pendingRequests")} value={pendingRequests.length} tone={pendingRequests.length ? "warn" : undefined} />
+        <DetailMetric label={t("admin.activeCommission")} value={moneyUsd(activeCommission)} tone="good" />
       </div>
 
       <section style={css.card}>
         <div style={{ padding: "14px 16px", borderBottom: "1px solid #334155", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <div>
-            <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>Atama istekleri</h2>
-            <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>Partnerin gönderdiği mağaza taleplerini buradan onaylayın.</p>
+            <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>{t("admin.assignmentRequests")}</h2>
+            <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>{t("admin.assignmentRequestsDesc")}</p>
           </div>
-          <span style={{ color: "#64748b", fontSize: 12 }}>{requests.length} kayıt</span>
+          <span style={{ color: "#64748b", fontSize: 12 }}>{requests.length} {t("admin.recordsUnit")}</span>
         </div>
         <table style={css.table}>
           <thead>
             <tr>
-              {["Partner", "Mağaza", "Not", "Durum", "Tarih", "Aksiyon"].map((h) => (
+              {[t("admin.partner"), t("admin.shop"), t("admin.note"), t("common.status"), t("common.date"), t("admin.action")].map((h) => (
                 <th key={h} style={css.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {requests.length === 0 && (
-              <tr><td colSpan={6} style={{ ...css.td, textAlign: "center", color: "#64748b", padding: 28 }}>Atama isteği yok</td></tr>
+              <tr><td colSpan={6} style={{ ...css.td, textAlign: "center", color: "#64748b", padding: 28 }}>{t("admin.noAssignmentRequests")}</td></tr>
             )}
             {requests.map((request) => {
               const knownShop = shops.some((shop) => shop.shop === request.shop);
@@ -1331,11 +1351,11 @@ function PartnersTab({
                   </td>
                   <td style={css.td}>
                     <div style={{ color: "#f1f5f9", fontWeight: 800 }}>{shopHandle(request.shop)}</div>
-                    <div style={{ color: knownShop ? "#64748b" : "#f59e0b", fontSize: 12 }}>{knownShop ? request.shop : "Mağaza listesinde bulunamadı"}</div>
+                    <div style={{ color: knownShop ? "#64748b" : "#f59e0b", fontSize: 12 }}>{knownShop ? request.shop : t("admin.shopNotInList")}</div>
                   </td>
-                  <td style={{ ...css.td, maxWidth: 280, color: request.message ? "#cbd5e1" : "#64748b" }}>{request.message || "Not yok"}</td>
-                  <td style={css.td}><span style={css.badge(requestStatusColor(request.status))}>{requestStatusLabel(request.status)}</span></td>
-                  <td style={{ ...css.td, color: "#64748b", fontSize: 12, whiteSpace: "nowrap" }}>{new Date(request.created_at).toLocaleString("tr-TR")}</td>
+                  <td style={{ ...css.td, maxWidth: 280, color: request.message ? "#cbd5e1" : "#64748b" }}>{request.message || t("admin.noNote")}</td>
+                  <td style={css.td}><span style={css.badge(requestStatusColor(request.status))}>{requestStatusLabel(request.status, t)}</span></td>
+                  <td style={{ ...css.td, color: "#64748b", fontSize: 12, whiteSpace: "nowrap" }}>{new Date(request.created_at).toLocaleString(lang === "tr" ? "tr-TR" : "en-US")}</td>
                   <td style={css.td}>
                     {request.status === "pending" ? (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1343,19 +1363,19 @@ function PartnersTab({
                           <input type="hidden" name="intent" value="reviewAssignmentRequest" />
                           <input type="hidden" name="requestId" value={request.id} />
                           <input type="hidden" name="decision" value="approve" />
-                          <button type="submit" disabled={!knownShop} title={knownShop ? "Mağazayı partnere ata" : "Önce mağaza uygulamada kayıtlı olmalı"} style={{ ...css.btn, background: knownShop ? "#10b981" : "#334155", color: "#fff", opacity: knownShop ? 1 : 0.55, cursor: knownShop ? "pointer" : "not-allowed" }}>
-                            Onayla
+                          <button type="submit" disabled={!knownShop} title={knownShop ? t("admin.assignToPartnerTitle") : t("admin.shopMustBeRegisteredTitle")} style={{ ...css.btn, background: knownShop ? "#10b981" : "#334155", color: "#fff", opacity: knownShop ? 1 : 0.55, cursor: knownShop ? "pointer" : "not-allowed" }}>
+                            {t("admin.approve")}
                           </button>
                         </form>
                         <form method="post" action="/admin">
                           <input type="hidden" name="intent" value="reviewAssignmentRequest" />
                           <input type="hidden" name="requestId" value={request.id} />
                           <input type="hidden" name="decision" value="reject" />
-                          <button type="submit" style={{ ...css.btn, background: "#334155" }}>Reddet</button>
+                          <button type="submit" style={{ ...css.btn, background: "#334155" }}>{t("admin.reject")}</button>
                         </form>
                       </div>
                     ) : (
-                      <span style={{ color: "#64748b", fontSize: 12 }}>{request.reviewed_at ? new Date(request.reviewed_at).toLocaleDateString("tr-TR") : "-"}</span>
+                      <span style={{ color: "#64748b", fontSize: 12 }}>{request.reviewed_at ? new Date(request.reviewed_at).toLocaleDateString(lang === "tr" ? "tr-TR" : "en-US") : "-"}</span>
                     )}
                   </td>
                 </tr>
@@ -1367,18 +1387,18 @@ function PartnersTab({
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(320px,0.8fr) minmax(520px,1.2fr)", gap: 16, alignItems: "start" }}>
         <section style={{ ...css.card, padding: 16 }}>
-          <h2 style={{ margin: "0 0 12px", color: "#f8fafc", fontSize: 16 }}>Partner ekle</h2>
+          <h2 style={{ margin: "0 0 12px", color: "#f8fafc", fontSize: 16 }}>{t("admin.addPartner")}</h2>
           <form method="post" action="/admin" style={{ display: "grid", gap: 10 }}>
             <input type="hidden" name="intent" value="savePartner" />
-            <input name="name" placeholder="İsim / şirket" style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
-            <input type="email" name="email" placeholder="E-posta" required style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
-            <input type="password" name="partnerPassword" placeholder="Şifre" required style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+            <input name="name" placeholder={t("admin.namePlaceholder")} style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+            <input type="email" name="email" placeholder={t("admin.emailPlaceholder")} required style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+            <input type="password" name="partnerPassword" placeholder={t("admin.passwordPlaceholder")} required style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
             <label style={{ display: "grid", gap: 6, color: "#94a3b8", fontSize: 12, fontWeight: 700 }}>
-              Komisyon %
+              {t("admin.commissionPercent")}
               <input type="number" name="commissionRate" min="0" max="100" step="0.1" defaultValue={DEFAULT_COMMISSION_RATE} style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
             </label>
             <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "9px 14px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-              Partner oluştur
+              {t("admin.createPartner")}
             </button>
           </form>
         </section>
@@ -1387,14 +1407,14 @@ function PartnersTab({
           <table style={css.table}>
             <thead>
               <tr>
-                {["Partner", "Komisyon", "Mağaza", "Aktif", "Aylık komisyon", "Güncelle"].map((h) => (
+                {[t("admin.partner"), t("admin.commission"), t("admin.shop"), t("common.active"), t("admin.monthlyCommission"), t("admin.update")].map((h) => (
                   <th key={h} style={css.th}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {partners.length === 0 && (
-                <tr><td colSpan={6} style={{ ...css.td, textAlign: "center", color: "#64748b", padding: 28 }}>Partner kaydı yok</td></tr>
+                <tr><td colSpan={6} style={{ ...css.td, textAlign: "center", color: "#64748b", padding: 28 }}>{t("admin.noPartners")}</td></tr>
               )}
               {partners.map((partner) => (
                 <tr key={partner.id}>
@@ -1404,25 +1424,25 @@ function PartnersTab({
                   </td>
                   <td style={css.td}>{num(partner.commission_rate)}%</td>
                   <td style={css.td}>
-                    <span style={css.badge("#0ea5e9")}>{partner.assigned_shops} atanmış</span>
-                    <span style={{ marginLeft: 6, ...css.badge("#10b981") }}>{partner.active_assigned_shops} aktif</span>
+                    <span style={css.badge("#0ea5e9")}>{partner.assigned_shops} {t("admin.assignedSuffix")}</span>
+                    <span style={{ marginLeft: 6, ...css.badge("#10b981") }}>{partner.active_assigned_shops} {t("admin.activeSuffix")}</span>
                   </td>
-                  <td style={css.td}><span style={css.badge(partner.is_active ? "#10b981" : "#6b7280")}>{partner.is_active ? "Aktif" : "Pasif"}</span></td>
+                  <td style={css.td}><span style={css.badge(partner.is_active ? "#10b981" : "#6b7280")}>{partner.is_active ? t("common.active") : t("common.passive")}</span></td>
                   <td style={{ ...css.td, color: "#10b981", fontWeight: 800 }}>{moneyUsd(partner.monthly_commission)}</td>
                   <td style={css.td}>
                     <details>
-                      <summary style={{ color: "#94a3b8", cursor: "pointer", fontSize: 12 }}>Düzenle</summary>
+                      <summary style={{ color: "#94a3b8", cursor: "pointer", fontSize: 12 }}>{t("common.edit")}</summary>
                       <form method="post" action="/admin" style={{ display: "grid", gap: 8, marginTop: 10, minWidth: 240 }}>
                         <input type="hidden" name="intent" value="savePartner" />
                         <input type="hidden" name="partnerId" value={partner.id} />
-                        <input name="name" defaultValue={partner.name} placeholder="İsim" style={css.input} />
+                        <input name="name" defaultValue={partner.name} placeholder={t("templates.nameLabel")} style={css.input} />
                         <input type="email" name="email" defaultValue={partner.email} required style={css.input} />
-                        <input type="password" name="partnerPassword" placeholder="Yeni şifre (boşsa değişmez)" style={css.input} />
+                        <input type="password" name="partnerPassword" placeholder={t("admin.newPasswordPlaceholder")} style={css.input} />
                         <input type="number" name="commissionRate" min="0" max="100" step="0.1" defaultValue={num(partner.commission_rate)} style={css.input} />
                         <label style={{ display: "flex", gap: 8, alignItems: "center", color: "#cbd5e1", fontSize: 12 }}>
-                          <input type="checkbox" name="isActive" defaultChecked={partner.is_active} /> Aktif
+                          <input type="checkbox" name="isActive" defaultChecked={partner.is_active} /> {t("common.active")}
                         </label>
-                        <button type="submit" style={{ ...css.btn, background: "#6366f1", color: "#fff", fontWeight: 700 }}>Kaydet</button>
+                        <button type="submit" style={{ ...css.btn, background: "#6366f1", color: "#fff", fontWeight: 700 }}>{t("admin.save")}</button>
                       </form>
                     </details>
                   </td>
@@ -1436,22 +1456,22 @@ function PartnersTab({
       <section style={css.card}>
         <div style={{ padding: "14px 16px", borderBottom: "1px solid #334155", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <div>
-            <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>Mağaza atamaları</h2>
-            <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>Her mağaza tek bir partnere atanır. Boş seçim atamayı kaldırır.</p>
+            <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 16 }}>{t("admin.shopAssignments")}</h2>
+            <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 12 }}>{t("admin.shopAssignmentsDesc")}</p>
           </div>
-          <span style={{ color: "#64748b", fontSize: 12 }}>{shops.length} mağaza</span>
+          <span style={{ color: "#64748b", fontSize: 12 }}>{shops.length} {t("admin.shopsUnit")}</span>
         </div>
         <table style={css.table}>
           <thead>
             <tr>
-              {["Mağaza", "Paket", "Durum", "Mevcut partner", "Atama"].map((h) => (
+              {[t("admin.shop"), t("admin.plan"), t("common.status"), t("admin.currentPartner"), t("admin.assignment")].map((h) => (
                 <th key={h} style={css.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {shops.length === 0 && (
-              <tr><td colSpan={5} style={{ ...css.td, textAlign: "center", color: "#64748b", padding: 28 }}>Mağaza yok</td></tr>
+              <tr><td colSpan={5} style={{ ...css.td, textAlign: "center", color: "#64748b", padding: 28 }}>{t("admin.noShops")}</td></tr>
             )}
             {shops.map((shop) => {
               const assignment = assignmentByShop.get(shop.shop);
@@ -1463,21 +1483,21 @@ function PartnersTab({
                   </td>
                   <td style={css.td}>
                     <span style={css.badge(PLAN_COLOR[shop.plan_key] ?? "#6b7280")}>{shop.plan_key}</span>
-                    <span style={{ marginLeft: 6, color: "#64748b", fontSize: 12 }}>{moneyUsd(planMonthlyPrice(shop.plan_key))}/ay</span>
+                    <span style={{ marginLeft: 6, color: "#64748b", fontSize: 12 }}>{moneyUsd(planMonthlyPrice(shop.plan_key))}{t("admin.perMonth")}</span>
                   </td>
                   <td style={css.td}><span style={css.badge(STATUS_COLOR[shop.subscription_status] ?? "#6b7280")}>{shop.subscription_status}</span></td>
-                  <td style={css.td}>{assignment ? `${assignment.partner_name || assignment.partner_email} (${num(assignment.commission_rate)}%)` : <span style={{ color: "#64748b" }}>Atanmamış</span>}</td>
+                  <td style={css.td}>{assignment ? `${assignment.partner_name || assignment.partner_email} (${num(assignment.commission_rate)}%)` : <span style={{ color: "#64748b" }}>{t("admin.unassigned")}</span>}</td>
                   <td style={css.td}>
                     <form method="post" action="/admin" style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <input type="hidden" name="intent" value="assignPartner" />
                       <input type="hidden" name="shop" value={shop.shop} />
                       <select name="partnerId" defaultValue={assignment?.partner_id ?? ""} style={{ ...css.input, minWidth: 220 }}>
-                        <option value="">Partner yok</option>
+                        <option value="">{t("admin.noPartnerOption")}</option>
                         {partners.map((partner) => (
                           <option key={partner.id} value={partner.id}>{partner.name || partner.email}</option>
                         ))}
                       </select>
-                      <button type="submit" style={{ ...css.btn, background: "#334155" }}>Ata</button>
+                      <button type="submit" style={{ ...css.btn, background: "#334155" }}>{t("admin.assign")}</button>
                     </form>
                   </td>
                 </tr>
@@ -1494,39 +1514,40 @@ function AiLogsTab({ logs, count, page, filterShop }: {
   logs: AiPromptLog[];
   count: number; page: number; filterShop: string;
 }) {
+  const { t, lang } = useTranslation();
   const totalPages = Math.ceil(count / PAGE_SIZE);
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
         <Form method="get" style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input type="hidden" name="tab" value="ai-logs" />
-          <input type="text" name="shop" defaultValue={filterShop} placeholder="Mağazaya göre filtrele..."
+          <input type="text" name="shop" defaultValue={filterShop} placeholder={t("admin.filterByShopPlaceholder")}
             style={{ ...css.input, width: 260 }} />
-          <button type="submit" style={css.btn}>Filtrele</button>
-          {filterShop && <a href="/admin?tab=ai-logs" style={{ fontSize: 13, color: "#94a3b8", textDecoration: "none" }}>Temizle ✕</a>}
+          <button type="submit" style={css.btn}>{t("admin.filter")}</button>
+          {filterShop && <a href="/admin?tab=ai-logs" style={{ fontSize: 13, color: "#94a3b8", textDecoration: "none" }}>{t("admin.clearFilter")}</a>}
         </Form>
-        <span style={{ marginLeft: "auto", color: "#64748b", fontSize: 13 }}>{count.toLocaleString("tr-TR")} kayıt</span>
+        <span style={{ marginLeft: "auto", color: "#64748b", fontSize: 13 }}>{count.toLocaleString(lang === "tr" ? "tr-TR" : "en-US")} {t("admin.recordsUnit")}</span>
       </div>
 
       <div style={css.card}>
         <table style={css.table}>
           <thead>
             <tr>
-              {["Tarih", "Mağaza", "Kullanıcı Promptu", "Final Prompt", "Sonuç"].map((h) => (
+              {[t("common.date"), t("admin.shop"), t("admin.userPrompt"), t("admin.finalPrompt"), t("admin.result")].map((h) => (
                 <th key={h} style={css.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {logs.length === 0 && (
-              <tr><td colSpan={5} style={{ ...css.td, textAlign: "center", color: "#475569", padding: 32 }}>Log kaydı yok</td></tr>
+              <tr><td colSpan={5} style={{ ...css.td, textAlign: "center", color: "#475569", padding: 32 }}>{t("admin.noLogs")}</td></tr>
             )}
             {logs.map((log) => (
               <tr key={log.id}
                 onMouseEnter={(e) => (e.currentTarget.style.background = "#162032")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                 <td style={{ ...css.td, fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
-                  {new Date(log.createdAt).toLocaleString("tr-TR")}
+                  {new Date(log.createdAt).toLocaleString(lang === "tr" ? "tr-TR" : "en-US")}
                 </td>
                 <td style={{ ...css.td, fontSize: 12 }}>
                   <a href={`/admin?tab=ai-logs&shop=${encodeURIComponent(log.shop)}`}
@@ -1565,12 +1586,12 @@ function AiLogsTab({ logs, count, page, filterShop }: {
         <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "center", alignItems: "center" }}>
           {page > 0 && (
             <a href={`/admin?tab=ai-logs&page=${page - 1}${filterShop ? `&shop=${encodeURIComponent(filterShop)}` : ""}`}
-              style={{ ...css.btn, textDecoration: "none", display: "inline-block" }}>← Önceki</a>
+              style={{ ...css.btn, textDecoration: "none", display: "inline-block" }}>{t("admin.prevPage")}</a>
           )}
           <span style={{ fontSize: 13, color: "#64748b" }}>{page + 1} / {totalPages}</span>
           {page < totalPages - 1 && (
             <a href={`/admin?tab=ai-logs&page=${page + 1}${filterShop ? `&shop=${encodeURIComponent(filterShop)}` : ""}`}
-              style={{ ...css.btn, textDecoration: "none", display: "inline-block" }}>Sonraki →</a>
+              style={{ ...css.btn, textDecoration: "none", display: "inline-block" }}>{t("admin.nextPage")}</a>
           )}
         </div>
       )}
@@ -1578,57 +1599,69 @@ function AiLogsTab({ logs, count, page, filterShop }: {
   );
 }
 
-function ticketStatusLabel(status: string) {
-  return ({ open: "Açık", answered: "Yanıtlandı", closed: "Kapalı" } as Record<string, string>)[status] ?? status;
+function ticketStatusLabel(status: string, t: (k: TranslationKey) => string) {
+  const KEYS: Record<string, TranslationKey> = {
+    open: "admin.ticketStatusOpen",
+    answered: "admin.ticketStatusAnswered",
+    closed: "admin.ticketStatusClosed",
+  };
+  return KEYS[status] ? t(KEYS[status]) : status;
 }
 
-function ticketCategoryLabel(category: string) {
-  return ({
-    setup: "Kurulum",
-    billing: "Ödeme",
-    designer: "Tasarım",
-    orders: "Sipariş",
-    bug: "Hata",
-    general: "Genel",
-  } as Record<string, string>)[category] ?? category;
+function ticketCategoryLabel(category: string, t: (k: TranslationKey) => string) {
+  const KEYS: Record<string, TranslationKey> = {
+    setup: "admin.ticketCatSetup",
+    billing: "admin.ticketCatBilling",
+    designer: "common.design",
+    orders: "common.order",
+    bug: "admin.ticketCatBug",
+    general: "admin.ticketCatGeneral",
+  };
+  return KEYS[category] ? t(KEYS[category]) : category;
 }
 
-function ticketPriorityLabel(priority: string) {
-  return ({ urgent: "Acil", high: "Yüksek", normal: "Normal" } as Record<string, string>)[priority] ?? priority;
+function ticketPriorityLabel(priority: string, t: (k: TranslationKey) => string) {
+  const KEYS: Record<string, TranslationKey> = {
+    urgent: "support.priorityUrgent",
+    high: "support.priorityHigh",
+    normal: "support.priorityNormal",
+  };
+  return KEYS[priority] ? t(KEYS[priority]) : priority;
 }
 
 function SupportTab({ tickets, status, search }: { tickets: TicketRow[]; status: string; search: string }) {
+  const { t, lang } = useTranslation();
   const [expanded, setExpanded] = React.useState<string | null>(null);
-  const openCount = tickets.filter((t) => t.status === "open").length;
-  const answeredCount = tickets.filter((t) => t.status === "answered").length;
-  const closedCount = tickets.filter((t) => t.status === "closed").length;
+  const openCount = tickets.filter((ticket) => ticket.status === "open").length;
+  const answeredCount = tickets.filter((ticket) => ticket.status === "answered").length;
+  const closedCount = tickets.filter((ticket) => ticket.status === "closed").length;
 
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 16 }}>
-        <div style={css.statCard}><div style={css.statLabel}>Bu listede açık</div><div style={css.statValue}>{openCount}</div></div>
-        <div style={css.statCard}><div style={css.statLabel}>Yanıtlanan</div><div style={css.statValue}>{answeredCount}</div></div>
-        <div style={css.statCard}><div style={css.statLabel}>Kapalı</div><div style={css.statValue}>{closedCount}</div></div>
+        <div style={css.statCard}><div style={css.statLabel}>{t("admin.openInThisList")}</div><div style={css.statValue}>{openCount}</div></div>
+        <div style={css.statCard}><div style={css.statLabel}>{t("admin.answered")}</div><div style={css.statValue}>{answeredCount}</div></div>
+        <div style={css.statCard}><div style={css.statLabel}>{t("admin.ticketStatusClosed")}</div><div style={css.statValue}>{closedCount}</div></div>
       </div>
 
       <form method="get" action="/admin" style={{ ...css.card, padding: 14, marginBottom: 16, display: "flex", gap: 10, alignItems: "end", flexWrap: "wrap" }}>
         <input type="hidden" name="tab" value="support" />
         <label style={{ display: "grid", gap: 6, color: "#94a3b8", fontSize: 12, fontWeight: 600 }}>
-          Durum
+          {t("common.status")}
           <select name="status" defaultValue={status} style={{ ...css.input, minWidth: 150 }}>
-            <option value="all">Tümü</option>
-            <option value="open">Açık</option>
-            <option value="answered">Yanıtlandı</option>
-            <option value="closed">Kapalı</option>
+            <option value="all">{t("admin.statusAll")}</option>
+            <option value="open">{t("admin.ticketStatusOpen")}</option>
+            <option value="answered">{t("admin.ticketStatusAnswered")}</option>
+            <option value="closed">{t("admin.ticketStatusClosed")}</option>
           </select>
         </label>
         <label style={{ display: "grid", gap: 6, color: "#94a3b8", fontSize: 12, fontWeight: 600, flex: "1 1 260px" }}>
-          Ara
-          <input name="q" defaultValue={search} placeholder="Mağaza, konu veya mesaj ara" style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
+          {t("common.search")}
+          <input name="q" defaultValue={search} placeholder={t("admin.searchTicketsPlaceholder")} style={{ ...css.input, width: "100%", boxSizing: "border-box" }} />
         </label>
-        <button type="submit" style={{ ...css.btn, background: "#6366f1", color: "#fff", fontWeight: 700 }}>Filtrele</button>
+        <button type="submit" style={{ ...css.btn, background: "#6366f1", color: "#fff", fontWeight: 700 }}>{t("admin.filter")}</button>
         {(status !== "all" || search) && (
-          <a href="/admin?tab=support" style={{ ...css.btn, textDecoration: "none", display: "inline-block" }}>Temizle</a>
+          <a href="/admin?tab=support" style={{ ...css.btn, textDecoration: "none", display: "inline-block" }}>{t("admin.clear")}</a>
         )}
       </form>
 
@@ -1636,51 +1669,51 @@ function SupportTab({ tickets, status, search }: { tickets: TicketRow[]; status:
         <table style={css.table}>
           <thead>
             <tr>
-              {["Ticket", "Mağaza", "Konu", "Öncelik", "Durum", "Son Güncelleme", "İşlem"].map((h) => (
+              {["Ticket", t("admin.shop"), t("admin.subject"), t("support.priority"), t("common.status"), t("admin.lastUpdate"), t("admin.action")].map((h) => (
                 <th key={h} style={css.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {tickets.length === 0 && (
-              <tr><td colSpan={7} style={{ ...css.td, textAlign: "center", color: "#475569", padding: 32 }}>Destek talebi bulunamadı</td></tr>
+              <tr><td colSpan={7} style={{ ...css.td, textAlign: "center", color: "#475569", padding: 32 }}>{t("admin.noTicketsFound")}</td></tr>
             )}
-            {tickets.map((t) => {
-              const messages = t.messages?.length ? t.messages : [{ role: "merchant" as const, text: t.message, at: t.created_at }];
+            {tickets.map((ticket) => {
+              const messages = ticket.messages?.length ? ticket.messages : [{ role: "merchant" as const, text: ticket.message, at: ticket.created_at }];
               const lastMessage = messages[messages.length - 1];
-              const priorityColor = t.priority === "urgent" ? "#ef4444" : t.priority === "high" ? "#f59e0b" : "#64748b";
+              const priorityColor = ticket.priority === "urgent" ? "#ef4444" : ticket.priority === "high" ? "#f59e0b" : "#64748b";
               return (
-                <React.Fragment key={t.id}>
+                <React.Fragment key={ticket.id}>
                   <tr
                     onMouseEnter={(e) => (e.currentTarget.style.background = "#162032")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = expanded === t.id ? "#162032" : "transparent")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = expanded === ticket.id ? "#162032" : "transparent")}
                     style={{ cursor: "pointer" }}
-                    onClick={() => setExpanded(expanded === t.id ? null : t.id)}
+                    onClick={() => setExpanded(expanded === ticket.id ? null : ticket.id)}
                   >
                     <td style={{ ...css.td, fontSize: 11, color: "#64748b", fontFamily: "monospace" }}>
-                      {t.id}
+                      {ticket.id}
                     </td>
                     <td style={{ ...css.td, fontSize: 12 }}>
-                      <span style={{ color: "#f1f5f9", fontWeight: 700 }}>{t.shop.replace(".myshopify.com", "")}</span>
-                      <br /><span style={{ color: "#64748b" }}>{t.shop}</span>
+                      <span style={{ color: "#f1f5f9", fontWeight: 700 }}>{ticket.shop.replace(".myshopify.com", "")}</span>
+                      <br /><span style={{ color: "#64748b" }}>{ticket.shop}</span>
                     </td>
                     <td style={{ ...css.td, maxWidth: 300 }}>
-                      <span style={{ display: "block", fontWeight: 700, color: "#f1f5f9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.subject}</span>
+                      <span style={{ display: "block", fontWeight: 700, color: "#f1f5f9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ticket.subject}</span>
                       <span style={{ display: "block", marginTop: 3, color: "#94a3b8", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {ticketCategoryLabel(t.category)} · {lastMessage.role === "admin" ? "Son cevap: PrintLab" : "Son cevap: Mağaza"}
+                        {ticketCategoryLabel(ticket.category, t)} · {lastMessage.role === "admin" ? t("admin.lastReplyPrintlab") : t("admin.lastReplyShop")}
                       </span>
                     </td>
-                    <td style={css.td}><span style={css.badge(priorityColor)}>{ticketPriorityLabel(t.priority)}</span></td>
-                    <td style={css.td}><span style={css.badge(TICKET_STATUS_COLOR[t.status] ?? "#6b7280")}>{ticketStatusLabel(t.status)}</span></td>
+                    <td style={css.td}><span style={css.badge(priorityColor)}>{ticketPriorityLabel(ticket.priority, t)}</span></td>
+                    <td style={css.td}><span style={css.badge(TICKET_STATUS_COLOR[ticket.status] ?? "#6b7280")}>{ticketStatusLabel(ticket.status, t)}</span></td>
                     <td style={{ ...css.td, fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
-                      {new Date(t.updated_at ?? t.created_at).toLocaleString("tr-TR")}
+                      {new Date(ticket.updated_at ?? ticket.created_at).toLocaleString(lang === "tr" ? "tr-TR" : "en-US")}
                     </td>
                     <td style={css.td}>
-                      <span style={{ fontSize: 12, color: "#94a3b8" }}>{expanded === t.id ? "Yukarı al" : "Detay"}</span>
+                      <span style={{ fontSize: 12, color: "#94a3b8" }}>{expanded === ticket.id ? t("admin.collapseDetail") : t("admin.viewDetail")}</span>
                     </td>
                   </tr>
 
-                  {expanded === t.id && (
+                  {expanded === ticket.id && (
                     <tr style={{ background: "#162032" }}>
                       <td colSpan={7} style={{ padding: "16px 20px" }}>
                         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 16 }}>
@@ -1694,50 +1727,50 @@ function SupportTab({ tickets, status, search }: { tickets: TicketRow[]; status:
                                 maxWidth: "88%",
                               }}>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: msg.role === "admin" ? "#818cf8" : "#94a3b8", textTransform: "uppercase" as const, letterSpacing: 0.8 }}>
-                                  {msg.role === "admin" ? "PrintLab" : "Mağaza"}
+                                  {msg.role === "admin" ? "PrintLab" : t("admin.shop")}
                                 </span>
                                 <p style={{ margin: "6px 0 4px", color: "#e2e8f0", fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{msg.text}</p>
-                                <span style={{ fontSize: 11, color: "#64748b" }}>{new Date(msg.at).toLocaleString("tr-TR")}</span>
+                                <span style={{ fontSize: 11, color: "#64748b" }}>{new Date(msg.at).toLocaleString(lang === "tr" ? "tr-TR" : "en-US")}</span>
                               </div>
                             ))}
                           </div>
 
                           <aside style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: 12, alignSelf: "start" }}>
                             <div style={{ display: "grid", gap: 8, marginBottom: 12, fontSize: 12, color: "#94a3b8" }}>
-                              <div><strong style={{ color: "#e2e8f0" }}>Kategori:</strong> {ticketCategoryLabel(t.category)}</div>
-                              <div><strong style={{ color: "#e2e8f0" }}>Öncelik:</strong> {ticketPriorityLabel(t.priority)}</div>
-                              <div><strong style={{ color: "#e2e8f0" }}>Oluşturma:</strong> {new Date(t.created_at).toLocaleString("tr-TR")}</div>
+                              <div><strong style={{ color: "#e2e8f0" }}>{t("admin.categoryLabel")}</strong> {ticketCategoryLabel(ticket.category, t)}</div>
+                              <div><strong style={{ color: "#e2e8f0" }}>{t("admin.priorityLabelColon")}</strong> {ticketPriorityLabel(ticket.priority, t)}</div>
+                              <div><strong style={{ color: "#e2e8f0" }}>{t("admin.createdLabel")}</strong> {new Date(ticket.created_at).toLocaleString(lang === "tr" ? "tr-TR" : "en-US")}</div>
                             </div>
 
-                            {t.status !== "closed" ? (
+                            {ticket.status !== "closed" ? (
                               <form method="post" action="/admin" style={{ display: "grid", gap: 8 }}>
                                 <input type="hidden" name="intent" value="replyTicket" />
-                                <input type="hidden" name="ticketId" value={t.id} />
-                                <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>Yanıt</label>
+                                <input type="hidden" name="ticketId" value={ticket.id} />
+                                <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>{t("admin.replyLabel")}</label>
                                 <textarea
                                   name="reply"
                                   rows={5}
-                                  placeholder="Mağazaya yanıt yazın..."
+                                  placeholder={t("admin.replyToShopPlaceholder")}
                                   style={{ ...css.input, width: "100%", boxSizing: "border-box" as const, resize: "vertical" as const, lineHeight: 1.5, fontFamily: "inherit" }}
                                 />
                                 <button type="submit" style={{ background: "#6366f1", border: "none", borderRadius: 6, padding: "8px 14px", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-                                  Yanıtla
+                                  {t("admin.replyBtn")}
                                 </button>
                               </form>
                             ) : (
                               <form method="post" action="/admin">
                                 <input type="hidden" name="intent" value="reopenTicket" />
-                                <input type="hidden" name="ticketId" value={t.id} />
-                                <button type="submit" style={{ ...css.btn, width: "100%" }}>Yeniden aç</button>
+                                <input type="hidden" name="ticketId" value={ticket.id} />
+                                <button type="submit" style={{ ...css.btn, width: "100%" }}>{t("admin.reopenTicket")}</button>
                               </form>
                             )}
 
-                            {t.status !== "closed" && (
+                            {ticket.status !== "closed" && (
                               <form method="post" action="/admin" style={{ marginTop: 8 }}>
                                 <input type="hidden" name="intent" value="closeTicket" />
-                                <input type="hidden" name="ticketId" value={t.id} />
+                                <input type="hidden" name="ticketId" value={ticket.id} />
                                 <button type="submit" style={{ background: "transparent", border: "1px solid #475569", borderRadius: 6, padding: "8px 14px", color: "#94a3b8", cursor: "pointer", fontSize: 13, width: "100%" }}>
-                                  Kapat
+                                  {t("common.close")}
                                 </button>
                               </form>
                             )}
@@ -1759,8 +1792,18 @@ function SupportTab({ tickets, status, search }: { tickets: TicketRow[]; status:
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export default function Admin() {
+  const { lang } = useLoaderData<typeof loader>();
+  return (
+    <LanguageProvider initialLang={lang}>
+      <AdminInner />
+    </LanguageProvider>
+  );
+}
+
+function AdminInner() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
+  const { t, lang, setLang } = useTranslation();
 
   if (!data.authed) {
     return <LoginPage error={(actionData as { error?: string } | undefined)?.error} />;
@@ -1774,14 +1817,14 @@ export default function Admin() {
   return (
     <div style={css.page}>
       <header style={css.header}>
-        <span style={css.logo}>{isAdmin ? "Admin Panel" : "Partner Panel"}</span>
+        <span style={css.logo}>{isAdmin ? t("admin.adminPanel") : t("admin.partnerPanel")}</span>
         <nav style={{ display: "flex", gap: 4, flex: 1 }}>
-          <a href="/admin?tab=shops" style={css.navLink(data.tab === "shops")}>Mağazalar</a>
-          {isAdmin && <a href="/admin?tab=partners" style={css.navLink(data.tab === "partners")}>Partnerler</a>}
-          {isAdmin && <a href="/admin?tab=ai-logs" style={css.navLink(data.tab === "ai-logs")}>AI Logları</a>}
+          <a href="/admin?tab=shops" style={css.navLink(data.tab === "shops")}>{t("admin.navShops")}</a>
+          {isAdmin && <a href="/admin?tab=partners" style={css.navLink(data.tab === "partners")}>{t("admin.navPartners")}</a>}
+          {isAdmin && <a href="/admin?tab=ai-logs" style={css.navLink(data.tab === "ai-logs")}>{t("admin.navAiLogs")}</a>}
           {isAdmin && (
             <a href="/admin?tab=support" style={css.navLink(data.tab === "support")}>
-              Destek{openCount > 0 && (
+              {t("admin.navSupport")}{openCount > 0 && (
                 <span style={{ marginLeft: 5, display: "inline-block", padding: "1px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: "#f59e0b", color: "#0f172a" }}>
                   {openCount}
                 </span>
@@ -1790,10 +1833,27 @@ export default function Admin() {
           )}
         </nav>
         {!isAdmin && partnerName && <span style={{ color: "#94a3b8", fontSize: 12 }}>{partnerName}</span>}
+        <div style={{ display: "flex", gap: 4 }}>
+          {(["tr", "en"] as Lang[]).map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => setLang(l)}
+              style={{
+                background: lang === l ? "#334155" : "transparent",
+                border: "1px solid #334155",
+                color: lang === l ? "#f8fafc" : "#94a3b8",
+                borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12, fontWeight: 600,
+              }}
+            >
+              {l.toUpperCase()}
+            </button>
+          ))}
+        </div>
         <form method="post" action="/admin">
           <input type="hidden" name="intent" value="logout" />
           <button type="submit" style={{ background: "transparent", border: "1px solid #334155", color: "#94a3b8", borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontSize: 13 }}>
-            Çıkış
+            {t("admin.logout")}
           </button>
         </form>
       </header>
@@ -1801,20 +1861,20 @@ export default function Admin() {
       <main style={css.main}>
         {gs && (
           <div style={css.statsGrid}>
-            <StatCard label="Toplam Mağaza" value={gs.totalShops} />
-            <StatCard label="Aktif Abonelik" value={gs.activeSubs} />
-            <StatCard label="Bugün Tasarım" value={gs.todayDesignUsers} />
-            <StatCard label="Bugün BG" value={gs.todayBgRemovedUsers} />
-            <StatCard label="Bugün Sepet" value={gs.todayCartAddUsers} />
-            <StatCard label="Sepette Kalan" value={gs.todayCartAbandonedUsers} critical />
-            <StatCard label="Bugün Satın Alan" value={gs.todayPurchasedUsers} />
-            <StatCard label="Bugün Sipariş" value={gs.todayPurchasedOrders} />
-            <StatCard label="Toplam Gelir" value={gs.totalRevenue} isRevenue />
-            <StatCard label="Toplam Sipariş" value={gs.totalOrders} />
-            <StatCard label="AI Üretim" value={gs.totalAiGens} />
-            <StatCard label="BG Kaldırma" value={gs.totalBgRemovals} />
-            <StatCard label="Açık Talepler" value={gs.openTickets} critical />
-            <StatCard label="Kredi Satışı" value={gs.totalCreditSales} />
+            <StatCard label={t("admin.statTotalShops")} value={gs.totalShops} />
+            <StatCard label={t("admin.statActiveSubs")} value={gs.activeSubs} />
+            <StatCard label={t("admin.statTodayDesign")} value={gs.todayDesignUsers} />
+            <StatCard label={t("admin.statTodayBg")} value={gs.todayBgRemovedUsers} />
+            <StatCard label={t("admin.statTodayCart")} value={gs.todayCartAddUsers} />
+            <StatCard label={t("admin.statCartAbandoned")} value={gs.todayCartAbandonedUsers} critical />
+            <StatCard label={t("admin.statTodayPurchased")} value={gs.todayPurchasedUsers} />
+            <StatCard label={t("admin.statTodayOrders")} value={gs.todayPurchasedOrders} />
+            <StatCard label={t("admin.statTotalRevenue")} value={gs.totalRevenue} isRevenue />
+            <StatCard label={t("admin.statTotalOrders")} value={gs.totalOrders} />
+            <StatCard label={t("admin.statAiGenerations")} value={gs.totalAiGens} />
+            <StatCard label={t("admin.statBgRemovals")} value={gs.totalBgRemovals} />
+            <StatCard label={t("admin.statOpenTickets")} value={gs.openTickets} critical />
+            <StatCard label={t("admin.statCreditSales")} value={gs.totalCreditSales} />
           </div>
         )}
 
