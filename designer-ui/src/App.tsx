@@ -2575,6 +2575,28 @@ export default function App() {
             ))}
           </div>
 
+          <div className="relative z-40 border-b border-gray-100 bg-white px-3 py-2 md:hidden">
+            {minOrderQty > 1 && (
+              <p className="mb-1.5 text-center text-[10px] font-medium leading-snug text-amber-600">
+                {t.minOrderNotice} <strong>{minOrderQty}</strong> {t.minOrderNoticeSuffix}
+              </p>
+            )}
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">{totalLabel}</p>
+                <p className="truncate text-sm font-black text-gray-950">{formattedPrice}</p>
+              </div>
+              <button
+                onClick={handleAddToCart}
+                disabled={isCartLoading}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-blue-700 disabled:opacity-50"
+              >
+                <ShoppingBag className="h-3.5 w-3.5" />
+                {isCartLoading ? t.btnAddToCartLoading : `${t.btnAddToCart}${totalQuantity > 0 ? ` (${totalQuantity})` : ''}`}
+              </button>
+            </div>
+          </div>
+
           <div
             className="relative flex min-h-0 flex-1 items-center justify-center overflow-clip layout:overflow-hidden px-3 pb-24 pt-3 md:p-4"
             onMouseMove={handleSceneMouseMove}
@@ -3730,7 +3752,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="px-3 py-3">
+          <div className="hidden px-3 py-3 md:block">
             {minOrderQty > 1 && (
               <p className="mb-2 text-center text-[10px] text-amber-600 font-medium leading-snug">
                 {t.minOrderNotice} <strong>{minOrderQty}</strong> {t.minOrderNoticeSuffix}
