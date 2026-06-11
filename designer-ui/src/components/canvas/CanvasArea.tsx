@@ -29,6 +29,7 @@ export interface CanvasAreaHandle {
   exportPng: (multiplier?: number, cleanBg?: boolean) => string;
   /** Print dosyası export: print area'ya clip edilmiş, gerçek mm boyutlarında 300 DPI PNG */
   exportPrintFile: (area: { x: number; y: number; width: number; height: number; realWidthMm: number; realHeightMm: number }, dpi?: number) => string;
+  isBackgroundReady: (expectedSrc?: string) => boolean;
   loadDesign: (json: string) => void;
   saveDesign: () => string;
   getCanvas: () => fabric.Canvas | null;
@@ -719,6 +720,15 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     return unproxyJsonUrls(json);
   }, []);
 
+  const isBackgroundReady = useCallback((expectedSrc?: string) => {
+    const cv = canvasRef.current;
+    if (!cv) return false;
+    if (!expectedSrc) return bgLoaded;
+    const bg = cv.backgroundImage as (fabric.Image & { getSrc?: () => string }) | undefined;
+    const currentSrc = bg?.getSrc?.() || String((bg as unknown as { src?: string })?.src || '');
+    return bgLoaded && currentSrc === expectedSrc;
+  }, [bgLoaded]);
+
   const loadDesign = useCallback((json: string) => {
     const cv = canvasRef.current;
     if (!cv || !json) return;
@@ -744,11 +754,12 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     getActiveObject: () => canvasRef.current?.getActiveObject() ?? null,
     exportPng,
     exportPrintFile,
+    isBackgroundReady,
     loadDesign,
     saveDesign,
     getCanvas: () => canvasRef.current,
     canvas: canvasRef.current,
-  }), [addImageFromUrl, addText, cloneSelected, deleteSelected, undo, redo, exportPng, exportPrintFile, loadDesign, saveDesign]);
+  }), [addImageFromUrl, addText, cloneSelected, deleteSelected, undo, redo, exportPng, exportPrintFile, isBackgroundReady, loadDesign, saveDesign]);
 
   useEffect(() => {
     const cv = canvasRef.current;

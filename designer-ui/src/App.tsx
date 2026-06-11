@@ -903,6 +903,23 @@ async function dataUrlToServerUrl(dataUrl: string, side: string): Promise<string
   return (await uploadBlob(blob, side)) ?? dataUrl;
 }
 
+function wait(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function waitForCanvasBackground(
+  handle: CanvasAreaHandle | null,
+  expectedSrc?: string,
+  timeoutMs = 2500,
+) {
+  if (!handle || !expectedSrc) return;
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (handle.isBackgroundReady(expectedSrc)) return;
+    await wait(50);
+  }
+}
+
 function isDataImageUrl(value: unknown): value is string {
   return typeof value === 'string' && /^data:image\/[a-z0-9.+-]+;base64,/i.test(value);
 }
@@ -1598,6 +1615,21 @@ export default function App() {
 
     setIsCartLoading(true);
     try {
+      const resolvedMockupConfig = config
+        ? resolveDesignerMockupConfig(config, personalization, selectedColor)
+        : null;
+      if (resolvedMockupConfig && (
+        resolvedMockupConfig.frontImage !== config?.frontImage ||
+        resolvedMockupConfig.backImage !== config?.backImage
+      )) {
+        setConfig(resolvedMockupConfig);
+        await wait(0);
+      }
+      await Promise.all([
+        frontHas ? waitForCanvasBackground(frontCanvasRef.current, resolvedMockupConfig?.frontImage) : Promise.resolve(),
+        backHas ? waitForCanvasBackground(backCanvasRef.current, resolvedMockupConfig?.backImage) : Promise.resolve(),
+      ]);
+
       // Export canvas: 1x preview + 3x print quality
       const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(1) ?? '') : '';
       const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(1) ?? '') : '';

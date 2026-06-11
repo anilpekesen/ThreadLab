@@ -18,6 +18,7 @@ dist/
 .shopify/
 .claude/
 .idea/
+.secrets/
 
 # Runtime uploads / local data
 public/uploads/
