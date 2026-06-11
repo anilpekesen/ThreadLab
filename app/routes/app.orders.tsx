@@ -10,7 +10,17 @@ import {
   Grid,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
-import { getOrders, bulkUpdateStatus, fulfillShopifyOrders, syncOrdersFromAdmin, getOrderByShopifyId, getSiblingOrders, setShopifyOrderDriveUpload } from "~/models/orders.server";
+import {
+  getOrders,
+  getOrdersPage,
+  countOrderGroups,
+  bulkUpdateStatus,
+  fulfillShopifyOrders,
+  syncOrdersFromAdmin,
+  getOrderByShopifyId,
+  getSiblingOrders,
+  setShopifyOrderDriveUpload,
+} from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 import { getDriveConnection } from "~/models/shop-google-drive.server";
 import {
@@ -61,6 +71,8 @@ const BADGE_TONE: Record<string, "info" | "attention" | "success" | "warning" | 
   shipped: "success",
 };
 
+const ORDERS_PAGE_SIZE = 25;
+
 export const headers = () => ({
   "Cache-Control": "no-store, no-cache, must-revalidate",
   "Pragma": "no-cache",
@@ -71,14 +83,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
   const activeStatus = status ?? "";
+  const requestedPage = Number(url.searchParams.get("page") || "1");
+  const page = Number.isFinite(requestedPage) ? Math.max(1, Math.floor(requestedPage)) : 1;
 
-  const [allOrders, orders, driveConn] = await Promise.all([
+  const [allOrders, totalOrders, driveConn] = await Promise.all([
     getOrders(session.shop),
-    activeStatus ? getOrders(session.shop, activeStatus) : getOrders(session.shop),
+    countOrderGroups(session.shop, activeStatus || undefined),
     getDriveConnection(session.shop),
   ]);
+  const totalPages = Math.max(1, Math.ceil(totalOrders / ORDERS_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const orders = await getOrdersPage(
+    session.shop,
+    activeStatus || undefined,
+    ORDERS_PAGE_SIZE,
+    (currentPage - 1) * ORDERS_PAGE_SIZE,
+  );
   const stats = summarizeGroupedStats(groupOrders(allOrders));
-  return json({ orders, status: activeStatus, stats, shop: session.shop, driveConnected: Boolean(driveConn) });
+  return json({
+    orders,
+    status: activeStatus,
+    stats,
+    shop: session.shop,
+    driveConnected: Boolean(driveConn),
+    pagination: {
+      page: currentPage,
+      pageSize: ORDERS_PAGE_SIZE,
+      total: totalOrders,
+      totalPages,
+      hasPrevious: currentPage > 1,
+      hasNext: currentPage < totalPages,
+    },
+  });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -269,7 +305,7 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
 }
 
 export default function Orders() {
-  const { orders, status, stats, shop, driveConnected } = useLoaderData<typeof loader>();
+  const { orders, status, stats, shop, driveConnected, pagination } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher<{ ok: boolean; synced?: number; error?: string }>();
   const syncFetcher = useFetcher<{ ok: boolean; synced?: number; error?: string }>();
@@ -281,6 +317,15 @@ export default function Orders() {
   const driveResult = driveFetcher.data?.bulkDrive ? driveFetcher.data : null;
 
   const groups = useMemo(() => groupOrders(orders), [orders]);
+  const buildOrdersUrl = (nextPage: number, nextStatus = status) => {
+    const params = new URLSearchParams();
+    if (nextStatus) params.set("status", nextStatus);
+    if (nextPage > 1) params.set("page", String(nextPage));
+    const queryString = params.toString();
+    return `/app/orders${queryString ? `?${queryString}` : ""}`;
+  };
+  const pageStart = pagination.total ? (pagination.page - 1) * pagination.pageSize + 1 : 0;
+  const pageEnd = Math.min(pagination.page * pagination.pageSize, pagination.total);
 
   const resourceName = { singular: t("common.order"), plural: t("common.orders") };
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
@@ -479,7 +524,7 @@ export default function Orders() {
                     key={s.value}
                     pressed={status === s.value || (!status && s.value === "")}
                     size="slim"
-                    onClick={() => navigate(`/app/orders${s.value ? `?status=${s.value}` : ""}`)}
+                    onClick={() => navigate(buildOrdersUrl(1, s.value))}
                   >
                     {t(s.labelKey)}
                   </Button>
@@ -497,6 +542,36 @@ export default function Orders() {
                 <Button variant="secondary" size="slim" onClick={() => navigate("/app/settings")}>
                   Drive Bağla
                 </Button>
+              )}
+            </InlineStack>
+          </Box>
+          <Box padding="400" borderBlockEndWidth="025" borderColor="border">
+            <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+              <Text as="span" variant="bodySm" tone="subdued">
+                {pagination.total
+                  ? `${pageStart}-${pageEnd} / ${pagination.total} sipariş gösteriliyor`
+                  : "0 sipariş"}
+              </Text>
+              {pagination.totalPages > 1 && (
+                <InlineStack gap="200" blockAlign="center">
+                  <Button
+                    size="slim"
+                    disabled={!pagination.hasPrevious}
+                    onClick={() => navigate(buildOrdersUrl(pagination.page - 1))}
+                  >
+                    Önceki
+                  </Button>
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    Sayfa {pagination.page} / {pagination.totalPages}
+                  </Text>
+                  <Button
+                    size="slim"
+                    disabled={!pagination.hasNext}
+                    onClick={() => navigate(buildOrdersUrl(pagination.page + 1))}
+                  >
+                    Sonraki
+                  </Button>
+                </InlineStack>
               )}
             </InlineStack>
           </Box>
@@ -551,6 +626,29 @@ export default function Orders() {
             >
               {rowMarkup}
             </IndexTable>
+          )}
+          {groups.length > 0 && pagination.totalPages > 1 && (
+            <Box padding="400" borderBlockStartWidth="025" borderColor="border">
+              <InlineStack align="center" blockAlign="center" gap="300">
+                <Button
+                  size="slim"
+                  disabled={!pagination.hasPrevious}
+                  onClick={() => navigate(buildOrdersUrl(pagination.page - 1))}
+                >
+                  Önceki
+                </Button>
+                <Text as="span" variant="bodySm" tone="subdued">
+                  Sayfa {pagination.page} / {pagination.totalPages}
+                </Text>
+                <Button
+                  size="slim"
+                  disabled={!pagination.hasNext}
+                  onClick={() => navigate(buildOrdersUrl(pagination.page + 1))}
+                >
+                  Sonraki
+                </Button>
+              </InlineStack>
+            </Box>
           )}
         </Card>
       </BlockStack>

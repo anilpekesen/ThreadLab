@@ -147,6 +147,71 @@ export async function getOrders(shop: string, status?: string): Promise<Order[]>
   return result.rows.map(rowToOrder);
 }
 
+const ORDER_GROUP_KEY_SQL = "COALESCE(NULLIF(o.shopify_order_id, ''), o.id)";
+
+export async function countOrderGroups(shop: string, status?: string): Promise<number> {
+  await ensureMigrations();
+  const params: unknown[] = [shop];
+  const statusClause = status ? ` AND o.production_status = $${params.push(status)}` : "";
+  const result = await query<{ count: string }>(
+    `SELECT COUNT(*) FROM (
+       SELECT ${ORDER_GROUP_KEY_SQL} AS group_key
+       FROM orders o
+       WHERE o.shop = $1
+         AND o.design_token != ''
+         AND o.production_status != 'cancelled'
+         ${statusClause}
+       GROUP BY group_key
+     ) grouped_orders`,
+    params,
+  );
+  return Number(result.rows[0]?.count ?? 0);
+}
+
+export async function getOrdersPage(
+  shop: string,
+  status: string | undefined,
+  limit: number,
+  offset: number,
+): Promise<Order[]> {
+  await ensureMigrations();
+  const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
+  const safeOffset = Math.max(Math.floor(offset), 0);
+  const keyParams: unknown[] = [shop];
+  const statusClause = status ? ` AND o.production_status = $${keyParams.push(status)}` : "";
+  const limitParam = keyParams.push(safeLimit);
+  const offsetParam = keyParams.push(safeOffset);
+  const keysResult = await query<{ group_key: string }>(
+    `SELECT ${ORDER_GROUP_KEY_SQL} AS group_key, MAX(o.created_at) AS latest_at
+     FROM orders o
+     WHERE o.shop = $1
+       AND o.design_token != ''
+       AND o.production_status != 'cancelled'
+       ${statusClause}
+     GROUP BY group_key
+     ORDER BY latest_at DESC
+     LIMIT $${limitParam} OFFSET $${offsetParam}`,
+    keyParams,
+  );
+  const groupKeys = keysResult.rows.map((row) => row.group_key).filter(Boolean);
+  if (!groupKeys.length) return [];
+
+  const rowParams: unknown[] = [shop];
+  const rowStatusClause = status ? ` AND o.production_status = $${rowParams.push(status)}` : "";
+  const keysParam = rowParams.push(groupKeys);
+  const result = await query<DbRow>(
+    `${ORDER_SELECT}
+     WHERE o.shop = $1
+       AND o.design_token != ''
+       AND o.production_status != 'cancelled'
+       ${rowStatusClause}
+       AND ${ORDER_GROUP_KEY_SQL} = ANY($${keysParam}::text[])
+     ORDER BY array_position($${keysParam}::text[], ${ORDER_GROUP_KEY_SQL}), o.created_at DESC`,
+    rowParams,
+  );
+  return result.rows.map(rowToOrder);
+}
+
 export async function getDashboardStats(shop: string) {
   await ensureMigrations();
   const today = new Date();
