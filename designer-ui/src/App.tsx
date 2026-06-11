@@ -1249,10 +1249,11 @@ export default function App() {
       if (payload.type === 'DESIGNER_CART_ADDED') {
         clearCartResponseTimer();
         setIsCartLoading(false);
+        setShowCartDecisionModal(false);
         scrollDesignerToTop(isMobileLayout ? 'smooth' : 'auto');
         window.requestAnimationFrame(() => scrollDesignerToTop(isMobileLayout ? 'smooth' : 'auto'));
         window.setTimeout(() => scrollDesignerToTop(isMobileLayout ? 'smooth' : 'auto'), 120);
-        setShowCartDecisionModal(true);
+        window.setTimeout(() => setShowCartDecisionModal(true), isMobileLayout ? 180 : 0);
         showToast(String(payload.message || 'Sepete eklendi.'), 'success');
       }
       if (payload.type === 'DESIGNER_CART_ERROR') {
@@ -2144,6 +2145,15 @@ export default function App() {
     return variants.some((v) => v.available !== false);
   }, [config?.variants, colorKey]);
 
+  const handleContinueDesigning = useCallback(() => {
+    sizes.forEach((size) => {
+      if (size) setSizeQuantity(String(size), 0);
+    });
+    setNoSizeQuantity(minOrderQty);
+    setShowCartDecisionModal(false);
+    scrollDesignerToTop(isMobileLayout ? 'smooth' : 'auto');
+  }, [isMobileLayout, minOrderQty, scrollDesignerToTop, setSizeQuantity, sizes]);
+
   useEffect(() => {
     if (!colorOptions.length) return;
     if (!selectedColor || !colorOptions.includes(selectedColor)) {
@@ -2469,7 +2479,7 @@ export default function App() {
         </div>
       )}
       {showCartDecisionModal && createPortal(
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/55 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[10000] flex items-start justify-center bg-slate-950/55 px-4 pb-4 pt-4 backdrop-blur-sm md:items-center md:py-6">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
@@ -2502,7 +2512,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowCartDecisionModal(false)}
+                onClick={handleContinueDesigning}
                 className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-100"
               >
                 Bir tasarım daha yapacağım
