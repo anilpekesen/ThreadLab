@@ -1034,8 +1034,10 @@ export default function App() {
   const [cropModalState, setCropModalState] = useState<{ src: string; rect: CropRect } | null>(null);
   const minOrderQty = personalization.minOrderQuantity ?? 1;
   const [noSizeQuantity, setNoSizeQuantity] = useState(minOrderQty);
-  const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'info' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'info' | 'success' } | null>(null);
+  const [showCartDecisionModal, setShowCartDecisionModal] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cartResponseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const designerStartedAtRef = useRef(Date.now());
   const designActivityTrackedRef = useRef(false);
   const cropTargetRef = useRef<fabric.Image | null>(null);
@@ -1044,10 +1046,26 @@ export default function App() {
     setNoSizeQuantity((prev) => Math.max(minOrderQty, prev));
   }, [minOrderQty]);
 
-  const showToast = useCallback((message: string, type: 'error' | 'warning' | 'info' = 'error') => {
+  const showToast = useCallback((message: string, type: 'error' | 'warning' | 'info' | 'success' = 'error') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ message, type });
     toastTimerRef.current = setTimeout(() => setToast(null), 4000);
+  }, []);
+
+  const clearCartResponseTimer = useCallback(() => {
+    if (!cartResponseTimerRef.current) return;
+    clearTimeout(cartResponseTimerRef.current);
+    cartResponseTimerRef.current = null;
+  }, []);
+
+  const navigateParentCart = useCallback((target: 'cart' | 'checkout') => {
+    setShowCartDecisionModal(false);
+    const type = target === 'checkout' ? 'DESIGNER_GO_TO_CHECKOUT' : 'DESIGNER_GO_TO_CART';
+    try {
+      window.parent?.postMessage({ type }, '*');
+    } catch {
+      // Parent page may be inaccessible outside the Shopify embed.
+    }
   }, []);
 
   const scrollDesignerToTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -1223,6 +1241,30 @@ export default function App() {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [setConfig]);
+
+  useEffect(() => {
+    const handleCartMessage = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload || typeof payload.type !== 'string') return;
+      if (payload.type === 'DESIGNER_CART_ADDED') {
+        clearCartResponseTimer();
+        setIsCartLoading(false);
+        setShowCartDecisionModal(true);
+        showToast(String(payload.message || 'Sepete eklendi.'), 'success');
+      }
+      if (payload.type === 'DESIGNER_CART_ERROR') {
+        clearCartResponseTimer();
+        setIsCartLoading(false);
+        showToast(String(payload.message || 'Sepete eklenirken bir hata oluştu. Lütfen tekrar deneyin.'), 'error');
+      }
+    };
+
+    window.addEventListener('message', handleCartMessage);
+    return () => {
+      clearCartResponseTimer();
+      window.removeEventListener('message', handleCartMessage);
+    };
+  }, [clearCartResponseTimer, showToast]);
 
   useEffect(() => {
     if (!config?.productHandle && !config?.productId) {
@@ -1750,12 +1792,18 @@ export default function App() {
       }
     }
 
+      clearCartResponseTimer();
+      cartResponseTimerRef.current = setTimeout(() => {
+        cartResponseTimerRef.current = null;
+        setIsCartLoading(false);
+        showToast('Sepet işlemi tamamlanıyor. Sepet ikonundan kontrol edebilirsiniz.', 'info');
+      }, 15000);
       window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token }, '*');
     } catch (err) {
       console.error('Sepete ekleme hatası:', err);
-      showToast('Sepete eklenirken bir hata oluştu. Lütfen tekrar deneyin.', 'error');
-    } finally {
+      clearCartResponseTimer();
       setIsCartLoading(false);
+      showToast('Sepete eklenirken bir hata oluştu. Lütfen tekrar deneyin.', 'error');
     }
   };
 
@@ -2406,14 +2454,60 @@ export default function App() {
             toast.type === 'error'   && 'bg-red-500',
             toast.type === 'warning' && 'bg-amber-500',
             toast.type === 'info'    && 'bg-blue-500',
+            toast.type === 'success' && 'bg-emerald-600',
           )}
           style={{ maxWidth: 'calc(100vw - 2rem)' }}
         >
           {toast.type === 'error'   && <span className="text-lg leading-none">✕</span>}
           {toast.type === 'warning' && <span className="text-lg leading-none">⚠</span>}
           {toast.type === 'info'    && <span className="text-lg leading-none">ℹ</span>}
+          {toast.type === 'success' && <span className="text-lg leading-none">✓</span>}
           <span>{toast.message}</span>
         </div>
+      )}
+      {showCartDecisionModal && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/55 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-base font-bold text-gray-950">Sepete eklendi</p>
+                <p className="mt-1 text-sm leading-5 text-gray-600">Şimdi ne yapmak istersiniz?</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCartDecisionModal(false)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800"
+                aria-label="Kapat"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid gap-2">
+              <button
+                type="button"
+                onClick={() => navigateParentCart('checkout')}
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+              >
+                Ödemeye git
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateParentCart('cart')}
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition-colors hover:bg-gray-50"
+              >
+                Sepete git
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCartDecisionModal(false)}
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-100"
+              >
+                Bir tasarım daha yapacağım
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
       <div ref={wrapperRef} className={cn(
         "flex h-full min-h-0 w-full max-w-none flex-1 flex-col bg-white shadow-none layout:flex-row layout:justify-center layout:overflow-hidden",

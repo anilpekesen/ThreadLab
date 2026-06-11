@@ -185,7 +185,10 @@
           })
         });
       }).then(function() {
-        window.location.href = '/cart';
+        try { document.dispatchEvent(new CustomEvent('cart:updated')); } catch (_) {}
+        try { window.dispatchEvent(new CustomEvent('cart:updated')); } catch (_) {}
+        var next = window.confirm('Sepete eklendi. Sepete gitmek ister misiniz? İptal ederseniz tasarıma devam edebilirsiniz.');
+        if (next) window.location.href = '/cart';
       }).catch(function(err) {
         alert('Sepete eklenirken hata oluştu: ' + (err && err.message ? err.message : 'Bilinmeyen hata'));
       });

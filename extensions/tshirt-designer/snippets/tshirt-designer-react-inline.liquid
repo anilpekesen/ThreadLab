@@ -306,8 +306,41 @@
     if (window.__dsgnInlineReactBound) return;
     window.__dsgnInlineReactBound = true;
 
+    function notifyDesigner(sourceWindow, type, message) {
+      if (!sourceWindow || !sourceWindow.postMessage) return false;
+      sourceWindow.postMessage({ type: type, message: message || '' }, '*');
+      return true;
+    }
+
+    function publishCartUpdated(cart) {
+      try { document.dispatchEvent(new CustomEvent('cart:updated', { detail: { cart: cart || null } })); } catch (_) {}
+      try { window.dispatchEvent(new CustomEvent('cart:updated', { detail: { cart: cart || null } })); } catch (_) {}
+      try { document.dispatchEvent(new CustomEvent('cart-update', { detail: { cart: cart || null } })); } catch (_) {}
+      try { window.dispatchEvent(new CustomEvent('cart-update', { detail: { cart: cart || null } })); } catch (_) {}
+    }
+
+    function finishCartAdd(sourceWindow) {
+      return fetch('/cart.js', { headers: { 'Accept': 'application/json' } })
+        .then(function(res) { return res.ok ? res.json() : null; })
+        .catch(function() { return null; })
+        .then(function(cart) {
+          publishCartUpdated(cart);
+          notifyDesigner(sourceWindow, 'DESIGNER_CART_ADDED', 'Sepete eklendi.');
+        });
+    }
+
     window.addEventListener('message', function(e) {
       if (!e.data || !e.data.type) return;
+
+      if (e.data.type === 'DESIGNER_GO_TO_CART') {
+        window.location.href = '/cart';
+        return;
+      }
+
+      if (e.data.type === 'DESIGNER_GO_TO_CHECKOUT') {
+        window.location.href = '/checkout';
+        return;
+      }
 
       if (e.data.type === 'DESIGNER_SCROLL_TO_TOP') {
         var behavior = e.data.behavior === 'auto' ? 'auto' : 'smooth';
@@ -402,17 +435,18 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify({ attributes: cartAttrs })
-              }).then(function() {
-                window.location.href = '/cart';
               }).catch(function() {
-                window.location.href = '/cart';
+                console.warn('[PrintLab] Cart attributes update failed');
+              }).then(function() {
+                return finishCartAdd(e.source);
               });
-            } else {
-              window.location.href = '/cart';
+              return;
             }
+            return finishCartAdd(e.source);
           })
           .catch(function(err) {
-            window.alert('Sepete eklenirken hata oluştu: ' + (err && err.message ? err.message : 'Bilinmeyen hata'));
+            var message = 'Sepete eklenirken hata oluştu: ' + (err && err.message ? err.message : 'Bilinmeyen hata');
+            if (!notifyDesigner(e.source, 'DESIGNER_CART_ERROR', message)) window.alert(message);
           });
       }
     });
