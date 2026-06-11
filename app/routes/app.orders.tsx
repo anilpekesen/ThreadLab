@@ -371,16 +371,6 @@ export default function Orders() {
           </a>
         </IndexTable.Cell>
 
-        {/* Müşteri */}
-        <IndexTable.Cell>
-          <BlockStack gap="050">
-            <Text as="span" variant="bodySm" fontWeight="semibold">{g.customerName}</Text>
-            {g.customerEmail && (
-              <Text as="span" variant="bodySm" tone="subdued">{g.customerEmail}</Text>
-            )}
-          </BlockStack>
-        </IndexTable.Cell>
-
         {/* Ürün + Tüm Varyantlar */}
         <IndexTable.Cell>
           <BlockStack gap="100">
@@ -617,7 +607,6 @@ export default function Orders() {
               headings={[
                 { title: "" },
                 { title: t("common.order") },
-                { title: t("common.customer") },
                 { title: t("common.product") },
                 { title: t("common.status") },
                 { title: t("common.date") },
