@@ -130,16 +130,16 @@
   function hasFrontDesign(props) {
     return Boolean(
       firstValue(props, ['_front_preview_url', '_front_print_url', 'Ön önizleme', 'On onizleme', 'Front preview']) ||
-      truthyDesignValue(props['Ön Tasarım']) ||
-      firstValue(props, ['Ön öğe sayısı', 'Ön ölçü', 'Ön alan', 'Ön alan fiyatı'])
+      truthyDesignValue(props['_Ön Tasarım'] ?? props['Ön Tasarım']) ||
+      firstValue(props, ['Ön öğe sayısı', '_Ön ölçü', 'Ön ölçü', 'Ön alan', 'Ön alan fiyatı'])
     );
   }
 
   function hasBackDesign(props) {
     return Boolean(
       firstValue(props, ['_back_preview_url', '_back_print_url', 'Arka önizleme', 'Arka onizleme', 'Back preview']) ||
-      truthyDesignValue(props['Arka Tasarım']) ||
-      firstValue(props, ['Arka öğe sayısı', 'Arka ölçü', 'Arka alan', 'Arka alan fiyatı'])
+      truthyDesignValue(props['_Arka Tasarım'] ?? props['Arka Tasarım']) ||
+      firstValue(props, ['Arka öğe sayısı', '_Arka ölçü', 'Arka ölçü', 'Arka alan', 'Arka alan fiyatı'])
     );
   }
 

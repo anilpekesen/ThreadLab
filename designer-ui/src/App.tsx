@@ -1743,7 +1743,7 @@ export default function App() {
         },
       });
       const properties: Record<string, string> = {
-        'Ön Tasarım': frontHas ? 'Var' : 'Yok',
+        '_Ön Tasarım': frontHas ? 'Var' : 'Yok',
         '_design_token': token,
         'Toplam adet': String(totalQuantity),
         'Tişört birim fiyatı': formatMoney(pricingSummary.baseUnitPrice),
@@ -1755,16 +1755,16 @@ export default function App() {
       if (backPreviewUrl) properties['_back_preview_url'] = backPreviewUrl;
       if (frontPrintUrl) properties['_front_print_url'] = frontPrintUrl;
       if (backPrintUrl) properties['_back_print_url'] = backPrintUrl;
-    if (resolvedSide !== 'front') properties['Arka Tasarım'] = backHas ? 'Var' : 'Yok';
+    if (resolvedSide !== 'front') properties['_Arka Tasarım'] = backHas ? 'Var' : 'Yok';
       if (pricingSummary.front.hasContent) {
-        properties['Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
+        properties['_Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
         properties['Ön alan fiyatı'] = formatMoney(pricingSummary.front.surcharge);
-      properties['Ön fiyat bandı'] = pricingSummary.front.band.label;
+      properties['_Ön fiyat bandı'] = pricingSummary.front.band.label;
     }
     if (pricingSummary.back.hasContent) {
-      properties['Arka ölçü'] = formatMetricSize(pricingSummary.back.metrics);
+      properties['_Arka ölçü'] = formatMetricSize(pricingSummary.back.metrics);
         properties['Arka alan fiyatı'] = formatMoney(pricingSummary.back.surcharge);
-        properties['Arka fiyat bandı'] = pricingSummary.back.band.label;
+        properties['_Arka fiyat bandı'] = pricingSummary.back.band.label;
       }
       if (pricingSummary.volumeDiscountPercentage > 0) {
         properties['Toplu alım indirimi'] = `%${pricingSummary.volumeDiscountPercentage}`;
