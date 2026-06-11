@@ -196,6 +196,23 @@
     ) || row;
   }
 
+  function replaceMainImageForRow(row, previewUrl) {
+    if (!row || !previewUrl) return;
+    var img = row.querySelector(
+      '.cart-item__media img, .cart-item__image, img.cart-item__image, img[src*="/products/"], img[src*="/files/"]'
+    );
+    if (!img || img.closest('.printlab-cart-design-preview')) return;
+    if (img.dataset.printlabPreviewUrl === previewUrl) return;
+
+    img.dataset.printlabOriginalSrc = img.dataset.printlabOriginalSrc || img.getAttribute('src') || '';
+    img.dataset.printlabPreviewUrl = previewUrl;
+    img.setAttribute('src', previewUrl);
+    img.removeAttribute('srcset');
+    img.removeAttribute('sizes');
+    img.style.objectFit = 'contain';
+    img.style.background = '#f8fafc';
+  }
+
   function ensurePreviewStyles() {
     if (document.getElementById('printlab-cart-design-preview-style')) return;
     var style = document.createElement('style');
@@ -307,6 +324,8 @@
 
       var row = rowForLine(item, idx + 1);
       if (!row) return;
+
+      replaceMainImageForRow(row, urls.front || urls.back);
 
       var mount = previewMountForRow(row);
       if (!mount || mount.querySelector('.printlab-cart-design-preview')) return;
