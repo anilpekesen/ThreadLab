@@ -161,7 +161,7 @@ export async function countOrderGroups(shop: string, status?: string): Promise<n
          AND o.design_token != ''
          AND o.production_status != 'cancelled'
          ${statusClause}
-       GROUP BY group_key
+       GROUP BY ${ORDER_GROUP_KEY_SQL}
      ) grouped_orders`,
     params,
   );
@@ -188,7 +188,7 @@ export async function getOrdersPage(
        AND o.design_token != ''
        AND o.production_status != 'cancelled'
        ${statusClause}
-     GROUP BY group_key
+     GROUP BY ${ORDER_GROUP_KEY_SQL}
      ORDER BY latest_at DESC
      LIMIT $${limitParam} OFFSET $${offsetParam}`,
     keyParams,
