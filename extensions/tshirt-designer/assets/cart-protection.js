@@ -171,7 +171,29 @@
     return 'https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=' + encodeURIComponent(shop) + '&token=' + encodeURIComponent(token);
   }
 
+  // Find a cart row by its line item key, via the remove link's
+  // `/cart/change?id=<key>&quantity=0` href. This is the only reliable
+  // per-item anchor — the `_cartItems` array order from /cart.js does not
+  // always match the DOM's CartItem-N row order, so positional matching
+  // can mount one item's preview onto a different item's row.
+  function rowForKey(key) {
+    if (!key) return null;
+    var links = document.querySelectorAll('a[href*="/cart/change"]');
+    for (var i = 0; i < links.length; i++) {
+      var href = links[i].getAttribute('href') || '';
+      var match = href.match(/[?&]id=([^&]+)/);
+      if (!match) continue;
+      if (decodeURIComponent(match[1]) !== key) continue;
+      var row = links[i].closest('tr, li, [class*="cart-item"], [class*="CartItem"]');
+      if (row) return row;
+    }
+    return null;
+  }
+
   function rowForLine(item, line) {
+    var byKey = rowForKey(item.key);
+    if (byKey) return byKey;
+
     var key = item.key ? cssEscape(item.key) : '';
     var selectors = [
       'tr[id="CartItem-' + line + '"]',
