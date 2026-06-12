@@ -8,6 +8,14 @@
   var _lightboxItems = [];
   var _lightboxIndex = 0;
   var _ready = false;
+  var CART_PROPERTY_LABELS_TO_HIDE = [
+    'Ön Tasarım',
+    'Arka Tasarım',
+    'Ön ölçü',
+    'Ön fiyat bandı',
+    'Arka ölçü',
+    'Arka fiyat bandı',
+  ];
 
   function loadCart() {
     return _fetch('/cart.js')
@@ -218,6 +226,41 @@
     ) || row;
   }
 
+  function normalizedText(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function isHiddenCartPropertyText(text) {
+    var clean = normalizedText(text).replace(/：/g, ':');
+    if (!clean || clean.length > 140) return false;
+    return CART_PROPERTY_LABELS_TO_HIDE.some(function (label) {
+      return clean === label || clean.indexOf(label + ':') === 0 || clean.indexOf(label + ' ') === 0;
+    });
+  }
+
+  function hideElement(el) {
+    if (!el || el.dataset.printlabHiddenProperty === 'true') return;
+    el.dataset.printlabHiddenProperty = 'true';
+    el.style.setProperty('display', 'none', 'important');
+  }
+
+  function hideCartPropertiesForRow(row) {
+    if (!row) return;
+
+    row.querySelectorAll('dt').forEach(function (dt) {
+      if (!isHiddenCartPropertyText(dt.textContent)) return;
+      hideElement(dt.closest('li, .product-option, [class*="product-option"], [class*="property"], div') || dt);
+    });
+
+    row.querySelectorAll('li, .product-option, [class*="product-option"], [class*="line-item-property"], [class*="property"]').forEach(function (el) {
+      if (isHiddenCartPropertyText(el.textContent)) hideElement(el);
+    });
+
+    row.querySelectorAll('p, span').forEach(function (el) {
+      if (isHiddenCartPropertyText(el.textContent)) hideElement(el);
+    });
+  }
+
   function replaceMainImageForRow(row, previewUrl) {
     if (!row || !previewUrl) return;
     var img = row.querySelector(
@@ -347,6 +390,7 @@
       var row = rowForLine(item, idx + 1);
       if (!row) return;
 
+      hideCartPropertiesForRow(row);
       replaceMainImageForRow(row, urls.front || urls.back);
 
       var mount = previewMountForRow(row);
