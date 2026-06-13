@@ -9,12 +9,50 @@ export interface BlogPost {
   date: string;
   readingTime: string;
   keywords: string[];
+  heroImage?: string;
+  heroImageAlt?: string;
   body: string;
 }
 
 export const SITE_ORIGIN = "https://printlabapp.com";
 
 const trPosts: BlogPost[] = [
+  {
+    slug: "shopify-print-on-demand-siparis-yonetimi",
+    lang: "tr",
+    alternateSlug: "shopify-print-on-demand-order-management",
+    title: "Shopify Print on Demand Siparişlerini Tasarım, Üretim ve Drive Yedekleme ile Yönetmek",
+    description: "Shopify mağazalarında kişiselleştirilmiş ürün siparişlerini tasarım ekranı, baskı dosyası, gelişmiş analiz ve Google Drive yedekleme ile tek panelden yönetme rehberi.",
+    date: "2026-06-13",
+    readingTime: "7 dk",
+    keywords: ["shopify print on demand", "shopify sipariş yönetimi", "google drive backup shopify"],
+    heroImage: "/blog/printlab-shopify-print-on-demand-dashboard.png",
+    heroImageAlt: "PrintLab Shopify uygulamasında gelişmiş analytics, print orders, mağaza şablonları, ayarlar, Google Drive yedekleme ve baskı alanı editörü ekranları",
+    body: `
+      <p>Shopify'da kişiselleştirilmiş ürün satarken mağaza büyüdükçe iş sadece tasarım almakla bitmez. Müşteri ürünü tasarlar, sipariş gelir, baskı dosyası hazırlanır, üretim durumu takip edilir ve dosyalar güvenli şekilde arşivlenir. Bu akış dağınık kalırsa ekip hangi tasarımın hangi siparişe ait olduğunu karıştırmaya başlar.</p>
+      <h2>Print on demand mağazalarında asıl ihtiyaç nedir?</h2>
+      <p>Bir print on demand mağazası için iyi sistem, müşterinin ürün sayfasında tasarım yapmasını ve mağaza sahibinin aynı siparişi üretime hazır dosyayla görmesini sağlamalıdır. Sadece ürün önizlemesi göstermek yeterli değildir; sipariş, baskı dosyası, adet, varyant, üretim durumu ve yedekleme aynı yerde okunmalıdır.</p>
+      <h2>Tasarım ve sipariş aynı kayıtta birleşmeli</h2>
+      <p>Müşteri tişört, sweatshirt, kupa veya farklı bir ürüne tasarım eklediğinde bu tasarım siparişle bağlanmalıdır. Ön baskı, arka baskı, ürün varyantı, adet ve müşteri önizlemesi ayrı ayrı saklanırsa üretim ekibi dosya aramak zorunda kalmaz.</p>
+      <ul>
+        <li>Tasarım token'ı siparişle eşleşir.</li>
+        <li>Ön ve arka baskı dosyaları ayrı tutulur.</li>
+        <li>Ürün varyantı ve adet bilgisi üretim satırında görünür.</li>
+        <li>Sipariş durumu pending, preparing, ready veya shipped olarak takip edilir.</li>
+      </ul>
+      <h2>Analytics tarafı sadece rapor değil, operasyon kontrolüdür</h2>
+      <p>Günlük tasarım sayısı, arka plan kaldırma kullanımı, sepete ekleme, satın alma ve terk edilen sepet verileri mağazanın nerede zorlandığını gösterir. Eğer çok tasarım yapılıp az satın alma oluyorsa fiyat, ürün görseli veya tasarım ekranı incelenmelidir. Eğer sepete ekleme yüksek ama satın alma düşükse checkout ve kargo maliyeti kontrol edilmelidir.</p>
+      <h2>Google Drive yedekleme neden önemli?</h2>
+      <p>Baskı dosyalarının sadece uygulama içinde kalması risklidir. Üretim ekibi dosyaları kendi klasör düzeninde görmek isteyebilir. Sipariş bazlı Google Drive yedekleme, her sipariş için klasör oluşturup print dosyalarını, önizlemeleri ve sipariş özetini aynı yerde saklamaya yardımcı olur.</p>
+      <h2>Mağaza şablonları dönüşümü artırır</h2>
+      <p>Müşterinin sıfırdan tasarım yapması her zaman kolay değildir. Mağaza şablonları, müşteriye hazır fikir verir ve tasarım süresini kısaltır. Özellikle sezonluk kampanyalarda, takım ürünlerinde ve hediye ürünlerinde şablonlar müşteriyi daha hızlı sepete götürür.</p>
+      <h2>Baskı alanı editörü üretim hatasını azaltır</h2>
+      <p>Her ürünün baskı alanı aynı değildir. Tişört, kupa, hoodie veya DTF transfer için güvenli alan farklı çalışır. Baskı alanı editörü sayesinde mağaza sahibi ürün bazlı genişlik, yükseklik, güvenli boşluk, bleed ve DPI ayarlarını belirler. Müşteri tasarım yaparken bu sınırlar korunur.</p>
+      <h2>PrintLab ile tek panel yaklaşımı</h2>
+      <p>PrintLab, Shopify için tasarım ekranı, sipariş yönetimi, analytics, mağaza şablonları, ayarlar, Google Drive yedekleme, destek ve baskı alanı editörünü aynı operasyonda toplar. Amaç müşterinin tasarım yapmasını kolaylaştırmak kadar, mağaza sahibinin üretime hatasız dosya göndermesini sağlamaktır.</p>
+      <p>Shopify mağazanızda kişiselleştirilmiş ürün satıyorsanız, tasarım aracını tek başına değil, siparişten üretime kadar çalışan bir print on demand sistemi olarak düşünmek daha doğru olur.</p>
+    `,
+  },
   {
     slug: "shopify-urun-kisisellestirme-uygulamasi",
     lang: "tr",
@@ -124,6 +162,42 @@ const trPosts: BlogPost[] = [
 ];
 
 const enPosts: BlogPost[] = [
+  {
+    slug: "shopify-print-on-demand-order-management",
+    lang: "en",
+    alternateSlug: "shopify-print-on-demand-siparis-yonetimi",
+    title: "Managing Shopify Print-on-Demand Orders with Design, Production, and Google Drive Backup",
+    description: "A practical workflow for managing personalized Shopify orders with a design editor, print files, analytics, and Google Drive backup in one admin panel.",
+    date: "2026-06-13",
+    readingTime: "7 min",
+    keywords: ["shopify print on demand", "shopify order management", "google drive backup shopify"],
+    heroImage: "/blog/printlab-shopify-print-on-demand-dashboard.png",
+    heroImageAlt: "PrintLab for Shopify dashboard showing advanced analytics, print orders, store templates, settings, Google Drive backup, and print area editor screens",
+    body: `
+      <p>When a Shopify store starts selling personalized products, the work does not stop at collecting a design. The customer creates the product, the order arrives, the print file needs to be prepared, production status must be tracked, and files should be archived in a place the team can trust.</p>
+      <h2>What print-on-demand stores actually need</h2>
+      <p>A strong print-on-demand workflow connects the customer-facing design experience with the production side of the order. A preview alone is not enough. The merchant needs the order, print files, quantities, variants, production status, and backups in one readable place.</p>
+      <h2>Design and order data should stay connected</h2>
+      <p>When a customer customizes a t-shirt, sweatshirt, mug, or another product, the design should be attached to the Shopify order. Front print, back print, variant, quantity, and customer preview should be stored together so the production team does not search for files manually.</p>
+      <ul>
+        <li>The design token matches the order.</li>
+        <li>Front and back print files are stored separately.</li>
+        <li>Variant and quantity data are visible on the production row.</li>
+        <li>Order status can move through pending, preparing, ready, and shipped.</li>
+      </ul>
+      <h2>Analytics is operational control, not just reporting</h2>
+      <p>Daily designs, background removals, add-to-cart activity, purchases, and abandoned carts show where the store needs attention. If many customers design but few purchase, pricing, product images, or the designer flow may need review. If add-to-cart is strong but purchases are low, checkout and shipping costs should be checked.</p>
+      <h2>Why Google Drive backup matters</h2>
+      <p>Keeping production files only inside the app can be limiting for a growing team. A Google Drive backup can create order-based folders and store print files, previews, and order summaries in a familiar structure for production staff.</p>
+      <h2>Store templates help customers start faster</h2>
+      <p>Not every customer wants to design from scratch. Store templates give customers ready ideas and reduce the time it takes to reach the cart. They are useful for seasonal campaigns, team apparel, gifts, and repeat product formats.</p>
+      <h2>The print area editor reduces production mistakes</h2>
+      <p>Every product has different print boundaries. T-shirts, mugs, hoodies, and DTF transfers all need different safe areas. A print area editor lets the merchant define width, height, safe margins, bleed, and DPI expectations for each product type.</p>
+      <h2>How PrintLab brings the workflow together</h2>
+      <p>PrintLab combines a Shopify design editor, print order management, analytics, store templates, settings, Google Drive backup, support, and print area editing in one workflow. The goal is not only to help customers personalize products, but also to help merchants send correct files to production.</p>
+      <p>If your Shopify store sells personalized products, it is better to think beyond a simple design widget and choose a print-on-demand system that supports the full path from customer design to production.</p>
+    `,
+  },
   {
     slug: "shopify-product-personalizer-app",
     lang: "en",

@@ -25,6 +25,7 @@ function layout(input: {
   path: string;
   alternatePath: string;
   type: "website" | "article";
+  image?: string;
   jsonLd: string;
   body: string;
 }) {
@@ -37,6 +38,7 @@ function layout(input: {
     : "Product designer, product customizer, and print-ready workflow for Shopify stores.";
   const canonical = `${SITE_ORIGIN}${input.path}`;
   const alternate = `${SITE_ORIGIN}${input.alternatePath}`;
+  const shareImage = `${SITE_ORIGIN}${input.image ?? "/logo.png"}`;
 
   return `<!DOCTYPE html>
 <html lang="${input.lang}">
@@ -53,12 +55,12 @@ function layout(input: {
   <meta property="og:url" content="${canonical}" />
   <meta property="og:title" content="${escapeHtml(input.title)}" />
   <meta property="og:description" content="${escapeHtml(input.description)}" />
-  <meta property="og:image" content="${SITE_ORIGIN}/logo.png" />
+  <meta property="og:image" content="${shareImage}" />
   <meta property="og:site_name" content="PrintLab" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escapeHtml(input.title)}" />
   <meta name="twitter:description" content="${escapeHtml(input.description)}" />
-  <meta name="twitter:image" content="${SITE_ORIGIN}/logo.png" />
+  <meta name="twitter:image" content="${shareImage}" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <script type="application/ld+json">${input.jsonLd}</script>
   <style>
@@ -95,6 +97,8 @@ function layout(input: {
     .article-head{padding:58px 0 26px;border-bottom:1px solid var(--line)}
     .article h1{font-size:clamp(34px,4.8vw,58px)}
     .article-desc{font-size:19px;color:var(--muted);margin:0 0 18px}
+    .article-figure{margin:28px 0 0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#f8fafc}
+    .article-figure img{display:block;width:100%;height:auto}
     .article-body{padding:32px 0}
     .article-body h2{font-size:28px;line-height:1.2;letter-spacing:-.02em;margin:36px 0 12px}
     .article-body p{font-size:18px;color:#374151;margin:0 0 18px}
@@ -216,6 +220,7 @@ export function renderBlogPost(post: BlogPost) {
           <p class="article-desc">${escapeHtml(post.description)}</p>
           <div class="meta">${post.date} · ${post.readingTime}</div>
           <div class="tags">${post.keywords.map((keyword) => `<span class="tag">${escapeHtml(keyword)}</span>`).join("")}</div>
+          ${post.heroImage ? `<figure class="article-figure"><img src="${post.heroImage}" alt="${escapeHtml(post.heroImageAlt ?? post.title)}" loading="eager" decoding="async" /></figure>` : ""}
         </header>
         <div class="article-body">${post.body}</div>
         <section class="cta">
@@ -245,6 +250,7 @@ export function renderBlogPost(post: BlogPost) {
       name: "PrintLab",
       logo: { "@type": "ImageObject", url: `${SITE_ORIGIN}/logo.png` },
     },
+    ...(post.heroImage ? { image: `${SITE_ORIGIN}${post.heroImage}` } : {}),
     keywords: post.keywords.join(", "),
   });
 
@@ -255,6 +261,7 @@ export function renderBlogPost(post: BlogPost) {
     path,
     alternatePath: other,
     type: "article",
+    image: post.heroImage,
     jsonLd,
     body,
   });
