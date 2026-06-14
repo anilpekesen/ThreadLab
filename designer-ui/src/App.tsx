@@ -1751,6 +1751,12 @@ export default function App() {
         },
       });
       const properties: Record<string, string> = {
+        '_pl_locale': isTurkish ? 'tr' : 'en',
+        '_pl_front_design': frontHas ? 'yes' : 'no',
+        '_pl_total_quantity': String(totalQuantity),
+        '_pl_product_unit_price': formatMoney(pricingSummary.baseUnitPrice),
+        '_pl_product_subtotal': formatMoney(pricingSummary.baseSubtotal),
+        '_pl_total_price': formatMoney(pricingSummary.total),
         [`_${t.propFrontDesign}`]: frontHas ? (isTurkish ? 'Var' : 'Yes') : (isTurkish ? 'Yok' : 'No'),
         '_design_token': token,
         [t.propTotalQuantity]: String(totalQuantity),
@@ -1763,18 +1769,30 @@ export default function App() {
       if (backPreviewUrl) properties['_back_preview_url'] = backPreviewUrl;
       if (frontPrintUrl) properties['_front_print_url'] = frontPrintUrl;
       if (backPrintUrl) properties['_back_print_url'] = backPrintUrl;
-    if (resolvedSide !== 'front') properties[`_${t.propBackDesign}`] = backHas ? (isTurkish ? 'Var' : 'Yes') : (isTurkish ? 'Yok' : 'No');
+      if (selectedColor) properties['_pl_color'] = selectedColor;
+      if (resolvedSide !== 'front') {
+        properties['_pl_back_design'] = backHas ? 'yes' : 'no';
+        properties[`_${t.propBackDesign}`] = backHas ? (isTurkish ? 'Var' : 'Yes') : (isTurkish ? 'Yok' : 'No');
+      }
       if (pricingSummary.front.hasContent) {
+        properties['_pl_front_size'] = formatMetricSize(pricingSummary.front.metrics);
+        properties['_pl_front_print_price'] = formatMoney(pricingSummary.front.surcharge);
+        properties['_pl_front_price_band'] = pricingSummary.front.band.label;
         properties[`_${t.propFrontSize}`] = formatMetricSize(pricingSummary.front.metrics);
         properties[t.propFrontPrintPrice] = formatMoney(pricingSummary.front.surcharge);
-      properties[`_${t.propFrontPriceBand}`] = pricingSummary.front.band.label;
-    }
-    if (pricingSummary.back.hasContent) {
-      properties[`_${t.propBackSize}`] = formatMetricSize(pricingSummary.back.metrics);
+        properties[`_${t.propFrontPriceBand}`] = pricingSummary.front.band.label;
+      }
+      if (pricingSummary.back.hasContent) {
+        properties['_pl_back_size'] = formatMetricSize(pricingSummary.back.metrics);
+        properties['_pl_back_print_price'] = formatMoney(pricingSummary.back.surcharge);
+        properties['_pl_back_price_band'] = pricingSummary.back.band.label;
+        properties[`_${t.propBackSize}`] = formatMetricSize(pricingSummary.back.metrics);
         properties[t.propBackPrintPrice] = formatMoney(pricingSummary.back.surcharge);
         properties[`_${t.propBackPriceBand}`] = pricingSummary.back.band.label;
       }
       if (pricingSummary.volumeDiscountPercentage > 0) {
+        properties['_pl_bulk_discount'] = `%${pricingSummary.volumeDiscountPercentage}`;
+        properties['_pl_print_discount'] = formatMoney(pricingSummary.printDiscountSubtotal);
         properties[t.propBulkDiscount] = `%${pricingSummary.volumeDiscountPercentage}`;
         properties[t.propPrintDiscount] = formatMoney(pricingSummary.printDiscountSubtotal);
       }
@@ -1799,6 +1817,7 @@ export default function App() {
             '_surcharge_variant_gid': surchargeGid,
             ...(frontUnitAmt > 0 ? { '_surcharge_qty_front': frontUnitAmt.toFixed(2) } : {}),
             ...(backUnitAmt  > 0 ? { '_surcharge_qty_back':  backUnitAmt.toFixed(2)  } : {}),
+            ...(item.size ? { '_pl_size': item.size } : {}),
           };
         }
       }

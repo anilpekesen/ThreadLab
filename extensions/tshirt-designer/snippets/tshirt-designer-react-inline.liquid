@@ -382,10 +382,13 @@
         var cartItems = items.map(function(item) {
           var id = parseInt(item.variantId || item.id, 10);
           var quantity = Math.max(1, parseInt(item.quantity || 1, 10) || 1);
+          var sizeProps = item.size
+            ? Object.assign({ '_pl_size': String(item.size) }, isTrLocale ? { 'Beden': item.size } : { 'Size': item.size })
+            : {};
           return {
             id: id,
             quantity: quantity,
-            properties: Object.assign({}, props, item.properties || {}, item.size ? (isTrLocale ? { 'Beden': item.size } : { 'Size': item.size }) : {})
+            properties: Object.assign({}, props, item.properties || {}, sizeProps)
           };
         }).filter(function(item) {
           return Number.isFinite(item.id) && item.id > 0;
