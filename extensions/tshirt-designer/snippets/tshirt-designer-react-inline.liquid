@@ -319,13 +319,13 @@
       try { window.dispatchEvent(new CustomEvent('cart-update', { detail: { cart: cart || null } })); } catch (_) {}
     }
 
-    function finishCartAdd(sourceWindow) {
+    function finishCartAdd(sourceWindow, message) {
       return fetch('/cart.js', { headers: { 'Accept': 'application/json' } })
         .then(function(res) { return res.ok ? res.json() : null; })
         .catch(function() { return null; })
         .then(function(cart) {
           publishCartUpdated(cart);
-          notifyDesigner(sourceWindow, 'DESIGNER_CART_ADDED', 'Sepete eklendi.');
+          notifyDesigner(sourceWindow, 'DESIGNER_CART_ADDED', message || 'Sepete eklendi.');
         });
     }
 
@@ -370,6 +370,7 @@
       if (e.data.type === 'DESIGNER_ADD_TO_CART') {
         var items = Array.isArray(e.data.items) ? e.data.items : [];
         var props = e.data.properties || {};
+        var isTrLocale = !e.data.locale || String(e.data.locale).toLowerCase().indexOf('tr') === 0;
         if (!items.length && e.data.variantId) {
           items = [{
             variantId: e.data.variantId,
@@ -384,7 +385,7 @@
           return {
             id: id,
             quantity: quantity,
-            properties: Object.assign({}, props, item.properties || {}, item.size ? { 'Beden': item.size } : {})
+            properties: Object.assign({}, props, item.properties || {}, item.size ? (isTrLocale ? { 'Beden': item.size } : { 'Size': item.size }) : {})
           };
         }).filter(function(item) {
           return Number.isFinite(item.id) && item.id > 0;
@@ -392,7 +393,7 @@
 
         if (!cartItems.length) {
           console.error('[PrintLab] Cart add blocked: invalid variant ids', items);
-          window.alert('Sepete eklenemedi: ürün varyantı bulunamadı.');
+          window.alert(isTrLocale ? 'Sepete eklenemedi: ürün varyantı bulunamadı.' : 'Could not add to cart: product variant was not found.');
           return;
         }
 
@@ -438,14 +439,14 @@
               }).catch(function() {
                 console.warn('[PrintLab] Cart attributes update failed');
               }).then(function() {
-                return finishCartAdd(e.source);
+                return finishCartAdd(e.source, isTrLocale ? 'Sepete eklendi.' : 'Added to cart.');
               });
               return;
             }
-            return finishCartAdd(e.source);
+            return finishCartAdd(e.source, isTrLocale ? 'Sepete eklendi.' : 'Added to cart.');
           })
           .catch(function(err) {
-            var message = 'Sepete eklenirken hata oluştu: ' + (err && err.message ? err.message : 'Bilinmeyen hata');
+            var message = (isTrLocale ? 'Sepete eklenirken hata oluştu: ' : 'Could not add to cart: ') + (err && err.message ? err.message : (isTrLocale ? 'Bilinmeyen hata' : 'Unknown error'));
             if (!notifyDesigner(e.source, 'DESIGNER_CART_ERROR', message)) window.alert(message);
           });
       }

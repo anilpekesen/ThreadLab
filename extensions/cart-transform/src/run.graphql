@@ -7,26 +7,60 @@ query RunInput {
       surchargeUnit: attribute(key: "_surcharge_unit_total") { value }
       surchargeGid: attribute(key: "_surcharge_variant_gid") { value }
       a01: attribute(key: "Beden") { value }
+      a01En: attribute(key: "Size") { value }
       a02: attribute(key: "Renk") { value }
+      a02En: attribute(key: "Color") { value }
       a03: attribute(key: "Ön Tasarım") { value }
+      a03Hidden: attribute(key: "_Ön Tasarım") { value }
+      a03En: attribute(key: "Front Design") { value }
+      a03EnHidden: attribute(key: "_Front Design") { value }
       a04: attribute(key: "Arka Tasarım") { value }
+      a04Hidden: attribute(key: "_Arka Tasarım") { value }
+      a04En: attribute(key: "Back Design") { value }
+      a04EnHidden: attribute(key: "_Back Design") { value }
       a05: attribute(key: "design_token") { value }
       a05Hidden: attribute(key: "_design_token") { value }
       a06: attribute(key: "Toplam adet") { value }
+      a06En: attribute(key: "Total quantity") { value }
       a07: attribute(key: "Tişört birim fiyatı") { value }
+      a07Alt: attribute(key: "Ürün birim fiyatı") { value }
+      a07En: attribute(key: "Product unit price") { value }
       a08: attribute(key: "Tişört ara toplamı") { value }
+      a08Alt: attribute(key: "Ürün ara toplamı") { value }
+      a08En: attribute(key: "Product subtotal") { value }
       a09: attribute(key: "Toplam fiyat") { value }
+      a09En: attribute(key: "Total price") { value }
       a10: attribute(key: "Ön ölçü") { value }
+      a10Hidden: attribute(key: "_Ön ölçü") { value }
+      a10En: attribute(key: "Front size") { value }
+      a10EnHidden: attribute(key: "_Front size") { value }
       a11: attribute(key: "Ön alan") { value }
       a12: attribute(key: "Ön alan fiyatı") { value }
+      a12Alt: attribute(key: "Ön baskı fiyatı") { value }
+      a12En: attribute(key: "Front print price") { value }
       a13: attribute(key: "Ön fiyat bandı") { value }
+      a13Hidden: attribute(key: "_Ön fiyat bandı") { value }
+      a13En: attribute(key: "Front price band") { value }
+      a13EnHidden: attribute(key: "_Front price band") { value }
       a14: attribute(key: "Arka ölçü") { value }
+      a14Hidden: attribute(key: "_Arka ölçü") { value }
+      a14En: attribute(key: "Back size") { value }
+      a14EnHidden: attribute(key: "_Back size") { value }
       a15: attribute(key: "Arka alan") { value }
       a16: attribute(key: "Arka alan fiyatı") { value }
+      a16Alt: attribute(key: "Arka baskı fiyatı") { value }
+      a16En: attribute(key: "Back print price") { value }
       a17: attribute(key: "Arka fiyat bandı") { value }
+      a17Hidden: attribute(key: "_Arka fiyat bandı") { value }
+      a17En: attribute(key: "Back price band") { value }
+      a17EnHidden: attribute(key: "_Back price band") { value }
       a18: attribute(key: "Toplu alım indirimi") { value }
+      a18En: attribute(key: "Bulk discount") { value }
       a19: attribute(key: "Baskı indirimi") { value }
+      a19En: attribute(key: "Print discount") { value }
       a20: attribute(key: "Tasarım Detayı") { value }
+      a20En: attribute(key: "Design details") { value }
+      a20EnAlt: attribute(key: "Customer Design Link") { value }
       a20Hidden: attribute(key: "_design_detail_url") { value }
       merchandise {
         ... on ProductVariant { id }

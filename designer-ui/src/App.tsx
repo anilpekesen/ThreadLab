@@ -454,9 +454,9 @@ function pricingBandForMetrics(bands: PricingBand[], metrics: SideMetrics): Pric
   return bands[bands.length - 1] ?? emptyBand();
 }
 
-function summarizeSidePricing(sideLabel: string, pricing: SidePricing) {
-  if (!pricing.hasContent) return `${sideLabel}: tasarım yok`;
-  if (pricing.metrics.objectCount > 1) return `${sideLabel}: ${pricing.metrics.objectCount} öğe · ${formatMetricSize(pricing.metrics)} · ${pricing.band.label}`;
+function summarizeSidePricing(sideLabel: string, pricing: SidePricing, emptyLabel: string, itemLabel: string) {
+  if (!pricing.hasContent) return `${sideLabel}: ${emptyLabel}`;
+  if (pricing.metrics.objectCount > 1) return `${sideLabel}: ${pricing.metrics.objectCount} ${itemLabel} · ${formatMetricSize(pricing.metrics)} · ${pricing.band.label}`;
   return `${sideLabel}: ${formatMetricSize(pricing.metrics)} · ${pricing.band.label}`;
 }
 
@@ -593,11 +593,19 @@ function ImageCropModal({
   initialRect,
   onClose,
   onApply,
+  labels,
 }: {
   src: string;
   initialRect: CropRect;
   onClose: () => void;
   onApply: (rect: CropRect) => void;
+  labels: {
+    title: string;
+    help: string;
+    cancel: string;
+    reset: string;
+    apply: string;
+  };
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<CropRect>(initialRect);
@@ -720,8 +728,8 @@ function ImageCropModal({
       <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
           <div>
-            <p className="text-sm font-bold text-gray-900">Görseli Kırp</p>
-            <p className="mt-1 text-xs text-gray-500">Kutuyu sürükleyip köşelerden daralt.</p>
+            <p className="text-sm font-bold text-gray-900">{labels.title}</p>
+            <p className="mt-1 text-xs text-gray-500">{labels.help}</p>
           </div>
           <button
             onClick={onClose}
@@ -787,19 +795,19 @@ function ImageCropModal({
             onClick={onClose}
             className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
           >
-            Vazgeç
+            {labels.cancel}
           </button>
           <button
             onClick={() => setRect({ x: 0, y: 0, width: 1, height: 1 })}
             className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
           >
-            Sıfırla
+            {labels.reset}
           </button>
           <button
             onClick={() => onApply(rect)}
             className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
           >
-            Uygula
+            {labels.apply}
           </button>
         </div>
       </div>
@@ -985,7 +993,7 @@ export default function App() {
     canvasState, setCanvasJson,
   } = useDesignerStore();
 
-  const { t } = useDesignerI18n(config?.locale);
+  const { t, isTurkish } = useDesignerI18n(config?.locale);
 
   const MAIN_TABS = useMemo(() => [
     { id: 'image' as const, label: t.tabImage, Icon: ImageIcon },
@@ -1254,12 +1262,12 @@ export default function App() {
         window.requestAnimationFrame(() => scrollDesignerToTop(isMobileLayout ? 'smooth' : 'auto'));
         window.setTimeout(() => scrollDesignerToTop(isMobileLayout ? 'smooth' : 'auto'), 120);
         window.setTimeout(() => setShowCartDecisionModal(true), isMobileLayout ? 180 : 0);
-        showToast(String(payload.message || 'Sepete eklendi.'), 'success');
+        showToast(t.cartAddedTitle, 'success');
       }
       if (payload.type === 'DESIGNER_CART_ERROR') {
         clearCartResponseTimer();
         setIsCartLoading(false);
-        showToast(String(payload.message || 'Sepete eklenirken bir hata oluştu. Lütfen tekrar deneyin.'), 'error');
+        showToast(t.cartAddFailed, 'error');
       }
     };
 
@@ -1268,7 +1276,7 @@ export default function App() {
       clearCartResponseTimer();
       window.removeEventListener('message', handleCartMessage);
     };
-  }, [clearCartResponseTimer, isMobileLayout, scrollDesignerToTop, showToast]);
+  }, [clearCartResponseTimer, isMobileLayout, scrollDesignerToTop, showToast, t.cartAddedTitle, t.cartAddFailed]);
 
   useEffect(() => {
     if (!config?.productHandle && !config?.productId) {
@@ -1636,7 +1644,7 @@ export default function App() {
         ?? ''
       );
       if (!variantId) {
-        showToast('Bu ürün için varyant bulunamadı. Shopify ürün ayarlarını kontrol edin.', 'error');
+        showToast(t.errorNoVariant, 'error');
         return;
       }
       cartItems = [{ variantId, quantity: noSizeQuantity }];
@@ -1743,32 +1751,32 @@ export default function App() {
         },
       });
       const properties: Record<string, string> = {
-        '_Ön Tasarım': frontHas ? 'Var' : 'Yok',
+        [`_${t.propFrontDesign}`]: frontHas ? (isTurkish ? 'Var' : 'Yes') : (isTurkish ? 'Yok' : 'No'),
         '_design_token': token,
-        'Toplam adet': String(totalQuantity),
-        'Tişört birim fiyatı': formatMoney(pricingSummary.baseUnitPrice),
-        'Tişört ara toplamı': formatMoney(pricingSummary.baseSubtotal),
-        'Toplam fiyat': formatMoney(pricingSummary.total),
+        [t.propTotalQuantity]: String(totalQuantity),
+        [t.propProductUnitPrice]: formatMoney(pricingSummary.baseUnitPrice),
+        [t.propProductSubtotal]: formatMoney(pricingSummary.baseSubtotal),
+        [t.propTotalPrice]: formatMoney(pricingSummary.total),
       };
       if (customerDesignUrl) properties['_design_detail_url'] = customerDesignUrl;
       if (frontPreviewUrl) properties['_front_preview_url'] = frontPreviewUrl;
       if (backPreviewUrl) properties['_back_preview_url'] = backPreviewUrl;
       if (frontPrintUrl) properties['_front_print_url'] = frontPrintUrl;
       if (backPrintUrl) properties['_back_print_url'] = backPrintUrl;
-    if (resolvedSide !== 'front') properties['_Arka Tasarım'] = backHas ? 'Var' : 'Yok';
+    if (resolvedSide !== 'front') properties[`_${t.propBackDesign}`] = backHas ? (isTurkish ? 'Var' : 'Yes') : (isTurkish ? 'Yok' : 'No');
       if (pricingSummary.front.hasContent) {
-        properties['_Ön ölçü'] = formatMetricSize(pricingSummary.front.metrics);
-        properties['Ön alan fiyatı'] = formatMoney(pricingSummary.front.surcharge);
-      properties['_Ön fiyat bandı'] = pricingSummary.front.band.label;
+        properties[`_${t.propFrontSize}`] = formatMetricSize(pricingSummary.front.metrics);
+        properties[t.propFrontPrintPrice] = formatMoney(pricingSummary.front.surcharge);
+      properties[`_${t.propFrontPriceBand}`] = pricingSummary.front.band.label;
     }
     if (pricingSummary.back.hasContent) {
-      properties['_Arka ölçü'] = formatMetricSize(pricingSummary.back.metrics);
-        properties['Arka alan fiyatı'] = formatMoney(pricingSummary.back.surcharge);
-        properties['_Arka fiyat bandı'] = pricingSummary.back.band.label;
+      properties[`_${t.propBackSize}`] = formatMetricSize(pricingSummary.back.metrics);
+        properties[t.propBackPrintPrice] = formatMoney(pricingSummary.back.surcharge);
+        properties[`_${t.propBackPriceBand}`] = pricingSummary.back.band.label;
       }
       if (pricingSummary.volumeDiscountPercentage > 0) {
-        properties['Toplu alım indirimi'] = `%${pricingSummary.volumeDiscountPercentage}`;
-        properties['Baskı indirimi'] = formatMoney(pricingSummary.printDiscountSubtotal);
+        properties[t.propBulkDiscount] = `%${pricingSummary.volumeDiscountPercentage}`;
+        properties[t.propPrintDiscount] = formatMoney(pricingSummary.printDiscountSubtotal);
       }
 
     // Cart Transform splits the line into two children: the t-shirt at its
@@ -1800,14 +1808,14 @@ export default function App() {
       cartResponseTimerRef.current = setTimeout(() => {
         cartResponseTimerRef.current = null;
         setIsCartLoading(false);
-        showToast('Sepet işlemi tamamlanıyor. Sepet ikonundan kontrol edebilirsiniz.', 'info');
+        showToast(t.cartProcessing, 'info');
       }, 15000);
-      window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token }, '*');
+      window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token, locale: config?.locale }, '*');
     } catch (err) {
-      console.error('Sepete ekleme hatası:', err);
+      console.error(t.errorCart, err);
       clearCartResponseTimer();
       setIsCartLoading(false);
-      showToast('Sepete eklenirken bir hata oluştu. Lütfen tekrar deneyin.', 'error');
+      showToast(t.cartAddFailed, 'error');
     }
   };
 
@@ -2331,8 +2339,8 @@ export default function App() {
   const activeAreaSummary = `${Math.round(activePrintArea.realWidthMm / 10)} x ${Math.round(activePrintArea.realHeightMm / 10)} cm`;
   const activeAreaCoordsSummary = `X:${Math.round(activePrintArea.x)} Y:${Math.round(activePrintArea.y)} · Kutu ${Math.round(activePrintArea.width)} x ${Math.round(activePrintArea.height)}`;
   const pricingNarrative = surfaceMode === 'front_only'
-    ? summarizeSidePricing('Ön', pricingSummary.front)
-    : `${summarizeSidePricing('Ön', pricingSummary.front)} | ${summarizeSidePricing('Arka', pricingSummary.back)}`;
+    ? summarizeSidePricing(t.surfaceOn, pricingSummary.front, t.noDesign, t.itemPlural)
+    : `${summarizeSidePricing(t.surfaceOn, pricingSummary.front, t.noDesign, t.itemPlural)} | ${summarizeSidePricing(t.surfaceBack, pricingSummary.back, t.noDesign, t.itemPlural)}`;
   const totalLabel = t.totalLabel;
 
   const reversedLayers = [...layers].reverse();
@@ -2483,14 +2491,14 @@ export default function App() {
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <p className="text-base font-bold text-gray-950">Sepete eklendi</p>
-                <p className="mt-1 text-sm leading-5 text-gray-600">Şimdi ne yapmak istersiniz?</p>
+                <p className="text-base font-bold text-gray-950">{t.cartAddedTitle}</p>
+                <p className="mt-1 text-sm leading-5 text-gray-600">{t.cartAddedQuestion}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCartDecisionModal(false)}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800"
-                aria-label="Kapat"
+                aria-label={t.btnClose}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2501,21 +2509,21 @@ export default function App() {
                 onClick={() => navigateParentCart('checkout')}
                 className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700"
               >
-                Ödemeye git
+                {t.btnCheckout}
               </button>
               <button
                 type="button"
                 onClick={() => navigateParentCart('cart')}
                 className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition-colors hover:bg-gray-50"
               >
-                Sepete git
+                {t.btnGoToCart}
               </button>
               <button
                 type="button"
                 onClick={handleContinueDesigning}
                 className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-100"
               >
-                Bir tasarım daha yapacağım
+                {t.btnContinueDesigning}
               </button>
             </div>
           </div>
@@ -2531,7 +2539,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-medium transition-colors hover:bg-gray-50 md:px-3 md:text-sm">
               <Menu className="h-5 w-5 text-gray-600" />
-              <span className="hidden md:inline">Yardım</span>
+              <span className="hidden md:inline">{t.btnHelp}</span>
             </button>
           </div>
 
@@ -2818,7 +2826,7 @@ export default function App() {
                 <button
                   onClick={resetViewport}
                   className="w-full select-none bg-gray-50 py-1.5 text-center text-[8px] font-black text-gray-600 transition-colors hover:bg-gray-100 md:py-2.5 md:text-[10px]"
-                  title="Sıfırla"
+                  title={t.btnReset}
                 >
                   {zoom}%
                 </button>
@@ -2858,8 +2866,8 @@ export default function App() {
                       <div className="flex flex-1 gap-1 flex-wrap">
                         {([
                           { id: 'upload', label: t.uploadImage },
-                          { id: 'qr',     label: 'QR Kod' },
-                          { id: 'ai',     label: '✦ Yapay Zeka' },
+                          { id: 'qr',     label: t.uploadQr },
+                          { id: 'ai',     label: `✦ ${t.uploadAi}` },
                         ] as const).map(({ id, label }) => (
                           <button
                             key={id}
@@ -2924,6 +2932,7 @@ export default function App() {
                         onChange={setTextDraft}
                         onSubmit={handleSubmitText}
                         isEditing={isEditingText}
+                        locale={config?.locale}
                       />
                     </Suspense>
                   )}
@@ -2933,7 +2942,7 @@ export default function App() {
                       {reversedLayers.length === 0 ? (
                         <div className="py-12 text-center text-gray-400">
                           <Layers className="mx-auto mb-3 h-12 w-12 opacity-20" />
-                          <p className="font-medium">Henüz katman eklenmemiş</p>
+                          <p className="font-medium">{t.layerEmpty}</p>
                         </div>
                       ) : (
                         reversedLayers.map((obj, index) => {
@@ -2968,9 +2977,9 @@ export default function App() {
                                 </div>
                                 <div>
                                   <p className="max-w-[150px] truncate text-sm font-bold text-gray-700">
-                                    {isText ? `Metin: ${((obj as fabric.Text).text ?? '').trim()}` : 'Görsel Katmanı'}
+                                    {isText ? `${t.layerText} ${((obj as fabric.Text).text ?? '').trim()}` : t.layerImage}
                                   </p>
-                                  <span className="text-[10px] font-black uppercase text-gray-400">Katman {reversedLayers.length - index}</span>
+                                  <span className="text-[10px] font-black uppercase text-gray-400">{t.layerLabel} {reversedLayers.length - index}</span>
                                 </div>
                               </div>
                               <button
@@ -3040,7 +3049,7 @@ export default function App() {
                         className={cn('flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50', showTextColorPalette ? 'bg-blue-50/70' : '')}
                       >
                         <div className="h-5 w-5 rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: objState.color }} />
-                        <span className="text-[9px] font-bold text-gray-500">Renk</span>
+                        <span className="text-[9px] font-bold text-gray-500">{t.colorLabel}</span>
                       </button>
 
                       <button
@@ -3048,7 +3057,7 @@ export default function App() {
                         className="flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
                       >
                         <Pencil className="h-4 w-4 text-gray-500" />
-                        <span className="text-[9px] font-bold text-gray-500">Düzenle</span>
+                        <span className="text-[9px] font-bold text-gray-500">{t.btnEdit}</span>
                       </button>
 
                       <button
@@ -3206,7 +3215,7 @@ export default function App() {
                         <span className="text-[9px] font-bold uppercase text-gray-500 group-hover:text-blue-500">
                           {(() => {
                             const objects = getActiveCanvasHandle()?.getCanvas()?.getObjects() ?? [];
-                            if (isActiveSelection(selectedObj)) return 'Grup';
+                            if (isActiveSelection(selectedObj)) return t.groupLabel;
                             return objects.indexOf(selectedObj) === objects.length - 1 ? t.toolbarBack : t.toolbarFront;
                           })()}
                         </span>
@@ -3214,7 +3223,7 @@ export default function App() {
                       <button
                         onClick={removeBgFromSelectedImage}
                         disabled={isActiveSelection(selectedObj) || !isImageSelection(selectedObj) || isBgRemoving}
-                        title="Arka plan kaldır"
+                        title={t.imageRemoveBg}
                         className={cn(
                           'group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors',
                           isActiveSelection(selectedObj) || !isImageSelection(selectedObj) || isBgRemoving ? 'cursor-not-allowed opacity-35' : 'hover:bg-gray-50',
@@ -3238,7 +3247,7 @@ export default function App() {
                           className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-50 py-2 text-[11px] font-semibold text-gray-600 transition-colors hover:bg-gray-100"
                         >
                           <Crop className="h-4 w-4" />
-                          Kırp
+                          {t.imageCrop}
                         </button>
                       </div>
                     )}
@@ -3253,6 +3262,13 @@ export default function App() {
             <ImageCropModal
               src={cropModalState.src}
               initialRect={cropModalState.rect}
+              labels={{
+                title: t.cropTitle,
+                help: t.cropHelp,
+                cancel: t.btnCancel,
+                reset: t.btnReset,
+                apply: t.btnApply,
+              }}
               onClose={() => {
                 setCropModalState(null);
                 cropTargetRef.current = null;
@@ -3273,16 +3289,16 @@ export default function App() {
                 </p>
                 {personalization.termsUrl && (
                   <p className="text-[11px] text-gray-400 leading-relaxed border-t border-gray-100 pt-3">
-                    Sipariş vererek{' '}
+                    {t.termsPrefix}{' '}
                     <a
                       href={personalization.termsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="underline text-gray-500"
                     >
-                      Kullanım Koşulları
+                      {t.termsMid}
                     </a>
-                    'nı kabul etmiş sayılırsınız.
+                    {t.termsSuffix}
                   </p>
                 )}
                 <button
@@ -3290,7 +3306,7 @@ export default function App() {
                   onClick={() => setShowSizeErrorModal(false)}
                   className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors"
                 >
-                  Tamam
+                  {t.btnOk}
                 </button>
               </div>
             </div>
@@ -3301,17 +3317,17 @@ export default function App() {
               <div className="w-full max-w-xs rounded-2xl bg-white shadow-2xl p-6 flex flex-col gap-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-amber-100 text-xl">⚠️</span>
-                  <p className="font-bold text-gray-900 text-sm leading-snug">Minimum sipariş adeti</p>
+                  <p className="font-bold text-gray-900 text-sm leading-snug">{t.minOrderTitle}</p>
                 </div>
                 <p className="text-sm text-gray-600 leading-relaxed">
-                  Bu ürün için en az <strong>{minOrderQty} adet</strong> sipariş vermeniz gerekmektedir. Lütfen beden seçimlerinizi güncelleyin.
+                  {t.minOrderDescPrefix} <strong>{minOrderQty}</strong> {t.minOrderDescSuffix}
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowMinQtyErrorModal(false)}
                   className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors"
                 >
-                  Tamam
+                  {t.btnOk}
                 </button>
               </div>
             </div>
@@ -3388,7 +3404,7 @@ export default function App() {
                           <img
                             src={previewImages.front || config!.frontImage}
                             className="absolute inset-0 h-full w-full object-cover"
-                            alt="Ön tasarım"
+                            alt={t.propFrontDesign}
                           />
                         )}
                       </div>
@@ -3408,7 +3424,7 @@ export default function App() {
                             <img
                               src={previewImages.back || config!.backImage}
                               className="absolute inset-0 h-full w-full object-cover"
-                              alt="Arka tasarım"
+                              alt={t.propBackDesign}
                             />
                           )}
                         </div>
@@ -3449,7 +3465,7 @@ export default function App() {
             {colorOptions.length > 0 && (
               <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Renk Varyantları</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">{t.colorVariants}</p>
                   {selectedColor && <span className="text-xs font-bold text-gray-600">{selectedColor}</span>}
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -3472,7 +3488,7 @@ export default function App() {
                           style={{ backgroundColor: colorHexForLabel(color!), opacity: available ? 1 : 0.4 }}
                         />
                         <span className={!available ? 'line-through' : ''}>{color}</span>
-                        {!available && <span className="ml-0.5 text-[9px] font-semibold normal-case no-underline text-gray-400" style={{ textDecoration: 'none' }}>Stok yok</span>}
+                        {!available && <span className="ml-0.5 text-[9px] font-semibold normal-case no-underline text-gray-400" style={{ textDecoration: 'none' }}>{t.outOfStock}</span>}
                       </button>
                     );
                   })}
@@ -3524,7 +3540,7 @@ export default function App() {
               </div>
             ) : (
               <div className="flex items-center gap-3">
-                <p className="text-xs font-bold text-gray-500">Adet</p>
+                <p className="text-xs font-bold text-gray-500">{t.quantityLabel}</p>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -3582,16 +3598,16 @@ export default function App() {
             </button>
             {personalization.termsUrl && (
               <p className="mt-2 text-center text-[10px] text-gray-400 leading-relaxed">
-                Sipariş vererek{' '}
+                {t.termsPrefix}{' '}
                 <a
                   href={personalization.termsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline text-gray-500 hover:text-gray-700"
                 >
-                  Kullanım Koşulları
+                  {t.termsMid}
                 </a>
-                'nı kabul etmiş sayılırsınız.
+                {t.termsSuffix}
               </p>
             )}
           </div>
@@ -3609,7 +3625,7 @@ export default function App() {
           {colorOptions.length > 0 && (
             <div className="border-b border-gray-100 px-3 py-3">
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Renk</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">{t.colorLabel}</p>
                 {selectedColor && <span className="text-[10px] font-bold text-gray-600">{selectedColor}</span>}
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -3632,7 +3648,7 @@ export default function App() {
                         style={{ backgroundColor: colorHexForLabel(color!), opacity: available ? 1 : 0.4 }}
                       />
                       <span className={!available ? 'line-through' : ''}>{color}</span>
-                      {!available && <span className="text-[8px] font-semibold text-gray-400" style={{ textDecoration: 'none' }}>Stok yok</span>}
+                      {!available && <span className="text-[8px] font-semibold text-gray-400" style={{ textDecoration: 'none' }}>{t.outOfStock}</span>}
                     </button>
                   );
                 })}
@@ -3643,8 +3659,8 @@ export default function App() {
           {sizes.length > 0 ? (
             <div className="border-b border-gray-100 px-3 py-3">
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Beden</p>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-black text-gray-500">{totalQuantity} adet</span>
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">{t.sizeLabel}</p>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-black text-gray-500">{totalQuantity} {t.quantityLabel.toLocaleLowerCase(config?.locale ?? 'tr-TR')}</span>
               </div>
               <div className="grid grid-cols-3 gap-1.5">
                 {sizes.map((size) => {
@@ -3690,7 +3706,7 @@ export default function App() {
           ) : (
             <div className="border-b border-gray-100 px-3 py-3">
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Adet</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">{t.quantityLabel}</p>
                 {minOrderQty > 1 && (
                   <span className="text-[9px] text-gray-400">Min: {minOrderQty}</span>
                 )}
@@ -3759,16 +3775,16 @@ export default function App() {
             </button>
             {personalization.termsUrl && (
               <p className="mt-2 text-center text-[9px] text-gray-400 leading-relaxed">
-                Sipariş vererek{' '}
+                {t.termsPrefix}{' '}
                 <a
                   href={personalization.termsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline text-gray-500 hover:text-gray-700"
                 >
-                  Kullanım Koşulları
+                  {t.termsMid}
                 </a>
-                'nı kabul etmiş sayılırsınız.
+                {t.termsSuffix}
               </p>
             )}
           </div>
@@ -3796,19 +3812,19 @@ export default function App() {
                 </div>
                 {pricingSummary.front.hasContent && (
                   <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">Ön baskı ({pricingSummary.front.metrics.objectCount} öğe)</span>
+                    <span className="font-semibold text-gray-500">{t.frontPrint} ({pricingSummary.front.metrics.objectCount} {pricingSummary.front.metrics.objectCount === 1 ? t.itemSingular : t.itemPlural})</span>
                     <strong className="font-black text-gray-900">{formatMoney(displayFrontSubtotal)}</strong>
                   </div>
                 )}
                 {pricingSummary.back.hasContent && (
                   <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">Arka baskı ({pricingSummary.back.metrics.objectCount} öğe)</span>
+                    <span className="font-semibold text-gray-500">{t.backPrint} ({pricingSummary.back.metrics.objectCount} {pricingSummary.back.metrics.objectCount === 1 ? t.itemSingular : t.itemPlural})</span>
                     <strong className="font-black text-gray-900">{formatMoney(displayBackSubtotal)}</strong>
                   </div>
                 )}
                 {pricingSummary.volumeDiscountPercentage > 0 && pricingSummary.printDiscountSubtotal > 0 && (
                   <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-emerald-600">Toplu alım indirimi (%{pricingSummary.volumeDiscountPercentage})</span>
+                    <span className="font-semibold text-emerald-600">{t.bulkDiscount} (%{pricingSummary.volumeDiscountPercentage})</span>
                     <strong className="font-black text-emerald-700">-{formatMoney(pricingSummary.printDiscountSubtotal)}</strong>
                   </div>
                 )}

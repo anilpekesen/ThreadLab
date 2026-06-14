@@ -3,6 +3,7 @@ import { ImagePlus, Link2, Loader2, QrCode, Sparkles, Trash2, Upload, X } from '
 import { useDesignerStore } from '@/store/designerStore';
 import { compressImage, generateId } from '@/utils/compress';
 import type { UploadedImage } from '@/types';
+import { useDesignerI18n } from '../../i18n';
 
 const CONSENT_KEY = 'printlab_image_rights_accepted';
 
@@ -23,6 +24,7 @@ function isTR(locale?: string) {
 
 export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource, shop, uploadEndpoint, sessionId, locale }: Props) {
   const tr = isTR(locale);
+  const { t } = useDesignerI18n(locale);
   const fileRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -100,7 +102,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
             <div className="rounded-2xl border border-gray-200 bg-gradient-to-b from-white to-gray-50/80 p-3 md:p-4">
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">Gorsel ekle</p>
+                  <p className="text-sm font-semibold text-gray-800">{t.addImageTitle}</p>
                 </div>
                 <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-semibold text-gray-400">PNG · JPG · WebP</span>
               </div>
@@ -116,7 +118,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                   <ImagePlus className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold">Galeriden sec</p>
+                  <p className="text-sm font-semibold">{t.selectFromGallery}</p>
                   <p className="text-xs text-white/70">{tr ? 'Bir veya birden fazla görsel' : 'One or more images'}</p>
                 </div>
               </button>
@@ -152,7 +154,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
             {/* Mobil: accordion */}
             <button type="button" onClick={() => setShowUrlInput((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 md:hidden">
               <Link2 className="h-3.5 w-3.5 text-gray-400" />
-              <span className="flex-1 text-left text-xs font-medium text-gray-500">URL ile ekle</span>
+              <span className="flex-1 text-left text-xs font-medium text-gray-500">{t.addWithUrl}</span>
               <span className="text-[10px] text-gray-400">{showUrlInput ? '▲' : '▼'}</span>
             </button>
 
@@ -186,11 +188,11 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-blue-500" />
-                  <p className="text-sm font-semibold text-blue-700">Arka planı kaldır?</p>
+                  <p className="text-sm font-semibold text-blue-700">{t.removeBgQuestion}</p>
                 </div>
                 <button onClick={() => setPendingUrl(null)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
               </div>
-              <img src={pendingUrl} alt="Önizleme" className="mx-auto my-3 max-h-24 rounded-lg object-contain" />
+              <img src={pendingUrl} alt={t.previewLabel} className="mx-auto my-3 max-h-24 rounded-lg object-contain" />
               <div className="flex gap-2">
                 <button
                   disabled={isBgRemoving}
@@ -202,14 +204,14 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                   }}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  <Sparkles className="h-3.5 w-3.5" /> Evet, kaldır
+                  <Sparkles className="h-3.5 w-3.5" /> {t.removeBgYes}
                 </button>
                 <button
                   disabled={isBgRemoving}
                   onClick={() => { const url = pendingUrl; setPendingUrl(null); onAddImage(url); }}
                   className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                 >
-                  Olduğu gibi
+                  {t.keepOriginal}
                 </button>
               </div>
             </div>
@@ -217,7 +219,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
 
           {isBgRemoving && (
             <div className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-700">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Arka plan kaldırılıyor…
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t.imageRemoving}
             </div>
           )}
 
@@ -336,6 +338,7 @@ function AiPanel({
   locale?: string;
 }) {
   const tr = isTR(locale);
+  const { t } = useDesignerI18n(locale);
   const { uploadedImages, addUploadedImage, removeUploadedImage } = useDesignerStore();
   const [prompt, setPrompt] = useState('');
   const [styleIdx, setStyleIdx] = useState(0);
@@ -370,13 +373,13 @@ function AiPanel({
   async function handleGenerate() {
     if (!prompt.trim()) return;
     setLoading(true);
-    setLoadingStep(tr ? 'Görsel oluşturuluyor…' : 'Generating image…');
+    setLoadingStep(t.aiGenerating);
     setError('');
     setResult('');
     setEnhancedPrompt('');
 
     // Adım göstergesini 10 saniye sonra güncelle (bg removal aşamasına geçildiğini göster)
-    const stepTimer = setTimeout(() => setLoadingStep(tr ? 'Arka plan kaldırılıyor…' : 'Removing background…'), 10_000);
+    const stepTimer = setTimeout(() => setLoadingStep(t.imageRemoving), 10_000);
     try {
       const res = await fetch(`${appUrl}/apps/tshirt-designer/generate-image?shop=${encodeURIComponent(shop ?? '')}`, {
         method: 'POST',
@@ -465,24 +468,24 @@ function AiPanel({
       <div className="flex items-start gap-3 rounded-xl bg-violet-50 p-3.5">
         <span className="mt-0.5 text-lg leading-none">✦</span>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-violet-800">{tr ? 'Yapay Zeka ile Görsel Üret' : 'Generate Image with AI'}</p>
+          <p className="text-sm font-semibold text-violet-800">{t.aiPanelTitle}</p>
           <p className="mt-0.5 text-xs text-violet-600">
-            {tr ? 'Fikrini yaz, baskıya hazır görsel oluşturulsun.' : 'Describe your idea and get a print-ready image.'}
+            {t.aiPanelDesc}
           </p>
           {quota && (
             <div className="mt-2 flex flex-wrap gap-2">
               {quota.isTrial ? (
                 <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
-                  ⚠ Deneme sürecinde yapay zeka devre dışı
+                  ⚠ {t.aiDisabledTrial}
                 </span>
               ) : !quota.isActive ? (
                 <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-semibold text-red-700">
-                  ✕ Aktif abonelik gerekli
+                  ✕ {t.aiSubscriptionRequired}
                 </span>
               ) : (
                 <>
                   <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${quota.customerRemaining > 0 ? 'bg-violet-100 text-violet-700' : 'bg-red-100 text-red-700'}`}>
-                    Bu oturumda: {quota.customerRemaining}/{quota.customerLimit} kaldı
+                    {t.aiSessionRemaining}: {quota.customerRemaining}/{quota.customerLimit} {t.aiRemainingSuffix}
                   </span>
                 </>
               )}
@@ -493,7 +496,7 @@ function AiPanel({
 
       {/* Stil seçimi */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-gray-600">{tr ? 'Stil' : 'Style'}</label>
+        <label className="text-xs font-semibold text-gray-600">{t.aiStyleLabel}</label>
         <div className="flex flex-wrap gap-1.5">
           {STYLE_PRESETS.map((s, i) => (
             <button
@@ -514,7 +517,7 @@ function AiPanel({
 
       {/* Prompt girişi */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-gray-600">Ne görmek istiyorsun?</label>
+        <label className="text-xs font-semibold text-gray-600">{t.aiPromptLabel}</label>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -523,7 +526,7 @@ function AiPanel({
           className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-relaxed outline-none placeholder:text-gray-300 focus:border-violet-400"
         />
         <p className="text-[10px] text-gray-400">
-          Turkce veya Ingilizce yazabilirsin. Nesneleri, kompozisyonu ve hissi birlikte tarif et: tek parca amblem, merkezde, streetwear, baski tasarimi gibi.
+          {t.aiPromptHelp}
         </p>
       </div>
 
@@ -536,10 +539,10 @@ function AiPanel({
         {loading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            {loadingStep || (tr ? 'Görsel oluşturuluyor…' : 'Generating image…')}
+            {loadingStep || t.aiGenerating}
           </>
         ) : (
-          <>✦ Görsel Oluştur</>
+          <>✦ {t.btnGenerateImage}</>
         )}
       </button>
 
@@ -556,7 +559,7 @@ function AiPanel({
           {enhancedPrompt && (
             <details className="group">
               <summary className="cursor-pointer text-[10px] font-medium text-violet-500 hover:text-violet-700">
-                Kullanılan prompt'u gör ▾
+                {t.aiShowPrompt}
               </summary>
               <p className="mt-1.5 rounded-lg bg-white p-2.5 text-[10px] leading-relaxed text-gray-500">{enhancedPrompt}</p>
             </details>
@@ -568,7 +571,7 @@ function AiPanel({
               disabled={saving || removingBg}
               className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40"
             >
-              {saving ? (tr ? 'Kaydediliyor...' : 'Saving...') : (tr ? 'Yüklenenlere Ekle' : 'Save to Uploads')}
+              {saving ? t.aiSaving : t.aiSaveToUploads}
             </button>
             {canRemoveBg && (
               <button
@@ -576,7 +579,7 @@ function AiPanel({
                 disabled={removingBg || adding || saving}
                 className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-40"
               >
-                {removingBg ? 'PNG Hazirlaniyor...' : 'Seffaf PNG Yap'}
+                {removingBg ? t.aiPreparingPng : t.btnMakeTransparentPng}
               </button>
             )}
             <button
@@ -584,14 +587,14 @@ function AiPanel({
               disabled={adding || removingBg}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
             >
-              {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <>✦ {tr ? 'Tişörte Ekle' : 'Add to Design'}</>}
+              {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <>✦ {t.aiAddToDesign}</>}
             </button>
             <button
               onClick={handleGenerate}
               disabled={loading}
               className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40"
             >
-              Yeniden
+              {t.btnRegenerate}
             </button>
           </div>
         </div>
@@ -600,7 +603,7 @@ function AiPanel({
       {aiImages.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">{tr ? 'AI Geçmişi' : 'AI History'}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t.aiHistory}</p>
             <span className="text-[10px] text-gray-400">{aiImages.length} {tr ? 'görsel' : 'image'}{aiImages.length !== 1 && !tr ? 's' : ''}</span>
           </div>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
@@ -682,6 +685,7 @@ const QR_COLORS = [
 
 function QrPanel({ onAddImage, locale }: { onAddImage: (url: string) => void; locale?: string }) {
   const tr = isTR(locale);
+  const { t } = useDesignerI18n(locale);
   const [text, setText] = useState('');
   const [colorIdx, setColorIdx] = useState(0);
   const [preview, setPreview] = useState('');
@@ -733,7 +737,7 @@ function QrPanel({ onAddImage, locale }: { onAddImage: (url: string) => void; lo
 
       {/* Metin girişi */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-gray-600">İçerik</label>
+        <label className="text-xs font-semibold text-gray-600">{t.contentLabel}</label>
         <input
           type="text"
           value={text}
@@ -746,7 +750,7 @@ function QrPanel({ onAddImage, locale }: { onAddImage: (url: string) => void; lo
 
       {/* Renk seçimi */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-gray-600">{tr ? 'Renk' : 'Color'}</label>
+        <label className="text-xs font-semibold text-gray-600">{t.colorLabel}</label>
         <div className="flex gap-2 flex-wrap">
           {QR_COLORS.map((c, i) => (
             <button
@@ -769,10 +773,10 @@ function QrPanel({ onAddImage, locale }: { onAddImage: (url: string) => void; lo
       {/* Önizleme */}
       {preview ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-4">
-          <p className="self-start text-xs font-semibold text-gray-500">{tr ? 'Önizleme' : 'Preview'}</p>
+          <p className="self-start text-xs font-semibold text-gray-500">{t.previewLabel}</p>
           <img
             src={preview}
-            alt="QR Önizleme"
+            alt={t.previewLabel}
             className="h-40 w-40 rounded-lg"
             style={{ imageRendering: 'pixelated' }}
           />
@@ -789,7 +793,7 @@ function QrPanel({ onAddImage, locale }: { onAddImage: (url: string) => void; lo
       ) : (
         <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-gray-100 py-10 text-center text-gray-300">
           <QrCode className="h-10 w-10" />
-          <p className="text-xs">Yukarıya içerik girin</p>
+          <p className="text-xs">{t.enterContentAbove}</p>
         </div>
       )}
     </div>

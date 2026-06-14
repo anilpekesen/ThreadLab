@@ -11,11 +11,22 @@
   var CART_PROPERTY_LABELS_TO_HIDE = [
     'Ön Tasarım',
     'Arka Tasarım',
+    'Front Design',
+    'Back Design',
     'Ön ölçü',
     'Ön fiyat bandı',
     'Arka ölçü',
     'Arka fiyat bandı',
+    'Front size',
+    'Front price band',
+    'Back size',
+    'Back price band',
   ];
+
+  function isTurkishLocale() {
+    var lang = String(document.documentElement.getAttribute('lang') || navigator.language || '').toLowerCase();
+    return !lang || lang.indexOf('tr') === 0;
+  }
 
   function loadCart() {
     return _fetch('/cart.js')
@@ -138,16 +149,16 @@
   function hasFrontDesign(props) {
     return Boolean(
       firstValue(props, ['_front_preview_url', '_front_print_url', 'Ön önizleme', 'On onizleme', 'Front preview']) ||
-      truthyDesignValue(props['_Ön Tasarım'] ?? props['Ön Tasarım']) ||
-      firstValue(props, ['Ön öğe sayısı', '_Ön ölçü', 'Ön ölçü', 'Ön alan', 'Ön alan fiyatı'])
+      truthyDesignValue(props['_Ön Tasarım'] ?? props['Ön Tasarım'] ?? props['_Front Design'] ?? props['Front Design']) ||
+      firstValue(props, ['Ön öğe sayısı', '_Ön ölçü', 'Ön ölçü', 'Ön alan', 'Ön alan fiyatı', '_Front size', 'Front size', 'Front print price'])
     );
   }
 
   function hasBackDesign(props) {
     return Boolean(
       firstValue(props, ['_back_preview_url', '_back_print_url', 'Arka önizleme', 'Arka onizleme', 'Back preview']) ||
-      truthyDesignValue(props['_Arka Tasarım'] ?? props['Arka Tasarım']) ||
-      firstValue(props, ['Arka öğe sayısı', '_Arka ölçü', 'Arka ölçü', 'Arka alan', 'Arka alan fiyatı'])
+      truthyDesignValue(props['_Arka Tasarım'] ?? props['Arka Tasarım'] ?? props['_Back Design'] ?? props['Back Design']) ||
+      firstValue(props, ['Arka öğe sayısı', '_Arka ölçü', 'Arka ölçü', 'Arka alan', 'Arka alan fiyatı', '_Back size', 'Back size', 'Back print price'])
     );
   }
 
@@ -168,7 +179,7 @@
 
   function designDetailUrlForItem(item) {
     var props = item.properties || {};
-    var url = firstValue(props, ['_design_detail_url', 'Tasarım Detayı', 'Müşteri Tasarım Linki']);
+    var url = firstValue(props, ['_design_detail_url', 'Tasarım Detayı', 'Müşteri Tasarım Linki', 'Design details', 'Customer Design Link']);
     if (url) return url;
 
     var token = firstValue(props, ['_design_token', 'design_token']);
@@ -406,13 +417,13 @@
         designLink.href = designDetailUrl;
         designLink.target = '_blank';
         designLink.rel = 'noopener';
-        designLink.textContent = 'Müşteri Tasarım Linki';
+        designLink.textContent = isTurkishLocale() ? 'Müşteri Tasarım Linki' : 'Customer Design Link';
         wrap.appendChild(designLink);
       }
 
       [
-        { label: 'Ön tasarım', url: urls.front },
-        { label: 'Arka tasarım', url: urls.back },
+        { label: isTurkishLocale() ? 'Ön tasarım' : 'Front design', url: urls.front },
+        { label: isTurkishLocale() ? 'Arka tasarım' : 'Back design', url: urls.back },
       ].filter(function (preview) {
         return !!preview.url;
       }).forEach(function (preview, previewIndex, previews) {
