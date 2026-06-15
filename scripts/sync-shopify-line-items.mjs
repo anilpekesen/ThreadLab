@@ -135,8 +135,18 @@ try {
         [shop, token],
       )).rows[0] || {};
 
-      const frontPreviewUrl = attr(line.customAttributes, "_front_preview_url") || attr(order.customAttributes, "_front_preview_url") || design.front_preview_url || "";
-      const frontPrintUrl = attr(line.customAttributes, "_front_print_url") || attr(order.customAttributes, "_front_print_url") || design.front_print_url || "";
+      const lineHasOwnDesignToken = Boolean(designToken(line.customAttributes));
+      const allowOrderLevelDesignUrls = !lineHasOwnDesignToken && designLines.length === 0;
+      const frontPreviewUrl =
+        attr(line.customAttributes, "_front_preview_url") ||
+        (allowOrderLevelDesignUrls ? attr(order.customAttributes, "_front_preview_url") : "") ||
+        design.front_preview_url ||
+        "";
+      const frontPrintUrl =
+        attr(line.customAttributes, "_front_print_url") ||
+        (allowOrderLevelDesignUrls ? attr(order.customAttributes, "_front_print_url") : "") ||
+        design.front_print_url ||
+        "";
       const currencyCode = line.discountedTotalSet?.shopMoney?.currencyCode || "";
 
       const existingByLine = await pool.query(

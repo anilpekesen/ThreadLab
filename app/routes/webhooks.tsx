@@ -182,6 +182,10 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
       orderToken ??
       "";
     const lineItemId = item.id ? String(item.id) : `${variantId}:${token || "no-design"}`;
+    const itemHasOwnDesignToken = Boolean(
+      getDesignToken(item.properties) ?? getDesignToken(item.attributes),
+    );
+    const allowOrderLevelDesignUrls = !itemHasOwnDesignToken && designItems.length === 0;
 
     if (item.id) {
       await query(
@@ -199,11 +203,11 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
     const frontPreviewUrl =
       getAttr(item.properties, "_front_preview_url") ??
       getAttr(item.attributes, "_front_preview_url") ??
-      orderFrontPreviewUrl;
+      (allowOrderLevelDesignUrls ? orderFrontPreviewUrl : "");
     const frontPrintUrl =
       getAttr(item.properties, "_front_print_url") ??
       getAttr(item.attributes, "_front_print_url") ??
-      orderFrontPrintUrl;
+      (allowOrderLevelDesignUrls ? orderFrontPrintUrl : "");
 
     const qty = item.quantity ?? 1;
     const unitPrice = Number(item.price_set?.shop_money?.amount ?? item.price ?? 0);

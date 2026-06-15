@@ -524,21 +524,23 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           [shop, shopifyOrderId, variantId, lineItemId, token],
         );
       }
+      const itemHasOwnDesignToken = Boolean(getDesignToken(item.customAttributes));
+      const allowOrderLevelDesignUrls = !itemHasOwnDesignToken && designItems.length === 0;
       const frontPreviewUrl =
         getAttr(item.customAttributes, "_front_preview_url") ??
-        getAttr(so.customAttributes, "_front_preview_url") ??
+        (allowOrderLevelDesignUrls ? getAttr(so.customAttributes, "_front_preview_url") : undefined) ??
         "";
       const backPreviewUrl =
         getAttr(item.customAttributes, "_back_preview_url") ??
-        getAttr(so.customAttributes, "_back_preview_url") ??
+        (allowOrderLevelDesignUrls ? getAttr(so.customAttributes, "_back_preview_url") : undefined) ??
         "";
       const frontPrintUrl =
         getAttr(item.customAttributes, "_front_print_url") ??
-        getAttr(so.customAttributes, "_front_print_url") ??
+        (allowOrderLevelDesignUrls ? getAttr(so.customAttributes, "_front_print_url") : undefined) ??
         "";
       const backPrintUrl =
         getAttr(item.customAttributes, "_back_print_url") ??
-        getAttr(so.customAttributes, "_back_print_url") ??
+        (allowOrderLevelDesignUrls ? getAttr(so.customAttributes, "_back_print_url") : undefined) ??
         "";
       const initialStatus = so.displayFulfillmentStatus === "FULFILLED" ? "shipped" : "pending";
       const lineTotalPrice = Number(item.discountedTotalSet?.shopMoney?.amount ?? 0);
