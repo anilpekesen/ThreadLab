@@ -3027,6 +3027,7 @@ export default function App() {
                         onApply={handleApplyTemplate}
                         onAddImage={handleAddImage}
                         shopTemplates={shopTemplates}
+                        locale={config?.locale}
                       />
                     </Suspense>
                   )}

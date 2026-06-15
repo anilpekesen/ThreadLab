@@ -5,33 +5,35 @@ import type { ShopTemplate } from '@/types';
 interface Template {
   id: string;
   label: string;
+  labelEn?: string;
   category: string;
   description: string;
+  descriptionEn?: string;
   tone: string;
   preview: ReactNode;
   build: (cv: fabric.Canvas) => void;
 }
 
 const SHOP_CATEGORIES = [
-  { value: 'all',       label: 'Tümü' },
-  { value: 'custom',    label: 'Özel' },
-  { value: 'cartoon',   label: 'Çizgi Film' },
-  { value: 'superhero', label: 'Süper Kahraman' },
-  { value: 'sport',     label: 'Spor' },
-  { value: 'nature',    label: 'Doğa' },
-  { value: 'abstract',  label: 'Soyut' },
-  { value: 'text',      label: 'Yazı / Logo' },
+  { value: 'all',       label: 'Tümü', labelEn: 'All' },
+  { value: 'custom',    label: 'Özel', labelEn: 'Custom' },
+  { value: 'cartoon',   label: 'Çizgi Film', labelEn: 'Cartoon' },
+  { value: 'superhero', label: 'Süper Kahraman', labelEn: 'Superhero' },
+  { value: 'sport',     label: 'Spor', labelEn: 'Sport' },
+  { value: 'nature',    label: 'Doğa', labelEn: 'Nature' },
+  { value: 'abstract',  label: 'Soyut', labelEn: 'Abstract' },
+  { value: 'text',      label: 'Yazı / Logo', labelEn: 'Text / Logo' },
 ];
 
 const TEXT_CATEGORIES = [
-  { value: 'all', label: 'Tümü' },
-  { value: 'popular', label: 'Popüler' },
-  { value: 'family', label: 'Aile' },
-  { value: 'event', label: 'Etkinlik' },
-  { value: 'sport', label: 'Spor' },
-  { value: 'retro', label: 'Retro' },
-  { value: 'minimal', label: 'Minimal' },
-  { value: 'brand', label: 'Marka' },
+  { value: 'all', label: 'Tümü', labelEn: 'All' },
+  { value: 'popular', label: 'Popüler', labelEn: 'Popular' },
+  { value: 'family', label: 'Aile', labelEn: 'Family' },
+  { value: 'event', label: 'Etkinlik', labelEn: 'Event' },
+  { value: 'sport', label: 'Spor', labelEn: 'Sport' },
+  { value: 'retro', label: 'Retro', labelEn: 'Retro' },
+  { value: 'minimal', label: 'Minimal', labelEn: 'Minimal' },
+  { value: 'brand', label: 'Marka', labelEn: 'Brand' },
 ];
 
 const TEMPLATE_FONT_LINK_ID = 'printlab-template-fonts';
@@ -108,8 +110,10 @@ const TEXT_TEMPLATES: Template[] = [
   {
     id: 'bold-text',
     label: 'Kalın Yazı',
+    labelEn: 'Bold Text',
     category: 'popular',
     description: 'Büyük slogan',
+    descriptionEn: 'Large slogan',
     tone: 'border-slate-200 bg-slate-950 text-white',
     preview: (
       <PreviewFrame tone="border-slate-200 bg-slate-950 text-white">
@@ -137,6 +141,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Limited Edition',
     category: 'brand',
     description: 'Drop etiketi',
+    descriptionEn: 'Drop label',
     tone: 'border-zinc-200 bg-zinc-100 text-zinc-950',
     preview: (
       <PreviewFrame tone="border-zinc-200 bg-zinc-100 text-zinc-950">
@@ -171,8 +176,10 @@ const TEXT_TEMPLATES: Template[] = [
   {
     id: 'circle-text',
     label: 'Daire + Yazı',
+    labelEn: 'Circle + Text',
     category: 'minimal',
     description: 'Modern rozet',
+    descriptionEn: 'Modern badge',
     tone: 'border-sky-200 bg-sky-50 text-slate-950',
     preview: (
       <PreviewFrame tone="border-sky-200 bg-sky-50 text-slate-950">
@@ -210,6 +217,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'No Fear',
     category: 'sport',
     description: 'Agresif blok',
+    descriptionEn: 'Bold block',
     tone: 'border-red-200 bg-red-50 text-red-700',
     preview: (
       <PreviewFrame tone="border-red-200 bg-red-50 text-red-700">
@@ -235,8 +243,10 @@ const TEXT_TEMPLATES: Template[] = [
   {
     id: 'badge',
     label: 'Rozet',
+    labelEn: 'Badge',
     category: 'brand',
     description: 'Tarih rozeti',
+    descriptionEn: 'Date badge',
     tone: 'border-amber-200 bg-blue-950 text-amber-300',
     preview: (
       <PreviewFrame tone="border-amber-200 bg-blue-950 text-amber-300">
@@ -273,6 +283,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Grunge',
     category: 'retro',
     description: 'Dağınık slogan',
+    descriptionEn: 'Distressed slogan',
     tone: 'border-orange-200 bg-stone-950 text-orange-400',
     preview: (
       <PreviewFrame tone="border-orange-200 bg-stone-950 text-orange-400">
@@ -301,6 +312,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Custom Name',
     category: 'popular',
     description: 'İsim odaklı',
+    descriptionEn: 'Name-focused',
     tone: 'border-emerald-200 bg-emerald-50 text-emerald-950',
     preview: (
       <PreviewFrame tone="border-emerald-200 bg-emerald-50 text-emerald-950">
@@ -336,6 +348,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Mom EST.',
     category: 'family',
     description: 'Anne hediyesi',
+    descriptionEn: 'Mom gift',
     tone: 'border-rose-200 bg-rose-50 text-rose-900',
     preview: (
       <PreviewFrame tone="border-rose-200 bg-rose-50 text-rose-900">
@@ -368,6 +381,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Dad Mode',
     category: 'family',
     description: 'Baba teması',
+    descriptionEn: 'Dad theme',
     tone: 'border-cyan-200 bg-cyan-50 text-cyan-950',
     preview: (
       <PreviewFrame tone="border-cyan-200 bg-cyan-50 text-cyan-950">
@@ -405,6 +419,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Birthday Squad',
     category: 'event',
     description: 'Parti tasarımı',
+    descriptionEn: 'Party design',
     tone: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-950',
     preview: (
       <PreviewFrame tone="border-fuchsia-200 bg-fuchsia-50 text-fuchsia-950">
@@ -440,6 +455,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Bride Team',
     category: 'event',
     description: 'Düğün ekibi',
+    descriptionEn: 'Wedding crew',
     tone: 'border-pink-200 bg-pink-50 text-pink-950',
     preview: (
       <PreviewFrame tone="border-pink-200 bg-pink-50 text-pink-950">
@@ -473,6 +489,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Game Day',
     category: 'sport',
     description: 'Maç günü',
+    descriptionEn: 'Match day',
     tone: 'border-lime-200 bg-lime-50 text-lime-950',
     preview: (
       <PreviewFrame tone="border-lime-200 bg-lime-50 text-lime-950">
@@ -510,6 +527,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Champion',
     category: 'sport',
     description: 'Kupa hissi',
+    descriptionEn: 'Trophy feel',
     tone: 'border-yellow-200 bg-yellow-50 text-yellow-950',
     preview: (
       <PreviewFrame tone="border-yellow-200 bg-yellow-50 text-yellow-950">
@@ -544,6 +562,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Retro Wave',
     category: 'retro',
     description: '80s stil',
+    descriptionEn: '80s style',
     tone: 'border-indigo-200 bg-indigo-950 text-cyan-200',
     preview: (
       <PreviewFrame tone="border-indigo-200 bg-indigo-950 text-cyan-200">
@@ -588,6 +607,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Good Vibes',
     category: 'retro',
     description: 'Pozitif slogan',
+    descriptionEn: 'Positive slogan',
     tone: 'border-teal-200 bg-teal-50 text-teal-950',
     preview: (
       <PreviewFrame tone="border-teal-200 bg-teal-50 text-teal-950">
@@ -611,8 +631,10 @@ const TEXT_TEMPLATES: Template[] = [
   {
     id: 'vertical-initials',
     label: 'Dikey İsim',
+    labelEn: 'Vertical Name',
     category: 'minimal',
     description: 'Temiz monogram',
+    descriptionEn: 'Clean monogram',
     tone: 'border-neutral-200 bg-white text-neutral-950',
     preview: (
       <PreviewFrame tone="border-neutral-200 bg-white text-neutral-950">
@@ -650,6 +672,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Premium Mark',
     category: 'minimal',
     description: 'Lüks etiket',
+    descriptionEn: 'Luxury label',
     tone: 'border-stone-300 bg-stone-100 text-stone-950',
     preview: (
       <PreviewFrame tone="border-stone-300 bg-stone-100 text-stone-950">
@@ -687,6 +710,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Handmade',
     category: 'brand',
     description: 'Butik ürün',
+    descriptionEn: 'Boutique product',
     tone: 'border-green-200 bg-green-50 text-green-950',
     preview: (
       <PreviewFrame tone="border-green-200 bg-green-50 text-green-950">
@@ -723,6 +747,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Best Teacher',
     category: 'event',
     description: 'Hediye tasarımı',
+    descriptionEn: 'Gift design',
     tone: 'border-orange-200 bg-orange-50 text-orange-950',
     preview: (
       <PreviewFrame tone="border-orange-200 bg-orange-50 text-orange-950">
@@ -757,6 +782,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Family Vacation',
     category: 'family',
     description: 'Tatil grubu',
+    descriptionEn: 'Vacation group',
     tone: 'border-blue-200 bg-blue-50 text-blue-950',
     preview: (
       <PreviewFrame tone="border-blue-200 bg-blue-50 text-blue-950">
@@ -793,6 +819,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Mini Boss',
     category: 'family',
     description: 'Çocuk ürünü',
+    descriptionEn: 'Kids product',
     tone: 'border-violet-200 bg-violet-50 text-violet-950',
     preview: (
       <PreviewFrame tone="border-violet-200 bg-violet-50 text-violet-950">
@@ -827,6 +854,7 @@ const TEXT_TEMPLATES: Template[] = [
     label: 'Logo Lockup',
     category: 'brand',
     description: 'Marka yerleşimi',
+    descriptionEn: 'Brand lockup',
     tone: 'border-slate-200 bg-white text-slate-950',
     preview: (
       <PreviewFrame tone="border-slate-200 bg-white text-slate-950">
@@ -884,13 +912,100 @@ interface Props {
   onApply: (tpl: Template) => void;
   onAddImage: (url: string, template?: ShopTemplate) => void;
   shopTemplates?: ShopTemplate[];
+  locale?: string;
 }
 
-export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = [] }: Props) {
+export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = [], locale }: Props) {
   useTemplateFonts();
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeTextCategory, setActiveTextCategory] = useState('all');
   const hasShopTemplates = shopTemplates.length > 0;
+  const isTurkish = !locale || locale.toLowerCase().startsWith('tr');
+  const categoryLabel = (category: { label: string; labelEn?: string }) =>
+    isTurkish ? category.label : (category.labelEn ?? category.label);
+  const templateLabel = (tpl: Template) => (isTurkish ? tpl.label : (tpl.labelEn ?? tpl.label));
+  const templateDescription = (tpl: Template) =>
+    isTurkish ? tpl.description : (tpl.descriptionEn ?? tpl.description);
+  const templatePreview = (tpl: Template) => {
+    if (isTurkish) return tpl.preview;
+    if (tpl.id === 'bold-text') {
+      return (
+        <PreviewFrame tone="border-slate-200 bg-slate-950 text-white">
+          <div className={`${previewText.block} text-[28px]`}>100%<br />ORIGINAL</div>
+        </PreviewFrame>
+      );
+    }
+    if (tpl.id === 'circle-text') {
+      return (
+        <PreviewFrame tone="border-sky-200 bg-sky-50 text-slate-950">
+          <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-sky-600 text-[15px] font-black leading-tight">My<br />Design</div>
+        </PreviewFrame>
+      );
+    }
+    return tpl.preview;
+  };
+  const applyTemplate = (tpl: Template) => {
+    if (isTurkish) {
+      onApply(tpl);
+      return;
+    }
+
+    if (tpl.id === 'bold-text') {
+      onApply({
+        ...tpl,
+        build: (cv) => {
+          const { x, y, w } = center(cv);
+          const txt = new fabric.IText('100%\nORIGINAL', {
+            left: x,
+            top: y,
+            originX: 'center',
+            originY: 'center',
+            fontFamily: 'Impact',
+            fontSize: 52,
+            fill: '#ffffff',
+            textAlign: 'center',
+            lineHeight: 1.1,
+          });
+          addObjects(cv, [fitText(txt, w - 32)], txt);
+        },
+      });
+      return;
+    }
+
+    if (tpl.id === 'circle-text') {
+      onApply({
+        ...tpl,
+        build: (cv) => {
+          const cx = cv.width! / 2;
+          const cy = cv.height! / 2;
+          const circle = new fabric.Circle({
+            left: cx,
+            top: cy,
+            originX: 'center',
+            originY: 'center',
+            radius: 80,
+            fill: 'transparent',
+            stroke: '#2563eb',
+            strokeWidth: 3,
+          });
+          const txt = new fabric.IText('My\nDesign', {
+            left: cx,
+            top: cy,
+            originX: 'center',
+            originY: 'center',
+            fontFamily: 'Poppins',
+            fontSize: 24,
+            fill: '#0f172a',
+            textAlign: 'center',
+          });
+          addObjects(cv, [circle, txt], txt);
+        },
+      });
+      return;
+    }
+
+    onApply(tpl);
+  };
 
   // Only show category tabs that have at least one template (plus Tümü)
   const presentCategories = SHOP_CATEGORIES.filter(
@@ -915,24 +1030,28 @@ export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = []
           {/* ── Mağaza Şablonları ── */}
           <div className="space-y-4">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-600">Mağaza Şablonları</p>
-              <p className="text-sm font-semibold text-slate-500">Bir görsele tıklayarak tuvale ekleyin.</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-600">
+                {isTurkish ? 'Mağaza Şablonları' : 'Store Templates'}
+              </p>
+              <p className="text-sm font-semibold text-slate-500">
+                {isTurkish ? 'Bir görsele tıklayarak tuvale ekleyin.' : 'Click an image to add it to the canvas.'}
+              </p>
             </div>
 
             {/* Category filter tabs */}
             {presentCategories.length > 1 && (
               <div className="flex flex-wrap gap-2">
-                {presentCategories.map(({ value, label }) => (
+                {presentCategories.map((category) => (
                   <button
-                    key={value}
-                    onClick={() => setActiveCategory(value)}
+                    key={category.value}
+                    onClick={() => setActiveCategory(category.value)}
                     className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
-                      activeCategory === value
+                      activeCategory === category.value
                         ? 'bg-violet-600 text-white'
                         : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                     }`}
                   >
-                    {label}
+                    {categoryLabel(category)}
                   </button>
                 ))}
               </div>
@@ -968,22 +1087,26 @@ export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = []
       {/* ── Yazı Şablonları ── */}
       <div className="space-y-4">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-600">Yazı Şablonları</p>
-          <p className="text-sm font-semibold text-slate-500">Hazır satış metinleri ve baskı kompozisyonları.</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-600">
+            {isTurkish ? 'Yazı Şablonları' : 'Text Templates'}
+          </p>
+          <p className="text-sm font-semibold text-slate-500">
+            {isTurkish ? 'Hazır satış metinleri ve baskı kompozisyonları.' : 'Ready-to-sell text layouts and print compositions.'}
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {TEXT_CATEGORIES.map(({ value, label }) => (
+          {TEXT_CATEGORIES.map((category) => (
             <button
-              key={value}
-              onClick={() => setActiveTextCategory(value)}
+              key={category.value}
+              onClick={() => setActiveTextCategory(category.value)}
               className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
-                activeTextCategory === value
+                activeTextCategory === category.value
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               }`}
             >
-              {label}
+              {categoryLabel(category)}
             </button>
           ))}
         </div>
@@ -992,18 +1115,20 @@ export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = []
           {filteredTextTemplates.map((tpl) => (
             <button
               key={tpl.id}
-              onClick={() => onApply(tpl)}
+              onClick={() => applyTemplate(tpl)}
               className="group rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/40 hover:shadow-md"
             >
               <div className="mb-3 transition-transform group-hover:scale-[1.02]">
-                {tpl.preview}
+                {templatePreview(tpl)}
               </div>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-slate-800">{tpl.label}</p>
-                  <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{tpl.description}</p>
+                  <p className="truncate text-sm font-black text-slate-800">{templateLabel(tpl)}</p>
+                  <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{templateDescription(tpl)}</p>
                 </div>
-                <span className="rounded bg-blue-50 px-1.5 py-1 text-[10px] font-black uppercase text-blue-600">Ekle</span>
+                <span className="rounded bg-blue-50 px-1.5 py-1 text-[10px] font-black uppercase text-blue-600">
+                  {isTurkish ? 'Ekle' : 'Add'}
+                </span>
               </div>
             </button>
           ))}
