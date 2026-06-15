@@ -2930,7 +2930,7 @@
         if (backUrl)  properties['Arka önizleme'] = backUrl;
         if (design && design.token) {
           properties._design_token = design.token;
-          properties._design_detail_url = 'https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=' + encodeURIComponent(cfg.shop || '') + '&token=' + encodeURIComponent(design.token);
+          properties._design_detail_url = 'https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=' + encodeURIComponent(cfg.shop || '') + '&token=' + encodeURIComponent(design.token) + '&lang=' + (String(cfg.locale || '').toLowerCase().indexOf('tr') === 0 ? 'tr' : 'en');
         }
         if (design && design.downloadUrl) properties['Tasarımı indir'] = design.downloadUrl;
         if (design && design.editUrl) properties['Tasarımı düzenle'] = design.editUrl;

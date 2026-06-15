@@ -178,23 +178,25 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   // GET /apps/tshirt-designer/my-order?token=<design_token>
   if (path === "my-order") {
-    const token = new URL(request.url).searchParams.get("token") ?? "";
+    const currentUrl = new URL(request.url);
+    const token = currentUrl.searchParams.get("token") ?? "";
+    const copy = myOrderCopy(myOrderResolveLang(currentUrl, shop));
     if (!token) {
-      return new Response(myOrderErrorPage("Geçersiz link", "Tasarım token'ı eksik."), {
+      return new Response(myOrderErrorPage(copy.errorInvalidTitle, copy.errorInvalidMessage, copy.lang), {
         status: 400,
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
     const design = await getDesignByToken(shop, token);
     if (!design) {
-      return new Response(myOrderErrorPage("Tasarım bulunamadı", "Bu tasarım artık mevcut değil veya link hatalı."), {
+      return new Response(myOrderErrorPage(copy.errorNotFoundTitle, copy.errorNotFoundMessage, copy.lang), {
         status: 404,
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
     const frontObjs = extractObjects(design.designJson, "front");
     const backObjs = extractObjects(design.designJson, "back");
-    return new Response(myOrderRenderPage(design, frontObjs, backObjs), {
+    return new Response(myOrderRenderPage(design, frontObjs, backObjs, copy), {
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
@@ -255,8 +257,43 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
 // ── my-order helpers ──────────────────────────────────────────────────────────
 
-function myOrderErrorPage(title: string, message: string) {
-  return `<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"><title>${title}</title>
+type MyOrderLang = "tr" | "en";
+
+function myOrderResolveLang(url: URL, shop: string): MyOrderLang {
+  const explicit = (url.searchParams.get("lang") || url.searchParams.get("locale") || "").toLowerCase();
+  if (explicit.startsWith("en")) return "en";
+  if (explicit.startsWith("tr")) return "tr";
+  const shopKey = shop.toLowerCase();
+  if (shopKey.includes("iabvsb-jv") || shopKey.includes("bikafa") || shopKey.includes("whanotify-dev")) return "tr";
+  return "en";
+}
+
+function myOrderCopy(lang: MyOrderLang) {
+  const tr = lang === "tr";
+  return {
+    lang,
+    title: tr ? "Siparişinizin Tasarımı" : "Your Order Design",
+    subtitle: tr
+      ? "Aşağıda siparişinize ait tasarım detayları ve indirme linkleri yer alıyor."
+      : "Your order design details and download links are shown below.",
+    front: tr ? "Ön Yüz" : "Front Side",
+    back: tr ? "Arka Yüz" : "Back Side",
+    noData: tr ? "Tasarım verisi bulunamadı." : "No design data found.",
+    noPreview: tr ? "Önizleme yok" : "No preview available",
+    previewAltSuffix: tr ? "önizlemesi" : "preview",
+    downloadPrint: tr ? "Baskı Dosyasını İndir (Yüksek Kalite)" : "Download Print File (High Quality)",
+    downloadPreview: tr ? "Önizlemeyi İndir" : "Download Preview",
+    errorInvalidTitle: tr ? "Geçersiz link" : "Invalid link",
+    errorInvalidMessage: tr ? "Tasarım token'ı eksik." : "Design token is missing.",
+    errorNotFoundTitle: tr ? "Tasarım bulunamadı" : "Design not found",
+    errorNotFoundMessage: tr
+      ? "Bu tasarım artık mevcut değil veya link hatalı."
+      : "This design is no longer available or the link is incorrect.",
+  };
+}
+
+function myOrderErrorPage(title: string, message: string, lang: MyOrderLang) {
+  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><title>${title}</title>
   <style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f9fafb;}
   .box{text-align:center;padding:40px;}</style></head>
   <body><div class="box"><h2 style="color:#374151">${title}</h2><p style="color:#6b7280">${message}</p></div></body></html>`;
@@ -270,14 +307,15 @@ function myOrderRenderSide(
   title: string,
   previewUrl: string | undefined,
   printUrl: string | undefined,
+  copy: ReturnType<typeof myOrderCopy>,
 ) {
   return `<div class="card">
     <div class="card-header"><h2>${title}</h2></div>
     <div class="card-body">
-      ${previewUrl ? `<img class="preview-img" src="${myOrderEsc(previewUrl)}" alt="${myOrderEsc(title)}" />` : `<div class="no-preview">Önizleme yok</div>`}
+      ${previewUrl ? `<img class="preview-img" src="${myOrderEsc(previewUrl)}" alt="${myOrderEsc(title)} ${copy.previewAltSuffix}" />` : `<div class="no-preview">${copy.noPreview}</div>`}
       <div class="btn-group">
-        ${printUrl ? `<a class="btn btn-primary" href="${myOrderEsc(printUrl)}" download target="_blank" rel="noopener">⬇ Baskı Dosyasını İndir (Yüksek Kalite)</a>` : ""}
-        ${previewUrl ? `<a class="btn btn-secondary" href="${myOrderEsc(previewUrl)}" download target="_blank" rel="noopener">⬇ Önizlemeyi İndir</a>` : ""}
+        ${printUrl ? `<a class="btn btn-primary" href="${myOrderEsc(printUrl)}" download target="_blank" rel="noopener">⬇ ${copy.downloadPrint}</a>` : ""}
+        ${previewUrl ? `<a class="btn btn-secondary" href="${myOrderEsc(previewUrl)}" download target="_blank" rel="noopener">⬇ ${copy.downloadPreview}</a>` : ""}
       </div>
     </div>
   </div>`;
@@ -287,15 +325,16 @@ function myOrderRenderPage(
   design: { frontPreviewUrl?: string; backPreviewUrl?: string; frontPrintUrl?: string; backPrintUrl?: string },
   frontObjs: ReturnType<typeof extractObjects>,
   backObjs: ReturnType<typeof extractObjects>,
+  copy: ReturnType<typeof myOrderCopy>,
 ) {
   const hasFront = design.frontPreviewUrl || frontObjs.length > 0;
   const hasBack  = design.backPreviewUrl  || backObjs.length > 0;
   return `<!DOCTYPE html>
-<html lang="tr">
+<html lang="${copy.lang}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Siparişinizin Tasarımı</title>
+  <title>${copy.title}</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:system-ui,-apple-system,sans-serif;background:#f3f4f6;color:#111827;min-height:100vh}
@@ -329,14 +368,14 @@ function myOrderRenderPage(
 </head>
 <body>
   <div class="header">
-    <h1>Siparişinizin Tasarımı</h1>
-    <p>Aşağıda siparişinize ait tasarım detayları ve indirme linkleri yer alıyor.</p>
+    <h1>${copy.title}</h1>
+    <p>${copy.subtitle}</p>
   </div>
   <div class="container">
     <div class="grid">
-      ${hasFront ? myOrderRenderSide("Ön Yüz", design.frontPreviewUrl, design.frontPrintUrl) : ""}
-      ${hasBack  ? myOrderRenderSide("Arka Yüz", design.backPreviewUrl, design.backPrintUrl) : ""}
-      ${!hasFront && !hasBack ? `<div class="card" style="grid-column:1/-1"><div class="card-body"><div class="no-preview">Tasarım verisi bulunamadı.</div></div></div>` : ""}
+      ${hasFront ? myOrderRenderSide(copy.front, design.frontPreviewUrl, design.frontPrintUrl, copy) : ""}
+      ${hasBack  ? myOrderRenderSide(copy.back, design.backPreviewUrl, design.backPrintUrl, copy) : ""}
+      ${!hasFront && !hasBack ? `<div class="card" style="grid-column:1/-1"><div class="card-body"><div class="no-preview">${copy.noData}</div></div></div>` : ""}
     </div>
   </div>
 </body>

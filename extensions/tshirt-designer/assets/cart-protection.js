@@ -187,7 +187,7 @@
 
     var shop = (window.Shopify && window.Shopify.shop) || window.location.hostname;
     if (!shop) return '';
-    return 'https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=' + encodeURIComponent(shop) + '&token=' + encodeURIComponent(token);
+    return 'https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=' + encodeURIComponent(shop) + '&token=' + encodeURIComponent(token) + '&lang=' + (isTurkishLocale() ? 'tr' : 'en');
   }
 
   // Find a cart row by its line item key, via the remove link's

@@ -1737,7 +1737,7 @@ export default function App() {
 
       const token = (designRes as { token?: string }).token ?? '';
       const customerDesignUrl = token
-        ? `https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=${encodeURIComponent(config?.shop || '')}&token=${encodeURIComponent(token)}`
+        ? `https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=${encodeURIComponent(config?.shop || '')}&token=${encodeURIComponent(token)}&lang=${isTurkish ? 'tr' : 'en'}`
         : '';
       trackDesignerEvent({
         eventType: 'cart_add',

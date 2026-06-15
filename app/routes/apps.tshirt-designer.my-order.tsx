@@ -5,9 +5,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
   const shop = url.searchParams.get("shop") ?? "";
+  const copy = myOrderCopy(resolveMyOrderLang(url, shop));
 
   if (!token) {
-    return new Response(errorPage("Geçersiz link", "Tasarım token'ı eksik."), {
+    return new Response(errorPage(copy.errorInvalidTitle, copy.errorInvalidMessage, copy.lang), {
       status: 400,
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
@@ -15,7 +16,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const design = await getDesignByToken(shop, token);
   if (!design) {
-    return new Response(errorPage("Tasarım bulunamadı", "Bu tasarım artık mevcut değil veya link hatalı."), {
+    return new Response(errorPage(copy.errorNotFoundTitle, copy.errorNotFoundMessage, copy.lang), {
       status: 404,
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
@@ -24,14 +25,49 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const frontObjects = extractObjects(design.designJson, "front");
   const backObjects = extractObjects(design.designJson, "back");
 
-  const html = renderPage(design, frontObjects, backObjects);
+  const html = renderPage(design, frontObjects, backObjects, copy);
   return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 };
 
-function errorPage(title: string, message: string) {
-  return `<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"><title>${title}</title>
+type MyOrderLang = "tr" | "en";
+
+function resolveMyOrderLang(url: URL, shop: string): MyOrderLang {
+  const explicit = (url.searchParams.get("lang") || url.searchParams.get("locale") || "").toLowerCase();
+  if (explicit.startsWith("en")) return "en";
+  if (explicit.startsWith("tr")) return "tr";
+  const shopKey = shop.toLowerCase();
+  if (shopKey.includes("iabvsb-jv") || shopKey.includes("bikafa") || shopKey.includes("whanotify-dev")) return "tr";
+  return "en";
+}
+
+function myOrderCopy(lang: MyOrderLang) {
+  const tr = lang === "tr";
+  return {
+    lang,
+    title: tr ? "Siparişinizin Tasarımı" : "Your Order Design",
+    subtitle: tr
+      ? "Aşağıda siparişinize ait tasarım detayları ve indirme linkleri yer alıyor."
+      : "Your order design details and download links are shown below.",
+    front: tr ? "Ön Yüz" : "Front Side",
+    back: tr ? "Arka Yüz" : "Back Side",
+    noData: tr ? "Tasarım verisi bulunamadı." : "No design data found.",
+    noPreview: tr ? "Önizleme yok" : "No preview available",
+    previewAltSuffix: tr ? "önizlemesi" : "preview",
+    downloadPrint: tr ? "Baskı Dosyasını İndir (Yüksek Kalite)" : "Download Print File (High Quality)",
+    downloadPreview: tr ? "Önizlemeyi İndir" : "Download Preview",
+    errorInvalidTitle: tr ? "Geçersiz link" : "Invalid link",
+    errorInvalidMessage: tr ? "Tasarım token'ı eksik." : "Design token is missing.",
+    errorNotFoundTitle: tr ? "Tasarım bulunamadı" : "Design not found",
+    errorNotFoundMessage: tr
+      ? "Bu tasarım artık mevcut değil veya link hatalı."
+      : "This design is no longer available or the link is incorrect.",
+  };
+}
+
+function errorPage(title: string, message: string, lang: MyOrderLang) {
+  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><title>${title}</title>
   <style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f9fafb;}
   .box{text-align:center;padding:40px;}</style></head>
   <body><div class="box"><h2 style="color:#374151">${title}</h2><p style="color:#6b7280">${message}</p></div></body></html>`;
@@ -44,16 +80,16 @@ interface Design {
   backPrintUrl?: string;
 }
 
-function renderPage(design: Design, frontObjs: DesignObject[], backObjs: DesignObject[]) {
+function renderPage(design: Design, frontObjs: DesignObject[], backObjs: DesignObject[], copy: ReturnType<typeof myOrderCopy>) {
   const hasFront = design.frontPreviewUrl || frontObjs.length > 0;
   const hasBack = design.backPreviewUrl || backObjs.length > 0;
 
   return `<!DOCTYPE html>
-<html lang="tr">
+<html lang="${copy.lang}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Siparişinizin Tasarımı</title>
+  <title>${copy.title}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, -apple-system, sans-serif; background: #f3f4f6; color: #111827; min-height: 100vh; }
@@ -93,31 +129,31 @@ function renderPage(design: Design, frontObjs: DesignObject[], backObjs: DesignO
 </head>
 <body>
   <div class="header">
-    <h1>Siparişinizin Tasarımı</h1>
-    <p>Aşağıda siparişinize ait tasarım detayları ve indirme linkleri yer alıyor.</p>
+    <h1>${copy.title}</h1>
+    <p>${copy.subtitle}</p>
   </div>
   <div class="container">
     <div class="grid">
-      ${hasFront ? renderSide("Ön Yüz", design.frontPreviewUrl, design.frontPrintUrl) : ""}
-      ${hasBack ? renderSide("Arka Yüz", design.backPreviewUrl, design.backPrintUrl) : ""}
-      ${!hasFront && !hasBack ? `<div class="card full-card"><div class="card-body"><div class="no-preview">Tasarım verisi bulunamadı.</div></div></div>` : ""}
+      ${hasFront ? renderSide(copy.front, design.frontPreviewUrl, design.frontPrintUrl, copy) : ""}
+      ${hasBack ? renderSide(copy.back, design.backPreviewUrl, design.backPrintUrl, copy) : ""}
+      ${!hasFront && !hasBack ? `<div class="card full-card"><div class="card-body"><div class="no-preview">${copy.noData}</div></div></div>` : ""}
     </div>
   </div>
 </body>
 </html>`;
 }
 
-function renderSide(title: string, previewUrl?: string, printUrl?: string) {
+function renderSide(title: string, previewUrl: string | undefined, printUrl: string | undefined, copy: ReturnType<typeof myOrderCopy>) {
   return `
     <div class="card">
       <div class="card-header"><h2>${title}</h2></div>
       <div class="card-body">
         ${previewUrl
-          ? `<img class="preview-img" src="${esc(previewUrl)}" alt="${esc(title)} önizlemesi" />`
-          : `<div class="no-preview">Önizleme yok</div>`}
+          ? `<img class="preview-img" src="${esc(previewUrl)}" alt="${esc(title)} ${copy.previewAltSuffix}" />`
+          : `<div class="no-preview">${copy.noPreview}</div>`}
         <div class="btn-group">
-          ${printUrl ? `<a class="btn btn-primary" href="${esc(printUrl)}" download target="_blank">⬇ Baskı Dosyasını İndir (Yüksek Kalite)</a>` : ""}
-          ${previewUrl ? `<a class="btn btn-secondary" href="${esc(previewUrl)}" download target="_blank">⬇ Önizlemeyi İndir</a>` : ""}
+          ${printUrl ? `<a class="btn btn-primary" href="${esc(printUrl)}" download target="_blank">⬇ ${copy.downloadPrint}</a>` : ""}
+          ${previewUrl ? `<a class="btn btn-secondary" href="${esc(previewUrl)}" download target="_blank">⬇ ${copy.downloadPreview}</a>` : ""}
         </div>
       </div>
     </div>`;
