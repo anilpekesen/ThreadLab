@@ -47,20 +47,45 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
   const [isDragOver, setIsDragOver] = useState(false);
   const { uploadedImages, addUploadedImage, removeUploadedImage, isBgRemoving } = useDesignerStore();
 
+  const uploadOriginalImage = useCallback(async (file: File): Promise<string> => {
+    if (!uploadEndpoint) return '';
+    try {
+      const form = new FormData();
+      form.append('image', file, file.name || 'user-upload.png');
+      form.append('side', 'user-upload');
+      const res = await fetch(uploadEndpoint, { method: 'POST', body: form });
+      if (!res.ok) return '';
+      const data = await res.json() as { url?: string };
+      return data.url ?? '';
+    } catch {
+      return '';
+    }
+  }, [uploadEndpoint]);
+
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files) return;
     let firstUrl = '';
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) continue;
-      const dataUrl = await compressImage(file, 1800);
-      addUploadedImage({ id: generateId(), dataUrl, name: file.name.replace(/\.[^.]+$/, '').slice(0, 40), addedAt: Date.now() });
-      if (!firstUrl) firstUrl = dataUrl;
+      const [dataUrl, serverUrl] = await Promise.all([
+        compressImage(file, 1800),
+        uploadOriginalImage(file),
+      ]);
+      const originalUrl = serverUrl || dataUrl;
+      addUploadedImage({
+        id: generateId(),
+        dataUrl,
+        serverUrl: originalUrl,
+        name: file.name.replace(/\.[^.]+$/, '').slice(0, 40),
+        addedAt: Date.now(),
+      });
+      if (!firstUrl) firstUrl = originalUrl;
     }
     if (fileRef.current) fileRef.current.value = '';
     if (!firstUrl) return;
     if (canRemoveBg) setPendingUrl(firstUrl);
     else onAddImage(firstUrl);
-  }, [addUploadedImage, onAddImage, canRemoveBg]);
+  }, [addUploadedImage, onAddImage, canRemoveBg, uploadOriginalImage]);
 
   const handleAddFromUrl = useCallback(async () => {
     const value = imageUrl.trim();

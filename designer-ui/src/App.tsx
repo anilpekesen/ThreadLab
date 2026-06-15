@@ -1580,7 +1580,8 @@ export default function App() {
 
       // Arka plan zaten kaldırılmışsa API'ye gönderme
       if (await imageHasTransparentBg(blob)) {
-        return await new Promise<string>((resolve) => {
+        if (!dataUrl.startsWith('data:')) return dataUrl;
+        return (await uploadBlob(blob, 'user-upload')) ?? await new Promise<string>((resolve) => {
           const reader = new FileReader();
           reader.onload = (e) => resolve(e.target?.result as string);
           reader.readAsDataURL(blob);
@@ -1608,6 +1609,8 @@ export default function App() {
       }
       const blob2 = await res.blob();
       trackDesignActivity('background_removed');
+      const uploadedUrl = await uploadBlob(blob2, 'user-upload');
+      if (uploadedUrl) return uploadedUrl;
       return new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target?.result as string);
@@ -1687,13 +1690,13 @@ export default function App() {
       // Export canvas: 1x preview + 3x print quality
       const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(1) ?? '') : '';
       const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(1) ?? '') : '';
-      // Print dosyasını gerçek mm boyutlarında 200 DPI export et
-      // (300 DPI dosyalar çok büyük olup upload'u yavaşlatır; 200 DPI baskı için yeterli)
+      // Print dosyasını gerçek mm boyutlarında 300 DPI export et.
+      // Baskı tarafında bulanıklık şikayetlerini önlemek için üretim dosyasında piksel kaybı yapmıyoruz.
       const frontPrintDataUrl = frontHas
-        ? (frontCanvasRef.current?.exportPrintFile(personalization.printAreas.front, 200) ?? '')
+        ? (frontCanvasRef.current?.exportPrintFile(personalization.printAreas.front, 300) ?? '')
         : '';
       const backPrintDataUrl = backHas
-        ? (backCanvasRef.current?.exportPrintFile(personalization.printAreas.back, 200) ?? '')
+        ? (backCanvasRef.current?.exportPrintFile(personalization.printAreas.back, 300) ?? '')
         : '';
       const designSourceCache = new Map<string, Promise<string>>();
       const frontDesignJson = frontCanvasRef.current?.saveDesign() ?? '';
