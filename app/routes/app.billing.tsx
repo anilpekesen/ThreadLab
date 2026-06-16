@@ -12,6 +12,7 @@ import {
 import { authenticate } from "~/lib/authenticate.server";
 import { shopifyGraphQL } from "~/lib/shopify.server";
 import { getValidAccessToken } from "~/lib/session.server";
+import { makeBillingReturnShopCookie } from "~/lib/billing-return-cookie.server";
 import { query } from "~/lib/db.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
 import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/models/billing.server";
@@ -262,7 +263,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = form.get("intent") as string;
 
   const accessToken = await getValidAccessToken(shop);
-  if (!accessToken) return redirect("/auth/login");
+  if (!accessToken) return redirect(`/auth/login?shop=${encodeURIComponent(shop)}`);
 
   if (intent === "subscribe") {
     const planKey = form.get("plan") as PlanKey;
@@ -284,22 +285,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     try {
-      const returnUrl = `${process.env.SHOPIFY_APP_URL}/app/billing`;
+      const appUrl = (process.env.SHOPIFY_APP_URL ?? new URL(request.url).origin).replace(/\/$/, "");
+      const returnUrl = new URL("/app/billing", appUrl);
+      returnUrl.searchParams.set("shop", shop);
       const confirmationUrl = await createShopifySubscription(
         shop,
         accessToken,
         planKey,
-        returnUrl,
+        returnUrl.toString(),
         isBillingTestCharge(shop),
       );
-      return json({ redirectUrl: confirmationUrl });
+      return json(
+        { redirectUrl: confirmationUrl },
+        { headers: { "Set-Cookie": makeBillingReturnShopCookie(shop) } },
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Bilinmeyen hata";
       console.error("[billing] subscription create error:", message);
       Sentry.captureException(err, { tags: { fn: "subscriptionCreate", plan: planKey } });
       if (shouldUseManagedPricingFallback(message)) {
         const managedPricingUrl = buildManagedPricingUrl(shop);
-        return json({ redirectUrl: managedPricingUrl });
+        return json(
+          { redirectUrl: managedPricingUrl },
+          { headers: { "Set-Cookie": makeBillingReturnShopCookie(shop) } },
+        );
       }
       return json({ error: `Shopify aboneliği oluşturulamadı: ${message}` }, { status: 500 });
     }

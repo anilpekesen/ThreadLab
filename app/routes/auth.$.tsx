@@ -1,4 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
+import { redirect } from "@remix-run/node";
+import { clearBillingReturnShopCookie, getBillingReturnShop } from "~/lib/billing-return-cookie.server";
 import { authenticateShopify, login } from "~/shopify.server";
 
 function shouldEscapeIframe(url: URL): boolean {
@@ -37,6 +39,17 @@ function renderTopLevelEscape(target: string) {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   if (url.pathname === "/auth/login") {
+    if (!url.searchParams.get("shop")) {
+      const billingShop = getBillingReturnShop(request);
+      if (billingShop) {
+        const target = new URL("/auth/login", url.origin);
+        target.searchParams.set("shop", billingShop);
+        return redirect(target.toString(), {
+          headers: { "Set-Cookie": clearBillingReturnShopCookie() },
+        });
+      }
+    }
+
     if (shouldEscapeIframe(url)) {
       const shop = url.searchParams.get("shop");
       const target = new URL("/auth/login", url.origin);
