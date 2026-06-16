@@ -71,6 +71,13 @@ async function authenticateWithLegacySession(request: Request) {
 
 export async function authenticate(request: Request) {
   const legacyShop = await getShopFromSession(request);
+  const url = new URL(request.url);
+  const hasOnlyShopReturnSignal = Boolean(url.searchParams.get("shop")) && !hasEmbeddedSignals(request);
+
+  if (!legacyShop && hasOnlyShopReturnSignal) {
+    await maybeBootstrapLegacySession(request);
+  }
+
   const shouldUseEmbeddedAuth = hasEmbeddedSignals(request) || !legacyShop;
 
   if (shouldUseEmbeddedAuth) {
