@@ -42,9 +42,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (!url.searchParams.get("shop")) {
       const billingShop = getBillingReturnShop(request);
       if (billingShop) {
-        const target = new URL("/auth/login", url.origin);
-        target.searchParams.set("shop", billingShop);
-        return redirect(target.toString(), {
+        return redirect(`/auth/login?shop=${encodeURIComponent(billingShop)}`, {
           headers: { "Set-Cookie": clearBillingReturnShopCookie() },
         });
       }
