@@ -13,27 +13,73 @@ function run_default(userfunction) {
 }
 
 // extensions/cart-transform/src/index.js
-var PROP_KEYS = [
-  ["a01", "Beden"],
-  ["a02", "Renk"],
-  ["a03", "\xD6n Tasar\u0131m"],
-  ["a04", "Arka Tasar\u0131m"],
-  ["a05", "design_token"],
-  ["a06", "Toplam adet"],
-  ["a07", "Ti\u015F\xF6rt birim fiyat\u0131"],
-  ["a08", "Ti\u015F\xF6rt ara toplam\u0131"],
-  ["a09", "Toplam fiyat"],
-  ["a10", "\xD6n \xF6l\xE7\xFC"],
-  ["a11", "\xD6n alan"],
-  ["a12", "\xD6n alan fiyat\u0131"],
-  ["a13", "\xD6n fiyat band\u0131"],
-  ["a14", "Arka \xF6l\xE7\xFC"],
-  ["a15", "Arka alan"],
-  ["a16", "Arka alan fiyat\u0131"],
-  ["a17", "Arka fiyat band\u0131"],
-  ["a18", "Toplu al\u0131m indirimi"],
-  ["a19", "Bask\u0131 indirimi"]
+var LABELS = {
+  tr: {
+    size: "Beden",
+    frontDesign: "_\xD6n Tasar\u0131m",
+    backDesign: "_Arka Tasar\u0131m",
+    yes: "Var",
+    no: "Yok",
+    totalQuantity: "Toplam adet",
+    productUnitPrice: "\xDCr\xFCn birim fiyat\u0131",
+    productSubtotal: "\xDCr\xFCn ara toplam\u0131",
+    totalPrice: "Toplam fiyat",
+    frontSize: "_\xD6n \xF6l\xE7\xFC",
+    frontPrintPrice: "\xD6n bask\u0131 fiyat\u0131",
+    frontPriceBand: "_\xD6n fiyat band\u0131",
+    backSize: "_Arka \xF6l\xE7\xFC",
+    backPrintPrice: "Arka bask\u0131 fiyat\u0131",
+    backPriceBand: "_Arka fiyat band\u0131",
+    bulkDiscount: "Toplu al\u0131m indirimi",
+    printDiscount: "Bask\u0131 indirimi"
+  },
+  en: {
+    size: "Size",
+    frontDesign: "_Front Design",
+    backDesign: "_Back Design",
+    yes: "Yes",
+    no: "No",
+    totalQuantity: "Total quantity",
+    productUnitPrice: "Product unit price",
+    productSubtotal: "Product subtotal",
+    totalPrice: "Total price",
+    frontSize: "_Front size",
+    frontPrintPrice: "Front print price",
+    frontPriceBand: "_Front price band",
+    backSize: "_Back size",
+    backPrintPrice: "Back print price",
+    backPriceBand: "_Back price band",
+    bulkDiscount: "Bulk discount",
+    printDiscount: "Print discount"
+  }
+};
+var FIELD_MAP = [
+  ["size", "size"],
+  ["totalQuantity", "totalQuantity"],
+  ["productUnitPrice", "productUnitPrice"],
+  ["productSubtotal", "productSubtotal"],
+  ["totalPrice", "totalPrice"],
+  ["frontSize", "frontSize"],
+  ["frontPrintPrice", "frontPrintPrice"],
+  ["frontPriceBand", "frontPriceBand"],
+  ["backSize", "backSize"],
+  ["backPrintPrice", "backPrintPrice"],
+  ["backPriceBand", "backPriceBand"],
+  ["bulkDiscount", "bulkDiscount"],
+  ["printDiscount", "printDiscount"]
 ];
+function attrValue(line, key) {
+  return line[key]?.value ?? "";
+}
+function isTurkish(line) {
+  return String(attrValue(line, "locale") || "tr").toLowerCase().startsWith("tr");
+}
+function designValue(value, labels) {
+  return /^yes$/i.test(String(value || "")) ? labels.yes : labels.no;
+}
+function pushAttr(attrs, key, value) {
+  if (value != null && value !== "") attrs.push({ key, value: String(value) });
+}
 function run(input) {
   const operations = [];
   for (const line of input.cart.lines) {
@@ -46,10 +92,15 @@ function run(input) {
     if (!Number.isFinite(baseUnit) || baseUnit <= 0) continue;
     if (!Number.isFinite(surchargeUnit) || surchargeUnit <= 0) continue;
     if (!surchargeGid) continue;
+    const labels = isTurkish(line) ? LABELS.tr : LABELS.en;
     const baseAttrs = [{ key: "_design_role", value: "base_expanded" }];
-    for (const [alias, key] of PROP_KEYS) {
-      const v = line[alias]?.value;
-      if (v != null && v !== "") baseAttrs.push({ key, value: v });
+    pushAttr(baseAttrs, "_design_token", attrValue(line, "designToken"));
+    pushAttr(baseAttrs, "_design_detail_url", attrValue(line, "designDetailUrl"));
+    pushAttr(baseAttrs, labels.frontDesign, designValue(attrValue(line, "frontDesign"), labels));
+    const backDesign = attrValue(line, "backDesign");
+    if (backDesign) pushAttr(baseAttrs, labels.backDesign, designValue(backDesign, labels));
+    for (const [field, labelKey] of FIELD_MAP) {
+      pushAttr(baseAttrs, labels[labelKey], attrValue(line, field));
     }
     operations.push({
       expand: {

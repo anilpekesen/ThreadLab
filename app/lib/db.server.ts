@@ -24,6 +24,30 @@ export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
   return getPool().query<T>(sql, params);
 }
 
+export async function withAdvisoryLock<T>(
+  namespace: string,
+  key: string,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.query(
+      "SELECT pg_advisory_lock(hashtext($1), hashtext($2))",
+      [namespace, key],
+    );
+    return await callback();
+  } finally {
+    try {
+      await client.query(
+        "SELECT pg_advisory_unlock(hashtext($1), hashtext($2))",
+        [namespace, key],
+      );
+    } finally {
+      client.release();
+    }
+  }
+}
+
 export async function runMigrations() {
   // Exclusive advisory lock so two PM2 workers starting simultaneously don't
   // both run DDL at the same time (race condition on DROP/ADD PRIMARY KEY etc.)

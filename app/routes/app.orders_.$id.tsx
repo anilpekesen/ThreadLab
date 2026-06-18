@@ -57,14 +57,15 @@ import { getDriveConnection } from "~/models/shop-google-drive.server";
 import {
   getValidAccessToken,
   ensureRootFolder,
-  ensureSubfolder,
   uploadText,
   getFolderWebUrl,
 } from "~/lib/google-drive.server";
 import {
   buildOrderDriveSummary,
+  ensureOrderDriveFolder,
   resolveDriveExportProducts,
   uploadOrderProductsToDrive,
+  withOrderDriveExportLock,
 } from "~/lib/order-drive-export.server";
 
 function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHref?: string }) {
@@ -302,20 +303,27 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
 
     try {
-      const accessToken = await getValidAccessToken(session.shop);
-      const rootId = await ensureRootFolder(session.shop, accessToken);
-      const folderName = (order.orderNumber || order.shopifyOrderId).replace(/^#/, "");
-      // Eski klasör ID'sini yeniden kullanmıyoruz — silinmiş olabilir, her zaman yeni oluştur
-      const folderId = await ensureSubfolder(accessToken, rootId, folderName);
+      const result = await withOrderDriveExportLock(orderShop, order.shopifyOrderId, async () => {
+        const accessToken = await getValidAccessToken(session.shop);
+        const rootId = await ensureRootFolder(session.shop, accessToken);
+        const folderId = await ensureOrderDriveFolder({
+          shop: orderShop,
+          shopifyOrderId: order.shopifyOrderId,
+          accessToken,
+          rootFolderId: rootId,
+          folderName: (order.orderNumber || order.shopifyOrderId).replace(/^#/, ""),
+        });
 
-      const uploadedFiles = await uploadOrderProductsToDrive(accessToken, folderId, products);
-      await uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8");
-      await setShopifyOrderDriveUpload(orderShop, order.shopifyOrderId, folderId);
+        const uploadedFiles = await uploadOrderProductsToDrive(accessToken, folderId, products, session.shop);
+        await uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8");
+        await setShopifyOrderDriveUpload(orderShop, order.shopifyOrderId, folderId);
+        return { folderId, uploadedFiles };
+      });
 
       return json({
         ok: true,
-        folderUrl: await getFolderWebUrl(folderId),
-        uploaded: uploadedFiles + 1,
+        folderUrl: await getFolderWebUrl(result.folderId),
+        uploaded: result.uploadedFiles + 1,
       });
     } catch (err) {
       console.error("[google-drive] export failed", err);

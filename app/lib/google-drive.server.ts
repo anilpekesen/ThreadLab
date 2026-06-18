@@ -8,6 +8,7 @@ import {
   updateDriveAccessToken,
   updateRootFolderId,
 } from "~/models/shop-google-drive.server";
+import { withAdvisoryLock } from "~/lib/db.server";
 
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const USERINFO_SCOPE = "https://www.googleapis.com/auth/userinfo.email";
@@ -241,12 +242,18 @@ export async function ensureRootFolder(shop: string, accessToken: string): Promi
   const conn = await getDriveConnection(shop);
   if (conn?.rootFolderId) return conn.rootFolderId;
 
-  // `drive.file` is intentionally narrow and some Google accounts reject
-  // DriveFiles.List with 403 even though create/upload calls are allowed.
-  // Create the root folder directly and persist the returned id.
-  const id = await createFolder(accessToken, ROOT_FOLDER_NAME);
-  await updateRootFolderId(shop, id);
-  return id;
+  return withAdvisoryLock("google-drive-root", shop, async () => {
+    // Another request may have created the root while this request waited.
+    const current = await getDriveConnection(shop);
+    if (current?.rootFolderId) return current.rootFolderId;
+
+    // `drive.file` is intentionally narrow and some Google accounts reject
+    // DriveFiles.List with 403 even though create/upload calls are allowed.
+    // Create once under a shop-scoped lock and immediately persist its id.
+    const id = await createFolder(accessToken, ROOT_FOLDER_NAME);
+    await updateRootFolderId(shop, id);
+    return id;
+  });
 }
 
 export async function ensureSubfolder(

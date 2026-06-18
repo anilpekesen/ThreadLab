@@ -26,13 +26,14 @@ import { getDriveConnection } from "~/models/shop-google-drive.server";
 import {
   getValidAccessToken,
   ensureRootFolder,
-  ensureSubfolder,
   uploadText,
 } from "~/lib/google-drive.server";
 import {
   buildOrderDriveSummary,
+  ensureOrderDriveFolder,
   resolveDriveExportProducts,
   uploadOrderProductsToDrive,
+  withOrderDriveExportLock,
 } from "~/lib/order-drive-export.server";
 
 const STATUSES = [
@@ -164,23 +165,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     for (const shopifyOrderId of shopifyOrderIds) {
       try {
-        const order = await getOrderByShopifyId(session.shop, shopifyOrderId);
-        if (!order) { failed++; errors.push(`#${shopifyOrderId}: bulunamadı`); continue; }
+        await withOrderDriveExportLock(session.shop, shopifyOrderId, async () => {
+          const order = await getOrderByShopifyId(session.shop, shopifyOrderId);
+          if (!order) throw new Error("bulunamadı");
 
-        const siblings = await getSiblingOrders(session.shop, shopifyOrderId, "").catch(() => [] as Order[]);
-        const allRows = [order, ...siblings.filter((row) => row.id !== order.id)];
-        const products = await resolveDriveExportProducts(session.shop, allRows);
-        const hasAnyFile = products.some((product) =>
-          product.frontPrint || product.backPrint || product.frontPreview || product.backPreview,
-        );
-        if (!hasAnyFile) { failed++; errors.push(`#${shopifyOrderId}: yüklenecek dosya yok`); continue; }
+          const siblings = await getSiblingOrders(session.shop, shopifyOrderId, "").catch(() => [] as Order[]);
+          const allRows = [order, ...siblings.filter((row) => row.id !== order.id)];
+          const products = await resolveDriveExportProducts(session.shop, allRows);
+          const hasAnyFile = products.some((product) =>
+            product.frontPrint || product.backPrint || product.frontPreview || product.backPreview,
+          );
+          if (!hasAnyFile) throw new Error("yüklenecek dosya yok");
 
-        const folderName = (order.orderNumber || shopifyOrderId).replace(/^#/, "");
-        const folderId = await ensureSubfolder(accessToken, rootId, folderName);
+          const folderId = await ensureOrderDriveFolder({
+            shop: session.shop,
+            shopifyOrderId,
+            accessToken,
+            rootFolderId: rootId,
+            folderName: (order.orderNumber || shopifyOrderId).replace(/^#/, ""),
+          });
 
-        await uploadOrderProductsToDrive(accessToken, folderId, products);
-        await uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8");
-        await setShopifyOrderDriveUpload(session.shop, shopifyOrderId, folderId);
+          await uploadOrderProductsToDrive(accessToken, folderId, products, session.shop);
+          await uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8");
+          await setShopifyOrderDriveUpload(session.shop, shopifyOrderId, folderId);
+        });
         success++;
       } catch (err) {
         failed++;

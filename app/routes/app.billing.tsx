@@ -32,6 +32,14 @@ function isBillingTestCharge(shop: string): boolean {
   return testStores.includes(shop.toLowerCase());
 }
 
+function isOwnerShop(shop: string): boolean {
+  const ownerShops = (process.env.OWNER_SHOPS ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return ownerShops.includes(shop.toLowerCase());
+}
+
 const PLAN_BADGE: Record<PlanKey, "attention" | "info" | "success"> = {
   Starter: "attention", Growth: "info", Pro: "info", Business: "success",
 };
@@ -227,25 +235,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const shop = session.shop;
 
-  const accessToken = await getValidAccessToken(shop);
-  if (accessToken) {
-    const { hasActivePayment, subscriptionId, planName } = await checkShopifySubscription(
-      shop,
-      accessToken,
-    );
-    if (hasActivePayment && planName && PLAN_ORDER.includes(planName as PlanKey)) {
-      await upsertShopSubscription(shop, {
-        planKey: planName as PlanKey,
-        shopifySubscriptionId: subscriptionId,
-        subscriptionStatus: "active",
-      });
-    } else {
-      const sub = await getShopSubscription(shop);
-      if (sub?.subscription_status === "active") {
+  if (isOwnerShop(shop)) {
+    await upsertShopSubscription(shop, {
+      planKey: "Business",
+      shopifySubscriptionId: null,
+      subscriptionStatus: "active",
+    });
+  } else {
+    const accessToken = await getValidAccessToken(shop);
+    if (accessToken) {
+      const { hasActivePayment, subscriptionId, planName } = await checkShopifySubscription(
+        shop,
+        accessToken,
+      );
+      if (hasActivePayment && planName && PLAN_ORDER.includes(planName as PlanKey)) {
         await upsertShopSubscription(shop, {
-          planKey: sub.plan_key,
-          subscriptionStatus: "cancelled",
+          planKey: planName as PlanKey,
+          shopifySubscriptionId: subscriptionId,
+          subscriptionStatus: "active",
         });
+      } else {
+        const sub = await getShopSubscription(shop);
+        if (sub?.subscription_status === "active") {
+          await upsertShopSubscription(shop, {
+            planKey: sub.plan_key,
+            subscriptionStatus: "cancelled",
+          });
+        }
       }
     }
   }

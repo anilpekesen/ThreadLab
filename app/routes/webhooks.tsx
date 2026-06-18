@@ -3,7 +3,7 @@ import { json } from "@remix-run/node";
 import { randomBytes } from "crypto";
 import { verifyWebhookHmac } from "~/lib/shopify.server";
 import { processOrderBgRemoval } from "~/models/auto-bg-removal.server";
-import { getOrderByShopifyId, updateOrderStatus, setShopifyOrderDriveUpload, claimDriveExport, getSiblingOrders } from "~/models/orders.server";
+import { getOrderByShopifyId, updateOrderStatus, setShopifyOrderDriveUpload, getSiblingOrders } from "~/models/orders.server";
 import { resetCustomerBgQuota } from "~/models/customer-bg-quota.server";
 import { resetCustomerAiQuota } from "~/models/customer-ai-quota.server";
 import { getSessionForDesignToken } from "~/models/designs.server";
@@ -15,49 +15,67 @@ import { CREDIT_PACKS } from "~/lib/credit-packs";
 import {
   getValidAccessToken,
   ensureRootFolder,
-  ensureSubfolder,
   uploadText,
   getDriveFolderName,
   renameDriveFolder,
 } from "~/lib/google-drive.server";
 import {
   buildOrderDriveSummary,
+  ensureOrderDriveFolder,
   resolveDriveExportProducts,
   uploadOrderProductsToDrive,
+  withOrderDriveExportLock,
 } from "~/lib/order-drive-export.server";
 
 async function autoExportOrderToDrive(shop: string, shopifyOrderId: string): Promise<void> {
   const conn = await getDriveConnection(shop);
   if (!conn) return;
 
-  const firstOrder = await getOrderByShopifyId(shop, shopifyOrderId);
-  if (!firstOrder) return;
-  if (firstOrder.driveFolderId && firstOrder.driveFolderId !== 'pending') return;
+  await withOrderDriveExportLock(shop, shopifyOrderId, async () => {
+    const firstOrder = await getOrderByShopifyId(shop, shopifyOrderId);
+    if (!firstOrder) return;
 
-  // Tüm satırları al (farklı ürünler dahil)
-  const siblings = await getSiblingOrders(shop, shopifyOrderId, "").catch(() => []);
-  const allRows = [firstOrder, ...siblings.filter((s) => s.id !== firstOrder.id)];
+    // Check ALL rows for this order: getOrderByShopifyId returns an arbitrary
+    // row (no ORDER BY), so if a newly-inserted row with drive_folder_id = NULL
+    // comes first we would miss the existing upload and create a duplicate.
+    const uploaded = await query<{ drive_folder_id: string }>(
+      `SELECT drive_folder_id FROM orders
+       WHERE shop = $1 AND shopify_order_id = $2
+         AND drive_folder_id IS NOT NULL AND drive_folder_id != ''
+         AND drive_folder_id != 'pending' AND drive_uploaded_at IS NOT NULL
+       LIMIT 1`,
+      [shop, shopifyOrderId],
+    );
+    if (uploaded.rows[0]) return;
 
-  const resolvedProducts = await resolveDriveExportProducts(shop, allRows);
+    // Tüm satırları al (farklı ürünler dahil)
+    const siblings = await getSiblingOrders(shop, shopifyOrderId, "").catch(() => []);
+    const allRows = [firstOrder, ...siblings.filter((s) => s.id !== firstOrder.id)];
+    const resolvedProducts = await resolveDriveExportProducts(shop, allRows);
 
-  const hasAnyFile = resolvedProducts.some((p) => p.frontPrint || p.backPrint || p.frontPreview || p.backPreview);
-  if (!hasAnyFile) {
-    console.log(`[webhook] drive export skipped — no files for order=${firstOrder.orderNumber}`);
-    return;
-  }
+    const hasAnyFile = resolvedProducts.some((p) =>
+      p.frontPrint || p.backPrint || p.frontPreview || p.backPreview,
+    );
+    if (!hasAnyFile) {
+      console.log(`[webhook] drive export skipped — no files for order=${firstOrder.orderNumber}`);
+      return;
+    }
 
-  const claimed = await claimDriveExport(shop, shopifyOrderId);
-  if (!claimed) return;
+    const accessToken = await getValidAccessToken(shop);
+    const rootId = await ensureRootFolder(shop, accessToken);
+    const folderId = await ensureOrderDriveFolder({
+      shop,
+      shopifyOrderId,
+      accessToken,
+      rootFolderId: rootId,
+      folderName: (firstOrder.orderNumber || shopifyOrderId).replace(/^#/, ""),
+    });
 
-  const accessToken = await getValidAccessToken(shop);
-  const rootId = await ensureRootFolder(shop, accessToken);
-  const folderName = (firstOrder.orderNumber || shopifyOrderId).replace(/^#/, "");
-  const folderId = await ensureSubfolder(accessToken, rootId, folderName);
-
-  await uploadOrderProductsToDrive(accessToken, folderId, resolvedProducts);
-  await uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8");
-  await setShopifyOrderDriveUpload(shop, shopifyOrderId, folderId);
-  console.log(`[webhook] auto drive export: order=${firstOrder.orderNumber} products=${resolvedProducts.length} folder=${folderId}`);
+    await uploadOrderProductsToDrive(accessToken, folderId, resolvedProducts, shop);
+    await uploadText(accessToken, folderId, "siparis.txt", buildOrderDriveSummary(allRows), "text/plain; charset=utf-8");
+    await setShopifyOrderDriveUpload(shop, shopifyOrderId, folderId);
+    console.log(`[webhook] auto drive export: order=${firstOrder.orderNumber} products=${resolvedProducts.length} folder=${folderId}`);
+  });
 }
 
 async function markDriveFolderCancelled(shop: string, shopifyOrderId: string): Promise<void> {
