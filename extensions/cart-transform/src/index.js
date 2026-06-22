@@ -77,7 +77,8 @@ function resolveDesignToken(line) {
 function resolveFrontDesign(line) {
   const internal = attrValue(line, 'frontDesign');
   if (internal) return internal;
-  const label = attrValue(line, 'frontDesignLabel') || attrValue(line, 'frontDesignLabelEn');
+  // Bags set "Ön Tasarım: Var" directly instead of _pl_front_design
+  const label = attrValue(line, 'frontDesignLabel');
   if (/^var$/i.test(label) || /^yes$/i.test(label)) return 'yes';
   // Fall back to presence of a print URL as proxy for "has design"
   if (attrValue(line, 'frontPrintUrl')) return 'yes';
@@ -85,12 +86,7 @@ function resolveFrontDesign(line) {
 }
 
 function resolveBackDesign(line) {
-  const internal = attrValue(line, 'backDesign');
-  if (internal) return internal;
-  const label = attrValue(line, 'backDesignLabel') || attrValue(line, 'backDesignLabelEn');
-  if (/^var$/i.test(label) || /^yes$/i.test(label)) return 'yes';
-  if (attrValue(line, 'backPrintUrl')) return 'yes';
-  return '';
+  return attrValue(line, 'backDesign');
 }
 
 function pushAttr(attrs, key, value) {
@@ -122,12 +118,9 @@ export function run(input) {
     const backDesign = resolveBackDesign(line);
     if (backDesign) pushAttr(baseAttrs, labels.backDesign, designValue(backDesign, labels));
 
-    // Copy print/preview URLs so the webhook importer can find files even when
-    // the storefront stores them directly on the line item instead of via designs table.
+    // Copy _front_print_url so the webhook importer can detect designs on
+    // products (e.g. bags) that store the URL directly on the line item.
     pushAttr(baseAttrs, '_front_print_url', attrValue(line, 'frontPrintUrl'));
-    pushAttr(baseAttrs, '_back_print_url', attrValue(line, 'backPrintUrl'));
-    pushAttr(baseAttrs, '_front_preview_url', attrValue(line, 'frontPreviewUrl'));
-    pushAttr(baseAttrs, '_back_preview_url', attrValue(line, 'backPreviewUrl'));
 
     for (const [field, labelKey] of FIELD_MAP) {
       pushAttr(baseAttrs, labels[labelKey], attrValue(line, field));
