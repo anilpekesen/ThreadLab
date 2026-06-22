@@ -77,6 +77,25 @@ function isTurkish(line) {
 function designValue(value, labels) {
   return /^yes$/i.test(String(value || "")) ? labels.yes : labels.no;
 }
+function resolveDesignToken(line) {
+  return attrValue(line, "designToken") || attrValue(line, "designTokenAlt");
+}
+function resolveFrontDesign(line) {
+  const internal = attrValue(line, "frontDesign");
+  if (internal) return internal;
+  const label = attrValue(line, "frontDesignLabel") || attrValue(line, "frontDesignLabelEn");
+  if (/^var$/i.test(label) || /^yes$/i.test(label)) return "yes";
+  if (attrValue(line, "frontPrintUrl")) return "yes";
+  return "";
+}
+function resolveBackDesign(line) {
+  const internal = attrValue(line, "backDesign");
+  if (internal) return internal;
+  const label = attrValue(line, "backDesignLabel") || attrValue(line, "backDesignLabelEn");
+  if (/^var$/i.test(label) || /^yes$/i.test(label)) return "yes";
+  if (attrValue(line, "backPrintUrl")) return "yes";
+  return "";
+}
 function pushAttr(attrs, key, value) {
   if (value != null && value !== "") attrs.push({ key, value: String(value) });
 }
@@ -94,11 +113,15 @@ function run(input) {
     if (!surchargeGid) continue;
     const labels = isTurkish(line) ? LABELS.tr : LABELS.en;
     const baseAttrs = [{ key: "_design_role", value: "base_expanded" }];
-    pushAttr(baseAttrs, "_design_token", attrValue(line, "designToken"));
+    pushAttr(baseAttrs, "_design_token", resolveDesignToken(line));
     pushAttr(baseAttrs, "_design_detail_url", attrValue(line, "designDetailUrl"));
-    pushAttr(baseAttrs, labels.frontDesign, designValue(attrValue(line, "frontDesign"), labels));
-    const backDesign = attrValue(line, "backDesign");
+    pushAttr(baseAttrs, labels.frontDesign, designValue(resolveFrontDesign(line), labels));
+    const backDesign = resolveBackDesign(line);
     if (backDesign) pushAttr(baseAttrs, labels.backDesign, designValue(backDesign, labels));
+    pushAttr(baseAttrs, "_front_print_url", attrValue(line, "frontPrintUrl"));
+    pushAttr(baseAttrs, "_back_print_url", attrValue(line, "backPrintUrl"));
+    pushAttr(baseAttrs, "_front_preview_url", attrValue(line, "frontPreviewUrl"));
+    pushAttr(baseAttrs, "_back_preview_url", attrValue(line, "backPreviewUrl"));
     for (const [field, labelKey] of FIELD_MAP) {
       pushAttr(baseAttrs, labels[labelKey], attrValue(line, field));
     }

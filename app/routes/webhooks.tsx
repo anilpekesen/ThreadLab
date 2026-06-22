@@ -171,7 +171,9 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
   const designItems = lineItems.filter(
     (li) =>
       getDesignToken(li.properties) !== undefined ||
-      getDesignToken(li.attributes) !== undefined,
+      getDesignToken(li.attributes) !== undefined ||
+      Boolean(getAttr(li.properties, "_front_print_url")) ||
+      Boolean(getAttr(li.attributes, "_front_print_url")),
   );
   const itemsToProcess =
     designItems.length > 0 ? designItems : lineItems.filter((li) => li.requires_shipping);

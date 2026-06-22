@@ -7,11 +7,20 @@ query RunInput {
       surchargeUnit: attribute(key: "_surcharge_unit_total") { value }
       surchargeGid: attribute(key: "_surcharge_variant_gid") { value }
       designToken: attribute(key: "_design_token") { value }
+      designTokenAlt: attribute(key: "design_token") { value }
       designDetailUrl: attribute(key: "_design_detail_url") { value }
       locale: attribute(key: "_pl_locale") { value }
       size: attribute(key: "_pl_size") { value }
       frontDesign: attribute(key: "_pl_front_design") { value }
+      frontDesignLabel: attribute(key: "Ön Tasarım") { value }
+      frontDesignLabelEn: attribute(key: "Front Design") { value }
       backDesign: attribute(key: "_pl_back_design") { value }
+      backDesignLabel: attribute(key: "Arka Tasarım") { value }
+      backDesignLabelEn: attribute(key: "Back Design") { value }
+      frontPrintUrl: attribute(key: "_front_print_url") { value }
+      backPrintUrl: attribute(key: "_back_print_url") { value }
+      frontPreviewUrl: attribute(key: "_front_preview_url") { value }
+      backPreviewUrl: attribute(key: "_back_preview_url") { value }
       totalQuantity: attribute(key: "_pl_total_quantity") { value }
       productUnitPrice: attribute(key: "_pl_product_unit_price") { value }
       productSubtotal: attribute(key: "_pl_product_subtotal") { value }
