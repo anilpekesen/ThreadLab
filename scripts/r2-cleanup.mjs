@@ -87,11 +87,9 @@ async function loadActiveR2Keys(pool, publicUrl) {
     }
   }
 
-  // Siparişler tablosu
+  // Siparişler tablosu (sadece kendi sütunları, join yok)
   const orders = await pool.query(`
-    SELECT preview_url, production_file_url,
-           design_front_preview_url, design_back_preview_url,
-           design_front_print_url, design_back_print_url
+    SELECT preview_url, production_file_url
     FROM orders
   `);
   for (const row of orders.rows) {
