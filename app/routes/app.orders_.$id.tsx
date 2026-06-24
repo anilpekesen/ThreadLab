@@ -6,8 +6,12 @@ import { useTranslation } from "~/i18n";
 
 const APP_URL = "https://app.printlabapp.com";
 
+function isValidFileUrl(url: string): boolean {
+  return Boolean(url) && url.startsWith("https://") && !url.startsWith("data:");
+}
+
 function dlUrl(fileUrl: string, filename: string): string {
-  if (fileUrl.startsWith("data:")) return fileUrl;
+  if (!isValidFileUrl(fileUrl)) return "";
   return `${APP_URL}/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
 }
 
@@ -386,10 +390,13 @@ export default function OrderDetail() {
   }, [order, siblings, otherProducts]);
 
   // Fallback URLs: design record → order JOIN data → order own columns
-  const frontPreviewUrl = design?.frontPreviewUrl || order.designFrontPreviewUrl || order.previewUrl || "";
-  const backPreviewUrl = design?.backPreviewUrl || order.designBackPreviewUrl || "";
-  const frontPrintUrl = design?.frontPrintUrl || order.designFrontPrintUrl || order.productionFileUrl || "";
-  const backPrintUrl = design?.backPrintUrl || order.designBackPrintUrl || "";
+  // Filter out empty data: URLs (data:, saved when designer had no print content)
+  const validUrl = (url: string | null | undefined) =>
+    url && url.startsWith("https://") ? url : "";
+  const frontPreviewUrl = validUrl(design?.frontPreviewUrl) || validUrl(order.designFrontPreviewUrl) || validUrl(order.previewUrl) || "";
+  const backPreviewUrl = validUrl(design?.backPreviewUrl) || validUrl(order.designBackPreviewUrl) || "";
+  const frontPrintUrl = validUrl(design?.frontPrintUrl) || validUrl(order.designFrontPrintUrl) || validUrl(order.productionFileUrl) || "";
+  const backPrintUrl = validUrl(design?.backPrintUrl) || validUrl(order.designBackPrintUrl) || "";
   const hasDesignFiles = Boolean(frontPreviewUrl || backPreviewUrl || frontPrintUrl || backPrintUrl);
 
   return (
