@@ -158,6 +158,11 @@ export async function countOrderGroups(shop: string, status?: string): Promise<n
        WHERE o.shop = $1
          AND o.design_token != ''
          AND o.production_status != 'cancelled'
+         AND ${ORDER_GROUP_KEY_SQL} NOT IN (
+           SELECT COALESCE(NULLIF(shopify_order_id, ''), id)
+           FROM orders
+           WHERE shop = $1 AND production_status = 'cancelled'
+         )
          ${statusClause}
        GROUP BY ${ORDER_GROUP_KEY_SQL}
      ) grouped_orders`,
@@ -185,6 +190,11 @@ export async function getOrdersPage(
      WHERE o.shop = $1
        AND o.design_token != ''
        AND o.production_status != 'cancelled'
+       AND ${ORDER_GROUP_KEY_SQL} NOT IN (
+         SELECT COALESCE(NULLIF(shopify_order_id, ''), id)
+         FROM orders
+         WHERE shop = $1 AND production_status = 'cancelled'
+       )
        ${statusClause}
      GROUP BY ${ORDER_GROUP_KEY_SQL}
      ORDER BY latest_at DESC
@@ -204,6 +214,11 @@ export async function getOrdersPage(
        AND o.production_status != 'cancelled'
        ${rowStatusClause}
        AND ${ORDER_GROUP_KEY_SQL} = ANY($${keysParam}::text[])
+       AND ${ORDER_GROUP_KEY_SQL} NOT IN (
+         SELECT COALESCE(NULLIF(shopify_order_id, ''), id)
+         FROM orders
+         WHERE shop = $1 AND production_status = 'cancelled'
+       )
      ORDER BY array_position($${keysParam}::text[], ${ORDER_GROUP_KEY_SQL}), o.created_at DESC`,
     rowParams,
   );
@@ -298,6 +313,15 @@ export async function updateOrderStatus(id: string, status: string): Promise<Ord
   );
   if (!result.rows.length) throw new Error("Order not found");
   return rowToOrder(result.rows[0]);
+}
+
+// Cancels ALL rows for a Shopify order (covers multi-line-item orders)
+export async function cancelShopifyOrder(shop: string, shopifyOrderId: string): Promise<void> {
+  await ensureMigrations();
+  await query(
+    "UPDATE orders SET production_status = 'cancelled', updated_at = now() WHERE shop = $1 AND shopify_order_id = $2",
+    [shop, shopifyOrderId],
+  );
 }
 
 type AdminClient = {

@@ -3,7 +3,7 @@ import { json } from "@remix-run/node";
 import { randomBytes } from "crypto";
 import { verifyWebhookHmac } from "~/lib/shopify.server";
 import { processOrderBgRemoval } from "~/models/auto-bg-removal.server";
-import { getOrderByShopifyId, updateOrderStatus, setShopifyOrderDriveUpload, getSiblingOrders } from "~/models/orders.server";
+import { getOrderByShopifyId, updateOrderStatus, cancelShopifyOrder, setShopifyOrderDriveUpload, getSiblingOrders } from "~/models/orders.server";
 import { resetCustomerBgQuota } from "~/models/customer-bg-quota.server";
 import { resetCustomerAiQuota } from "~/models/customer-ai-quota.server";
 import { getSessionForDesignToken } from "~/models/designs.server";
@@ -424,10 +424,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     console.log(`[webhook] cancelled order=${order.name} shopifyId=${shopifyOrderId}`);
 
     if (shopifyOrderId) {
-      getOrderByShopifyId(shop, shopifyOrderId)
-        .then((existing) => {
-          if (existing) return updateOrderStatus(existing.id, "cancelled");
-        })
+      // Cancel ALL rows for this order (multi-line-item orders have one row per variant)
+      cancelShopifyOrder(shop, shopifyOrderId)
         .catch((err) =>
           console.error(`[webhook] cancel status update failed for order ${order.name}:`, err),
         );
