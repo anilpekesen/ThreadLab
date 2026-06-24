@@ -147,10 +147,13 @@ export async function getOrders(shop: string, status?: string): Promise<Order[]>
 
 const ORDER_GROUP_KEY_SQL = "COALESCE(NULLIF(o.shopify_order_id, ''), o.id)";
 
-export async function countOrderGroups(shop: string, status?: string): Promise<number> {
+export async function countOrderGroups(shop: string, status?: string, search?: string): Promise<number> {
   await ensureMigrations();
   const params: unknown[] = [shop];
   const statusClause = status ? ` AND o.production_status = $${params.push(status)}` : "";
+  const searchClause = search
+    ? ` AND o.order_number ILIKE $${params.push(`%${search.replace(/^#/, "")}%`)}`
+    : "";
   const result = await query<{ count: string }>(
     `SELECT COUNT(*) FROM (
        SELECT ${ORDER_GROUP_KEY_SQL} AS group_key
@@ -164,6 +167,7 @@ export async function countOrderGroups(shop: string, status?: string): Promise<n
            WHERE shop = $1 AND production_status = 'cancelled'
          )
          ${statusClause}
+         ${searchClause}
        GROUP BY ${ORDER_GROUP_KEY_SQL}
      ) grouped_orders`,
     params,
@@ -176,12 +180,16 @@ export async function getOrdersPage(
   status: string | undefined,
   limit: number,
   offset: number,
+  search?: string,
 ): Promise<Order[]> {
   await ensureMigrations();
   const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
   const safeOffset = Math.max(Math.floor(offset), 0);
   const keyParams: unknown[] = [shop];
   const statusClause = status ? ` AND o.production_status = $${keyParams.push(status)}` : "";
+  const searchClause = search
+    ? ` AND o.order_number ILIKE $${keyParams.push(`%${search.replace(/^#/, "")}%`)}`
+    : "";
   const limitParam = keyParams.push(safeLimit);
   const offsetParam = keyParams.push(safeOffset);
   const keysResult = await query<{ group_key: string }>(
@@ -196,6 +204,7 @@ export async function getOrdersPage(
          WHERE shop = $1 AND production_status = 'cancelled'
        )
        ${statusClause}
+       ${searchClause}
      GROUP BY ${ORDER_GROUP_KEY_SQL}
      ORDER BY latest_at DESC
      LIMIT $${limitParam} OFFSET $${offsetParam}`,

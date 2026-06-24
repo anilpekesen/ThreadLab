@@ -1,13 +1,14 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
+import { useState, useCallback } from "react";
 import { useMemo } from "react";
 import { useTranslation } from "~/i18n";
 import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Badge, Button, InlineStack, Box, Text, BlockStack,
   Thumbnail, IndexTable, useIndexResourceState, Banner,
-  Grid,
+  Grid, TextField,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
 import {
@@ -84,12 +85,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
   const activeStatus = status ?? "";
+  const search = url.searchParams.get("search")?.trim() || "";
   const requestedPage = Number(url.searchParams.get("page") || "1");
   const page = Number.isFinite(requestedPage) ? Math.max(1, Math.floor(requestedPage)) : 1;
 
   const [allOrders, totalOrders, driveConn] = await Promise.all([
     getOrders(session.shop),
-    countOrderGroups(session.shop, activeStatus || undefined),
+    countOrderGroups(session.shop, activeStatus || undefined, search || undefined),
     getDriveConnection(session.shop),
   ]);
   const totalPages = Math.max(1, Math.ceil(totalOrders / ORDERS_PAGE_SIZE));
@@ -99,11 +101,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     activeStatus || undefined,
     ORDERS_PAGE_SIZE,
     (currentPage - 1) * ORDERS_PAGE_SIZE,
+    search || undefined,
   );
   const stats = summarizeGroupedStats(groupOrders(allOrders));
   return json({
     orders,
     status: activeStatus,
+    search,
     stats,
     shop: session.shop,
     driveConnected: Boolean(driveConn),
@@ -313,7 +317,12 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
 }
 
 export default function Orders() {
-  const { orders, status, stats, shop, driveConnected, pagination } = useLoaderData<typeof loader>();
+  const { orders, status, search: loadedSearch, stats, shop, driveConnected, pagination } = useLoaderData<typeof loader>();
+  const [searchValue, setSearchValue] = useState(loadedSearch ?? "");
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchValue(value);
+  }, []);
   const navigate = useNavigate();
   const fetcher = useFetcher<{ ok: boolean; synced?: number; error?: string }>();
   const syncFetcher = useFetcher<{ ok: boolean; synced?: number; error?: string }>();
@@ -324,10 +333,25 @@ export default function Orders() {
   const isDriveExporting = driveFetcher.state !== "idle";
   const driveResult = driveFetcher.data?.bulkDrive ? driveFetcher.data : null;
 
+  const handleSearchSubmit = useCallback(() => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (searchValue.trim()) params.set("search", searchValue.trim());
+    navigate(`/app/orders${params.toString() ? `?${params}` : ""}`);
+  }, [searchValue, status, navigate]);
+
+  const handleSearchClear = useCallback(() => {
+    setSearchValue("");
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    navigate(`/app/orders${params.toString() ? `?${params}` : ""}`);
+  }, [status, navigate]);
+
   const groups = useMemo(() => groupOrders(orders), [orders]);
-  const buildOrdersUrl = (nextPage: number, nextStatus = status) => {
+  const buildOrdersUrl = (nextPage: number, nextStatus = status, nextSearch = loadedSearch) => {
     const params = new URLSearchParams();
     if (nextStatus) params.set("status", nextStatus);
+    if (nextSearch) params.set("search", nextSearch);
     if (nextPage > 1) params.set("page", String(nextPage));
     const queryString = params.toString();
     return `/app/orders${queryString ? `?${queryString}` : ""}`;
@@ -522,12 +546,27 @@ export default function Orders() {
                     key={s.value}
                     pressed={status === s.value || (!status && s.value === "")}
                     size="slim"
-                    onClick={() => navigate(buildOrdersUrl(1, s.value))}
+                    onClick={() => navigate(buildOrdersUrl(1, s.value, loadedSearch))}
                   >
                     {t(s.labelKey)}
                   </Button>
                 ))}
               </InlineStack>
+              <form onSubmit={(e) => { e.preventDefault(); handleSearchSubmit(); }} style={{ minWidth: 220 }}>
+                <TextField
+                  label=""
+                  labelHidden
+                  placeholder="Sipariş no ara... (#11031)"
+                  value={searchValue}
+                  onChange={handleSearchChange}
+                  clearButton
+                  onClearButtonClick={handleSearchClear}
+                  autoComplete="off"
+                  connectedRight={
+                    <Button submit size="slim" variant="secondary">Ara</Button>
+                  }
+                />
+              </form>
               {driveConnected ? (
                 <driveFetcher.Form method="post">
                   <input type="hidden" name="intent" value="bulkDriveExportAll" />
