@@ -1,4 +1,4 @@
-export function compressImage(file: File, maxSide = 1800): Promise<string> {
+export function compressImage(file: File, maxSide = 4000): Promise<string> {
   const isPng = file.type === 'image/png';
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -19,7 +19,7 @@ export function compressImage(file: File, maxSide = 1800): Promise<string> {
           ctx.fillRect(0, 0, width, height);
         }
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(isPng ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.85));
+        resolve(isPng ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.95));
       };
       img.onerror = reject;
       img.src = e.target!.result as string;

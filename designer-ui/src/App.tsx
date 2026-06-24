@@ -1687,9 +1687,9 @@ export default function App() {
         backHas ? waitForCanvasBackground(backCanvasRef.current, resolvedMockupConfig?.backImage) : Promise.resolve(),
       ]);
 
-      // Export canvas: 1x preview + 3x print quality
-      const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(1) ?? '') : '';
-      const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(1) ?? '') : '';
+      // Export canvas: 3x preview (1440px+) + print at 300 DPI
+      const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(3) ?? '') : '';
+      const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(3) ?? '') : '';
       // Print dosyasını gerçek mm boyutlarında 300 DPI export et.
       // Baskı tarafında bulanıklık şikayetlerini önlemek için üretim dosyasında piksel kaybı yapmıyoruz.
       const frontPrintDataUrl = frontHas

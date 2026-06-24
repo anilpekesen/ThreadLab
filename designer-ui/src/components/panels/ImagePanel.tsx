@@ -68,7 +68,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) continue;
       const [dataUrl, serverUrl] = await Promise.all([
-        compressImage(file, 1800),
+        compressImage(file, 4000),
         uploadOriginalImage(file),
       ]);
       const originalUrl = serverUrl || dataUrl;
