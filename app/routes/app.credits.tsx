@@ -161,6 +161,11 @@ export default function CreditsPage() {
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
+            <Banner tone="warning">
+              <Text as="p" variant="bodyMd">
+                ⚠️ AI kredi paketleri dijital ürün niteliğindedir. Satın alım onaylandıktan sonra iade veya iptal yapılamaz. Krediler 30 gün içinde kullanılmadığında sona erer.
+              </Text>
+            </Banner>
             {totalBonus > 0 && (
               <Banner tone="info">
                 <Text as="p" variant="bodyMd">
