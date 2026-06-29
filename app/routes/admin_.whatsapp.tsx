@@ -54,7 +54,7 @@ export default function AdminWhatsApp() {
       if (!alive) return;
       try {
         const mode = statusRef.current === "connected" ? "status" : "qr";
-        const res = await fetch(`/api/whatsapp-qr?mode=${mode}`, { credentials: "include" });
+        const res = await fetch(`/admin/whatsapp-qr?mode=${mode}`, { credentials: "include" });
         if (res.ok) {
           const data = await res.json() as { status: WAStatus; qr?: string | null };
           statusRef.current = data.status;
@@ -77,7 +77,7 @@ export default function AdminWhatsApp() {
     if (!confirm("WhatsApp bağlantısını kesmek istediğinize emin misiniz?")) return;
     const form = new FormData();
     form.append("intent", "logout");
-    await fetch("/api/whatsapp-qr", { method: "POST", body: form, credentials: "include" });
+    await fetch("/admin/whatsapp-qr", { method: "POST", body: form, credentials: "include" });
     statusRef.current = "disconnected";
     setStatus("disconnected");
     setQr(null);
