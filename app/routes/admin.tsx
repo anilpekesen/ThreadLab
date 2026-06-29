@@ -1822,6 +1822,8 @@ function AdminInner() {
           <a href="/admin?tab=shops" style={css.navLink(data.tab === "shops")}>{t("admin.navShops")}</a>
           {isAdmin && <a href="/admin?tab=partners" style={css.navLink(data.tab === "partners")}>{t("admin.navPartners")}</a>}
           {isAdmin && <a href="/admin?tab=ai-logs" style={css.navLink(data.tab === "ai-logs")}>{t("admin.navAiLogs")}</a>}
+          {isAdmin && <a href="/admin/cliparts" style={css.navLink(false)}>Klipartlar</a>}
+          {isAdmin && <a href="/admin/whatsapp" style={css.navLink(false)}>📱 WhatsApp</a>}
           {isAdmin && (
             <a href="/admin?tab=support" style={css.navLink(data.tab === "support")}>
               {t("admin.navSupport")}{openCount > 0 && (

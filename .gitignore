@@ -3,6 +3,8 @@
 # Dependencies
 node_modules/
 designer-ui/node_modules/
+whatsapp-service/node_modules/
+whatsapp-service/session/
 
 # Builds and generated output
 build/

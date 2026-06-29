@@ -17,6 +17,9 @@ export interface ShopSettings {
   customerAiLimit: number;
   aiQuotaBonus: number;
   bgQuotaBonus: number;
+  notificationEmail: string;
+  notificationWebhookUrl: string;
+  notificationWhatsapp: string;
 }
 
 const DEFAULTS: ShopSettings = {
@@ -27,6 +30,9 @@ const DEFAULTS: ShopSettings = {
   customerAiLimit: 3,
   aiQuotaBonus: 0,
   bgQuotaBonus: 0,
+  notificationEmail: "",
+  notificationWebhookUrl: "",
+  notificationWhatsapp: "",
 };
 
 export async function getShopSettings(shop: string): Promise<ShopSettings> {
@@ -49,6 +55,9 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
       customerAiLimit: DEFAULTS.customerAiLimit,
       aiQuotaBonus: DEFAULTS.aiQuotaBonus,
       bgQuotaBonus: DEFAULTS.bgQuotaBonus,
+      notificationEmail: DEFAULTS.notificationEmail,
+      notificationWebhookUrl: DEFAULTS.notificationWebhookUrl,
+      notificationWhatsapp: DEFAULTS.notificationWhatsapp,
     };
   }
 
@@ -63,6 +72,9 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
     customerAiLimit: Number(saved.customerAiLimit) > 0 ? Number(saved.customerAiLimit) : DEFAULTS.customerAiLimit,
     aiQuotaBonus: Number(saved.aiQuotaBonus) >= 0 ? Number(saved.aiQuotaBonus) : DEFAULTS.aiQuotaBonus,
     bgQuotaBonus: Number(saved.bgQuotaBonus) >= 0 ? Number(saved.bgQuotaBonus) : DEFAULTS.bgQuotaBonus,
+    notificationEmail: saved.notificationEmail ?? DEFAULTS.notificationEmail,
+    notificationWebhookUrl: saved.notificationWebhookUrl ?? DEFAULTS.notificationWebhookUrl,
+    notificationWhatsapp: saved.notificationWhatsapp ?? DEFAULTS.notificationWhatsapp,
   };
 }
 

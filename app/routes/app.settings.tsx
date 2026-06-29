@@ -417,12 +417,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const newBgLimit = parseInt(String(form.get("customerBgLimit") || ""), 10);
   const newTermsUrl = String(form.get("termsUrl") || "").trim();
   const newAiLimit = parseInt(String(form.get("customerAiLimit") || ""), 10);
+  const newNotificationEmail = String(form.get("notificationEmail") || "").trim();
+  const newNotificationWebhookUrl = String(form.get("notificationWebhookUrl") || "").trim();
+  const newNotificationWhatsapp = String(form.get("notificationWhatsapp") || "").trim();
   try {
     await saveShopSettings(session.shop, {
       surchargeVariantId: newVariantId,
       ...(newBgLimit > 0 ? { customerBgLimit: newBgLimit } : {}),
       termsUrl: newTermsUrl,
       ...(newAiLimit > 0 ? { customerAiLimit: newAiLimit } : {}),
+      notificationEmail: newNotificationEmail,
+      notificationWebhookUrl: newNotificationWebhookUrl,
+      notificationWhatsapp: newNotificationWhatsapp,
     });
   } catch (err) {
     console.error("[settings] saveShopSettings error:", err);
@@ -442,6 +448,9 @@ export default function SettingsRoute() {
   const [customerBgLimit, setCustomerBgLimit] = useState(String(settings.customerBgLimit ?? 5));
   const [termsUrl, setTermsUrl] = useState(settings.termsUrl || "");
   const [customerAiLimit, setCustomerAiLimit] = useState(String(settings.customerAiLimit ?? 3));
+  const [notificationEmail, setNotificationEmail] = useState(settings.notificationEmail || "");
+  const [notificationWebhookUrl, setNotificationWebhookUrl] = useState(settings.notificationWebhookUrl || "");
+  const [notificationWhatsapp, setNotificationWhatsapp] = useState(settings.notificationWhatsapp || "");
   const selectedVariantExists = surchargeVariantOptions.some((option) => option.value === surchargeVariantId);
   const variantSelectOptions = [
     { label: t("settings.variantSelectPlaceholder"), value: "" },
@@ -572,6 +581,57 @@ export default function SettingsRoute() {
                       <a href={termsUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb" }}>
                         {termsUrl}
                       </a>
+                    </Text>
+                  )}
+                </BlockStack>
+              </Box>
+            </Card>
+
+            {/* ── Sipariş Bildirimleri ── */}
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <BlockStack gap="100">
+                    <Text as="h2" variant="headingMd">Sipariş Bildirimleri</Text>
+                    <Text as="p" tone="subdued" variant="bodySm">
+                      Ödeme onaylanan her sipariş için otomatik bildirim gönderir. E-posta ve/veya webhook URL girebilirsiniz.
+                    </Text>
+                  </BlockStack>
+
+                  <TextField
+                    label="Bildirim E-postası"
+                    name="notificationEmail"
+                    value={notificationEmail}
+                    onChange={setNotificationEmail}
+                    autoComplete="off"
+                    type="email"
+                    placeholder="atölye@sirket.com"
+                    helpText="Sipariş bilgisi ve tasarım dosya linkleri bu adrese gönderilir."
+                  />
+
+                  <TextField
+                    label="Webhook URL (Zapier / Make / n8n)"
+                    name="notificationWebhookUrl"
+                    value={notificationWebhookUrl}
+                    onChange={setNotificationWebhookUrl}
+                    autoComplete="off"
+                    placeholder="https://hooks.zapier.com/hooks/catch/..."
+                    helpText="Sipariş verisi JSON olarak bu adrese POST edilir. WhatsApp, Slack, Telegram gibi kanallara Zapier üzerinden iletebilirsiniz."
+                  />
+
+                  <TextField
+                    label="WhatsApp Numarası"
+                    name="notificationWhatsapp"
+                    value={notificationWhatsapp}
+                    onChange={setNotificationWhatsapp}
+                    autoComplete="off"
+                    placeholder="905XXXXXXXXX"
+                    helpText="Ülke kodu dahil rakam — örn. 905321234567. Admin panelden WhatsApp hattını bağladıktan sonra bu numaraya bildirim gönderilir."
+                  />
+
+                  {(notificationEmail || notificationWebhookUrl || notificationWhatsapp) && (
+                    <Text as="p" variant="bodySm" tone="success">
+                      ✓ Bildirimler aktif — {[notificationEmail && "E-posta", notificationWebhookUrl && "Webhook", notificationWhatsapp && "WhatsApp"].filter(Boolean).join(" + ")}
                     </Text>
                   )}
                 </BlockStack>
