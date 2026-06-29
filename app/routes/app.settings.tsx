@@ -610,16 +610,6 @@ export default function SettingsRoute() {
                   />
 
                   <TextField
-                    label="Webhook URL (Zapier / Make / n8n)"
-                    name="notificationWebhookUrl"
-                    value={notificationWebhookUrl}
-                    onChange={setNotificationWebhookUrl}
-                    autoComplete="off"
-                    placeholder="https://hooks.zapier.com/hooks/catch/..."
-                    helpText="Sipariş verisi JSON olarak bu adrese POST edilir. WhatsApp, Slack, Telegram gibi kanallara Zapier üzerinden iletebilirsiniz."
-                  />
-
-                  <TextField
                     label="WhatsApp Numarası"
                     name="notificationWhatsapp"
                     value={notificationWhatsapp}
@@ -629,9 +619,9 @@ export default function SettingsRoute() {
                     helpText="Ülke kodu dahil rakam — örn. 905321234567. Admin panelden WhatsApp hattını bağladıktan sonra bu numaraya bildirim gönderilir."
                   />
 
-                  {(notificationEmail || notificationWebhookUrl || notificationWhatsapp) && (
+                  {(notificationEmail || notificationWhatsapp) && (
                     <Text as="p" variant="bodySm" tone="success">
-                      ✓ Bildirimler aktif — {[notificationEmail && "E-posta", notificationWebhookUrl && "Webhook", notificationWhatsapp && "WhatsApp"].filter(Boolean).join(" + ")}
+                      ✓ Bildirimler aktif — {[notificationEmail && "E-posta", notificationWhatsapp && "WhatsApp"].filter(Boolean).join(" + ")}
                     </Text>
                   )}
                 </BlockStack>
