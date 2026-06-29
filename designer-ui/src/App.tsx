@@ -49,6 +49,7 @@ import CanvasArea, { type CanvasAreaHandle } from '@/components/canvas/CanvasAre
 import type { Template } from '@/components/panels/TemplatesPanel';
 import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type PricingBand, type PrintAreaConfig, type SavedDesign, type Side, type SurfaceMode, type VolumeDiscountTier } from '@/types';
 import { generateId } from '@/utils/compress';
+import { evaluateRules, warnings, blockers, type RuleResult } from '@/utils/conditionalLogic';
 
 const ImagePanel = lazy(() => import('@/components/panels/ImagePanel'));
 const TextPanel = lazy(() => import('@/components/panels/TextPanel'));
@@ -61,13 +62,15 @@ type InteractionMode = 'selection' | 'navigation';
 type CanvasSelection = fabric.Object | fabric.ActiveSelection;
 
 interface ObjectState {
-  type: 'text' | 'image';
+  type: 'text' | 'image' | 'curvedText';
   color?: string;
   fontSize?: number;
   fontFamily?: string;
   isBold?: boolean;
   isItalic?: boolean;
   textAlign?: 'left' | 'center' | 'right';
+  radius?: number;
+  isReverse?: boolean;
 }
 
 interface CropRect {
@@ -918,14 +921,15 @@ function wait(ms: number) {
 async function waitForCanvasBackground(
   handle: CanvasAreaHandle | null,
   expectedSrc?: string,
-  timeoutMs = 2500,
-) {
-  if (!handle || !expectedSrc) return;
+  timeoutMs = 8000,
+): Promise<boolean> {
+  if (!handle || !expectedSrc) return true;
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
-    if (handle.isBackgroundReady(expectedSrc)) return;
+    if (handle.isBackgroundReady(expectedSrc)) return true;
     await wait(50);
   }
+  return false;
 }
 
 function isDataImageUrl(value: unknown): value is string {
@@ -1035,7 +1039,9 @@ export default function App() {
   const [personalization, setPersonalization] = useState<PersonalizationConfig>(defaultPersonalization);
   const [canvasRevisions, setCanvasRevisions] = useState({ front: 0, back: 0 });
   const [shopTemplates, setShopTemplates] = useState<import('@/types').ShopTemplate[]>([]);
+  const [globalCliparts, setGlobalCliparts] = useState<import('@/components/panels/TemplatesPanel').GlobalClipart[]>([]);
   const [selectedColor, setSelectedColor] = useState('');
+  const [activeRuleResults, setActiveRuleResults] = useState<RuleResult[]>([]);
   const [isCartLoading, setIsCartLoading] = useState(false);
   const [showSizeErrorModal, setShowSizeErrorModal] = useState(false);
   const [showMinQtyErrorModal, setShowMinQtyErrorModal] = useState(false);
@@ -1214,6 +1220,13 @@ export default function App() {
         .catch(() => {});
     };
 
+    fetch(`${appUrl}/api/cliparts`)
+      .then((r) => r.json())
+      .then((data: { cliparts?: import('@/components/panels/TemplatesPanel').GlobalClipart[] }) => {
+        if (Array.isArray(data.cliparts)) setGlobalCliparts(data.cliparts);
+      })
+      .catch(() => {});
+
     const handleShopInit = (event: MessageEvent) => {
       const payload = event.data;
       if (!payload || payload.type !== 'SHOP_INIT' || !payload.shop) return;
@@ -1330,6 +1343,32 @@ export default function App() {
       ...config,
       ...(mockup.front ? { frontImage: mockup.front } : {}),
       ...(mockup.back ? { backImage: mockup.back } : {}),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedColor, personalization.variantMockups]);
+
+  // Koşullu kuralları değerlendir: renk veya varyant değişince
+  useEffect(() => {
+    const results = evaluateRules(personalization.conditionalRules, {
+      selectedColor,
+      selectedVariant: config?.selectedVariant as { selectedOptions?: { name: string; value: string }[] } | null,
+    });
+    setActiveRuleResults(results);
+    // Sadece uyarıları toast olarak göster (checkout engeli checkout sırasında kontrol edilir)
+    warnings(results).forEach((r) => showToast(r.message, 'warning'));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedColor, config?.selectedVariant, personalization.conditionalRules]);
+
+  // Renk değişince mockup görsellerini tarayıcı cache'ine önceden yükle.
+  // Sepete ekle anında görsel henüz yüklenmemişse hatalı (eski) arka planla
+  // export yapılmasını önler.
+  useEffect(() => {
+    if (!selectedColor) return;
+    const mockup = colorMockupFor(personalization, selectedColor);
+    [mockup?.front, mockup?.back].filter(Boolean).forEach((src) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = src!;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedColor, personalization.variantMockups]);
@@ -1462,6 +1501,18 @@ export default function App() {
         isItalic: text.fontStyle === 'italic',
         textAlign: (text.textAlign as 'left' | 'center' | 'right') ?? 'center',
       });
+    } else if (obj.type === 'curvedText') {
+      const c = obj as unknown as import('@/utils/curvedText').CurvedText;
+      setObjState({
+        type: 'curvedText',
+        color: c.fill ?? '#111827',
+        fontSize: c.fontSize ?? 36,
+        fontFamily: c.fontFamily ?? 'Inter',
+        isBold: c.fontWeight === 'bold',
+        isItalic: c.fontStyle === 'italic',
+        radius: c.radius ?? 100,
+        isReverse: c.reverse ?? false,
+      });
     } else {
       setObjState({ type: 'image' });
     }
@@ -1522,6 +1573,26 @@ export default function App() {
         textAlign: 'center',
       });
     }
+    trackDesignActivity('text');
+    setTextDraft('');
+    setIsEditingText(false);
+    syncLayers();
+    setActiveTab(null);
+  };
+
+  const handleSubmitCurvedText = () => {
+    const value = textDraft.trim();
+    if (!value) return;
+    const canvasHandle = getActiveCanvasHandle();
+    const cv = canvasHandle?.getCanvas();
+    if (!cv) return;
+    setInteractionMode('selection');
+    cv.selection = true;
+    canvasHandle?.addCurvedText(value, {
+      fontSize: 36,
+      fontFamily: 'Inter',
+      fill: '#111827',
+    });
     trackDesignActivity('text');
     setTextDraft('');
     setIsEditingText(false);
@@ -1631,6 +1702,13 @@ export default function App() {
   };
 
   const handleAddToCart = async () => {
+    // Koşullu mantık: checkout engelleyici kuralları kontrol et
+    const checkoutBlockers = blockers(activeRuleResults);
+    if (checkoutBlockers.length > 0) {
+      showToast(checkoutBlockers[0].message, 'error');
+      return;
+    }
+
     const frontHas = Boolean(frontCanvasRef.current?.getCanvas()?.getObjects().length);
     const backHas = Boolean(backCanvasRef.current?.getCanvas()?.getObjects().length);
     const resolvedSide = frontHas && backHas ? 'double' : backHas ? 'back' : 'front';
@@ -1682,10 +1760,11 @@ export default function App() {
         setConfig(resolvedMockupConfig);
         await wait(0);
       }
-      await Promise.all([
-        frontHas ? waitForCanvasBackground(frontCanvasRef.current, resolvedMockupConfig?.frontImage) : Promise.resolve(),
-        backHas ? waitForCanvasBackground(backCanvasRef.current, resolvedMockupConfig?.backImage) : Promise.resolve(),
+      const [frontBgReady, backBgReady] = await Promise.all([
+        frontHas ? waitForCanvasBackground(frontCanvasRef.current, resolvedMockupConfig?.frontImage) : Promise.resolve(true),
+        backHas ? waitForCanvasBackground(backCanvasRef.current, resolvedMockupConfig?.backImage) : Promise.resolve(true),
       ]);
+      const previewIssue = !frontBgReady || !backBgReady;
 
       // Export canvas: 3x preview (1440px+) + print at 300 DPI
       const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(3) ?? '') : '';
@@ -1735,6 +1814,7 @@ export default function App() {
           backPreviewUrl,
           frontPrintUrl,
           backPrintUrl,
+          previewIssue: previewIssue || undefined,
         }),
       }).then((r) => r.json());
 
@@ -1980,6 +2060,22 @@ export default function App() {
     updateToolbarPosition(text);
   };
 
+  const updateCurvedTextProp = (props: Partial<ObjectState>) => {
+    const cv = getActiveCanvasHandle()?.getCanvas();
+    if (!cv || !selectedObj || selectedObj.type !== 'curvedText') return;
+    const c = selectedObj as unknown as import('@/utils/curvedText').CurvedText;
+    if (props.color !== undefined) c.fill = props.color;
+    if (props.isBold !== undefined) c.fontWeight = props.isBold ? 'bold' : 'normal';
+    if (props.isItalic !== undefined) c.fontStyle = props.isItalic ? 'italic' : 'normal';
+    if (props.fontFamily !== undefined) c.fontFamily = props.fontFamily;
+    if (props.fontSize !== undefined) { c.fontSize = props.fontSize; c._refreshBounds(); selectedObj.setCoords(); }
+    if (props.radius !== undefined) { c.radius = props.radius; c._refreshBounds(); selectedObj.setCoords(); }
+    if (props.isReverse !== undefined) c.reverse = props.isReverse;
+    setObjState((prev) => (prev ? { ...prev, ...props } : null));
+    cv.fire('object:modified', { target: selectedObj });
+    cv.renderAll();
+  };
+
   const centerSelectedObject = () => {
     const cv = getActiveCanvasHandle()?.getCanvas();
     const obj = cv?.getActiveObject();
@@ -2012,7 +2108,14 @@ export default function App() {
   };
 
   const editText = () => {
-    if (!selectedObj || (selectedObj.type !== 'text' && selectedObj.type !== 'i-text' && selectedObj.type !== 'textbox')) return;
+    if (!selectedObj) return;
+    if (selectedObj.type === 'curvedText') {
+      setTextDraft((selectedObj as unknown as { text: string }).text ?? '');
+      setIsEditingText(false); // curved text uses PropertiesPanel for editing
+      setActiveTab('text');
+      return;
+    }
+    if (selectedObj.type !== 'text' && selectedObj.type !== 'i-text' && selectedObj.type !== 'textbox') return;
     setTextDraft((selectedObj as fabric.Text).text ?? '');
     setIsEditingText(true);
     setActiveTab('text');
@@ -2968,7 +3071,7 @@ export default function App() {
                         </div>
                       ) : (
                         reversedLayers.map((obj, index) => {
-                          const isText = obj.type === 'text' || obj.type === 'i-text';
+                          const isText = obj.type === 'text' || obj.type === 'i-text' || obj.type === 'curvedText';
                           const activeObject = getActiveCanvasHandle()?.getCanvas()?.getActiveObject();
                           return (
                             <div
@@ -3029,7 +3132,9 @@ export default function App() {
                       <TemplatesPanel
                         onApply={handleApplyTemplate}
                         onAddImage={handleAddImage}
+                        onAddClipart={(url) => getActiveCanvasHandle()?.addSVGClipart(url)}
                         shopTemplates={shopTemplates}
+                        globalCliparts={globalCliparts}
                         locale={config?.locale}
                       />
                     </Suspense>
@@ -3176,6 +3281,16 @@ export default function App() {
                         <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">{t.toolbarCenter}</span>
                       </button>
 
+                      {/* ⌒ Kavisli Yap */}
+                      <button
+                        onClick={() => { getActiveCanvasHandle()?.convertSelectedToCurved(); }}
+                        className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-purple-50"
+                        title="Kavisli yazıya çevir"
+                      >
+                        <span className="text-base leading-none text-gray-400 group-hover:text-purple-500">⌒</span>
+                        <span className="text-[9px] font-bold text-gray-400 group-hover:text-purple-500">Kavisli</span>
+                      </button>
+
                     </div>
 
                     {/* Color swatches — inline, below grid, only when showTextColorPalette */}
@@ -3204,6 +3319,138 @@ export default function App() {
                         </label>
                       </div>
                     )}
+                    </div>
+                  ) : objState?.type === 'curvedText' ? (
+                    <div className="grid grid-cols-6 gap-1 p-2">
+                      {/* Renk */}
+                      <button
+                        type="button"
+                        onClick={() => setShowTextColorPalette((prev) => !prev)}
+                        className={cn('flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50', showTextColorPalette ? 'bg-blue-50/70' : '')}
+                      >
+                        <div className="h-5 w-5 rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: objState.color }} />
+                        <span className="text-[9px] font-bold text-gray-500">{t.colorLabel}</span>
+                      </button>
+                      {/* Düz Yap */}
+                      <button
+                        onClick={() => { getActiveCanvasHandle()?.convertSelectedToFlat(); }}
+                        className="flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
+                        title="Düz yazıya çevir"
+                      >
+                        <span className="text-base font-bold leading-none text-gray-500">| T</span>
+                        <span className="text-[9px] font-bold text-gray-500">Düz</span>
+                      </button>
+                      {/* Bold */}
+                      <button
+                        onClick={() => updateCurvedTextProp({ isBold: !objState.isBold })}
+                        className={cn('flex flex-col items-center justify-center rounded-xl py-2 transition-colors', objState.isBold ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50')}
+                      >
+                        <span className="text-base font-black leading-none">B</span>
+                      </button>
+                      {/* Italic */}
+                      <button
+                        onClick={() => updateCurvedTextProp({ isItalic: !objState.isItalic })}
+                        className={cn('flex flex-col items-center justify-center rounded-xl py-2 transition-colors', objState.isItalic ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50')}
+                      >
+                        <span className="text-base font-bold italic leading-none">I</span>
+                      </button>
+                      {/* Layer */}
+                      <button
+                        onClick={toggleLayerOrder}
+                        className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
+                      >
+                        <Layers className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
+                        <span className="text-[9px] font-bold uppercase text-gray-500 group-hover:text-blue-500">
+                          {(() => {
+                            const objects = getActiveCanvasHandle()?.getCanvas()?.getObjects() ?? [];
+                            return objects.indexOf(selectedObj) === objects.length - 1 ? t.toolbarBack : t.toolbarFront;
+                          })()}
+                        </span>
+                      </button>
+                      {/* Delete */}
+                      <button
+                        onClick={deleteSelected}
+                        className="flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-400" />
+                        <span className="text-[9px] font-bold text-red-400">{t.toolbarRemove}</span>
+                      </button>
+
+                      {/* Row 2: Font Size | Font | Radius | ⌒⌣ toggle | Center */}
+                      <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl bg-gray-50 p-1">
+                        <input
+                          type="number" min={8} max={80}
+                          value={objState.fontSize ?? 36}
+                          onChange={(e) => updateCurvedTextProp({ fontSize: Number(e.target.value) || 36 })}
+                          className="w-full rounded-md border-0 bg-transparent text-center text-xs font-bold focus:outline-none"
+                        />
+                        <span className="text-[9px] font-bold text-gray-400">Boyut</span>
+                      </div>
+                      <div className="group relative col-span-2 flex items-center justify-center rounded-xl bg-gray-50 p-1">
+                        <select
+                          value={objState.fontFamily ?? 'Inter'}
+                          onChange={(e) => updateCurvedTextProp({ fontFamily: e.target.value })}
+                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                        >
+                          {TOOLBAR_FONTS.map((font) => (
+                            <option key={font} value={font}>{font}</option>
+                          ))}
+                        </select>
+                        <div className="flex items-center gap-1 text-[11px] font-bold text-gray-700">
+                          <span className="max-w-[52px] truncate">{objState.fontFamily ?? 'Inter'}</span>
+                          <ChevronDown className="h-3 w-3 shrink-0 text-gray-400" />
+                        </div>
+                      </div>
+                      {/* ⌒ / ⌣ arc toggle */}
+                      <div className="flex items-center justify-center gap-0.5 rounded-xl bg-gray-50 p-1">
+                        <button
+                          onClick={() => updateCurvedTextProp({ isReverse: false })}
+                          className={cn('flex-1 rounded-lg py-1 text-sm transition-colors', !objState.isReverse ? 'bg-white font-bold text-blue-600 shadow-sm' : 'text-gray-400')}
+                          title="Üst yay"
+                        >⌒</button>
+                        <button
+                          onClick={() => updateCurvedTextProp({ isReverse: true })}
+                          className={cn('flex-1 rounded-lg py-1 text-sm transition-colors', objState.isReverse ? 'bg-white font-bold text-blue-600 shadow-sm' : 'text-gray-400')}
+                          title="Alt yay"
+                        >⌣</button>
+                      </div>
+                      {/* Radius */}
+                      <div className="col-span-2 flex flex-col items-center justify-center rounded-xl bg-gray-50 px-2 py-1">
+                        <input
+                          type="range" min={40} max={240}
+                          value={objState.radius ?? 100}
+                          onChange={(e) => updateCurvedTextProp({ radius: Number(e.target.value) })}
+                          className="w-full"
+                        />
+                        <span className="text-[9px] font-bold text-gray-400">Kavis {objState.radius ?? 100}</span>
+                      </div>
+
+                      {/* Color swatches */}
+                      {showTextColorPalette && (
+                        <div className="col-span-6 flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-2">
+                          {TEXT_COLOR_SWATCHES.map((color) => {
+                            const isActive = (objState.color ?? '#111827').toLowerCase() === color.toLowerCase();
+                            return (
+                              <button
+                                key={color}
+                                type="button"
+                                onClick={() => updateCurvedTextProp({ color })}
+                                className={cn('h-6 w-6 rounded-full border-2 transition-transform active:scale-90', isActive ? 'border-blue-500 shadow-md scale-110' : 'border-white shadow-sm')}
+                                style={{ backgroundColor: color }}
+                              />
+                            );
+                          })}
+                          <label className="flex h-6 cursor-pointer items-center gap-1 rounded-full border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-500 shadow-sm">
+                            Özel
+                            <input
+                              type="color"
+                              value={colorInputValue(objState.color)}
+                              onChange={(e) => updateCurvedTextProp({ color: e.target.value })}
+                              className="sr-only"
+                            />
+                          </label>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div>

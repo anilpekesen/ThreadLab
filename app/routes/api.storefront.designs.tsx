@@ -30,6 +30,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     backPreviewUrl: typeof b.backPreviewUrl === "string" ? b.backPreviewUrl : undefined,
     frontPrintUrl: typeof b.frontPrintUrl === "string" ? b.frontPrintUrl : undefined,
     backPrintUrl: typeof b.backPrintUrl === "string" ? b.backPrintUrl : undefined,
+    previewIssue: b.previewIssue === true,
   });
 
   await trackAnalyticsEvent({

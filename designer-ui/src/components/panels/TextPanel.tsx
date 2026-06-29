@@ -29,6 +29,14 @@ export default function TextPanel({ value, onChange, onSubmit, isEditing = false
         {isEditing ? <RefreshCw className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
         <span>{isEditing ? t.btnUpdateText : `+ ${t.textAdd}`}</span>
       </button>
+
+      {!isEditing && (
+        <p className="text-center text-xs text-gray-400">
+          {locale === 'tr' || !locale
+            ? 'Yazıyı ekledikten sonra kavisli yapmak için ⌒ butonuna bas'
+            : 'After adding text, press ⌒ in the toolbar to curve it'}
+        </p>
+      )}
     </div>
   );
 }

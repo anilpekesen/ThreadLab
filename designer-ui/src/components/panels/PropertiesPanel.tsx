@@ -3,6 +3,7 @@ import { fabric } from 'fabric';
 import { GOOGLE_FONTS, FILTER_PRESETS } from '@/types';
 import type { FilterPreset } from '@/types';
 import { applyFilterPreset, applyAdjustments } from '@/utils/filters';
+import type { CurvedText } from '@/utils/curvedText';
 
 interface Props {
   selectedObject: fabric.Object | null;
@@ -16,6 +17,7 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterPreset>('original');
 
   const isText = selectedObject instanceof fabric.IText || selectedObject instanceof fabric.Text || selectedObject instanceof fabric.Textbox;
+  const isCurvedText = (selectedObject as { type?: string } | null)?.type === 'curvedText';
   const isImage = selectedObject instanceof fabric.Image;
 
   useEffect(() => {
@@ -23,11 +25,24 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
   }, [selectedObject]);
 
   const getTextObj = () => selectedObject as fabric.IText;
+  const getCurved = () => selectedObject as unknown as CurvedText;
 
   const setTextProp = useCallback((prop: string, value: unknown) => {
     if (!selectedObject) return;
     (selectedObject as fabric.IText).set(prop as keyof fabric.IText, value as never);
     selectedObject.canvas?.renderAll();
+    onChanged();
+  }, [selectedObject, onChanged]);
+
+  const setCurvedProp = useCallback((prop: string, value: unknown) => {
+    if (!selectedObject) return;
+    (selectedObject as unknown as Record<string, unknown>)[prop] = value;
+    // Refresh bounding box whenever text, radius or fontSize changes
+    if (prop === 'radius' || prop === 'fontSize' || prop === 'text') {
+      (selectedObject as unknown as CurvedText)._refreshBounds();
+      selectedObject.setCoords();
+    }
+    selectedObject.canvas?.requestRenderAll();
     onChanged();
   }, [selectedObject, onChanged]);
 
@@ -94,7 +109,7 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
         </div>
       </Section>
 
-      {/* Text properties */}
+      {/* Regular text properties */}
       {isText && (
         <>
           <Section title="Yazı Stili">
@@ -138,6 +153,91 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
                 onClick={() => setTextProp('underline', !getTextObj().underline)}
                 className={`flex-1 btn-sm underline ${getTextObj().underline ? 'bg-accent' : ''}`}
               >U</button>
+            </div>
+          </Section>
+        </>
+      )}
+
+      {/* Curved text properties */}
+      {isCurvedText && (
+        <>
+          <Section title="Kavisli Yazı">
+            <Label>Metin</Label>
+            <input
+              type="text"
+              value={getCurved().text}
+              onChange={(e) => setCurvedProp('text', e.target.value)}
+              className="w-full bg-zinc-800 border border-border rounded p-1.5 text-sm focus:outline-none focus:border-accent"
+            />
+
+            <Label>Yay Yarıçapı: {getCurved().radius}px</Label>
+            <input
+              type="range" min={40} max={260}
+              value={getCurved().radius}
+              onChange={(e) => setCurvedProp('radius', Number(e.target.value))}
+              className="w-full"
+            />
+
+            <Label>Konum</Label>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setCurvedProp('reverse', false)}
+                className={`flex-1 btn-sm ${!getCurved().reverse ? 'bg-accent' : ''}`}
+                title="Üst Yay"
+              >⌒ Üst</button>
+              <button
+                onClick={() => setCurvedProp('reverse', true)}
+                className={`flex-1 btn-sm ${getCurved().reverse ? 'bg-accent' : ''}`}
+                title="Alt Yay"
+              >⌣ Alt</button>
+            </div>
+          </Section>
+
+          <Section title="Yazı Stili">
+            <Label>Font</Label>
+            <select
+              value={getCurved().fontFamily ?? 'Inter'}
+              onChange={(e) => setCurvedProp('fontFamily', e.target.value)}
+              className="w-full bg-zinc-800 border border-border rounded p-1.5 text-sm focus:outline-none focus:border-accent"
+            >
+              {GOOGLE_FONTS.map((f) => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
+            </select>
+
+            <Label>Boyut: {getCurved().fontSize ?? 36}px</Label>
+            <input
+              type="range" min={8} max={80}
+              value={getCurved().fontSize ?? 36}
+              onChange={(e) => setCurvedProp('fontSize', Number(e.target.value))}
+              className="w-full"
+            />
+
+            <Label>Karakter Aralığı: {getCurved().charSpacing ?? 0}px</Label>
+            <input
+              type="range" min={-5} max={30}
+              value={getCurved().charSpacing ?? 0}
+              onChange={(e) => setCurvedProp('charSpacing', Number(e.target.value))}
+              className="w-full"
+            />
+
+            <div className="flex gap-2 items-center">
+              <Label>Renk</Label>
+              <input
+                type="color"
+                value={getCurved().fill ?? '#111827'}
+                onChange={(e) => setCurvedProp('fill', e.target.value)}
+                className="w-8 h-7 rounded cursor-pointer border border-border bg-transparent"
+              />
+            </div>
+
+            <div className="flex gap-1 mt-1">
+              <button
+                onClick={() => setCurvedProp('fontWeight', getCurved().fontWeight === 'bold' ? 'normal' : 'bold')}
+                className={`flex-1 btn-sm font-bold ${getCurved().fontWeight === 'bold' ? 'bg-accent' : ''}`}
+              >B</button>
+              <button
+                onClick={() => setCurvedProp('fontStyle', getCurved().fontStyle === 'italic' ? 'normal' : 'italic')}
+                className={`flex-1 btn-sm italic ${getCurved().fontStyle === 'italic' ? 'bg-accent' : ''}`}
+              >I</button>
             </div>
           </Section>
         </>

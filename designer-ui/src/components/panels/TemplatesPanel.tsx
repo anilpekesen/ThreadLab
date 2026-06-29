@@ -2,6 +2,244 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { fabric } from 'fabric';
 import type { ShopTemplate } from '@/types';
 
+export interface GlobalClipart {
+  id: string;
+  name: string;
+  category: string;
+  imageUrl: string;
+}
+
+interface ClipartShape {
+  id: string;
+  label: string;
+  category: 'sekil' | 'cerceve' | 'sembol';
+  emoji: string;
+  build: (cv: fabric.Canvas) => void;
+}
+
+function starPoints(outerR: number, innerR: number, n: number) {
+  const pts = [];
+  for (let i = 0; i < 2 * n; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = (Math.PI / n) * i - Math.PI / 2;
+    pts.push({ x: r * Math.cos(angle), y: r * Math.sin(angle) });
+  }
+  return pts;
+}
+
+function polyPoints(n: number, r: number) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const angle = (2 * Math.PI / n) * i - Math.PI / 2;
+    pts.push({ x: r * Math.cos(angle), y: r * Math.sin(angle) });
+  }
+  return pts;
+}
+
+const clipartCenter = (cv: fabric.Canvas) => ({ x: cv.width! / 2, y: cv.height! / 2 });
+
+const CLIPART_SHAPES: ClipartShape[] = [
+  {
+    id: 'star5',
+    label: 'Yıldız',
+    category: 'sekil',
+    emoji: '⭐',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const star = new fabric.Polygon(starPoints(80, 34, 5).map(p => ({ x: x + p.x, y: y + p.y })), {
+        fill: '#facc15', originX: 'center', originY: 'center',
+      });
+      cv.add(star); cv.setActiveObject(star); cv.renderAll();
+    },
+  },
+  {
+    id: 'heart',
+    label: 'Kalp',
+    category: 'sekil',
+    emoji: '❤️',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const heart = new fabric.Path(
+        'M 0,-40 C -5,-55 -40,-55 -40,-25 C -40,5 0,40 0,50 C 0,40 40,5 40,-25 C 40,-55 5,-55 0,-40 Z',
+        { left: x, top: y, originX: 'center', originY: 'center', fill: '#ef4444' },
+      );
+      cv.add(heart); cv.setActiveObject(heart); cv.renderAll();
+    },
+  },
+  {
+    id: 'arrow-right',
+    label: 'Ok →',
+    category: 'sekil',
+    emoji: '➡️',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const arrow = new fabric.Path(
+        'M -60,-20 L 10,-20 L 10,-45 L 60,0 L 10,45 L 10,20 L -60,20 Z',
+        { left: x, top: y, originX: 'center', originY: 'center', fill: '#3b82f6' },
+      );
+      cv.add(arrow); cv.setActiveObject(arrow); cv.renderAll();
+    },
+  },
+  {
+    id: 'lightning',
+    label: 'Şimşek',
+    category: 'sekil',
+    emoji: '⚡',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const bolt = new fabric.Path(
+        'M 15,-60 L -20,0 L 10,0 L -15,60 L 40,-10 L 10,-10 L 40,-60 Z',
+        { left: x, top: y, originX: 'center', originY: 'center', fill: '#f59e0b' },
+      );
+      cv.add(bolt); cv.setActiveObject(bolt); cv.renderAll();
+    },
+  },
+  {
+    id: 'crown',
+    label: 'Taç',
+    category: 'sekil',
+    emoji: '👑',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const crown = new fabric.Path(
+        'M -60,30 L -60,-10 L -30,20 L 0,-50 L 30,20 L 60,-10 L 60,30 Z',
+        { left: x, top: y, originX: 'center', originY: 'center', fill: '#fbbf24' },
+      );
+      cv.add(crown); cv.setActiveObject(crown); cv.renderAll();
+    },
+  },
+  {
+    id: 'diamond',
+    label: 'Elmas',
+    category: 'sekil',
+    emoji: '💎',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const diam = new fabric.Polygon(
+        [{ x: x, y: y - 70 }, { x: x + 50, y: y - 10 }, { x: x, y: y + 70 }, { x: x - 50, y: y - 10 }],
+        { fill: '#60a5fa', originX: 'center', originY: 'center' },
+      );
+      cv.add(diam); cv.setActiveObject(diam); cv.renderAll();
+    },
+  },
+  {
+    id: 'hexagon',
+    label: 'Altıgen',
+    category: 'sekil',
+    emoji: '⬡',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const hex = new fabric.Polygon(polyPoints(6, 70).map(p => ({ x: x + p.x, y: y + p.y })), {
+        fill: '#8b5cf6', originX: 'center', originY: 'center',
+      });
+      cv.add(hex); cv.setActiveObject(hex); cv.renderAll();
+    },
+  },
+  {
+    id: 'star8',
+    label: 'Rozet',
+    category: 'sekil',
+    emoji: '✴️',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const star = new fabric.Polygon(starPoints(75, 45, 8).map(p => ({ x: x + p.x, y: y + p.y })), {
+        fill: '#10b981', originX: 'center', originY: 'center',
+      });
+      cv.add(star); cv.setActiveObject(star); cv.renderAll();
+    },
+  },
+  {
+    id: 'circle-frame',
+    label: 'Daire Çerçeve',
+    category: 'cerceve',
+    emoji: '⭕',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const c = new fabric.Circle({
+        left: x, top: y, originX: 'center', originY: 'center',
+        radius: 70, fill: 'transparent', stroke: '#111827', strokeWidth: 6,
+      });
+      cv.add(c); cv.setActiveObject(c); cv.renderAll();
+    },
+  },
+  {
+    id: 'rect-frame',
+    label: 'Kare Çerçeve',
+    category: 'cerceve',
+    emoji: '⬛',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const r = new fabric.Rect({
+        left: x, top: y, originX: 'center', originY: 'center',
+        width: 140, height: 140, fill: 'transparent', stroke: '#111827', strokeWidth: 6, rx: 6,
+      });
+      cv.add(r); cv.setActiveObject(r); cv.renderAll();
+    },
+  },
+  {
+    id: 'double-circle',
+    label: 'Çift Daire',
+    category: 'cerceve',
+    emoji: '🔵',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const outer = new fabric.Circle({ left: x, top: y, originX: 'center', originY: 'center', radius: 80, fill: 'transparent', stroke: '#1e40af', strokeWidth: 4 });
+      const inner = new fabric.Circle({ left: x, top: y, originX: 'center', originY: 'center', radius: 60, fill: 'transparent', stroke: '#1e40af', strokeWidth: 2 });
+      cv.add(outer); cv.add(inner); cv.setActiveObject(outer); cv.renderAll();
+    },
+  },
+  {
+    id: 'moon-star',
+    label: 'Ay Yıldız',
+    category: 'sembol',
+    emoji: '☪️',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const moon = new fabric.Path(
+        'M -30,-60 C -60,-60 -80,-30 -80,0 C -80,30 -60,60 -30,60 C -10,60 5,50 15,35 C 0,38 -15,35 -25,25 C -45,10 -45,-10 -25,-25 C -15,-35 0,-38 15,-35 C 5,-50 -10,-60 -30,-60 Z',
+        { left: x - 10, top: y, originX: 'center', originY: 'center', fill: '#dc2626' },
+      );
+      const star = new fabric.Polygon(starPoints(25, 11, 5).map(p => ({ x: x + 40 + p.x, y: y - 20 + p.y })), { fill: '#dc2626' });
+      cv.add(moon); cv.add(star); cv.setActiveObject(moon); cv.renderAll();
+    },
+  },
+  {
+    id: 'infinity',
+    label: 'Sonsuzluk',
+    category: 'sembol',
+    emoji: '∞',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const inf = new fabric.IText('∞', {
+        left: x, top: y, originX: 'center', originY: 'center',
+        fontSize: 110, fill: '#7c3aed', fontFamily: 'Georgia',
+      });
+      cv.add(inf); cv.setActiveObject(inf); cv.renderAll();
+    },
+  },
+  {
+    id: 'peace',
+    label: 'Barış',
+    category: 'sembol',
+    emoji: '☮️',
+    build: (cv) => {
+      const { x, y } = clipartCenter(cv);
+      const circle = new fabric.Circle({ left: x, top: y, originX: 'center', originY: 'center', radius: 70, fill: 'transparent', stroke: '#059669', strokeWidth: 6 });
+      const vert = new fabric.Rect({ left: x, top: y, originX: 'center', originY: 'center', width: 6, height: 140, fill: '#059669' });
+      const left = new fabric.Rect({
+        left: x - 25, top: y + 32, originX: 'center', originY: 'center',
+        width: 6, height: 70, fill: '#059669', angle: -45,
+      });
+      const right = new fabric.Rect({
+        left: x + 25, top: y + 32, originX: 'center', originY: 'center',
+        width: 6, height: 70, fill: '#059669', angle: 45,
+      });
+      cv.add(circle); cv.add(vert); cv.add(left); cv.add(right);
+      cv.setActiveObject(circle); cv.renderAll();
+    },
+  },
+];
+
 interface Template {
   id: string;
   label: string;
@@ -908,17 +1146,27 @@ const TEXT_TEMPLATES: Template[] = [
   },
 ];
 
+const CLIPART_CAT_LABELS: Record<string, { tr: string; en: string }> = {
+  sekil:   { tr: 'Şekil',    en: 'Shape' },
+  cerceve: { tr: 'Çerçeve',  en: 'Frame' },
+  sembol:  { tr: 'Sembol',   en: 'Symbol' },
+};
+
 interface Props {
   onApply: (tpl: Template) => void;
   onAddImage: (url: string, template?: ShopTemplate) => void;
+  onAddClipart?: (url: string) => void;
   shopTemplates?: ShopTemplate[];
+  globalCliparts?: GlobalClipart[];
   locale?: string;
 }
 
-export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = [], locale }: Props) {
+export default function TemplatesPanel({ onApply, onAddImage, onAddClipart, shopTemplates = [], globalCliparts = [], locale }: Props) {
   useTemplateFonts();
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeTextCategory, setActiveTextCategory] = useState('all');
+  const [activeClipartCategory, setActiveClipartCategory] = useState<'all' | 'sekil' | 'cerceve' | 'sembol'>('all');
+  const [activeGlobalCategory, setActiveGlobalCategory] = useState('all');
   const hasShopTemplates = shopTemplates.length > 0;
   const isTurkish = !locale || locale.toLowerCase().startsWith('tr');
   const categoryLabel = (category: { label: string; labelEn?: string }) =>
@@ -1083,6 +1331,118 @@ export default function TemplatesPanel({ onApply, onAddImage, shopTemplates = []
           <div className="border-t border-gray-100" />
         </>
       )}
+
+      {/* ── Klipart Kütüphanesi ── */}
+      <div className="space-y-4">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">
+            {isTurkish ? 'Klipart Kütüphanesi' : 'Clipart Library'}
+          </p>
+          <p className="text-sm font-semibold text-slate-500">
+            {isTurkish ? 'Hazır şekil ve sembolleri tuvale ekle.' : 'Add ready-made shapes and symbols to the canvas.'}
+          </p>
+        </div>
+
+        {/* Hardcoded shapes */}
+        <div className="space-y-3">
+          <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+            {isTurkish ? 'Temel Şekiller' : 'Basic Shapes'}
+          </p>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {(['all', 'sekil', 'cerceve', 'sembol'] as const).map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveClipartCategory(cat)}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+                  activeClipartCategory === cat
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {cat === 'all'
+                  ? (isTurkish ? 'Tümü' : 'All')
+                  : (isTurkish ? CLIPART_CAT_LABELS[cat].tr : CLIPART_CAT_LABELS[cat].en)}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-4 gap-2 md:grid-cols-5 xl:grid-cols-6">
+            {CLIPART_SHAPES.filter(
+              (s) => activeClipartCategory === 'all' || s.category === activeClipartCategory,
+            ).map((shape) => (
+              <button
+                key={shape.id}
+                onClick={() => onApply({ id: shape.id, label: shape.label, labelEn: shape.label, category: shape.category, description: '', tone: '', preview: null, build: shape.build })}
+                title={shape.label}
+                className="group flex flex-col items-center gap-1 rounded-xl border border-emerald-100 bg-white p-2 text-center transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50/40 hover:shadow-md"
+              >
+                <span className="text-2xl leading-none">{shape.emoji}</span>
+                <span className="text-[9px] font-bold text-emerald-700 leading-tight">{shape.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Global cliparts from DB */}
+        {globalCliparts.length > 0 && (
+          <div className="space-y-3">
+            <div className="border-t border-gray-100 pt-3">
+              <p className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">
+                {isTurkish ? 'Grafik Kütüphanesi' : 'Graphic Library'}
+              </p>
+            </div>
+            {/* Category filter */}
+            {(() => {
+              const cats = Array.from(new Set(globalCliparts.map((c) => c.category)));
+              return cats.length > 1 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => setActiveGlobalCategory('all')}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${activeGlobalCategory === 'all' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                  >
+                    {isTurkish ? 'Tümü' : 'All'}
+                  </button>
+                  {cats.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setActiveGlobalCategory(cat)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${activeGlobalCategory === cat ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+            <div className="grid grid-cols-3 gap-3 md:grid-cols-4 xl:grid-cols-5">
+              {globalCliparts
+                .filter((c) => activeGlobalCategory === 'all' || c.category === activeGlobalCategory)
+                .map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      if (onAddClipart) onAddClipart(c.imageUrl);
+                      else onAddImage(c.imageUrl);
+                    }}
+                    title={c.name}
+                    className="group flex flex-col items-center gap-1.5 rounded-2xl border-2 border-emerald-200 bg-white p-2 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50/40 hover:shadow-md"
+                  >
+                    <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50 p-1">
+                      <img
+                        src={c.imageUrl.startsWith('https://assets.printlabapp.com/') ? `/api/img-proxy?url=${encodeURIComponent(c.imageUrl)}` : c.imageUrl}
+                        alt={c.name}
+                        className="h-full w-full object-contain transition-transform group-hover:scale-110"
+                        draggable={false}
+                      />
+                    </div>
+                    <span className="w-full truncate text-[10px] font-bold text-emerald-700">{c.name}</span>
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-gray-100" />
 
       {/* ── Yazı Şablonları ── */}
       <div className="space-y-4">

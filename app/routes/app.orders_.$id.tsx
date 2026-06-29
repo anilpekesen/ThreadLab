@@ -419,6 +419,20 @@ export default function OrderDetail() {
     >
       <BlockStack gap="500">
 
+        {/* Önizleme sorunu uyarısı */}
+        {(order.previewIssue || design?.previewIssue) && (
+          <Banner
+            tone="warning"
+            title={lang === "tr" ? "Önizleme görseli sorunlu olabilir" : "Preview image may be incorrect"}
+          >
+            <p>
+              {lang === "tr"
+                ? "Bu siparişin ön/arka önizleme görseli sepete eklenirken tişört arka planı tam yüklenmeden oluşturulmuş olabilir (beyaz görunüyor olabilir). Lütfen müşteri ile iletişime geçip tasarımı teyit edin."
+                : "The front/back preview image for this order may have been captured before the t-shirt background fully loaded. Please contact the customer to confirm their design."}
+            </p>
+          </Banner>
+        )}
+
         {/* Siparişteki farklı tasarımlar */}
         {productGroups.length > 1 && (
           <Card>

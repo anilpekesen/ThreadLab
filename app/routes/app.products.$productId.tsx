@@ -7,6 +7,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   Frame,
   InlineGrid,
   InlineStack,
@@ -28,7 +29,7 @@ import {
   saveProductConfig,
   saveProductPrintAreas,
 } from "~/models/product-config.server";
-import type { PrintAreaRecord, ProductConfig } from "~/models/product-config.server";
+import type { PrintAreaRecord, ProductConfig, ConditionalRule } from "~/models/product-config.server";
 
 const PREVIEW_WIDTH = 480;
 const PREVIEW_HEIGHT = 580;
@@ -747,6 +748,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   try { parsedVariantMockups = JSON.parse(variantMockupsRaw); } catch { /* ignore bad JSON */ }
   normalized.variantMockups = parsedVariantMockups;
 
+  const conditionalRulesRaw = String(form.get("conditionalRules") || "[]");
+  try { normalized.conditionalRules = JSON.parse(conditionalRulesRaw); } catch { /* ignore bad JSON */ }
+
   await saveProductConfig(shop, productId, normalized);
   await saveProductPrintAreas(shop, productId, printAreas);
   return redirect(`/app/products/${encodeURIComponent(productToken)}?saved=1`);
@@ -778,6 +782,9 @@ export default function ProductSettingsRoute() {
   const [backArea, setBackArea] = useState<AreaState>(toAreaState(printAreas, "back"));
   const [variantMockups, setVariantMockups] = useState<Record<string, { front?: string; back?: string }>>(
     config.variantMockups ?? {}
+  );
+  const [conditionalRules, setConditionalRules] = useState<ConditionalRule[]>(
+    config.conditionalRules ?? []
   );
 
   const colorOptionNames = ["renk", "color", "colour"];
@@ -1223,6 +1230,145 @@ export default function ProductSettingsRoute() {
                       </Box>
                     ))}
                   </BlockStack>
+                </BlockStack>
+              </Box>
+            </Card>
+
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="400">
+                  <InlineStack align="space-between">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">Koşullu Kurallar</Text>
+                      <Text as="p" tone="subdued">Müşteri renk/varyant seçince otomatik uyarı göster veya sepeti engelle.</Text>
+                    </BlockStack>
+                    <Button
+                      onClick={() => {
+                        const newRule: ConditionalRule = {
+                          id: `rule_${Date.now()}`,
+                          name: "Yeni Kural",
+                          enabled: true,
+                          when: { field: "color", op: "eq", value: "" },
+                          then: { action: "showWarning", message: "" },
+                        };
+                        setConditionalRules((prev) => [...prev, newRule]);
+                      }}
+                    >
+                      + Kural Ekle
+                    </Button>
+                  </InlineStack>
+
+                  <input type="hidden" name="conditionalRules" value={JSON.stringify(conditionalRules)} />
+
+                  {conditionalRules.length === 0 && (
+                    <Text as="p" tone="subdued">Henüz kural eklenmemiş.</Text>
+                  )}
+
+                  {conditionalRules.map((rule, idx) => (
+                    <Box
+                      key={rule.id}
+                      padding="300"
+                      background="bg-surface-secondary"
+                      borderRadius="200"
+                      borderWidth="025"
+                      borderColor="border"
+                    >
+                      <BlockStack gap="300">
+                        <InlineStack align="space-between">
+                          <Checkbox
+                            label={<Text as="span" variant="bodyMd" fontWeight="semibold">{rule.name || `Kural ${idx + 1}`}</Text>}
+                            checked={rule.enabled}
+                            onChange={(v) => setConditionalRules((prev) =>
+                              prev.map((r) => r.id === rule.id ? { ...r, enabled: v } : r)
+                            )}
+                          />
+                          <Button
+                            tone="critical"
+                            size="slim"
+                            onClick={() => setConditionalRules((prev) => prev.filter((r) => r.id !== rule.id))}
+                          >
+                            Sil
+                          </Button>
+                        </InlineStack>
+
+                        <TextField
+                          label="Kural Adı"
+                          value={rule.name}
+                          onChange={(v) => setConditionalRules((prev) =>
+                            prev.map((r) => r.id === rule.id ? { ...r, name: v } : r)
+                          )}
+                          autoComplete="off"
+                        />
+
+                        <InlineGrid columns={3} gap="200">
+                          <Select
+                            label="Alan"
+                            options={[
+                              { label: "Renk", value: "color" },
+                              { label: "Varyant Seçeneği", value: "variantOption" },
+                            ]}
+                            value={rule.when.field}
+                            onChange={(v) => setConditionalRules((prev) =>
+                              prev.map((r) => r.id === rule.id ? { ...r, when: { ...r.when, field: v as "color" | "variantOption" } } : r)
+                            )}
+                          />
+                          <Select
+                            label="Koşul"
+                            options={[
+                              { label: "Eşit", value: "eq" },
+                              { label: "Eşit Değil", value: "neq" },
+                              { label: "İçeriyor", value: "contains" },
+                            ]}
+                            value={rule.when.op}
+                            onChange={(v) => setConditionalRules((prev) =>
+                              prev.map((r) => r.id === rule.id ? { ...r, when: { ...r.when, op: v as "eq" | "neq" | "contains" } } : r)
+                            )}
+                          />
+                          <TextField
+                            label={rule.when.field === "variantOption" ? "Değer (ör: XL)" : "Değer (ör: Siyah)"}
+                            value={rule.when.value}
+                            onChange={(v) => setConditionalRules((prev) =>
+                              prev.map((r) => r.id === rule.id ? { ...r, when: { ...r.when, value: v } } : r)
+                            )}
+                            autoComplete="off"
+                          />
+                        </InlineGrid>
+
+                        {rule.when.field === "variantOption" && (
+                          <TextField
+                            label="Seçenek Adı (ör: Beden, Renk)"
+                            value={rule.when.optionName ?? ""}
+                            onChange={(v) => setConditionalRules((prev) =>
+                              prev.map((r) => r.id === rule.id ? { ...r, when: { ...r.when, optionName: v } } : r)
+                            )}
+                            autoComplete="off"
+                          />
+                        )}
+
+                        <InlineGrid columns={2} gap="200">
+                          <Select
+                            label="Eylem"
+                            options={[
+                              { label: "Uyarı Göster", value: "showWarning" },
+                              { label: "Sepeti Engelle", value: "blockCheckout" },
+                            ]}
+                            value={rule.then.action}
+                            onChange={(v) => setConditionalRules((prev) =>
+                              prev.map((r) => r.id === rule.id ? { ...r, then: { ...r.then, action: v as "showWarning" | "blockCheckout" } } : r)
+                            )}
+                          />
+                          <TextField
+                            label="Mesaj"
+                            value={rule.then.message}
+                            onChange={(v) => setConditionalRules((prev) =>
+                              prev.map((r) => r.id === rule.id ? { ...r, then: { ...r.then, message: v } } : r)
+                            )}
+                            autoComplete="off"
+                          />
+                        </InlineGrid>
+                      </BlockStack>
+                    </Box>
+                  ))}
                 </BlockStack>
               </Box>
             </Card>

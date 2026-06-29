@@ -17,6 +17,7 @@ export interface DesignRecord {
   backPreviewUrl?: string;
   frontPrintUrl?: string;
   backPrintUrl?: string;
+  previewIssue?: boolean;
   createdAt: string;
 }
 
@@ -51,6 +52,7 @@ type DbRow = {
   back_preview_url: string;
   front_print_url: string;
   back_print_url: string;
+  preview_issue: boolean;
   created_at: Date;
 };
 
@@ -63,6 +65,7 @@ function rowToRecord(row: DbRow): DesignRecord {
     backPreviewUrl: row.back_preview_url || undefined,
     frontPrintUrl: row.front_print_url || undefined,
     backPrintUrl: row.back_print_url || undefined,
+    previewIssue: row.preview_issue || false,
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -80,8 +83,8 @@ export async function getDesignByToken(shop: string, token: string): Promise<Des
 export async function saveDesign(shop: string, record: Omit<DesignRecord, "createdAt">): Promise<void> {
   await ensureMigrations();
   await query(
-    `INSERT INTO designs (shop, token, product_id, session_id, design_json, front_preview_url, back_preview_url, front_print_url, back_print_url)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO designs (shop, token, product_id, session_id, design_json, front_preview_url, back_preview_url, front_print_url, back_print_url, preview_issue)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT (token) DO UPDATE SET
        shop = EXCLUDED.shop,
        product_id = EXCLUDED.product_id,
@@ -90,7 +93,8 @@ export async function saveDesign(shop: string, record: Omit<DesignRecord, "creat
        front_preview_url = EXCLUDED.front_preview_url,
        back_preview_url = EXCLUDED.back_preview_url,
        front_print_url = EXCLUDED.front_print_url,
-       back_print_url = EXCLUDED.back_print_url`,
+       back_print_url = EXCLUDED.back_print_url,
+       preview_issue = EXCLUDED.preview_issue`,
     [
       shop,
       record.token,
@@ -101,6 +105,7 @@ export async function saveDesign(shop: string, record: Omit<DesignRecord, "creat
       record.backPreviewUrl ?? "",
       record.frontPrintUrl ?? "",
       record.backPrintUrl ?? "",
+      record.previewIssue ?? false,
     ],
   );
 }

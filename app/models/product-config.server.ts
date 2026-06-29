@@ -27,6 +27,18 @@ export interface VolumeDiscountTier {
   percentage: number;
 }
 
+export type RuleOperator = 'eq' | 'neq' | 'contains';
+export type RuleField = 'color' | 'variantOption';
+export type RuleAction = 'showWarning' | 'blockCheckout';
+
+export interface ConditionalRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  when: { field: RuleField; op: RuleOperator; value: string; optionName?: string; };
+  then: { action: RuleAction; message: string; };
+}
+
 export interface ProductConfig {
   isActive: boolean;
   productTitle: string;
@@ -54,6 +66,7 @@ export interface ProductConfig {
   surchargeVariantId: string;
   minOrderQuantity: number;
   variantMockups?: Record<string, { front?: string; back?: string }>;
+  conditionalRules?: ConditionalRule[];
   updatedAt?: string;
 }
 
@@ -404,6 +417,9 @@ export function normalizeProductConfig(
     surchargeVariantId: String((input as { surchargeVariantId?: unknown })?.surchargeVariantId || fallback.surchargeVariantId || ''),
     minOrderQuantity: Math.max(1, Math.floor(Number((input as { minOrderQuantity?: unknown })?.minOrderQuantity || fallback.minOrderQuantity || 1))),
     variantMockups: (input as { variantMockups?: unknown })?.variantMockups as Record<string, { front?: string; back?: string }> | undefined ?? fallback.variantMockups,
+    conditionalRules: Array.isArray((input as { conditionalRules?: unknown })?.conditionalRules)
+      ? (input as { conditionalRules: ConditionalRule[] }).conditionalRules
+      : (fallback.conditionalRules ?? []),
     updatedAt: input?.updatedAt || fallback.updatedAt,
   };
 }

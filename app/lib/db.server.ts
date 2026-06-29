@@ -571,4 +571,20 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS support_tickets_shop_status_updated
       ON support_tickets (shop, status, updated_at DESC)
   `);
+  await query(`ALTER TABLE designs ADD COLUMN IF NOT EXISTS preview_issue BOOLEAN NOT NULL DEFAULT FALSE`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS cliparts (
+      id          TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      category    TEXT NOT NULL DEFAULT 'genel',
+      image_url   TEXT NOT NULL,
+      sort_order  INT  NOT NULL DEFAULT 0,
+      is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS cliparts_category_sort
+      ON cliparts (category, sort_order ASC)
+  `);
 }

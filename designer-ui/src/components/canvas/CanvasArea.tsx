@@ -2,6 +2,9 @@ import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHand
 import { fabric } from 'fabric';
 import { useDesignerStore } from '@/store/designerStore';
 import type { PrintAreaConfig, Side } from '@/types';
+import { CurvedText, registerCurvedText } from '@/utils/curvedText';
+
+registerCurvedText();
 
 const PRINT_W = 480;
 const PRINT_H = 580;
@@ -20,7 +23,11 @@ const controlIcons = {
 
 export interface CanvasAreaHandle {
   addImageFromUrl: (url: string) => void;
+  addSVGClipart: (url: string) => void;
   addText: (text: string, opts?: Partial<fabric.ITextOptions>) => void;
+  addCurvedText: (text: string, opts?: Partial<import('@/utils/curvedText').CurvedTextOptions>) => void;
+  convertSelectedToCurved: () => void;
+  convertSelectedToFlat: () => void;
   cloneSelected: () => void;
   deleteSelected: () => void;
   undo: () => void;
@@ -244,8 +251,12 @@ function keepImageUniform(obj: fabric.Object | null | undefined) {
 
 function normalizeCanvasImages(cv: fabric.Canvas) {
   cv.getObjects().forEach((obj) => {
-    applyObjectInteractionPreset(obj);
-    lockImageProportions(obj);
+    if ((obj as { type?: string }).type === 'curvedText') {
+      applyObjectInteractionPreset(obj);
+    } else {
+      applyObjectInteractionPreset(obj);
+      lockImageProportions(obj);
+    }
   });
 }
 
@@ -574,6 +585,32 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     }, { crossOrigin: 'anonymous' });
   }, []);
 
+  const addSVGClipart = useCallback((url: string) => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const loadUrl = proxyCrossOriginUrl(url);
+    fabric.loadSVGFromURL(loadUrl, (objects, options) => {
+      if (!objects?.length || canvasRef.current !== cv || !hasLiveContext(cv)) return;
+      const group = fabric.util.groupSVGElements(objects, options);
+      const areaRect = toCanvasRect(printAreaRef.current);
+      const maxSize = Math.min(areaRect.width, areaRect.height) * 0.65;
+      const scale = maxSize / Math.max(group.width ?? 100, group.height ?? 100);
+      group.scale(scale);
+      group.set({
+        left: areaRect.left + areaRect.width / 2,
+        top: areaRect.top + areaRect.height / 2,
+        originX: 'center',
+        originY: 'center',
+      });
+      applyObjectInteractionPreset(group);
+      constrainObjectToArea(group, areaRect);
+      cv.add(group);
+      cv.setActiveObject(group);
+      onObjectSelectedRef.current(group);
+      cv.renderAll();
+    }, undefined, { crossOrigin: 'anonymous' });
+  }, []);
+
   const addText = useCallback((text: string, opts: Partial<fabric.ITextOptions> = {}) => {
     const cv = canvasRef.current;
     if (!cv) return;
@@ -590,6 +627,92 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     });
     applyObjectInteractionPreset(txt);
     constrainObjectToArea(txt, areaRect);
+    cv.add(txt);
+    cv.setActiveObject(txt);
+    onObjectSelectedRef.current(txt);
+    cv.renderAll();
+  }, []);
+
+  const addCurvedText = useCallback((text: string, opts: Partial<import('@/utils/curvedText').CurvedTextOptions> = {}) => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const areaRect = toCanvasRect(printAreaRef.current);
+    const obj = new CurvedText({
+      left: areaRect.left + areaRect.width / 2,
+      top: areaRect.top + areaRect.height / 2,
+      originX: 'center',
+      originY: 'center',
+      text,
+      radius: 100,
+      fontSize: 36,
+      fontFamily: 'Inter',
+      fill: '#111827',
+      ...opts,
+    });
+    obj._refreshBounds();
+    applyObjectInteractionPreset(obj);
+    constrainObjectToArea(obj, areaRect);
+    cv.add(obj);
+    cv.setActiveObject(obj);
+    onObjectSelectedRef.current(obj);
+    cv.renderAll();
+  }, []);
+
+  const convertSelectedToCurved = useCallback(() => {
+    const cv = canvasRef.current;
+    const obj = cv?.getActiveObject();
+    if (!cv || !obj) return;
+    if (obj.type !== 'text' && obj.type !== 'i-text' && obj.type !== 'textbox') return;
+    const t = obj as fabric.Text;
+    const curved = new CurvedText({
+      text: t.text ?? '',
+      fontSize: t.fontSize ?? 36,
+      fontFamily: t.fontFamily ?? 'Inter',
+      fill: String(t.fill ?? '#111827'),
+      fontWeight: String(t.fontWeight ?? 'normal'),
+      fontStyle: String(t.fontStyle ?? 'normal'),
+      radius: 100,
+      left: obj.left,
+      top: obj.top,
+      scaleX: obj.scaleX,
+      scaleY: obj.scaleY,
+      angle: obj.angle,
+      originX: 'center',
+      originY: 'center',
+    });
+    curved._refreshBounds();
+    cv.remove(obj);
+    applyObjectInteractionPreset(curved);
+    constrainObjectToArea(curved, toCanvasRect(printAreaRef.current));
+    cv.add(curved);
+    cv.setActiveObject(curved);
+    onObjectSelectedRef.current(curved);
+    cv.renderAll();
+  }, []);
+
+  const convertSelectedToFlat = useCallback(() => {
+    const cv = canvasRef.current;
+    const obj = cv?.getActiveObject();
+    if (!cv || !obj) return;
+    if ((obj as { type?: string }).type !== 'curvedText') return;
+    const c = obj as unknown as CurvedText;
+    const txt = new fabric.IText(c.text, {
+      left: obj.left,
+      top: obj.top,
+      scaleX: obj.scaleX,
+      scaleY: obj.scaleY,
+      angle: obj.angle,
+      originX: 'center',
+      originY: 'center',
+      fontFamily: c.fontFamily,
+      fontSize: c.fontSize,
+      fill: c.fill,
+      fontWeight: c.fontWeight as fabric.ITextOptions['fontWeight'],
+      fontStyle: c.fontStyle as fabric.ITextOptions['fontStyle'],
+      textAlign: 'center',
+    });
+    cv.remove(obj);
+    applyObjectInteractionPreset(txt);
     cv.add(txt);
     cv.setActiveObject(txt);
     onObjectSelectedRef.current(txt);
@@ -746,7 +869,11 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
 
   useImperativeHandle(ref, () => ({
     addImageFromUrl,
+    addSVGClipart,
     addText,
+    addCurvedText,
+    convertSelectedToCurved,
+    convertSelectedToFlat,
     cloneSelected,
     deleteSelected,
     undo,
@@ -759,7 +886,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     saveDesign,
     getCanvas: () => canvasRef.current,
     canvas: canvasRef.current,
-  }), [addImageFromUrl, addText, cloneSelected, deleteSelected, undo, redo, exportPng, exportPrintFile, isBackgroundReady, loadDesign, saveDesign]);
+  }), [addImageFromUrl, addSVGClipart, addText, addCurvedText, convertSelectedToCurved, convertSelectedToFlat, cloneSelected, deleteSelected, undo, redo, exportPng, exportPrintFile, isBackgroundReady, loadDesign, saveDesign]);
 
   useEffect(() => {
     const cv = canvasRef.current;

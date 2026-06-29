@@ -236,6 +236,7 @@ interface OrderGroup {
   frontPrintUrl: string;
   backPrintUrl: string;
   hasMissingSurcharge: boolean;
+  hasPreviewIssue: boolean;
   driveFolderId: string | null;
   ids: string[];
   representativeId: string;
@@ -260,6 +261,7 @@ function groupOrders(orders: Order[]): OrderGroup[] {
         frontPrintUrl: o.designFrontPrintUrl || o.productionFileUrl || "",
         backPrintUrl: o.designBackPrintUrl || "",
         hasMissingSurcharge: false,
+        hasPreviewIssue: false,
         driveFolderId: null,
         ids: [],
         representativeId: o.id,
@@ -270,6 +272,7 @@ function groupOrders(orders: Order[]): OrderGroup[] {
     g.totalQty += o.quantity ?? 1;
     g.variants.push({ id: o.id, variantTitle: o.variantTitle, quantity: o.quantity ?? 1 });
     if (o.missingSurcharge) g.hasMissingSurcharge = true;
+    if (o.previewIssue) g.hasPreviewIssue = true;
     if (o.driveFolderId && !g.driveFolderId) g.driveFolderId = o.driveFolderId;
     if ((STATUS_PRIORITY[o.productionStatus] ?? 99) < (STATUS_PRIORITY[g.status] ?? 99)) {
       g.status = o.productionStatus;
@@ -425,6 +428,9 @@ export default function Orders() {
             </Badge>
             {g.hasMissingSurcharge && (
               <Badge tone="critical">{t("orders.missingSurcharge")}</Badge>
+            )}
+            {g.hasPreviewIssue && (
+              <Badge tone="warning">{lang === "tr" ? "Önizleme sorunu" : "Preview issue"}</Badge>
             )}
             {g.driveFolderId && (
               <a

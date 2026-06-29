@@ -36,6 +36,7 @@ export interface Order {
   designBackPreviewUrl?: string;
   designFrontPrintUrl?: string;
   designBackPrintUrl?: string;
+  previewIssue?: boolean;
 }
 
 type DbRow = {
@@ -63,6 +64,7 @@ type DbRow = {
   design_back_preview_url?: string | null;
   design_front_print_url?: string | null;
   design_back_print_url?: string | null;
+  preview_issue?: boolean | null;
 };
 
 function rowToOrder(row: DbRow): Order {
@@ -91,6 +93,7 @@ function rowToOrder(row: DbRow): Order {
     designBackPreviewUrl: row.design_back_preview_url || undefined,
     designFrontPrintUrl: row.design_front_print_url || undefined,
     designBackPrintUrl: row.design_back_print_url || undefined,
+    previewIssue: row.preview_issue ?? false,
   };
 }
 
@@ -103,7 +106,8 @@ const ORDER_SELECT = `
     d.front_preview_url AS design_front_preview_url,
     d.back_preview_url  AS design_back_preview_url,
     d.front_print_url   AS design_front_print_url,
-    d.back_print_url    AS design_back_print_url
+    d.back_print_url    AS design_back_print_url,
+    d.preview_issue     AS preview_issue
   FROM orders o
   LEFT JOIN designs d ON o.shop = d.shop AND o.design_token = d.token
 `;

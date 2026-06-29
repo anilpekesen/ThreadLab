@@ -63,6 +63,18 @@ export interface PrintAreaConfig {
   realHeightMm: number;
 }
 
+export type RuleOperator = 'eq' | 'neq' | 'contains';
+export type RuleField = 'color' | 'variantOption';
+export type RuleAction = 'showWarning' | 'blockCheckout';
+
+export interface ConditionalRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  when: { field: RuleField; op: RuleOperator; value: string; optionName?: string; };
+  then: { action: RuleAction; message: string; };
+}
+
 export interface PersonalizationConfig {
   surfaceMode: SurfaceMode;
   printAreas: Record<Side, PrintAreaConfig>;
@@ -71,6 +83,7 @@ export interface PersonalizationConfig {
   surchargeVariantId: string;
   removeBgAvailable: boolean;
   variantMockups?: Record<string, { front?: string; back?: string }>;
+  conditionalRules?: ConditionalRule[];
   termsUrl?: string;
   minOrderQuantity?: number;
 }

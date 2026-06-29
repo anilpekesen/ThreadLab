@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
+import { notifyOrderPaid } from "~/lib/notify-order.server";
 import { randomBytes } from "crypto";
 import { verifyWebhookHmac } from "~/lib/shopify.server";
 import { processOrderBgRemoval } from "~/models/auto-bg-removal.server";
@@ -401,7 +402,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     console.log(`[webhook] order=${order.name} topic=${topic} token=${designToken ?? "none"} — ödeme onaylandı`);
 
     importOrderFromWebhook(shop, order)
-      .then(() => {
+      .then(async () => {
         if (designToken) {
           resetCustomerQuota(shop, designToken, order.name);
         }
@@ -410,6 +411,49 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           autoExportOrderToDrive(shop, shopifyOrderId).catch((err) =>
             console.error(`[webhook] auto-drive-export (paid) failed for order ${order.name}:`, err),
           );
+        }
+
+        // Sipariş bildirimi (e-posta / webhook)
+        try {
+          const firstItem = order.line_items?.[0];
+          const customerName =
+            [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" ") ||
+            "Misafir";
+
+          // Tasarım URL'lerini DB'den çek
+          let designFrontUrl: string | undefined;
+          let designBackUrl: string | undefined;
+          let printFrontUrl: string | undefined;
+          let printBackUrl: string | undefined;
+
+          if (shopifyOrderId) {
+            const dbOrder = await getOrderByShopifyId(shop, shopifyOrderId).catch(() => null);
+            if (dbOrder) {
+              designFrontUrl = dbOrder.designFrontPreviewUrl ?? undefined;
+              designBackUrl  = dbOrder.designBackPreviewUrl  ?? undefined;
+              printFrontUrl  = dbOrder.designFrontPrintUrl   ?? undefined;
+              printBackUrl   = dbOrder.designBackPrintUrl    ?? undefined;
+            }
+          }
+
+          await notifyOrderPaid({
+            shop,
+            orderName: order.name ?? shopifyOrderId,
+            shopifyOrderId,
+            customerName,
+            customerEmail: order.customer?.email,
+            productName: firstItem?.name ?? "Ürün",
+            variantTitle: firstItem?.variant_title ?? "",
+            quantity: firstItem?.quantity ?? 1,
+            totalPrice: firstItem?.price_set?.shop_money?.amount ?? firstItem?.price ?? "—",
+            currency: firstItem?.price_set?.shop_money?.currency_code ?? order.currency ?? "",
+            designFrontUrl,
+            designBackUrl,
+            printFrontUrl,
+            printBackUrl,
+          });
+        } catch (err) {
+          console.error(`[webhook] notify failed for order ${order.name}:`, err);
         }
       })
       .catch((err) =>
