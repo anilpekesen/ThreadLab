@@ -1,4 +1,4 @@
-const WA_URL = process.env.WA_SERVICE_URL ?? "http://127.0.0.1:3001";
+const WA_URL = process.env.WA_SERVICE_URL ?? "http://127.0.0.1:3002";
 
 export interface WAStatus {
   status: "disconnected" | "connecting" | "connected";

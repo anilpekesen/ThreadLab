@@ -11,7 +11,7 @@ const http = require("http");
 const path = require("path");
 const pino = require("pino");
 
-const PORT = process.env.WA_PORT ? parseInt(process.env.WA_PORT) : 3001;
+const PORT = process.env.WA_PORT ? parseInt(process.env.WA_PORT) : 3002;
 const SESSION_DIR = path.join(__dirname, "session");
 
 let currentQR = null;       // raw QR string from baileys
