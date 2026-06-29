@@ -1,6 +1,8 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useEffect, useRef, useState } from "react";
+import { useLoaderData, useRevalidator } from "@remix-run/react";
+import { useEffect } from "react";
+import { getWAQr, getWAStatus, logoutWhatsApp } from "~/lib/whatsapp.server";
 
 const AUTH_COOKIE = "panel_auth";
 
@@ -13,7 +15,18 @@ function isAuthed(request: Request): boolean {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!isAuthed(request)) return redirect("/admin");
-  return json({});
+  const data = await getWAQr();
+  return json(data, { headers: { "Cache-Control": "no-store" } });
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  if (!isAuthed(request)) return redirect("/admin");
+  const form = await request.formData();
+  if (form.get("intent") === "logout") {
+    await logoutWhatsApp();
+  }
+  const data = await getWAStatus();
+  return json(data);
 };
 
 type WAStatus = "disconnected" | "connecting" | "connected";
@@ -34,7 +47,7 @@ const css = `
   .wa-qr-box img{width:240px;height:240px;border-radius:8px}
   .wa-hint{font-size:13px;color:#6b7280;line-height:1.5}
   .wa-btn{display:inline-block;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:background .2s}
-  .wa-btn-red{background:#fee2e2;color:#dc2626}
+  .wa-btn-red{background:#fee2e2;color:#dc2626;cursor:pointer}
   .wa-btn-red:hover{background:#fecaca}
   .wa-btn-back{background:#e0e7ff;color:#4f46e5;text-decoration:none}
   .wa-btn-back:hover{background:#c7d2fe}
@@ -42,45 +55,24 @@ const css = `
 `;
 
 export default function AdminWhatsApp() {
-  const [status, setStatus] = useState<WAStatus>("disconnected");
-  const [qr, setQr] = useState<string | null>(null);
-  const statusRef = useRef<WAStatus>("disconnected");
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const data = useLoaderData<typeof loader>();
+  const { revalidate } = useRevalidator();
+
+  const status = data.status as WAStatus;
+  const qr = data.qr ?? null;
 
   useEffect(() => {
-    let alive = true;
-
-    async function tick() {
-      if (!alive) return;
-      try {
-        const mode = statusRef.current === "connected" ? "status" : "qr";
-        const res = await fetch(`/admin/whatsapp-qr?mode=${mode}`, { credentials: "include" });
-        if (res.ok) {
-          const data = await res.json() as { status: WAStatus; qr?: string | null };
-          statusRef.current = data.status;
-          setStatus(data.status);
-          setQr(data.qr ?? null);
-        }
-      } catch { /* network error, retry */ }
-      const delay = statusRef.current === "connected" ? 15_000 : 3_000;
-      timerRef.current = setTimeout(tick, delay);
-    }
-
-    tick();
-    return () => {
-      alive = false;
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
+    const delay = status === "connected" ? 15_000 : 3_000;
+    const timer = setTimeout(() => revalidate(), delay);
+    return () => clearTimeout(timer);
+  }, [status, qr, revalidate]);
 
   async function handleLogout() {
     if (!confirm("WhatsApp bağlantısını kesmek istediğinize emin misiniz?")) return;
     const form = new FormData();
     form.append("intent", "logout");
-    await fetch("/admin/whatsapp-qr", { method: "POST", body: form, credentials: "include" });
-    statusRef.current = "disconnected";
-    setStatus("disconnected");
-    setQr(null);
+    await fetch("/admin/whatsapp", { method: "POST", body: form, credentials: "include" });
+    revalidate();
   }
 
   const dotClass = `wa-dot ${
