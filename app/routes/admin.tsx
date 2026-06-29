@@ -878,7 +878,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
   return redirect("/admin", {
     headers: {
-      "Set-Cookie": `${AUTH_COOKIE}=${encodeURIComponent(secret)}; Path=/admin; HttpOnly; SameSite=Strict; Max-Age=${60 * 60 * 8}`,
+      "Set-Cookie": `${AUTH_COOKIE}=${encodeURIComponent(secret)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${60 * 60 * 8}`,
     },
   });
 };
