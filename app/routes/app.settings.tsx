@@ -118,35 +118,56 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Auto-register Cart Transform function; re-register if function ID changed after deploy
   let cartTransformStatus = "unknown";
   try {
-    const res = await admin.graphql(`#graphql
-      {
-        cartTransforms(first: 5) { nodes { id functionId } }
-        shopifyFunctions(first: 25) { nodes { id title apiType } }
-      }
+    // First, find the Shopify Function ID
+    const fnRes = await admin.graphql(`#graphql
+      { shopifyFunctions(first: 25) { nodes { id title apiType } } }
     `);
-    const data = await res.json() as {
+    const fnData = await fnRes.json() as {
       errors?: Array<{ message?: string }>;
-      data?: {
-        cartTransforms?: { nodes?: Array<{ id: string; functionId: string }> };
-        shopifyFunctions?: { nodes?: Array<{ id: string; title: string; apiType: string }> };
-      };
+      data?: { shopifyFunctions?: { nodes?: Array<{ id: string; title: string; apiType: string }> } };
     };
-    if (data.errors?.length) {
-      throw new Error(data.errors.map((e) => e.message).filter(Boolean).join(", "));
-    }
-    const transforms = data.data?.cartTransforms?.nodes ?? [];
-    const functions = data.data?.shopifyFunctions?.nodes ?? [];
-
+    if (fnData.errors?.length) throw new Error(fnData.errors.map((e) => e.message).filter(Boolean).join(", "));
+    const functions = fnData.data?.shopifyFunctions?.nodes ?? [];
     const cartFn = functions.find((f) =>
       f.apiType === "cart_transform" || f.apiType === "purchase.cart-transform.run"
     );
-
     if (!cartFn) {
       cartTransformStatus = "function_not_found";
     } else {
+      // Try to read existing transforms; if scope missing, skip read and just ensure registered
+      let transforms: Array<{ id: string; functionId: string }> = [];
+      try {
+        const ctRes = await admin.graphql(`#graphql
+          { cartTransforms(first: 5) { nodes { id functionId } } }
+        `);
+        const ctData = await ctRes.json() as {
+          errors?: Array<{ message?: string }>;
+          data?: { cartTransforms?: { nodes?: Array<{ id: string; functionId: string }> } };
+        };
+        if (!ctData.errors?.some((e) => e.message?.includes("read_cart_transforms"))) {
+          transforms = ctData.data?.cartTransforms?.nodes ?? [];
+        }
+      } catch { /* read_cart_transforms scope missing — skip */ }
+
       const alreadyRegistered = transforms.some((t) => t.functionId === cartFn.id);
       if (alreadyRegistered) {
         cartTransformStatus = "ok";
+      } else if (transforms.length === 0) {
+        // Can't read existing ones — just try to register (idempotent on Shopify side)
+        const regRes = await admin.graphql(`#graphql
+          mutation { cartTransformCreate(functionId: "${cartFn.id}") {
+            cartTransform { id }
+            userErrors { field message }
+          }}
+        `);
+        const regData = await regRes.json() as {
+          errors?: Array<{ message?: string }>;
+          data?: { cartTransformCreate?: { cartTransform?: { id: string }; userErrors?: Array<{ message: string }> } };
+        };
+        const regErrors = regData.data?.cartTransformCreate?.userErrors ?? [];
+        cartTransformStatus = regErrors.length
+          ? `error: ${regErrors.map((e) => e.message).join(", ")}`
+          : "ok";
       } else {
         cartTransformStatus = "stale_re_registering";
         for (const t of transforms) {
@@ -164,9 +185,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           errors?: Array<{ message?: string }>;
           data?: { cartTransformCreate?: { cartTransform?: { id: string }; userErrors?: Array<{ message: string }> } };
         };
-        if (regData.errors?.length) {
-          throw new Error(regData.errors.map((e) => e.message).filter(Boolean).join(", "));
-        }
         const regErrors = regData.data?.cartTransformCreate?.userErrors ?? [];
         cartTransformStatus = regErrors.length
           ? `error: ${regErrors.map((e) => e.message).join(", ")}`
