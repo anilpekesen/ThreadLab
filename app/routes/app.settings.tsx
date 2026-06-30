@@ -200,11 +200,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
   const appBlockHandle = "tshirt-designer";
+  const appEmbedHandle = "cart-protection";
   const newAppsSectionUrl = apiKey
     ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=newAppsSection`
     : null;
   const mainSectionUrl = apiKey
     ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${appBlockHandle}`)}&target=mainSection`
+    : null;
+  // App Embed deep link — opens theme editor directly at the App Embeds tab for this embed
+  const appEmbedUrl = apiKey
+    ? `https://${session.shop}/admin/themes/current/editor?context=apps&activateAppId=${encodeURIComponent(`${apiKey}/${appEmbedHandle}`)}`
     : null;
 
   return json({
@@ -214,6 +219,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     cartTransformStatus,
     newAppsSectionUrl,
     mainSectionUrl,
+    appEmbedUrl,
     surchargeVariantOptions,
     shop: session.shop,
     drive: driveConnection
@@ -457,7 +463,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, surchargeVariantOptions, shop, drive, gdriveConnected, gdriveError } = useLoaderData<typeof loader>();
+  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, appEmbedUrl, surchargeVariantOptions, shop, drive, gdriveConnected, gdriveError } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const { t, lang } = useTranslation();
   const isSaving = navigation.state === "submitting";
@@ -726,22 +732,54 @@ export default function SettingsRoute() {
                 <Text as="h2" variant="headingMd">{t("settings.themeTitle")}</Text>
                 <Text as="p" tone="subdued" variant="bodySm">{t("settings.themeDesc")}</Text>
               </BlockStack>
+
+              {/* Adım 1 — App Embed */}
+              <Box background="bg-fill-warning" borderRadius="200" padding="300">
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    {t("settings.embedStep0Title")}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {t("settings.embedStep0Desc")}
+                  </Text>
+                  {appEmbedUrl && (
+                    <Button url={appEmbedUrl} target="_blank" variant="primary">
+                      {t("settings.embedStep0Btn")}
+                    </Button>
+                  )}
+                  <img
+                    src="/app-embed-panel.png"
+                    alt="App Embeds panel - Baskı Ücreti Koruma toggle"
+                    style={{ maxWidth: 240, borderRadius: 8, border: "1px solid #e1e3e5", marginTop: 8 }}
+                  />
+                </BlockStack>
+              </Box>
+
+              {/* Adım 2 — App Block */}
               {(newAppsSectionUrl || mainSectionUrl) && (
-                <InlineStack gap="200">
-                  {newAppsSectionUrl && (
-                    <Button url={newAppsSectionUrl} target="_blank" variant="primary">
-                      {t("settings.addAppsSection")}
-                    </Button>
-                  )}
-                  {mainSectionUrl && (
-                    <Button url={mainSectionUrl} target="_blank">
-                      {t("settings.addToMainSection")}
-                    </Button>
-                  )}
-                </InlineStack>
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    {t("settings.blockStepTitle")}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {t("settings.blockStepDesc")}
+                  </Text>
+                  <InlineStack gap="200">
+                    {newAppsSectionUrl && (
+                      <Button url={newAppsSectionUrl} target="_blank" variant="primary">
+                        {t("settings.addAppsSection")}
+                      </Button>
+                    )}
+                    {mainSectionUrl && (
+                      <Button url={mainSectionUrl} target="_blank">
+                        {t("settings.addToMainSection")}
+                      </Button>
+                    )}
+                  </InlineStack>
+                </BlockStack>
               )}
               <img
-                src="/tema-kurulumu.png"
+                src="/designkit-block-setup.png"
                 alt="Tema kurulumu - DesignKit block settings"
                 style={{ width: "100%", borderRadius: 8, border: "1px solid #e1e3e5" }}
               />
