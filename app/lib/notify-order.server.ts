@@ -23,20 +23,21 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
   const settings = await getShopSettings(payload.shop).catch(() => null);
   if (!settings) return;
 
-  const { notificationEmail, notificationWebhookUrl, notificationWhatsapp } = settings;
+  const { notificationEmail, notificationWhatsapp } = settings;
 
   const promises: Promise<void>[] = [];
 
+  // Merchant notification (e-posta + WhatsApp)
   if (notificationEmail?.trim()) {
-    promises.push(sendOrderEmail(notificationEmail.trim(), payload));
+    promises.push(sendMerchantEmail(notificationEmail.trim(), payload));
   }
-
-  if (notificationWebhookUrl?.trim()) {
-    promises.push(sendWebhookPost(notificationWebhookUrl.trim(), payload));
-  }
-
   if (notificationWhatsapp?.trim()) {
     promises.push(sendOrderWhatsApp(notificationWhatsapp.trim(), payload));
+  }
+
+  // Customer notification — always send if customer e-posta available
+  if (payload.customerEmail?.trim()) {
+    promises.push(sendCustomerEmail(payload.customerEmail.trim(), payload));
   }
 
   if (promises.length === 0) return;
@@ -50,77 +51,111 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
   });
 }
 
-// ── E-posta ──────────────────────────────────────────────────────────
-async function sendOrderEmail(to: string, p: OrderNotificationPayload): Promise<void> {
+// ── Merchant e-postası (dosya linkleri + Shopify linki) ──────────────
+async function sendMerchantEmail(to: string, p: OrderNotificationPayload): Promise<void> {
   const shopDomain = p.shop.replace(".myshopify.com", "");
   const adminUrl = `https://admin.shopify.com/store/${shopDomain}/orders/${p.shopifyOrderId}`;
 
-  const designLinks = [
+  const previewImgs = [
+    p.designFrontUrl ? `<img src="${p.designFrontUrl}" alt="Ön Tasarım" style="max-width:240px;border-radius:8px;margin:4px">` : null,
+    p.designBackUrl  ? `<img src="${p.designBackUrl}"  alt="Arka Tasarım" style="max-width:240px;border-radius:8px;margin:4px">` : null,
+  ].filter(Boolean).join("");
+
+  const fileLinks = [
     p.printFrontUrl ? `<a href="${p.printFrontUrl}" style="color:#4f46e5">📄 Baskı Dosyası (Ön)</a>` : null,
     p.printBackUrl  ? `<a href="${p.printBackUrl}"  style="color:#4f46e5">📄 Baskı Dosyası (Arka)</a>` : null,
-    p.designFrontUrl ? `<a href="${p.designFrontUrl}" style="color:#6b7280">🖼 Tasarım Görseli (Ön)</a>` : null,
-    p.designBackUrl  ? `<a href="${p.designBackUrl}"  style="color:#6b7280">🖼 Tasarım Görseli (Arka)</a>` : null,
   ].filter(Boolean).join("<br>");
 
-  const html = `
-<!DOCTYPE html>
-<html lang="tr">
-<head><meta charset="UTF-8"></head>
+  const html = `<!DOCTYPE html>
+<html lang="tr"><head><meta charset="UTF-8"></head>
 <body style="font-family:system-ui,sans-serif;background:#f9fafb;margin:0;padding:24px">
-  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+<div style="max-width:580px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
 
-    <div style="background:#4f46e5;padding:20px 28px">
-      <h1 style="color:#fff;margin:0;font-size:20px">🛍 Yeni Sipariş — ${p.orderName}</h1>
-    </div>
+  <div style="background:#4f46e5;padding:20px 28px">
+    <h1 style="color:#fff;margin:0;font-size:20px">🛍 Yeni Sipariş — ${p.orderName}</h1>
+  </div>
 
-    <div style="padding:28px">
-      <table style="width:100%;border-collapse:collapse;font-size:15px">
-        <tr>
-          <td style="padding:8px 0;color:#6b7280;width:140px">Müşteri</td>
-          <td style="padding:8px 0;font-weight:600">${p.customerName}</td>
-        </tr>
-        <tr style="background:#f9fafb">
-          <td style="padding:8px 6px;color:#6b7280">Ürün</td>
-          <td style="padding:8px 6px;font-weight:600">${p.productName}</td>
-        </tr>
-        <tr>
-          <td style="padding:8px 0;color:#6b7280">Varyant</td>
-          <td style="padding:8px 0">${p.variantTitle || "—"}</td>
-        </tr>
-        <tr style="background:#f9fafb">
-          <td style="padding:8px 6px;color:#6b7280">Adet</td>
-          <td style="padding:8px 6px">${p.quantity}</td>
-        </tr>
-        <tr>
-          <td style="padding:8px 0;color:#6b7280">Tutar</td>
-          <td style="padding:8px 0;font-weight:700;color:#059669">${p.totalPrice} ${p.currency}</td>
-        </tr>
-      </table>
+  <div style="padding:28px">
+    <table style="width:100%;border-collapse:collapse;font-size:15px">
+      <tr><td style="padding:8px 0;color:#6b7280;width:140px">Müşteri</td><td style="padding:8px 0;font-weight:600">${p.customerName}</td></tr>
+      <tr style="background:#f9fafb"><td style="padding:8px 6px;color:#6b7280">E-posta</td><td style="padding:8px 6px">${p.customerEmail || "—"}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280">Ürün</td><td style="padding:8px 0;font-weight:600">${p.productName}</td></tr>
+      <tr style="background:#f9fafb"><td style="padding:8px 6px;color:#6b7280">Varyant</td><td style="padding:8px 6px">${p.variantTitle || "—"}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280">Adet</td><td style="padding:8px 0">${p.quantity}</td></tr>
+      <tr style="background:#f9fafb"><td style="padding:8px 6px;color:#6b7280">Tutar</td><td style="padding:8px 6px;font-weight:700;color:#059669">${p.totalPrice} ${p.currency}</td></tr>
+    </table>
 
-      ${designLinks ? `
-      <div style="margin-top:20px;padding:16px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd">
-        <p style="margin:0 0 8px;font-weight:700;font-size:13px;color:#0369a1">DOSYALAR</p>
-        <div style="line-height:2">${designLinks}</div>
-      </div>` : ""}
+    ${previewImgs ? `<div style="margin-top:20px;text-align:center">${previewImgs}</div>` : ""}
 
-      <div style="margin-top:20px;text-align:center">
-        <a href="${adminUrl}"
-           style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px">
-          Siparişi Shopify'da Gör →
-        </a>
-      </div>
-    </div>
+    ${fileLinks ? `
+    <div style="margin-top:20px;padding:16px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd">
+      <p style="margin:0 0 8px;font-weight:700;font-size:13px;color:#0369a1">BASKIYA GÖNDER</p>
+      <div style="line-height:2">${fileLinks}</div>
+    </div>` : ""}
 
-    <div style="padding:16px 28px;background:#f9fafb;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af;text-align:center">
-      PrintLab tarafından gönderildi · ${p.shop}
+    <div style="margin-top:20px;text-align:center">
+      <a href="${adminUrl}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px">
+        Siparişi Shopify'da Gör →
+      </a>
     </div>
   </div>
-</body>
-</html>`;
+</div>
+</body></html>`;
 
   await sendEmail({
     to,
     subject: `🛍 Yeni Sipariş: ${p.orderName} — ${p.customerName} (${p.totalPrice} ${p.currency})`,
+    html,
+  });
+}
+
+// ── Müşteri e-postası (tasarım önizleme görseller + sipariş özeti) ───
+async function sendCustomerEmail(to: string, p: OrderNotificationPayload): Promise<void> {
+  const previewImgs = [
+    p.designFrontUrl ? `
+    <div style="text-align:center;margin-bottom:16px">
+      <p style="margin:0 0 8px;font-size:13px;color:#6b7280;font-weight:600">ÖN TASARIM</p>
+      <img src="${p.designFrontUrl}" alt="Ön Tasarım" style="max-width:280px;width:100%;border-radius:12px;border:1px solid #e5e7eb">
+    </div>` : null,
+    p.designBackUrl ? `
+    <div style="text-align:center;margin-bottom:16px">
+      <p style="margin:0 0 8px;font-size:13px;color:#6b7280;font-weight:600">ARKA TASARIM</p>
+      <img src="${p.designBackUrl}" alt="Arka Tasarım" style="max-width:280px;width:100%;border-radius:12px;border:1px solid #e5e7eb">
+    </div>` : null,
+  ].filter(Boolean).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="tr"><head><meta charset="UTF-8"></head>
+<body style="font-family:system-ui,sans-serif;background:#f9fafb;margin:0;padding:24px">
+<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+
+  <div style="background:#111827;padding:24px 28px;text-align:center">
+    <h1 style="color:#fff;margin:0;font-size:22px">Siparişiniz Alındı ✓</h1>
+    <p style="color:#9ca3af;margin:8px 0 0;font-size:14px">${p.orderName}</p>
+  </div>
+
+  <div style="padding:28px">
+    <p style="font-size:16px;color:#111827;margin:0 0 24px">Merhaba <strong>${p.customerName}</strong>, siparişiniz başarıyla alındı!</p>
+
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px">
+      <tr><td style="padding:8px 0;color:#6b7280;width:120px">Ürün</td><td style="padding:8px 0;font-weight:600">${p.productName}</td></tr>
+      ${p.variantTitle ? `<tr style="background:#f9fafb"><td style="padding:8px 6px;color:#6b7280">Seçenek</td><td style="padding:8px 6px">${p.variantTitle}</td></tr>` : ""}
+      <tr ${p.variantTitle ? "" : 'style="background:#f9fafb"'}><td style="padding:8px ${p.variantTitle ? "0" : "6px"};color:#6b7280">Adet</td><td style="padding:8px ${p.variantTitle ? "0" : "6px"}">${p.quantity}</td></tr>
+      <tr style="background:#f9fafb"><td style="padding:8px 6px;color:#6b7280">Tutar</td><td style="padding:8px 6px;font-weight:700;color:#059669">${p.totalPrice} ${p.currency}</td></tr>
+    </table>
+
+    ${previewImgs ? `
+    <div style="background:#f9fafb;border-radius:12px;padding:20px;margin-bottom:8px">
+      <p style="margin:0 0 16px;font-weight:700;font-size:14px;color:#111827;text-align:center">Tasarımınız</p>
+      ${previewImgs}
+    </div>` : ""}
+  </div>
+</div>
+</body></html>`;
+
+  await sendEmail({
+    to,
+    subject: `Siparişiniz alındı — ${p.orderName}`,
     html,
   });
 }
@@ -145,35 +180,5 @@ async function sendOrderWhatsApp(phone: string, p: OrderNotificationPayload): Pr
 
   lines.push(``, `🔗 Shopify: ${adminUrl}`);
 
-  const message = lines.join("\n");
-  await sendWhatsAppMessage(phone, message);
-}
-
-// ── Webhook (Zapier / Make / n8n) ────────────────────────────────────
-async function sendWebhookPost(url: string, p: OrderNotificationPayload): Promise<void> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      event: "order_paid",
-      orderName: p.orderName,
-      shopifyOrderId: p.shopifyOrderId,
-      customerName: p.customerName,
-      customerEmail: p.customerEmail ?? null,
-      productName: p.productName,
-      variantTitle: p.variantTitle,
-      quantity: p.quantity,
-      totalPrice: p.totalPrice,
-      currency: p.currency,
-      designFrontUrl: p.designFrontUrl ?? null,
-      designBackUrl: p.designBackUrl ?? null,
-      printFrontUrl: p.printFrontUrl ?? null,
-      printBackUrl: p.printBackUrl ?? null,
-      shop: p.shop,
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Webhook ${url} yanıt kodu: ${res.status}`);
-  }
+  await sendWhatsAppMessage(phone, lines.join("\n"));
 }

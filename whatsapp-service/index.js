@@ -112,8 +112,8 @@ const server = http.createServer(async (req, res) => {
           res.end(JSON.stringify({ error: "WhatsApp bağlı değil" }));
           return;
         }
-        // Normalise: strip all non-digit chars, append WhatsApp JID suffix
-        const digits = phone.replace(/\D/g, "");
+        // Normalise: strip non-digits, remove leading zeros (need international format)
+        const digits = phone.replace(/\D/g, "").replace(/^0+/, "");
         const jid = `${digits}@s.whatsapp.net`;
         await sock.sendMessage(jid, { text: message });
         console.log("[wa] Mesaj gönderildi →", digits);
