@@ -100,10 +100,13 @@ function OrderDesignViewer() {
         if (apiRes.ok) apiData = await apiRes.json() as ApiResult;
       } catch { /* fall through to custom attrs */ }
 
-      const frontPreviewUrl = apiData?.frontPreviewUrl || getAttr(attrs, '_front_preview_url') || '';
-      const backPreviewUrl  = apiData?.backPreviewUrl  || getAttr(attrs, '_back_preview_url')  || '';
-      const frontPrintUrl   = apiData?.frontPrintUrl   || getAttr(attrs, '_front_print_url')   || '';
-      const backPrintUrl    = apiData?.backPrintUrl    || getAttr(attrs, '_back_print_url')    || '';
+      // When our API found the order, trust it exclusively — Shopify attributes may be stale
+      // (e.g. customer had a back design, removed it, but old _back_print_url attribute stays)
+      const useAttrs = !apiData?.found;
+      const frontPreviewUrl = apiData?.frontPreviewUrl || (useAttrs ? getAttr(attrs, '_front_preview_url') : '') || '';
+      const backPreviewUrl  = apiData?.backPreviewUrl  || (useAttrs ? getAttr(attrs, '_back_preview_url')  : '') || '';
+      const frontPrintUrl   = apiData?.frontPrintUrl   || (useAttrs ? getAttr(attrs, '_front_print_url')   : '') || '';
+      const backPrintUrl    = apiData?.backPrintUrl    || (useAttrs ? getAttr(attrs, '_back_print_url')    : '') || '';
       const appOrderUrl = (apiData?.found && apiData.appOrderUrl) ? apiData.appOrderUrl : null;
 
       if (!frontPreviewUrl && !frontPrintUrl) { setLoading(false); return; }
