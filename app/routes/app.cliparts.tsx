@@ -7,7 +7,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useRevalidator } from "@remix-run/react";
 import {
   Page, Layout, Card, Box, Text, BlockStack, InlineStack, Button,
-  Badge, Banner, EmptyState, TextField, Thumbnail, Select,
+  Badge, Banner, EmptyState, TextField, Select, Thumbnail,
 } from "@shopify/polaris";
 import { useState, useEffect } from "react";
 import { authenticate } from "~/lib/authenticate.server";
@@ -18,15 +18,7 @@ import {
   toggleClipartActive,
   type Clipart,
 } from "~/models/cliparts.server";
-
-const CLIPART_CATEGORIES = [
-  { label: "Şekil",   value: "sekil" },
-  { label: "Çerçeve", value: "cerceve" },
-  { label: "Spor",    value: "spor" },
-  { label: "Anadolu", value: "anadolu" },
-  { label: "Doğa",    value: "doga" },
-  { label: "Genel",   value: "genel" },
-];
+import { useTranslation } from "~/i18n";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -86,7 +78,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 // ─── Klipart Kartı ──────────────────────────────────────────────────
-function ClipartCard({ c }: { c: Clipart }) {
+function ClipartCard({ c, catLabel }: { c: Clipart; catLabel: string }) {
+  const { t } = useTranslation();
   const fetcher = useFetcher<{ ok?: boolean }>();
   const isDeleting = fetcher.state !== "idle" && fetcher.formData?.get("intent") === "delete";
   const isToggling = fetcher.state !== "idle" && fetcher.formData?.get("intent") === "toggle";
@@ -105,9 +98,9 @@ function ClipartCard({ c }: { c: Clipart }) {
             />
             <BlockStack gap="100">
               <Text as="p" variant="bodyMd" fontWeight="bold">{c.name}</Text>
-              <Badge>{c.category}</Badge>
+              <Badge>{catLabel}</Badge>
               <Badge tone={c.isActive ? "success" : "critical"}>
-                {c.isActive ? "Aktif" : "Pasif"}
+                {c.isActive ? t("cliparts.activeLabel") : t("cliparts.inactiveLabel")}
               </Badge>
             </BlockStack>
           </InlineStack>
@@ -118,14 +111,14 @@ function ClipartCard({ c }: { c: Clipart }) {
               <input type="hidden" name="id" value={c.id} />
               <input type="hidden" name="active" value={c.isActive ? "0" : "1"} />
               <Button submit size="slim" loading={isToggling}>
-                {c.isActive ? "Pasif Et" : "Aktif Et"}
+                {c.isActive ? t("cliparts.deactivateBtn") : t("cliparts.activateBtn")}
               </Button>
             </fetcher.Form>
             <fetcher.Form method="post">
               <input type="hidden" name="intent" value="delete" />
               <input type="hidden" name="id" value={c.id} />
               <Button submit variant="plain" tone="critical" size="slim" loading={isDeleting}>
-                Sil
+                {t("cliparts.deleteBtn")}
               </Button>
             </fetcher.Form>
           </InlineStack>
@@ -139,6 +132,7 @@ function ClipartCard({ c }: { c: Clipart }) {
 export default function ClipartsRoute() {
   const { cliparts } = useLoaderData<typeof loader>();
   const { revalidate } = useRevalidator();
+  const { t } = useTranslation();
   const uploadFetcher = useFetcher<{ ok?: boolean; error?: string }>();
   const isUploading = uploadFetcher.state !== "idle";
   const uploadOk = !isUploading && uploadFetcher.data?.ok === true;
@@ -148,6 +142,17 @@ export default function ClipartsRoute() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("genel");
+
+  const CLIPART_CATEGORIES = [
+    { label: t("cliparts.catSekil"),   value: "sekil" },
+    { label: t("cliparts.catCerceve"), value: "cerceve" },
+    { label: t("cliparts.catSpor"),    value: "spor" },
+    { label: t("cliparts.catAnadolu"), value: "anadolu" },
+    { label: t("cliparts.catDoga"),    value: "doga" },
+    { label: t("cliparts.catGenel"),   value: "genel" },
+  ];
+
+  const catLabelMap = Object.fromEntries(CLIPART_CATEGORIES.map((c) => [c.value, c.label]));
 
   useEffect(() => {
     if (uploadOk) {
@@ -166,26 +171,23 @@ export default function ClipartsRoute() {
 
   return (
     <Page
-      title="Klipart Kütüphanesi"
-      subtitle="Tüm müşteri tasarım araçlarında görünen hazır grafik kütüphanesi. SVG formatı önerilir."
+      title={t("cliparts.pageTitle")}
+      subtitle={t("cliparts.pageSubtitle")}
     >
       <BlockStack gap="500">
-        {uploadOk && <Banner tone="success" title="Klipart başarıyla yüklendi" onDismiss={() => {}} />}
+        {uploadOk && <Banner tone="success" title={t("cliparts.uploadSuccess")} onDismiss={() => {}} />}
         {uploadError && <Banner tone="critical" title={String(uploadError)} onDismiss={() => {}} />}
 
         {/* Bilgi */}
-        <Banner tone="info" title="Bu klipartlar tüm müşterilere görünür">
-          <Text as="p">
-            Yüklediğiniz görseller anında tüm ürün tasarım araçlarının "Klipart" sekmesinde belirir.
-            SVG formatında yüklerseniz müşteri rengi değiştirebilir. PNG/JPG yüklerseniz saydam arka planlı görsel önerilir.
-          </Text>
+        <Banner tone="info" title={t("cliparts.infoBannerTitle")}>
+          <Text as="p">{t("cliparts.infoBannerBody")}</Text>
         </Banner>
 
         {/* Upload */}
         <Card>
           <Box padding="400">
             <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Yeni Klipart Ekle</Text>
+              <Text as="h2" variant="headingMd">{t("cliparts.uploadTitle")}</Text>
 
               <uploadFetcher.Form method="post" encType="multipart/form-data">
                 <input type="hidden" name="intent" value="upload" />
@@ -233,31 +235,31 @@ export default function ClipartsRoute() {
                         <BlockStack gap="200">
                           <img
                             src={preview}
-                            alt="Önizleme"
+                            alt="preview"
                             style={{ maxHeight: 120, maxWidth: "100%", objectFit: "contain", margin: "0 auto", display: "block" }}
                           />
-                          <Text as="p" variant="bodySm" tone="subdued">{fileName} — değiştirmek için tıkla</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">{fileName} — {t("cliparts.filePickerChange")}</Text>
                         </BlockStack>
                       ) : (
                         <BlockStack gap="100">
-                          <Text as="p" variant="bodyMd" fontWeight="medium">Görsel seçmek için tıkla</Text>
-                          <Text as="p" variant="bodySm" tone="subdued">SVG, PNG, JPG — max 5 MB</Text>
+                          <Text as="p" variant="bodyMd" fontWeight="medium">{t("cliparts.filePickerLabel")}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">{t("cliparts.filePickerHint")}</Text>
                         </BlockStack>
                       )}
                     </label>
                   </div>
 
                   <TextField
-                    label="Klipart Adı"
+                    label={t("cliparts.nameLabel")}
                     name="name"
                     value={name}
                     onChange={setName}
                     autoComplete="off"
-                    placeholder="örn. Türk Yıldızı, Çiçek Motifi"
+                    placeholder={t("cliparts.namePlaceholder")}
                   />
 
                   <Select
-                    label="Kategori"
+                    label={t("cliparts.categoryLabel")}
                     name="category"
                     options={CLIPART_CATEGORIES}
                     value={category}
@@ -271,7 +273,7 @@ export default function ClipartsRoute() {
                       loading={isUploading}
                       disabled={!preview}
                     >
-                      Kaydet
+                      {t("cliparts.saveBtn")}
                     </Button>
                   </InlineStack>
                 </BlockStack>
@@ -284,17 +286,17 @@ export default function ClipartsRoute() {
         <BlockStack gap="300">
           <InlineStack align="space-between">
             <Text as="h2" variant="headingMd">
-              Mevcut Klipartlar ({cliparts.length})
+              {t("cliparts.listTitle")} ({cliparts.length})
             </Text>
             <Text as="p" tone="subdued" variant="bodySm">
-              {cliparts.filter((c) => c.isActive).length} aktif
+              {cliparts.filter((c) => c.isActive).length} {t("cliparts.activeCount")}
             </Text>
           </InlineStack>
 
           {cliparts.length === 0 ? (
             <Card>
-              <EmptyState heading="Henüz klipart yok" image="">
-                <Text as="p">Yukarıdan ilk klipartı ekleyin. Anadolu motifleri, geometrik şekiller veya marka grafikleri yükleyebilirsiniz.</Text>
+              <EmptyState heading={t("cliparts.emptyHeading")} image="">
+                <Text as="p">{t("cliparts.emptyBody")}</Text>
               </EmptyState>
             </Card>
           ) : (
@@ -304,7 +306,7 @@ export default function ClipartsRoute() {
                 <Layout>
                   {cat.items.map((c) => (
                     <Layout.Section key={c.id} variant="oneThird">
-                      <ClipartCard c={c} />
+                      <ClipartCard c={c} catLabel={catLabelMap[c.category] ?? c.category} />
                     </Layout.Section>
                   ))}
                 </Layout>
