@@ -72,6 +72,14 @@ const T = {
       title: "Mağazanız büyüdükçe ödeyin.",
       sub: "Tüm planlar 14 gün ücretsiz. İstediğiniz zaman iptal.",
       per: "/ay",
+      creditsTitle: "Ek Kredi Satın Al",
+      creditsSub: "Aylık yapay zeka görsel kotanız bittiğinde tek seferlik ek kredi paketi satın alabilirsiniz. Kredi kullanım süresi sınırsızdır.",
+      creditsNote: "Krediler yapay zeka görsel üretimi için kullanılır. 1 görsel = 1 kredi.",
+      packs: [
+        { credits: "100", price: "$9.99",  label: "100 AI Kredi",  desc: "Başlangıç paket" },
+        { credits: "300", price: "$19.99", label: "300 AI Kredi",  desc: "Orta hacim paket", popular: true },
+        { credits: "500", price: "$39.99", label: "500 AI Kredi",  desc: "Yüksek hacim paket" },
+      ],
       plans: [
         { name: "Starter", amt: "9.99", cur: "$", desc: "Başlamak için ideal.", feat: ["100 sipariş/ay", "1 ürün kategorisi", "Ön + arka yüz baskı", "100 arka plan kaldırma/ay", "✦ 50 yapay zeka görseli/ay"], cta: "14 gün ücretsiz başla", featured: false },
         { name: "Growth", amt: "19.99", cur: "$", desc: "Büyüyen mağazalar için.", feat: ["500 sipariş/ay", "2 ürün kategorisi", "Ön + arka yüz baskı", "500 arka plan kaldırma/ay", "✦ 150 yapay zeka görseli/ay", "10 özel şablon"], cta: "14 gün ücretsiz başla", featured: true, badge: "EN POPÜLER" },
@@ -164,6 +172,14 @@ const T = {
       title: "Pay as your store grows.",
       sub: "All plans include a 14-day free trial. Cancel any time.",
       per: "/mo",
+      creditsTitle: "Buy Extra Credits",
+      creditsSub: "When your monthly AI image quota runs out, you can purchase a one-time credit pack. Credits never expire.",
+      creditsNote: "Credits are used for AI image generation. 1 image = 1 credit.",
+      packs: [
+        { credits: "100", price: "$9.99",  label: "100 AI Credits", desc: "Starter pack" },
+        { credits: "300", price: "$19.99", label: "300 AI Credits", desc: "Medium volume pack", popular: true },
+        { credits: "500", price: "$39.99", label: "500 AI Credits", desc: "High volume pack" },
+      ],
       plans: [
         { name: "Starter", amt: "9.99", cur: "$", desc: "Great to get started.", feat: ["100 orders/month", "1 product category", "Front + back surface print", "100 background removals/month", "✦ 50 AI images/month"], cta: "Start free for 14 days", featured: false },
         { name: "Growth", amt: "19.99", cur: "$", desc: "For stores that are scaling.", feat: ["500 orders/month", "2 product categories", "Front + back surface print", "500 background removals/month", "✦ 150 AI images/month", "10 custom templates"], cta: "Start free for 14 days", featured: true, badge: "MOST POPULAR" },
@@ -251,6 +267,21 @@ function buildHtml(lang: Lang): string {
     </div>`;
   }).join("");
 
+  const creditPackCards = t.pricing.packs.map((p) => {
+    const popularBadge = "popular" in p && p.popular
+      ? `<div class="cp-badge">${lang === "tr" ? "EN POPÜLER" : "MOST POPULAR"}</div>`
+      : "";
+    return `
+    <div class="cp-card${("popular" in p && p.popular) ? " cp-card-featured" : ""}">
+      ${popularBadge}
+      <div class="cp-credits">${p.credits}</div>
+      <div class="cp-credits-label">${lang === "tr" ? "AI Kredi" : "AI Credits"}</div>
+      <div class="cp-price">${p.price}</div>
+      <div class="cp-desc">${p.desc}</div>
+      <a class="btn ${"popular" in p && p.popular ? "btn-primary" : "btn-ghost"} btn-block" href="${SHOPIFY_APP_URL}">${lang === "tr" ? "Uygulama üzerinden satın al" : "Purchase via the app"}</a>
+    </div>`;
+  }).join("");
+
   const faqItems = t.faq.items.map((item, i) => `
     <details class="faq-item"${i === 0 ? " open" : ""}>
       <summary>${item.q}<span class="faq-toggle"></span></summary>
@@ -302,6 +333,20 @@ function buildHtml(lang: Lang): string {
     .nav-lang{display:flex;gap:3px;background:#f3f4f6;border-radius:99px;padding:3px;}
     .nav-lang a{padding:5px 12px;border-radius:99px;font-size:12px;font-weight:700;color:#6b7280;text-decoration:none;transition:all 0.15s;letter-spacing:0.04em;}
     .nav-lang a.active{background:#4f46e5;color:#fff;}
+    /* ── Credit Packs ── */
+    .cp-section{margin-top:56px;padding-top:48px;border-top:1px solid #e5e7eb;}
+    .cp-header{text-align:center;margin-bottom:32px;}
+    .cp-title{font-size:clamp(20px,3vw,26px);font-weight:800;color:#111827;margin:0 0 10px;}
+    .cp-sub{font-size:15px;color:#6b7280;max-width:520px;margin:0 auto;}
+    .cp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;max-width:700px;margin:0 auto;}
+    .cp-card{position:relative;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:28px 20px 24px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.05);}
+    .cp-card-featured{border-color:#4f46e5;box-shadow:0 0 0 2px rgba(79,70,229,.15),0 4px 16px rgba(79,70,229,.1);}
+    .cp-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#4f46e5;color:#fff;font-size:11px;font-weight:800;letter-spacing:.06em;padding:3px 12px;border-radius:99px;white-space:nowrap;}
+    .cp-credits{font-size:48px;font-weight:900;color:#111827;line-height:1;}
+    .cp-credits-label{font-size:13px;font-weight:600;color:#6b7280;margin:4px 0 12px;text-transform:uppercase;letter-spacing:.04em;}
+    .cp-price{font-size:28px;font-weight:800;color:#4f46e5;margin-bottom:6px;}
+    .cp-desc{font-size:13px;color:#9ca3af;margin-bottom:20px;}
+    .cp-note{text-align:center;font-size:13px;color:#9ca3af;margin-top:20px;max-width:480px;margin-left:auto;margin-right:auto;}
   </style>
 </head>
 <body>
@@ -580,6 +625,16 @@ function buildHtml(lang: Lang): string {
       <p class="section-sub">${t.pricing.sub}</p>
     </div>
     <div class="pricing">${planCards}</div>
+
+    <!-- Ek Kredi Paketleri -->
+    <div class="cp-section">
+      <div class="cp-header">
+        <h3 class="cp-title">${t.pricing.creditsTitle}</h3>
+        <p class="cp-sub">${t.pricing.creditsSub}</p>
+      </div>
+      <div class="cp-grid">${creditPackCards}</div>
+      <p class="cp-note">${t.pricing.creditsNote}</p>
+    </div>
   </div>
 </section>
 
