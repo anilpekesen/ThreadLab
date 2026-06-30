@@ -14,10 +14,10 @@ import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
 import { logAiPrompt } from "~/models/ai-prompt-logs.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
-const IMAGE_MODEL = "wavespeed-ai/z-image/turbo";
+const IMAGE_MODEL = "wavespeed-ai/z-image";
 const PROMPT_OPTIMIZER_MODEL = "wavespeed-ai/prompt-optimizer";
-const POLL_MAX_MS = 42_000;
-const POLL_INTERVAL_MS = 1_200;
+const POLL_MAX_MS = 90_000;
+const POLL_INTERVAL_MS = 2_000;
 
 function buildConceptHints(prompt: string): string[] {
   const p = prompt.toLocaleLowerCase("tr-TR");
@@ -126,6 +126,9 @@ async function generateImage(apiKey: string, prompt: string): Promise<string> {
     body: JSON.stringify({
       prompt,
       aspect_ratio: "1:1",
+      size: "1024x1024",
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
       output_format: "png",
       enable_sync_mode: false,
       enable_base64_output: false,
