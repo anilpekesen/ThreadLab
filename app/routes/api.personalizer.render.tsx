@@ -35,6 +35,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       frameId ? getPersonalizerFramePublic(frameId) : Promise.resolve(null),
     ]);
     if (!template) return json({ error: "Şablon bulunamadı" }, { status: 404, headers: CORS });
+    const activeTextFields = frame?.text_fields?.length ? frame.text_fields : template.text_fields;
 
     const printUrl = await composeFinalRender({
       templateUrl: template.template_url,
@@ -48,7 +49,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       mockupY: frame?.mockup_y ?? 0,
       mockupWidth: frame?.mockup_width ?? 0,
       mockupHeight: frame?.mockup_height ?? 0,
-      textFields: template.text_fields,
+      textFields: activeTextFields,
       textValues,
     });
 

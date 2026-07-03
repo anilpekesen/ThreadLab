@@ -97,6 +97,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const mockup_width  = parseInt(String(form.get("mockup_width") ?? "0"), 10);
     const mockup_height = parseInt(String(form.get("mockup_height") ?? "0"), 10);
     const sort_order   = parseInt(String(form.get("sort_order") ?? "0"), 10);
+    let text_fields: TextFieldDef[] = [];
+    try { text_fields = JSON.parse(String(form.get("frame_text_fields") ?? "[]")); } catch { /* ignore */ }
 
     const mockupFile = form.get("mockup_image");
     if (!(mockupFile instanceof File) || mockupFile.size === 0) {
@@ -106,7 +108,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const ext = mockupFile.type === "image/jpeg" ? "jpg" : mockupFile.type === "image/webp" ? "webp" : "png";
     const mockup_url = await uploadToR2(buf, ext, "personalizer-frame");
 
-    await createPersonalizerFrame({ template_id: templateId, name: frameName, mockup_url, mockup_x, mockup_y, mockup_width, mockup_height, sort_order });
+    await createPersonalizerFrame({ template_id: templateId, name: frameName, mockup_url, mockup_x, mockup_y, mockup_width, mockup_height, text_fields, sort_order });
     return json({ ok: true });
   }
 
@@ -256,16 +258,21 @@ function FrameAreaEditor({
   imageUrl,
   rect,
   onRect,
+  textFields = [],
+  onTextPos,
 }: {
   imageUrl: string;
   rect: Rect;
   onRect: (r: Rect) => void;
+  textFields?: TextFieldDef[];
+  onTextPos?: (idx: number, x: number, y: number) => void;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [naturalW, setNaturalW] = useState(1);
   const [naturalH, setNaturalH] = useState(1);
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [mode, setMode] = useState<EditorMode>({ type: "photo" });
 
   function getCoords(e: React.MouseEvent) {
     const img = imgRef.current!;
@@ -278,6 +285,11 @@ function FrameAreaEditor({
 
   function onMouseDown(e: React.MouseEvent) {
     e.preventDefault();
+    if (mode.type === "text") {
+      const c = getCoords(e);
+      onTextPos?.(mode.idx, c.x, c.y);
+      return;
+    }
     const c = getCoords(e);
     setDragStart(c);
     setDragging(true);
@@ -285,7 +297,7 @@ function FrameAreaEditor({
   }
 
   function onMouseMove(e: React.MouseEvent) {
-    if (!dragging) return;
+    if (!dragging || mode.type !== "photo") return;
     const c = getCoords(e);
     onRect({
       x: Math.min(dragStart.x, c.x),
@@ -302,12 +314,32 @@ function FrameAreaEditor({
   const dispH = img?.getBoundingClientRect().height ?? 1;
   const sx = dispW / naturalW;
   const sy = dispH / naturalH;
+  const isPhotoMode = mode.type === "photo";
 
   return (
     <BlockStack gap="200">
-      <Text as="p" tone="subdued" variant="bodySm">Çerçevenin boş iç alanına tıklayıp sürükleyin — tasarım buraya yerleşecek.</Text>
+      <InlineStack gap="200" wrap>
+        <Button size="slim" variant={isPhotoMode ? "primary" : "secondary"} onClick={() => setMode({ type: "photo" })}>
+          Fotoğraf alanı çiz
+        </Button>
+        {textFields.map((f, idx) => (
+          <Button
+            key={f.id}
+            size="slim"
+            variant={mode.type === "text" && mode.idx === idx ? "primary" : "secondary"}
+            onClick={() => setMode({ type: "text", idx })}
+          >
+            {`Y${idx + 1} "${f.label}"`}
+          </Button>
+        ))}
+      </InlineStack>
+      <Text as="p" tone="subdued" variant="bodySm">
+        {isPhotoMode
+          ? "Çerçevenin boş iç alanına tıklayıp sürükleyin; müşterinin fotoğrafı buraya yerleşecek."
+          : `"${textFields[(mode as { type: "text"; idx: number }).idx]?.label}" yazısının konumuna tıklayın.`}
+      </Text>
       <div
-        style={{ position: "relative", display: "inline-block", cursor: "crosshair", userSelect: "none" }}
+        style={{ position: "relative", display: "inline-block", cursor: isPhotoMode ? "crosshair" : "cell", userSelect: "none" }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -324,14 +356,28 @@ function FrameAreaEditor({
         {rect.w > 0 && rect.h > 0 && (
           <div style={{ position: "absolute", left: rect.x * sx, top: rect.y * sy, width: rect.w * sx, height: rect.h * sy, border: "2px solid #f59e0b", background: "rgba(245,158,11,0.2)", pointerEvents: "none", boxSizing: "border-box" }}>
             <span style={{ position: "absolute", top: 2, left: 4, fontSize: 11, fontWeight: 700, color: "#b45309", background: "rgba(255,255,255,.85)", padding: "0 4px", borderRadius: 3 }}>
-              🖼 {rect.w}×{rect.h}
+              Foto {rect.w}x{rect.h}
             </span>
           </div>
         )}
+        {textFields.map((f, idx) => {
+          if (naturalW === 1) return null;
+          const active = mode.type === "text" && mode.idx === idx;
+          return (
+            <div key={f.id} style={{ position: "absolute", left: f.x * sx, top: f.y * sy, transform: "translate(-50%,-50%)", pointerEvents: "none", zIndex: 10 }}>
+              <div style={{ background: active ? "#6366f1" : "#10b981", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }}>
+                Y{idx + 1} {f.label}
+              </div>
+            </div>
+          );
+        })}
       </div>
       {rect.w > 0 && (
         <Text as="p" variant="bodySm" tone="subdued">{`X=${rect.x} Y=${rect.y} — ${rect.w}×${rect.h} px`}</Text>
       )}
+      {textFields.map((f, idx) => (
+        <Text key={f.id} as="p" variant="bodySm" tone="subdued">{`Y${idx + 1} ${f.label}: X=${f.x} Y=${f.y}`}</Text>
+      ))}
     </BlockStack>
   );
 }
@@ -343,6 +389,9 @@ function AddFrameForm({ templateId, onDone }: { templateId: string; onDone: () =
   const [frameName, setFrameName] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const [rect, setRect] = useState<Rect>({ x: 0, y: 0, w: 0, h: 0 });
+  const [textFields, setTextFields] = useState<TextFieldDef[]>([
+    { ...newTextField(), label: "Yazı", placeholder: "Yazınızı girin", x: 500, y: 900, font_size: 64, max_length: 40 },
+  ]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const isLoading = fetcher.state !== "idle";
@@ -363,8 +412,25 @@ function AddFrameForm({ templateId, onDone }: { templateId: string; onDone: () =
     fd.set("mockup_y", String(rect.y));
     fd.set("mockup_width", String(rect.w));
     fd.set("mockup_height", String(rect.h));
+    fd.set("frame_text_fields", JSON.stringify(textFields));
     fetcher.submit(fd, { method: "POST", encType: "multipart/form-data" });
   }
+
+  function addFrameTextField() {
+    setTextFields((p) => [...p, { ...newTextField(), label: "Yazı", placeholder: "Yazınızı girin", x: 500, y: 900, font_size: 64, max_length: 40 }]);
+  }
+
+  function removeFrameTextField(idx: number) {
+    setTextFields((p) => p.filter((_, i) => i !== idx));
+  }
+
+  function updateFrameTextField<K extends keyof TextFieldDef>(idx: number, key: K, val: TextFieldDef[K]) {
+    setTextFields((p) => p.map((f, i) => i === idx ? { ...f, [key]: val } : f));
+  }
+
+  const handleFrameTextPos = useCallback((idx: number, x: number, y: number) => {
+    setTextFields((p) => p.map((f, i) => i === idx ? { ...f, x, y } : f));
+  }, []);
 
   if (fetcher.data?.ok) {
     onDone();
@@ -392,8 +458,58 @@ function AddFrameForm({ templateId, onDone }: { templateId: string; onDone: () =
           </BlockStack>
 
           {previewUrl && (
-            <FrameAreaEditor imageUrl={previewUrl} rect={rect} onRect={setRect} />
+            <FrameAreaEditor
+              imageUrl={previewUrl}
+              rect={rect}
+              onRect={setRect}
+              textFields={textFields}
+              onTextPos={handleFrameTextPos}
+            />
           )}
+
+          <BlockStack gap="300">
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h4" variant="headingSm">Yazı Alanları</Text>
+              <Button onClick={addFrameTextField} size="slim">+ Yazı Alanı</Button>
+            </InlineStack>
+            {textFields.length === 0 && (
+              <Text as="p" tone="subdued" variant="bodySm">Bu çerçevede yazı alanı olmayacak.</Text>
+            )}
+            {textFields.map((f, idx) => (
+              <Box key={f.id} background="bg-surface" padding="300" borderRadius="200">
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="p" variant="bodySm" fontWeight="semibold">{`Y${idx + 1} - ${f.label}`}</Text>
+                    <Button tone="critical" size="slim" onClick={() => removeFrameTextField(idx)}>Sil</Button>
+                  </InlineStack>
+                  <FormLayout>
+                    <FormLayout.Group>
+                      <TextField label="Etiket" value={f.label} onChange={(v) => updateFrameTextField(idx, "label", v)} autoComplete="off" />
+                      <TextField label="Placeholder" value={f.placeholder} onChange={(v) => updateFrameTextField(idx, "placeholder", v)} autoComplete="off" />
+                    </FormLayout.Group>
+                    <FormLayout.Group>
+                      <TextField label="X (px)" type="number" value={String(f.x)} onChange={(v) => updateFrameTextField(idx, "x", parseInt(v, 10) || 0)} autoComplete="off" helpText="Üstteki Y butonu ile ayarlanır" />
+                      <TextField label="Y (px)" type="number" value={String(f.y)} onChange={(v) => updateFrameTextField(idx, "y", parseInt(v, 10) || 0)} autoComplete="off" helpText="Üstteki Y butonu ile ayarlanır" />
+                    </FormLayout.Group>
+                    <FormLayout.Group>
+                      <TextField label="Font Büyüklüğü" type="number" value={String(f.font_size)} onChange={(v) => updateFrameTextField(idx, "font_size", parseInt(v, 10) || 60)} autoComplete="off" />
+                      <TextField label="Renk" value={f.color} onChange={(v) => updateFrameTextField(idx, "color", v)} autoComplete="off" placeholder="#000000" />
+                    </FormLayout.Group>
+                    <FormLayout.Group>
+                      <TextField label="Maks. Karakter" type="number" value={String(f.max_length)} onChange={(v) => updateFrameTextField(idx, "max_length", parseInt(v, 10) || 30)} autoComplete="off" />
+                      <Select
+                        label="Hizalama"
+                        options={[{ label: "Sol", value: "left" }, { label: "Orta", value: "center" }, { label: "Sağ", value: "right" }]}
+                        value={f.align}
+                        onChange={(v) => updateFrameTextField(idx, "align", v as TextFieldDef["align"])}
+                      />
+                    </FormLayout.Group>
+                    <Checkbox label="Kalın" checked={f.bold} onChange={(v) => updateFrameTextField(idx, "bold", v)} />
+                  </FormLayout>
+                </BlockStack>
+              </Box>
+            ))}
+          </BlockStack>
 
           <InlineStack gap="200">
             <Button submit variant="primary" loading={isLoading} disabled={!previewUrl || rect.w === 0}>
@@ -470,6 +586,11 @@ function FramesSection({ templateId, frames }: { templateId: string; frames: Per
                   </Text>
                 ) : (
                   <Badge tone="warning">İç alan koordinatı eksik</Badge>
+                )}
+                {frame.text_fields?.length > 0 && (
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {`${frame.text_fields.length} yazı alanı`}
+                  </Text>
                 )}
               </BlockStack>
             </InlineStack>

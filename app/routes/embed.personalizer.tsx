@@ -46,6 +46,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     id: f.id,
     name: f.name,
     mockup_url: f.mockup_url,
+    text_fields: f.text_fields ?? [],
   })));
   const hasFrames = frames.length > 0;
 
@@ -152,13 +153,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   var TEMPLATE_ID = ${JSON.stringify(templateId)};
   var VARIANT_ID = ${JSON.stringify(variantId)};
   var SHOP = ${JSON.stringify(shop)};
-  var TEXT_FIELDS = ${textFieldsJson};
+  var TEMPLATE_TEXT_FIELDS = ${textFieldsJson};
   var FRAMES = ${framesJson};
   var HAS_FRAMES = ${hasFrames ? "true" : "false"};
 
   var photoFile = null;
   var transformedPhotoUrl = null;
   var selectedFrameId = HAS_FRAMES ? null : '';
+  var activeTextFields = HAS_FRAMES ? [] : TEMPLATE_TEXT_FIELDS;
 
   // ── Build frame grid ─────────────────────────────────────────────────────
   if (HAS_FRAMES) {
@@ -178,6 +180,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   function selectFrame(frameId, cardEl) {
     selectedFrameId = frameId;
+    activeTextFields = getActiveTextFields();
     document.querySelectorAll('.frame-card').forEach(function(c) {
       c.classList.remove('selected');
       c.querySelector('.fbadge').hidden = true;
@@ -185,6 +188,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     cardEl.classList.add('selected');
     cardEl.querySelector('.fbadge').hidden = false;
     document.getElementById('continueBtn').disabled = false;
+    renderTextFields();
   }
 
   window.goToStep1 = function() {
@@ -199,16 +203,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 
   // ── Build text input fields ──────────────────────────────────────────────
-  var container = document.getElementById('textFieldsContainer');
-  TEXT_FIELDS.forEach(function(f) {
-    var div = document.createElement('div');
-    div.className = 'field-row';
-    div.innerHTML =
-      '<label class="label" for="tf_' + f.id + '">' + escHtml(f.label) + '</label>' +
-      '<input type="text" id="tf_' + f.id + '" placeholder="' + escHtml(f.placeholder) + '" maxlength="' + f.max_length + '" oninput="updateCharCount(this,' + f.max_length + ')">' +
-      '<div class="char-count" id="cc_' + f.id + '">0 / ' + f.max_length + '</div>';
-    container.appendChild(div);
-  });
+  function getActiveTextFields() {
+    if (!selectedFrameId) return TEMPLATE_TEXT_FIELDS;
+    var frame = FRAMES.find(function(f) { return f.id === selectedFrameId; });
+    return frame && frame.text_fields && frame.text_fields.length ? frame.text_fields : TEMPLATE_TEXT_FIELDS;
+  }
+
+  function renderTextFields() {
+    activeTextFields = getActiveTextFields();
+    var container = document.getElementById('textFieldsContainer');
+    container.innerHTML = '';
+    activeTextFields.forEach(function(f) {
+      var div = document.createElement('div');
+      div.className = 'field-row';
+      div.innerHTML =
+        '<label class="label" for="tf_' + f.id + '">' + escHtml(f.label) + '</label>' +
+        '<input type="text" id="tf_' + f.id + '" placeholder="' + escHtml(f.placeholder || '') + '" maxlength="' + (f.max_length || 40) + '" oninput="updateCharCount(this,' + (f.max_length || 40) + ')">' +
+        '<div class="char-count" id="cc_' + f.id + '">0 / ' + (f.max_length || 40) + '</div>';
+      container.appendChild(div);
+    });
+  }
+  renderTextFields();
 
   // ── Photo upload ─────────────────────────────────────────────────────────
   var input = document.getElementById('photoInput');
@@ -253,7 +268,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     var textValues = {};
-    TEXT_FIELDS.forEach(function(f) {
+    activeTextFields = getActiveTextFields();
+    activeTextFields.forEach(function(f) {
       var el = document.getElementById('tf_' + f.id);
       textValues[f.id] = el ? el.value.trim() : '';
     });
@@ -338,7 +354,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var designToken = data.designToken;
         var textValues = window._previewTextValues || {};
         var properties = {};
-        TEXT_FIELDS.forEach(function(f) {
+        activeTextFields = getActiveTextFields();
+        activeTextFields.forEach(function(f) {
           if (textValues[f.id]) properties[f.label] = textValues[f.id];
         });
         properties['_personalizer_template'] = TEMPLATE_ID;

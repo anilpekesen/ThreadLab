@@ -38,6 +38,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Frame seçildiyse o frame'in mockup koordinatlarını kullan
     const frame = frameId ? await getPersonalizerFramePublic(frameId) : null;
+    const activeTextFields = frame?.text_fields?.length ? frame.text_fields : template.text_fields;
 
     let textValues: Record<string, string> = {};
     try { textValues = JSON.parse(textValuesRaw); } catch { /* ignore */ }
@@ -71,7 +72,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       mockupY: frame?.mockup_y ?? 0,
       mockupWidth: frame?.mockup_width ?? 0,
       mockupHeight: frame?.mockup_height ?? 0,
-      textFields: template.text_fields,
+      textFields: activeTextFields,
       textValues,
     });
 

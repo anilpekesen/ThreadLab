@@ -171,6 +171,7 @@ export interface PersonalizerFrame {
   mockup_y: number;
   mockup_width: number;
   mockup_height: number;
+  text_fields: TextFieldDef[];
   sort_order: number;
   created_at: string;
 }
@@ -199,22 +200,34 @@ export async function createPersonalizerFrame(input: {
   mockup_y: number;
   mockup_width: number;
   mockup_height: number;
+  text_fields?: TextFieldDef[];
   sort_order?: number;
 }): Promise<PersonalizerFrame> {
   const id = randomBytes(12).toString("hex");
   const res = await query<PersonalizerFrame>(
     `INSERT INTO personalizer_frames
-       (id, template_id, name, mockup_url, mockup_x, mockup_y, mockup_width, mockup_height, sort_order)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       (id, template_id, name, mockup_url, mockup_x, mockup_y, mockup_width, mockup_height, text_fields, sort_order)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      RETURNING *`,
-    [id, input.template_id, input.name, input.mockup_url, input.mockup_x, input.mockup_y, input.mockup_width, input.mockup_height, input.sort_order ?? 0],
+    [
+      id,
+      input.template_id,
+      input.name,
+      input.mockup_url,
+      input.mockup_x,
+      input.mockup_y,
+      input.mockup_width,
+      input.mockup_height,
+      JSON.stringify(input.text_fields ?? []),
+      input.sort_order ?? 0,
+    ],
   );
   return res.rows[0];
 }
 
 export async function updatePersonalizerFrame(
   id: string,
-  input: { name?: string; mockup_url?: string; mockup_x?: number; mockup_y?: number; mockup_width?: number; mockup_height?: number; sort_order?: number },
+  input: { name?: string; mockup_url?: string; mockup_x?: number; mockup_y?: number; mockup_width?: number; mockup_height?: number; text_fields?: TextFieldDef[]; sort_order?: number },
 ): Promise<PersonalizerFrame | null> {
   const sets: string[] = [];
   const vals: unknown[] = [];
@@ -222,7 +235,7 @@ export async function updatePersonalizerFrame(
   for (const [k, v] of Object.entries(input)) {
     if (v === undefined) continue;
     sets.push(`${k} = $${i++}`);
-    vals.push(v);
+    vals.push(k === "text_fields" ? JSON.stringify(v) : v);
   }
   if (sets.length === 0) return getPersonalizerFramePublic(id);
   vals.push(id);

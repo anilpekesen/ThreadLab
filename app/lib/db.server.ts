@@ -630,9 +630,14 @@ async function _runMigrationsLocked() {
       mockup_y   INTEGER NOT NULL DEFAULT 0,
       mockup_width  INTEGER NOT NULL DEFAULT 0,
       mockup_height INTEGER NOT NULL DEFAULT 0,
+      text_fields JSONB NOT NULL DEFAULT '[]',
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
+  `);
+  await query(`
+    ALTER TABLE personalizer_frames
+      ADD COLUMN IF NOT EXISTS text_fields JSONB NOT NULL DEFAULT '[]'
   `);
   await query(`
     CREATE INDEX IF NOT EXISTS personalizer_frames_template
