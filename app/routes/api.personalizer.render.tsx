@@ -1,5 +1,5 @@
 import { json, type ActionFunctionArgs } from "@remix-run/node";
-import { getPersonalizerTemplatePublic } from "~/models/personalizer.server";
+import { getPersonalizerTemplatePublic, getPersonalizerFramePublic } from "~/models/personalizer.server";
 import { composeFinalRender } from "~/lib/personalizer-compose.server";
 import { query } from "~/lib/db.server";
 import { randomBytes } from "node:crypto";
@@ -21,15 +21,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   try {
     const body = await request.json() as Record<string, unknown>;
-    const templateId = String(body.templateId ?? "").trim();
+    const templateId          = String(body.templateId ?? "").trim();
+    const frameId             = String(body.frameId ?? "").trim();
     const transformedPhotoUrl = String(body.transformedPhotoUrl ?? "").trim();
-    const textValues = (body.textValues ?? {}) as Record<string, string>;
+    const textValues          = (body.textValues ?? {}) as Record<string, string>;
 
     if (!templateId || !transformedPhotoUrl) {
       return json({ error: "templateId ve transformedPhotoUrl gerekli" }, { status: 400, headers: CORS });
     }
 
-    const template = await getPersonalizerTemplatePublic(templateId);
+    const [template, frame] = await Promise.all([
+      getPersonalizerTemplatePublic(templateId),
+      frameId ? getPersonalizerFramePublic(frameId) : Promise.resolve(null),
+    ]);
     if (!template) return json({ error: "Şablon bulunamadı" }, { status: 404, headers: CORS });
 
     const printUrl = await composeFinalRender({
@@ -39,11 +43,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       photoY: template.photo_y,
       photoWidth: template.photo_width,
       photoHeight: template.photo_height,
-      mockupUrl: template.mockup_url || undefined,
-      mockupX: template.mockup_x,
-      mockupY: template.mockup_y,
-      mockupWidth: template.mockup_width,
-      mockupHeight: template.mockup_height,
+      mockupUrl: frame?.mockup_url || undefined,
+      mockupX: frame?.mockup_x ?? 0,
+      mockupY: frame?.mockup_y ?? 0,
+      mockupWidth: frame?.mockup_width ?? 0,
+      mockupHeight: frame?.mockup_height ?? 0,
       textFields: template.text_fields,
       textValues,
     });
@@ -57,7 +61,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         designToken,
         template.shop,
         printUrl,
-        JSON.stringify({ type: "personalizer", templateId, textValues, templateName: template.name }),
+        JSON.stringify({ type: "personalizer", templateId, frameId: frame?.id ?? null, textValues, templateName: template.name }),
       ],
     );
 

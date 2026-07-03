@@ -618,4 +618,24 @@ async function _runMigrationsLocked() {
       ADD COLUMN IF NOT EXISTS mockup_width  INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS mockup_height INTEGER NOT NULL DEFAULT 0
   `);
+
+  // Çerçeve seçenekleri — her template'in birden fazla frame seçeneği olabilir
+  await query(`
+    CREATE TABLE IF NOT EXISTS personalizer_frames (
+      id         TEXT PRIMARY KEY,
+      template_id TEXT NOT NULL REFERENCES personalizer_templates(id) ON DELETE CASCADE,
+      name       TEXT NOT NULL DEFAULT '',
+      mockup_url TEXT NOT NULL DEFAULT '',
+      mockup_x   INTEGER NOT NULL DEFAULT 0,
+      mockup_y   INTEGER NOT NULL DEFAULT 0,
+      mockup_width  INTEGER NOT NULL DEFAULT 0,
+      mockup_height INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS personalizer_frames_template
+      ON personalizer_frames (template_id, sort_order)
+  `);
 }

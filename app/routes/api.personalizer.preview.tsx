@@ -1,6 +1,6 @@
 import { json, unstable_createMemoryUploadHandler, unstable_parseMultipartFormData, type ActionFunctionArgs } from "@remix-run/node";
 import { uploadToR2 } from "~/lib/r2.server";
-import { getPersonalizerTemplatePublic } from "~/models/personalizer.server";
+import { getPersonalizerTemplatePublic, getPersonalizerFramePublic } from "~/models/personalizer.server";
 import { transformPhoto } from "~/lib/personalizer-ai.server";
 import { composePreview } from "~/lib/personalizer-compose.server";
 
@@ -24,6 +24,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const form = await unstable_parseMultipartFormData(request, uploadHandler);
 
     const templateId = String(form.get("templateId") ?? "").trim();
+    const frameId    = String(form.get("frameId") ?? "").trim();
     const photoFile = form.get("photo");
     const textValuesRaw = String(form.get("textValues") ?? "{}");
 
@@ -34,6 +35,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const template = await getPersonalizerTemplatePublic(templateId);
     if (!template) return json({ error: "Şablon bulunamadı" }, { status: 404, headers: CORS });
+
+    // Frame seçildiyse o frame'in mockup koordinatlarını kullan
+    const frame = frameId ? await getPersonalizerFramePublic(frameId) : null;
 
     let textValues: Record<string, string> = {};
     try { textValues = JSON.parse(textValuesRaw); } catch { /* ignore */ }
@@ -54,7 +58,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    // Composite: photo → design template → frame (if frame configured)
+    // Composite: photo → design template → frame (frame seçilmişse)
     const previewUrl = await composePreview({
       templateUrl: template.template_url,
       photoUrl: transformedUrl,
@@ -62,17 +66,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       photoY: template.photo_y,
       photoWidth: template.photo_width,
       photoHeight: template.photo_height,
-      mockupUrl: template.mockup_url || undefined,
-      mockupX: template.mockup_x,
-      mockupY: template.mockup_y,
-      mockupWidth: template.mockup_width,
-      mockupHeight: template.mockup_height,
+      mockupUrl: frame?.mockup_url || undefined,
+      mockupX: frame?.mockup_x ?? 0,
+      mockupY: frame?.mockup_y ?? 0,
+      mockupWidth: frame?.mockup_width ?? 0,
+      mockupHeight: frame?.mockup_height ?? 0,
       textFields: template.text_fields,
       textValues,
     });
 
     return json(
-      { previewUrl, transformedPhotoUrl: transformedUrl },
+      { previewUrl, transformedPhotoUrl: transformedUrl, frameId: frame?.id ?? null },
       { headers: CORS },
     );
   } catch (err) {

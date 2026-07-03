@@ -159,3 +159,84 @@ export async function deletePersonalizerTemplate(id: string, shop: string): Prom
   );
   return (res.rowCount ?? 0) > 0;
 }
+
+// ── Frame (çerçeve seçeneği) ────────────────────────────────────────────────
+
+export interface PersonalizerFrame {
+  id: string;
+  template_id: string;
+  name: string;
+  mockup_url: string;
+  mockup_x: number;
+  mockup_y: number;
+  mockup_width: number;
+  mockup_height: number;
+  sort_order: number;
+  created_at: string;
+}
+
+export async function listPersonalizerFrames(templateId: string): Promise<PersonalizerFrame[]> {
+  const res = await query<PersonalizerFrame>(
+    `SELECT * FROM personalizer_frames WHERE template_id = $1 ORDER BY sort_order ASC, created_at ASC`,
+    [templateId],
+  );
+  return res.rows;
+}
+
+export async function getPersonalizerFramePublic(id: string): Promise<PersonalizerFrame | null> {
+  const res = await query<PersonalizerFrame>(
+    `SELECT * FROM personalizer_frames WHERE id = $1`,
+    [id],
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function createPersonalizerFrame(input: {
+  template_id: string;
+  name: string;
+  mockup_url: string;
+  mockup_x: number;
+  mockup_y: number;
+  mockup_width: number;
+  mockup_height: number;
+  sort_order?: number;
+}): Promise<PersonalizerFrame> {
+  const id = randomBytes(12).toString("hex");
+  const res = await query<PersonalizerFrame>(
+    `INSERT INTO personalizer_frames
+       (id, template_id, name, mockup_url, mockup_x, mockup_y, mockup_width, mockup_height, sort_order)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     RETURNING *`,
+    [id, input.template_id, input.name, input.mockup_url, input.mockup_x, input.mockup_y, input.mockup_width, input.mockup_height, input.sort_order ?? 0],
+  );
+  return res.rows[0];
+}
+
+export async function updatePersonalizerFrame(
+  id: string,
+  input: { name?: string; mockup_url?: string; mockup_x?: number; mockup_y?: number; mockup_width?: number; mockup_height?: number; sort_order?: number },
+): Promise<PersonalizerFrame | null> {
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  let i = 1;
+  for (const [k, v] of Object.entries(input)) {
+    if (v === undefined) continue;
+    sets.push(`${k} = $${i++}`);
+    vals.push(v);
+  }
+  if (sets.length === 0) return getPersonalizerFramePublic(id);
+  vals.push(id);
+  const res = await query<PersonalizerFrame>(
+    `UPDATE personalizer_frames SET ${sets.join(", ")} WHERE id = $${i} RETURNING *`,
+    vals,
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function deletePersonalizerFrame(id: string, templateId: string): Promise<boolean> {
+  const res = await query(
+    `DELETE FROM personalizer_frames WHERE id = $1 AND template_id = $2`,
+    [id, templateId],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
