@@ -67,7 +67,7 @@ export default function PersonalizerIndex() {
   return (
     <Page
       title="Personalizer Şablonları"
-      primaryAction={{ content: "Yeni Şablon", onAction: () => navigate("/app/personalizer/new") }}
+      primaryAction={{ content: "+ Şablon Ekle", onAction: () => navigate("/app/personalizer/new") }}
     >
       <Layout>
           <Layout.Section>
@@ -84,7 +84,7 @@ export default function PersonalizerIndex() {
               <Card>
                 <EmptyState
                   heading="Henüz şablon yok"
-                  action={{ content: "İlk Şablonu Oluştur", onAction: () => navigate("/app/personalizer/new") }}
+                  action={{ content: "Şablon Oluştur", onAction: () => navigate("/app/personalizer/new") }}
                   image="/empty-templates.svg"
                 >
                   <Text as="p">Müşterilerin fotoğraflarını kişiselleştirebileceği şablonlar oluşturun.</Text>
