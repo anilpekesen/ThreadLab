@@ -19,7 +19,6 @@ import {
   type TextFieldDef,
 } from "~/models/personalizer.server";
 import { uploadToR2 } from "~/lib/r2.server";
-import { randomBytes } from "node:crypto";
 
 const MAX_UPLOAD = 20 * 1024 * 1024;
 const AI_STYLE_OPTIONS = [
@@ -111,7 +110,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
 function newTextField(): TextFieldDef {
   return {
-    id: randomBytes(4).toString("hex"),
+    id: Math.random().toString(36).slice(2, 10),
     label: "İsim",
     placeholder: "Adınızı girin",
     x: 1240,
