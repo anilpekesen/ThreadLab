@@ -50,7 +50,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const toSummary = (objs: ReturnType<typeof extractObjects>) =>
     objs
-      .filter((o) => o.type === "i-text" || o.type === "textbox" || o.type === "image")
+      .filter((o) => o.type === "i-text" || o.type === "textbox" || o.type === "curvedText" || o.type === "image")
       .map((o) => ({
         type: o.type,
         text: o.text ?? null,

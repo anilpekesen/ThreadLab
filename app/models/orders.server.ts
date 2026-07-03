@@ -348,7 +348,7 @@ function summarizeObjects(
   objs: ReturnType<typeof extractObjects>,
 ): object[] {
   return objs
-    .filter((o) => o.type === "i-text" || o.type === "textbox" || o.type === "image")
+    .filter((o) => o.type === "i-text" || o.type === "textbox" || o.type === "curvedText" || o.type === "image")
     .map((o) => ({
       type: o.type,
       text: o.text ?? null,

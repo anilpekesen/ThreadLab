@@ -74,7 +74,8 @@ import {
 
 function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHref?: string }) {
   const { t } = useTranslation();
-  const isText = obj.type === "i-text" || obj.type === "textbox";
+  // curvedText: tasarımcıdaki kavisli yazı aracının özel fabric tipi
+  const isText = obj.type === "i-text" || obj.type === "textbox" || obj.type === "curvedText";
   const isImage = obj.type === "image";
 
   return (
