@@ -58,11 +58,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   <title>${t.title} — ${template.name}</title>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f9fafb;color:#111827;min-height:100vh}
-    .container{max-width:580px;margin:0 auto;padding:16px}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f6f7f8;color:#111827;min-height:100vh}
+    .container{max-width:1120px;margin:0 auto;padding:16px}
     h1{font-size:20px;font-weight:700;margin-bottom:4px}
     .subtitle{font-size:13px;color:#6b7280;margin-bottom:20px}
-    .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:16px}
+    .product-shell{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(340px,.92fr);gap:20px;align-items:start}
+    .media-panel,.controls-panel{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px}
+    .media-panel{position:sticky;top:12px}
+    .live-preview{width:100%;aspect-ratio:1;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .live-preview img{width:100%;height:100%;object-fit:contain;display:block}
+    .preview-placeholder{font-size:13px;color:#6b7280;text-align:center;padding:20px}
+    .mobile-title{display:none}
+    .desktop-title{display:block}
     .label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px}
     input[type=text]{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:10px 12px;font-size:14px;outline:none}
     input[type=text]:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.15)}
@@ -95,13 +102,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     .frame-card img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;margin-bottom:6px}
     .frame-card .fname{font-size:12px;font-weight:600;color:#374151}
     .frame-card .fbadge{display:inline-block;margin-top:4px;font-size:10px;background:#6366f1;color:#fff;padding:2px 8px;border-radius:20px}
+    @media(max-width:820px){
+      .container{padding:10px}
+      .product-shell{grid-template-columns:1fr;gap:12px}
+      .media-panel{position:static}
+      .controls-panel{padding:16px}
+      .desktop-title{display:none}
+      .mobile-title{display:block}
+    }
   </style>
 </head>
 <body>
 <div class="container">
-  <div class="card">
-    <h1>${template.name}</h1>
-    ${template.description ? `<p class="subtitle">${template.description.replace(/</g, "&lt;")}</p>` : ""}
+  <div class="product-shell">
+    <div class="mobile-title">
+      <h1>${template.name}</h1>
+      ${template.description ? `<p class="subtitle">${template.description.replace(/</g, "&lt;")}</p>` : ""}
+    </div>
+    <div class="media-panel">
+      <div id="liveFramePreview" class="live-preview">
+        <div class="preview-placeholder">${isTr ? "Çerçeve seçince önizleme burada görünecek." : "Choose a frame to preview it here."}</div>
+      </div>
+    </div>
+    <div class="controls-panel">
+      <div class="desktop-title">
+        <h1>${template.name}</h1>
+        ${template.description ? `<p class="subtitle">${template.description.replace(/</g, "&lt;")}</p>` : ""}
+      </div>
 
     <!-- Step 0: Frame selection (only if frames exist) -->
     <div id="step0" ${!hasFrames ? "hidden" : ""}>
@@ -145,6 +172,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ${variantId ? `<button class="btn btn-success" id="addToCartBtn" onclick="doAddToCart()">${t.addToCart}</button>` : ""}
     </div>
   </div>
+  </div>
 </div>
 
 <script>
@@ -176,6 +204,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       card.addEventListener('click', function() { selectFrame(f.id, card); });
       grid.appendChild(card);
     });
+  } else {
+    updateLivePreview(null);
   }
 
   function selectFrame(frameId, cardEl) {
@@ -189,6 +219,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     cardEl.querySelector('.fbadge').hidden = false;
     document.getElementById('continueBtn').disabled = false;
     renderTextFields();
+    updateLivePreview(FRAMES.find(function(f) { return f.id === frameId; }) || null);
   }
 
   window.goToStep1 = function() {
@@ -306,6 +337,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
 
         document.getElementById('previewImg').src = data.previewUrl;
+        setLivePreviewImage(data.previewUrl);
         document.getElementById('step1').hidden = true;
         document.getElementById('step2').hidden = false;
       })
@@ -320,6 +352,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   window.goBack = function() {
     document.getElementById('step1').hidden = false;
     document.getElementById('step2').hidden = true;
+    if (selectedFrameId) {
+      updateLivePreview(FRAMES.find(function(f) { return f.id === selectedFrameId; }) || null);
+    }
   };
 
   window.doAddToCart = function() {
@@ -414,6 +449,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function setLivePreviewImage(src) {
+    var box = document.getElementById('liveFramePreview');
+    if (!box) return;
+    box.innerHTML = '<img src="' + escHtml(src) + '" alt="">';
+  }
+
+  function updateLivePreview(frame) {
+    var box = document.getElementById('liveFramePreview');
+    if (!box) return;
+    if (frame && frame.mockup_url) {
+      setLivePreviewImage(frame.mockup_url);
+    } else if (FRAMES.length && FRAMES[0].mockup_url) {
+      setLivePreviewImage(FRAMES[0].mockup_url);
+    } else {
+      box.innerHTML = '<div class="preview-placeholder">' + ${JSON.stringify(isTr ? "Önizleme burada görünecek." : "Preview will appear here.")} + '</div>';
+    }
   }
 
   // iframe auto-resize: parent'a yüksekliği bildir

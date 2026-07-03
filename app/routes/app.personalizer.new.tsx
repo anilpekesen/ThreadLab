@@ -11,7 +11,7 @@ import {
 } from "@shopify/polaris";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { authenticate } from "~/lib/authenticate.server";
-import { createPersonalizerTemplate, type TextFieldDef } from "~/models/personalizer.server";
+import { createPersonalizerFrame, createPersonalizerTemplate, type TextFieldDef } from "~/models/personalizer.server";
 import { uploadToR2 } from "~/lib/r2.server";
 
 const MAX_UPLOAD = 20 * 1024 * 1024;
@@ -36,15 +36,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const form = await unstable_parseMultipartFormData(request, uploadHandler);
 
   const count = parseInt(String(form.get("count") ?? "0"), 10);
-  if (count === 0) return json({ error: "En az 1 şablon gerekli" }, { status: 400 });
+  if (count === 0) return json({ error: "En az 1 çerçeve gerekli" }, { status: 400 });
 
+  const name = String(form.get("name") ?? "").trim();
+  const description = String(form.get("description") ?? "").trim();
   const aiStyle = String(form.get("ai_style") ?? "caricature");
   const globalFields: TextFieldDef[] = JSON.parse(String(form.get("global_text_fields") ?? "[]"));
+
+  if (!name) return json({ error: "Şablon adı gerekli" }, { status: 400 });
+
+  const template = await createPersonalizerTemplate({
+    shop,
+    name,
+    description,
+    template_url: "",
+    mockup_url: "",
+    photo_x: 0,
+    photo_y: 0,
+    photo_width: 400,
+    photo_height: 400,
+    text_fields: [],
+    ai_style: aiStyle,
+    sort_order: 0,
+  });
 
   const errors: string[] = [];
 
   for (let i = 0; i < count; i++) {
-    const name = String(form.get(`name_${i}`) ?? "").trim() || `Şablon ${i + 1}`;
+    const frameName = String(form.get(`name_${i}`) ?? "").trim() || `Çerçeve ${i + 1}`;
     const photo_x = parseInt(String(form.get(`photo_x_${i}`) ?? "0"), 10);
     const photo_y = parseInt(String(form.get(`photo_y_${i}`) ?? "0"), 10);
     const photo_width = parseInt(String(form.get(`photo_width_${i}`) ?? "400"), 10);
@@ -60,34 +79,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       y: textPositions[f.id]?.y ?? f.y,
     }));
 
-    const existingUrl = String(form.get(`existing_url_${i}`) ?? "");
-    let template_url = existingUrl;
+    let mockup_url = "";
     const file = form.get(`template_image_${i}`);
     if (file instanceof File && file.size > 0) {
       const buf = Buffer.from(await file.arrayBuffer());
       const ext = file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png";
       try {
-        template_url = await uploadToR2(buf, ext, "personalizer-template");
+        mockup_url = await uploadToR2(buf, ext, "personalizer-frame");
       } catch (e) {
-        errors.push(`Şablon ${i + 1}: görsel yüklenemedi`);
+        errors.push(`Çerçeve ${i + 1}: görsel yüklenemedi`);
         continue;
       }
     }
 
-    if (!template_url) {
-      errors.push(`Şablon ${i + 1}: görsel eksik`);
+    if (!mockup_url) {
+      errors.push(`Çerçeve ${i + 1}: görsel eksik`);
       continue;
     }
 
-    await createPersonalizerTemplate({
-      shop, name, template_url, mockup_url: "",
-      photo_x, photo_y, photo_width, photo_height,
-      text_fields, ai_style: aiStyle, sort_order: i,
+    await createPersonalizerFrame({
+      template_id: template.id,
+      name: frameName,
+      mockup_url,
+      mockup_x: photo_x,
+      mockup_y: photo_y,
+      mockup_width: photo_width,
+      mockup_height: photo_height,
+      text_fields,
+      sort_order: i,
     });
   }
 
   if (errors.length > 0) return json({ error: errors.join(" | ") }, { status: 207 });
-  return redirect("/app/personalizer");
+  return redirect(`/app/personalizer/${template.id}`);
 };
 
 // ── Visual Editor (same as in $id.tsx) ─────────────────────────────────────
@@ -104,6 +128,8 @@ function VisualEditor({
   globalFields,
   textPositions,
   onTextPos,
+  samplePhotoUrl,
+  sampleText,
 }: {
   imageUrl: string;
   photoRect: Rect;
@@ -111,6 +137,8 @@ function VisualEditor({
   globalFields: GlobalField[];
   textPositions: Record<string, { x: number; y: number }>;
   onTextPos: (fieldId: string, x: number, y: number) => void;
+  samplePhotoUrl: string;
+  sampleText: string;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [naturalW, setNaturalW] = useState(1);
@@ -201,7 +229,14 @@ function VisualEditor({
         />
 
         {photoRect.w > 0 && photoRect.h > 0 && (
-          <div style={{ position: "absolute", ...toDisplayRect(photoRect), border: "2px solid #6366f1", background: "rgba(99,102,241,0.15)", pointerEvents: "none", boxSizing: "border-box" }}>
+          <div style={{ position: "absolute", ...toDisplayRect(photoRect), border: "2px solid #6366f1", background: "rgba(99,102,241,0.15)", pointerEvents: "none", boxSizing: "border-box", overflow: "hidden" }}>
+            {samplePhotoUrl && (
+              <img
+                src={samplePhotoUrl}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            )}
             <span style={{ position: "absolute", top: 2, left: 4, fontSize: 10, fontWeight: 700, color: "#4f46e5", background: "rgba(255,255,255,.85)", padding: "0 4px", borderRadius: 3 }}>
               {`📷 ${photoRect.w}×${photoRect.h}`}
             </span>
@@ -214,8 +249,8 @@ function VisualEditor({
           const dp = toDisplayPx(pos.x, pos.y);
           return (
             <div key={f.id} style={{ position: "absolute", left: dp.left, top: dp.top, transform: "translate(-50%,-50%)", pointerEvents: "none", zIndex: 10 }}>
-              <div style={{ background: mode.type === "text" && mode.fieldId === f.id ? "#6366f1" : "#10b981", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 5px", borderRadius: 4, whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }}>
-                {f.label}
+              <div style={{ background: mode.type === "text" && mode.fieldId === f.id ? "#6366f1" : "rgba(255,255,255,.92)", color: sampleText ? f.color : "#047857", fontSize: sampleText ? Math.max(10, Math.round(f.font_size * 0.12)) : 10, fontWeight: f.bold ? 700 : 500, padding: sampleText ? "1px 4px" : "2px 5px", borderRadius: 4, whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }}>
+                {sampleText || f.label}
               </div>
             </div>
           );
@@ -233,7 +268,7 @@ function VisualEditor({
   );
 }
 
-// ── Template Item Card ───────────────────────────────────────────────────────
+// ── Frame Item Card ──────────────────────────────────────────────────────────
 
 interface TemplateItemState {
   tempId: string;
@@ -251,6 +286,8 @@ function TemplateCard({
   onUpdate,
   onRemove,
   isOnly,
+  samplePhotoUrl,
+  sampleText,
 }: {
   item: TemplateItemState;
   index: number;
@@ -258,6 +295,8 @@ function TemplateCard({
   onUpdate: (updated: TemplateItemState) => void;
   onRemove: () => void;
   isOnly: boolean;
+  samplePhotoUrl: string;
+  sampleText: string;
 }) {
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -270,26 +309,26 @@ function TemplateCard({
       <BlockStack gap="400">
         <InlineStack align="space-between" blockAlign="center">
           <InlineStack gap="200" blockAlign="center">
-            <Badge>{`Şablon ${index + 1}`}</Badge>
-            <Text as="h3" variant="headingSm" fontWeight="bold">{item.name || `Şablon ${index + 1}`}</Text>
+            <Badge>{`Çerçeve ${index + 1}`}</Badge>
+            <Text as="h3" variant="headingSm" fontWeight="bold">{item.name || `Çerçeve ${index + 1}`}</Text>
           </InlineStack>
           {!isOnly && <Button tone="critical" size="slim" onClick={onRemove}>Kaldır</Button>}
         </InlineStack>
 
         <FormLayout>
           <TextField
-            label="Şablon Adı"
+            label="Çerçeve Adı"
             value={item.name}
             onChange={(v) => onUpdate({ ...item, name: v })}
             autoComplete="off"
-            placeholder={`Örn: Şablon ${index + 1} — Ahşap Çerçeve`}
+            placeholder={`Örn: Çerçeve ${index + 1} - Ahşap`}
           />
         </FormLayout>
 
         {!item.previewUrl ? (
           <Box background="bg-surface-secondary" padding="600" borderRadius="200">
             <BlockStack gap="200" inlineAlign="center">
-              <Text as="p" tone="subdued">Şablon görselini seçin</Text>
+              <Text as="p" tone="subdued">Boş çerçeve görselini seçin</Text>
               <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} />
             </BlockStack>
           </Box>
@@ -306,6 +345,8 @@ function TemplateCard({
               globalFields={globalFields}
               textPositions={item.textPositions}
               onTextPos={(fieldId, x, y) => onUpdate({ ...item, textPositions: { ...item.textPositions, [fieldId]: { x, y } } })}
+              samplePhotoUrl={samplePhotoUrl}
+              sampleText={sampleText}
             />
           </BlockStack>
         )}
@@ -328,9 +369,13 @@ export default function PersonalizerBulkNew() {
   const navigate = useNavigate();
   const fetcher = useFetcher<{ error?: string }>();
 
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [aiStyle, setAiStyle] = useState("caricature");
   const [globalFields, setGlobalFields] = useState<GlobalField[]>([makeGlobalField()]);
   const [templates, setTemplates] = useState<TemplateItemState[]>([makeTemplateItem()]);
+  const [samplePhotoUrl, setSamplePhotoUrl] = useState("");
+  const [sampleText, setSampleText] = useState("Örnek yazı");
 
   const isLoading = fetcher.state !== "idle";
 
@@ -366,14 +411,17 @@ export default function PersonalizerBulkNew() {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData();
-    fd.set("count", String(templates.length));
+    const validTemplates = templates.filter((t) => t.file && t.previewUrl);
+    fd.set("count", String(validTemplates.length));
+    fd.set("name", name);
+    fd.set("description", description);
     fd.set("ai_style", aiStyle);
 
     // GlobalFields with default x/y (fallback positions)
     const fullGlobalFields: TextFieldDef[] = globalFields.map((f) => ({ ...f, x: 1240, y: 3200 }));
     fd.set("global_text_fields", JSON.stringify(fullGlobalFields));
 
-    templates.forEach((t, i) => {
+    validTemplates.forEach((t, i) => {
       fd.set(`name_${i}`, t.name || `Şablon ${i + 1}`);
       fd.set(`photo_x_${i}`, String(t.photoRect.x));
       fd.set(`photo_y_${i}`, String(t.photoRect.y));
@@ -388,9 +436,9 @@ export default function PersonalizerBulkNew() {
 
   return (
     <Page
-      title="Yeni Personalizer Şablonları"
+      title="Yeni Personalizer Şablonu"
       backAction={{ content: "Şablonlar", onAction: () => navigate("/app/personalizer") }}
-      subtitle="Birden fazla şablonu aynı anda oluşturun"
+      subtitle="Tek ürün için birden fazla boş çerçeveyi birlikte hazırlayın"
     >
       <form onSubmit={handleSubmit}>
         <Layout>
@@ -420,8 +468,8 @@ export default function PersonalizerBulkNew() {
                 inp.click();
               }}
             >
-              <Text as="p" variant="headingSm">📁 Görselleri buraya sürükleyin veya tıklayın</Text>
-              <Text as="p" tone="subdued" variant="bodySm">PNG, JPEG — birden fazla dosya seçebilirsiniz</Text>
+              <Text as="p" variant="headingSm">Boş çerçeveleri buraya sürükleyin veya tıklayın</Text>
+              <Text as="p" tone="subdued" variant="bodySm">PNG, JPEG, WebP. Birden fazla dosya seçebilirsiniz.</Text>
             </div>
           </Layout.Section>
 
@@ -429,8 +477,48 @@ export default function PersonalizerBulkNew() {
           <Layout.Section>
             <Card>
               <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">Tüm Şablonlar İçin Ortak Ayarlar</Text>
-                <Select label="AI Dönüşüm Stili" options={AI_STYLE_OPTIONS} value={aiStyle} onChange={setAiStyle} />
+                <Text as="h2" variant="headingMd">Ürün Şablonu</Text>
+                <FormLayout>
+                  <TextField
+                    label="Şablon Adı"
+                    value={name}
+                    onChange={setName}
+                    autoComplete="off"
+                    placeholder="Örn: Kişiye Özel Tablo"
+                  />
+                  <TextField
+                    label="Açıklama"
+                    value={description}
+                    onChange={setDescription}
+                    multiline={2}
+                    autoComplete="off"
+                    placeholder="Müşterinin ürün sayfasında göreceği kısa açıklama"
+                  />
+                  <Select label="AI Dönüşüm Stili" options={AI_STYLE_OPTIONS} value={aiStyle} onChange={setAiStyle} />
+                </FormLayout>
+
+                <Divider />
+
+                <Text as="h3" variant="headingSm">Örnek Önizleme</Text>
+                <Text as="p" tone="subdued" variant="bodySm">
+                  Buraya yüklediğiniz örnek fotoğraf ve yazı sadece admin önizlemesi içindir. Müşteri kendi fotoğrafını ve yazısını girecek.
+                </Text>
+                <FormLayout>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setSamplePhotoUrl(URL.createObjectURL(file));
+                    }}
+                  />
+                  <TextField
+                    label="Örnek Yazı"
+                    value={sampleText}
+                    onChange={setSampleText}
+                    autoComplete="off"
+                  />
+                </FormLayout>
 
                 <Divider />
 
@@ -439,7 +527,7 @@ export default function PersonalizerBulkNew() {
                   <Button size="slim" onClick={addField}>+ Alan Ekle</Button>
                 </InlineStack>
                 <Text as="p" tone="subdued" variant="bodySm">
-                  Bu alanlar tüm şablonlarda geçerlidir. Her şablonun editöründe T butonuna basarak konumunu ayrı ayrı ayarlayın.
+                  Bu alanlar tüm çerçevelerde geçerlidir. Her çerçevenin editöründe T butonuna basarak konumunu ayrı ayrı ayarlayın.
                 </Text>
 
                 {globalFields.map((f, idx) => (
@@ -481,17 +569,19 @@ export default function PersonalizerBulkNew() {
                 onUpdate={(updated) => updateTemplate(idx, updated)}
                 onRemove={() => removeTemplate(idx)}
                 isOnly={templates.length === 1}
+                samplePhotoUrl={samplePhotoUrl}
+                sampleText={sampleText}
               />
             </Layout.Section>
           ))}
 
           <Layout.Section>
             <InlineStack gap="300" align="space-between">
-              <Button onClick={addTemplate} size="slim">+ Şablon Ekle</Button>
+              <Button onClick={addTemplate} size="slim">+ Çerçeve Ekle</Button>
               <InlineStack gap="300">
                 <Button onClick={() => navigate("/app/personalizer")}>İptal</Button>
                 <Button submit variant="primary" loading={isLoading}>
-                  {`${templates.length} Şablonu Kaydet`}
+                  {`1 Şablon, ${templates.filter((t) => t.file && t.previewUrl).length} Çerçeve Kaydet`}
                 </Button>
               </InlineStack>
             </InlineStack>
