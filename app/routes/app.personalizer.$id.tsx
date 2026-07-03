@@ -9,7 +9,7 @@ import {
   Page, Layout, Card, FormLayout, TextField, Select, Checkbox,
   Button, BlockStack, InlineStack, Text, Banner, Box,
 } from "@shopify/polaris";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { authenticate } from "~/lib/authenticate.server";
 import {
   getPersonalizerTemplate,
@@ -99,23 +99,29 @@ type EditorMode =
 
 function TemplateVisualEditor({
   imageUrl,
+  mockupUrl,
   photoRect,
   onPhotoRect,
   textFields,
   onTextPos,
 }: {
   imageUrl: string;
+  mockupUrl?: string;
   photoRect: Rect;
   onPhotoRect: (r: Rect) => void;
   textFields: TextFieldDef[];
   onTextPos: (idx: number, x: number, y: number) => void;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
+  const mockupRef = useRef<HTMLImageElement>(null);
   const [naturalW, setNaturalW] = useState(1);
   const [naturalH, setNaturalH] = useState(1);
+  const [mockupNaturalW, setMockupNaturalW] = useState(1);
+  const [mockupNaturalH, setMockupNaturalH] = useState(1);
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [mode, setMode] = useState<EditorMode>({ type: "photo" });
+  const [activeTab, setActiveTab] = useState<"template" | "mockup">("template");
 
   function getImgCoords(e: React.MouseEvent) {
     const img = imgRef.current!;
@@ -129,17 +135,34 @@ function TemplateVisualEditor({
   }
 
   // image-space rect → display-space CSS (relative to img container)
-  function toCSS(ix: number, iy: number, iw: number, ih: number) {
-    const img = imgRef.current;
-    if (!img || naturalW === 1) return {};
+  function toCSS(ix: number, iy: number, iw: number, ih: number, ref: React.RefObject<HTMLImageElement | null>, nw: number, nh: number) {
+    const img = ref.current;
+    if (!img || nw === 1) return {};
     const rect = img.getBoundingClientRect();
-    const sx = rect.width / naturalW;
-    const sy = rect.height / naturalH;
     return {
-      left: `${ix * sx}px`,
-      top: `${iy * sy}px`,
-      width: `${iw * sx}px`,
-      height: `${ih * sy}px`,
+      left: `${ix * (rect.width / nw)}px`,
+      top: `${iy * (rect.height / nh)}px`,
+      width: `${iw * (rect.width / nw)}px`,
+      height: `${ih * (rect.height / nh)}px`,
+    };
+  }
+
+  // Mockup overlay: same photo area coords scaled to mockup natural size
+  // (assumes mockup and template have proportionally same layout)
+  function mockupOverlayCSS() {
+    const img = mockupRef.current;
+    if (!img || mockupNaturalW === 1) return {};
+    const rect = img.getBoundingClientRect();
+    const sx = rect.width / mockupNaturalW;
+    const sy = rect.height / mockupNaturalH;
+    // Scale template coords to mockup coords proportionally
+    const scaleX = mockupNaturalW / (naturalW || mockupNaturalW);
+    const scaleY = mockupNaturalH / (naturalH || mockupNaturalH);
+    return {
+      left: `${photoRect.x * scaleX * sx}px`,
+      top: `${photoRect.y * scaleY * sy}px`,
+      width: `${photoRect.w * scaleX * sx}px`,
+      height: `${photoRect.h * scaleY * sy}px`,
     };
   }
 
@@ -169,123 +192,150 @@ function TemplateVisualEditor({
 
   function onMouseUp() { setDragging(false); }
 
-  const photoCss = toCSS(photoRect.x, photoRect.y, photoRect.w, photoRect.h);
+  const photoCss = toCSS(photoRect.x, photoRect.y, photoRect.w, photoRect.h, imgRef, naturalW, naturalH);
   const isPhotoMode = mode.type === "photo";
+  const showMockupTab = !!mockupUrl;
 
-  return (
-    <BlockStack gap="300">
-      {/* Mode buttons */}
-      <InlineStack gap="200" wrap>
-        <Button
-          size="slim"
-          variant={isPhotoMode ? "primary" : "secondary"}
-          onClick={() => setMode({ type: "photo" })}
-        >
-          📷 Fotoğraf alanı çiz
-        </Button>
-        {textFields.map((f, idx) => (
-          <Button
-            key={f.id}
-            size="slim"
-            variant={mode.type === "text" && mode.idx === idx ? "primary" : "secondary"}
-            onClick={() => setMode({ type: "text", idx })}
-          >
-            {`T${idx + 1} "${f.label}"`}
-          </Button>
-        ))}
-      </InlineStack>
+  // Switch to mockup tab automatically when mockup is set
+  useEffect(() => {
+    if (mockupUrl && activeTab === "template" && naturalW > 1) {
+      // don't auto-switch, let user choose
+    }
+  }, [mockupUrl]);
 
-      <Text as="p" tone="subdued" variant="bodySm">
-        {isPhotoMode
-          ? "Fotoğrafın yerleştirileceği alana tıklayıp sürükleyin."
-          : `"${textFields[mode.idx]?.label}" metninin çıkacağı yere tıklayın.`}
-      </Text>
-
-      {/* Image + overlays */}
-      <div
-        style={{ position: "relative", display: "inline-block", cursor: isPhotoMode ? "crosshair" : "cell", userSelect: "none" }}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onMouseLeave={onMouseUp}
-      >
-        <img
-          ref={imgRef}
-          src={imageUrl}
-          alt="Şablon"
-          style={{ display: "block", maxWidth: "100%", maxHeight: "70vh", borderRadius: "8px", border: "1px solid #e5e7eb" }}
-          onLoad={(e) => {
-            const img = e.currentTarget;
-            setNaturalW(img.naturalWidth || 1);
-            setNaturalH(img.naturalHeight || 1);
-          }}
-          draggable={false}
-        />
-
-        {/* Photo area overlay */}
+  function renderOverlays(
+    refEl: React.RefObject<HTMLImageElement | null>,
+    nw: number,
+    nh: number,
+    isMockup = false,
+  ) {
+    const pCss = isMockup ? mockupOverlayCSS() : photoCss;
+    return (
+      <>
         {photoRect.w > 0 && photoRect.h > 0 && (
           <div style={{
-            position: "absolute",
-            ...photoCss,
-            border: "2px solid #6366f1",
-            background: "rgba(99,102,241,0.15)",
-            pointerEvents: "none",
-            boxSizing: "border-box",
+            position: "absolute", ...pCss,
+            border: `2px solid ${isMockup ? "#f59e0b" : "#6366f1"}`,
+            background: isMockup ? "rgba(245,158,11,0.15)" : "rgba(99,102,241,0.15)",
+            pointerEvents: "none", boxSizing: "border-box",
           }}>
-            <span style={{
-              position: "absolute", top: 2, left: 4, fontSize: 11, fontWeight: 700,
-              color: "#4f46e5", background: "rgba(255,255,255,.85)", padding: "0 4px", borderRadius: 3,
-            }}>
+            <span style={{ position: "absolute", top: 2, left: 4, fontSize: 11, fontWeight: 700, color: isMockup ? "#b45309" : "#4f46e5", background: "rgba(255,255,255,.85)", padding: "0 4px", borderRadius: 3 }}>
               📷 {photoRect.w}×{photoRect.h}
             </span>
           </div>
         )}
-
-        {/* Text field markers */}
-        {textFields.map((f, idx) => {
-          const img = imgRef.current;
-          if (!img || naturalW === 1) return null;
+        {!isMockup && textFields.map((f, idx) => {
+          const img = refEl.current;
+          if (!img || nw === 1) return null;
           const rect = img.getBoundingClientRect();
-          const sx = rect.width / naturalW;
-          const sy = rect.height / naturalH;
-          const dx = f.x * sx;
-          const dy = f.y * sy;
           const isActive = mode.type === "text" && mode.idx === idx;
           return (
-            <div key={f.id} style={{
-              position: "absolute",
-              left: dx,
-              top: dy,
-              transform: "translate(-50%, -50%)",
-              pointerEvents: "none",
-              zIndex: 10,
-            }}>
-              <div style={{
-                background: isActive ? "#6366f1" : "#10b981",
-                color: "#fff",
-                fontSize: 10,
-                fontWeight: 700,
-                padding: "2px 6px",
-                borderRadius: 4,
-                whiteSpace: "nowrap",
-                boxShadow: "0 1px 4px rgba(0,0,0,.3)",
-              }}>
+            <div key={f.id} style={{ position: "absolute", left: f.x * (rect.width / nw), top: f.y * (rect.height / nh), transform: "translate(-50%,-50%)", pointerEvents: "none", zIndex: 10 }}>
+              <div style={{ background: isActive ? "#6366f1" : "#10b981", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }}>
                 T{idx + 1} {f.label}
               </div>
             </div>
           );
         })}
-      </div>
+      </>
+    );
+  }
 
-      {/* Current values display */}
+  return (
+    <BlockStack gap="300">
+      {/* Tab bar */}
+      {showMockupTab && (
+        <InlineStack gap="0">
+          {(["template", "mockup"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: "7px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "1px solid #d1d5db",
+                borderRadius: tab === "template" ? "8px 0 0 8px" : "0 8px 8px 0",
+                background: activeTab === tab ? "#6366f1" : "#fff",
+                color: activeTab === tab ? "#fff" : "#374151",
+                marginRight: tab === "template" ? -1 : 0,
+              }}
+            >
+              {tab === "template" ? "✏️ Şablon Editörü" : "🖼 Mockup Önizleme"}
+            </button>
+          ))}
+        </InlineStack>
+      )}
+
+      {/* Mode buttons — only in template tab */}
+      {activeTab === "template" && (
+        <>
+          <InlineStack gap="200" wrap>
+            <Button size="slim" variant={isPhotoMode ? "primary" : "secondary"} onClick={() => setMode({ type: "photo" })}>
+              📷 Fotoğraf alanı çiz
+            </Button>
+            {textFields.map((f, idx) => (
+              <Button key={f.id} size="slim"
+                variant={mode.type === "text" && mode.idx === idx ? "primary" : "secondary"}
+                onClick={() => setMode({ type: "text", idx })}
+              >
+                {`T${idx + 1} "${f.label}"`}
+              </Button>
+            ))}
+          </InlineStack>
+          <Text as="p" tone="subdued" variant="bodySm">
+            {isPhotoMode ? "Fotoğrafın yerleştirileceği alana tıklayıp sürükleyin." : `"${textFields[mode.idx]?.label}" metninin çıkacağı yere tıklayın.`}
+          </Text>
+        </>
+      )}
+
+      {activeTab === "mockup" && (
+        <Text as="p" tone="subdued" variant="bodySm">
+          Turuncu alan, fotoğrafın çerçeve içinde görüneceği yeri gösterir. Koordinatları değiştirmek için Şablon Editörü sekmesine geçin.
+        </Text>
+      )}
+
+      {/* Template editor view */}
+      {activeTab === "template" && (
+        <div
+          style={{ position: "relative", display: "inline-block", cursor: isPhotoMode ? "crosshair" : "cell", userSelect: "none" }}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+        >
+          <img
+            ref={imgRef}
+            src={imageUrl}
+            alt="Şablon"
+            style={{ display: "block", maxWidth: "100%", maxHeight: "70vh", borderRadius: 8, border: "1px solid #e5e7eb" }}
+            onLoad={(e) => { setNaturalW(e.currentTarget.naturalWidth || 1); setNaturalH(e.currentTarget.naturalHeight || 1); }}
+            draggable={false}
+          />
+          {renderOverlays(imgRef, naturalW, naturalH, false)}
+        </div>
+      )}
+
+      {/* Mockup preview view */}
+      {activeTab === "mockup" && mockupUrl && (
+        <div style={{ position: "relative", display: "inline-block", userSelect: "none" }}>
+          <img
+            ref={mockupRef}
+            src={mockupUrl}
+            alt="Mockup"
+            style={{ display: "block", maxWidth: "100%", maxHeight: "70vh", borderRadius: 8, border: "1px solid #e5e7eb" }}
+            onLoad={(e) => { setMockupNaturalW(e.currentTarget.naturalWidth || 1); setMockupNaturalH(e.currentTarget.naturalHeight || 1); }}
+            draggable={false}
+          />
+          {renderOverlays(mockupRef, mockupNaturalW, mockupNaturalH, true)}
+        </div>
+      )}
+
+      {/* Coords summary */}
       <Box background="bg-surface-secondary" padding="300" borderRadius="200">
         <Text as="p" variant="bodySm">
-          📷 Fotoğraf: X={photoRect.x} Y={photoRect.y} — {photoRect.w}×{photoRect.h} px
+          {`📷 Fotoğraf: X=${photoRect.x} Y=${photoRect.y} — ${photoRect.w}×${photoRect.h} px`}
         </Text>
         {textFields.map((f, idx) => (
-          <Text key={f.id} as="p" variant="bodySm">
-            T{idx + 1} {f.label}: X={f.x} Y={f.y}
-          </Text>
+          <Text key={f.id} as="p" variant="bodySm">{`T${idx + 1} ${f.label}: X=${f.x} Y=${f.y}`}</Text>
         ))}
       </Box>
     </BlockStack>
@@ -422,6 +472,7 @@ export default function PersonalizerEditor() {
                   </Text>
                   <TemplateVisualEditor
                     imageUrl={templatePreview}
+                    mockupUrl={mockupPreview || undefined}
                     photoRect={photoRect}
                     onPhotoRect={setPhotoRect}
                     textFields={textFields}
