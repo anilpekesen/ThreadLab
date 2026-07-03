@@ -10,6 +10,23 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+function getMessages(locale: string) {
+  const isTr = !locale.toLowerCase().startsWith("en");
+  return {
+    required: isTr ? "templateId ve transformedPhotoUrl gerekli" : "templateId and transformedPhotoUrl are required",
+    notFound: isTr ? "Şablon bulunamadı" : "Template was not found",
+    unknown: isTr ? "Bilinmeyen hata" : "Unknown error",
+    renderFailed: isTr ? "Render başarısız" : "Render failed",
+    frameName: (value: string | null | undefined) => {
+      if (isTr) return value ?? null;
+      return String(value || "")
+        .replace(/Çerçeve/g, "Frame")
+        .replace(/çerçeve/g, "frame")
+        .replace(/Ekran Resmi/g, "Screenshot") || null;
+    },
+  };
+}
+
 export const loader = async ({ request }: ActionFunctionArgs) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   return new Response(null, { status: 405, headers: CORS });
@@ -19,19 +36,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (request.method !== "POST") return json({ error: "Method not allowed" }, { status: 405, headers: CORS });
 
+  let messages = getMessages("tr");
   try {
     const body = await request.json() as Record<string, unknown>;
     const templateId          = String(body.templateId ?? "").trim();
     const frameId             = String(body.frameId ?? "").trim();
+    const locale              = String(body.locale ?? "tr").trim();
+    const t = getMessages(locale);
+    messages = t;
     const transformedPhotoUrl = String(body.transformedPhotoUrl ?? "").trim();
     const textValues          = (body.textValues ?? {}) as Record<string, string>;
 
     if (!templateId || !transformedPhotoUrl) {
-      return json({ error: "templateId ve transformedPhotoUrl gerekli" }, { status: 400, headers: CORS });
+      return json({ error: t.required }, { status: 400, headers: CORS });
     }
 
     const template = await getPersonalizerTemplatePublic(templateId);
-    if (!template) return json({ error: "Şablon bulunamadı" }, { status: 404, headers: CORS });
+    if (!template) return json({ error: t.notFound }, { status: 404, headers: CORS });
 
     const frames = frameId
       ? [await getPersonalizerFramePublic(frameId)].filter(Boolean)
@@ -55,7 +76,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         textFields: activeTextFields,
         textValues,
       });
-      return { frameId: frame?.id ?? null, frameName: frame?.name ?? null, printUrl };
+      return { frameId: frame?.id ?? null, frameName: t.frameName(frame?.name), printUrl };
     }));
     const printUrl = renders[0]?.printUrl ?? "";
 
@@ -81,8 +102,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return json({ printUrl, printUrls: renders, designToken }, { headers: CORS });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Bilinmeyen hata";
+    const msg = err instanceof Error ? err.message : messages.unknown;
     console.error("[personalizer/render]", msg);
-    return json({ error: `Render başarısız: ${msg}` }, { status: 500, headers: CORS });
+    return json({ error: `${messages.renderFailed}: ${msg}` }, { status: 500, headers: CORS });
   }
 };

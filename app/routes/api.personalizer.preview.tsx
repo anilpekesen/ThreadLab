@@ -10,6 +10,24 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+function getMessages(locale: string) {
+  const isTr = !locale.toLowerCase().startsWith("en");
+  return {
+    templateRequired: isTr ? "templateId gerekli" : "templateId is required",
+    photoRequired: isTr ? "Fotoğraf yüklenmedi" : "Photo was not uploaded",
+    notFound: isTr ? "Şablon bulunamadı" : "Template was not found",
+    unknown: isTr ? "Bilinmeyen hata" : "Unknown error",
+    previewFailed: isTr ? "Önizleme oluşturulamadı" : "Preview could not be created",
+    frameName: (value: string | null | undefined) => {
+      if (isTr) return value ?? null;
+      return String(value || "")
+        .replace(/Çerçeve/g, "Frame")
+        .replace(/çerçeve/g, "frame")
+        .replace(/Ekran Resmi/g, "Screenshot") || null;
+    },
+  };
+}
+
 export const loader = async ({ request }: ActionFunctionArgs) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   return new Response(null, { status: 405, headers: CORS });
@@ -19,22 +37,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (request.method !== "POST") return json({ error: "Method not allowed" }, { status: 405, headers: CORS });
 
+  let messages = getMessages("tr");
   try {
     const uploadHandler = unstable_createMemoryUploadHandler({ maxPartSize: 10 * 1024 * 1024 });
     const form = await unstable_parseMultipartFormData(request, uploadHandler);
 
     const templateId = String(form.get("templateId") ?? "").trim();
     const frameId    = String(form.get("frameId") ?? "").trim();
+    const locale     = String(form.get("locale") ?? "tr").trim();
+    const t = getMessages(locale);
+    messages = t;
     const photoFile = form.get("photo");
     const textValuesRaw = String(form.get("textValues") ?? "{}");
 
-    if (!templateId) return json({ error: "templateId gerekli" }, { status: 400, headers: CORS });
+    if (!templateId) return json({ error: t.templateRequired }, { status: 400, headers: CORS });
     if (!(photoFile instanceof File) || photoFile.size === 0) {
-      return json({ error: "Fotoğraf yüklenmedi" }, { status: 400, headers: CORS });
+      return json({ error: t.photoRequired }, { status: 400, headers: CORS });
     }
 
     const template = await getPersonalizerTemplatePublic(templateId);
-    if (!template) return json({ error: "Şablon bulunamadı" }, { status: 404, headers: CORS });
+    if (!template) return json({ error: t.notFound }, { status: 404, headers: CORS });
 
     let textValues: Record<string, string> = {};
     try { textValues = JSON.parse(textValuesRaw); } catch { /* ignore */ }
@@ -77,7 +99,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         textFields: activeTextFields,
         textValues,
       });
-      return { frameId: frame?.id ?? null, frameName: frame?.name ?? null, previewUrl };
+      return { frameId: frame?.id ?? null, frameName: t.frameName(frame?.name), previewUrl };
     }));
 
     return json(
@@ -90,8 +112,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       { headers: CORS },
     );
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Bilinmeyen hata";
+    const msg = err instanceof Error ? err.message : messages.unknown;
     console.error("[personalizer/preview]", msg);
-    return json({ error: `Önizleme oluşturulamadı: ${msg}` }, { status: 500, headers: CORS });
+    return json({ error: `${messages.previewFailed}: ${msg}` }, { status: 500, headers: CORS });
   }
 };

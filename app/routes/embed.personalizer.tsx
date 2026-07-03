@@ -8,22 +8,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const variantId  = url.searchParams.get("variantId") ?? "";
   const shop       = url.searchParams.get("shop") ?? "";
   const locale     = url.searchParams.get("locale") ?? "tr";
-
-  const template = templateId
-    ? await getPersonalizerTemplatePublic(templateId)
-    : shop && productId
-      ? await getPersonalizerTemplateByProduct(shop, productId)
-      : null;
-  if (!template) {
-    return new Response("Şablon bulunamadı veya aktif değil.", { status: 404 });
-  }
-
-  const resolvedTemplateId = template.id;
-  const frames = await listPersonalizerFrames(resolvedTemplateId);
-
-  const appUrl = process.env.SHOPIFY_APP_URL ?? url.origin;
-  const isTr = locale !== "en";
-  const hasVariant = Boolean(variantId && variantId !== "VARIANT_ID" && variantId !== "undefined" && variantId !== "null");
+  const normalizedLocale = locale.toLowerCase().startsWith("en") ? "en" : "tr";
+  const isTr = normalizedLocale === "tr";
 
   const t = {
     title: isTr ? "Kişiselleştir" : "Personalize",
@@ -33,36 +19,85 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     loading: isTr ? "İşleniyor..." : "Processing...",
     addToCart: isTr ? "Sepete Ekle" : "Add to Cart",
     addingToCart: isTr ? "Ekleniyor..." : "Adding...",
-    step1: isTr ? "Fotoğraf & Metin" : "Photo & Text",
-    step2: isTr ? "Önizleme" : "Preview",
     back: isTr ? "Geri" : "Back",
     previewNote: isTr ? "Yapay zeka dönüşümü birkaç saniye sürebilir." : "AI transformation may take a few seconds.",
     error: isTr ? "Hata oluştu. Lütfen tekrar deneyin." : "An error occurred. Please try again.",
-    chooseFrame: isTr ? "Çerçeve Seçin" : "Choose Frame",
-    chooseFrameHint: isTr ? "Beğendiğiniz çerçeye tıklayın" : "Click on a frame you like",
-    continue: isTr ? "Devam Et →" : "Continue →",
-    selectedFrame: isTr ? "Seçili" : "Selected",
+    notFound: isTr ? "Şablon bulunamadı veya aktif değil." : "Template was not found or is not active.",
+    previewPlaceholder: isTr ? "Fotoğrafı yükleyip önizleme alınca tüm çerçeveler burada görünecek." : "Upload a photo and preview to see all frames here.",
+    previewEmpty: isTr ? "Önizleme burada görünecek." : "Preview will appear here.",
+    photoRequired: isTr ? "Lütfen bir fotoğraf yükleyin." : "Please upload a photo.",
+    addedToCart: isTr ? "Sepete Eklendi" : "Added to Cart",
+    done: isTr ? "Tamamlandı" : "Done",
+    frame: isTr ? "Çerçeve" : "Frame",
+    previous: isTr ? "Önceki" : "Previous",
+    next: isTr ? "Sonraki" : "Next",
   };
 
-  const textFieldsJson = JSON.stringify(template.text_fields);
+  const escapeHtml = (value: string) =>
+    String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  const localizeDescription = (value: string) => {
+    if (isTr) return value;
+    if (value.includes("Müşteri tek fotoğraf")) {
+      return "Customers enter one photo and text; all frame options are previewed at the same time.";
+    }
+    return value;
+  };
+
+  const localizeFrameName = (value: string) => {
+    if (isTr) return value;
+    return String(value || "")
+      .replace(/Çerçeve/g, "Frame")
+      .replace(/çerçeve/g, "frame")
+      .replace(/Ekran Resmi/g, "Screenshot");
+  };
+
+  const localizeTextField = <T extends { id: string; label: string; placeholder: string }>(field: T): T => {
+    if (isTr) return field;
+    if (field.id === "name") {
+      return { ...field, label: "Names", placeholder: "Enter names" };
+    }
+    if (field.id === "note") {
+      return { ...field, label: "Short Text", placeholder: "Enter your short text" };
+    }
+    return field;
+  };
+
+  const template = templateId
+    ? await getPersonalizerTemplatePublic(templateId)
+    : shop && productId
+      ? await getPersonalizerTemplateByProduct(shop, productId)
+      : null;
+  if (!template) {
+    return new Response(t.notFound, { status: 404 });
+  }
+
+  const resolvedTemplateId = template.id;
+  const frames = await listPersonalizerFrames(resolvedTemplateId);
+
+  const appUrl = process.env.SHOPIFY_APP_URL ?? url.origin;
+  const hasVariant = Boolean(variantId && variantId !== "VARIANT_ID" && variantId !== "undefined" && variantId !== "null");
+
+  const textFieldsJson = JSON.stringify(template.text_fields.map(localizeTextField));
   const framesJson = JSON.stringify(frames.map(f => ({
     id: f.id,
-    name: f.name,
+    name: localizeFrameName(f.name),
     mockup_url: f.mockup_url,
-    text_fields: f.text_fields ?? [],
+    text_fields: (f.text_fields ?? []).map(localizeTextField),
   })));
   const allTextFields = new Map<string, (typeof template.text_fields)[number]>();
-  for (const field of template.text_fields) allTextFields.set(field.id, field);
+  for (const field of template.text_fields.map(localizeTextField)) allTextFields.set(field.id, field);
   for (const frame of frames) {
     for (const field of frame.text_fields ?? []) {
-      if (!allTextFields.has(field.id)) allTextFields.set(field.id, field);
+      if (!allTextFields.has(field.id)) allTextFields.set(field.id, localizeTextField(field));
     }
   }
   const allTextFieldsJson = JSON.stringify([...allTextFields.values()]);
   const hasFrames = frames.length > 0;
+  const templateDescription = localizeDescription(template.description);
 
   const html = `<!DOCTYPE html>
-<html lang="${locale}">
+<html lang="${normalizedLocale}">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -129,19 +164,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 <div class="container">
   <div class="product-shell">
     <div class="mobile-title">
-      <h1>${template.name}</h1>
-      ${template.description ? `<p class="subtitle">${template.description.replace(/</g, "&lt;")}</p>` : ""}
+      <h1>${escapeHtml(template.name)}</h1>
+      ${templateDescription ? `<p class="subtitle">${escapeHtml(templateDescription)}</p>` : ""}
     </div>
     <div class="media-panel">
       <div id="liveFramePreview" class="live-preview">
-        <div class="preview-placeholder">${isTr ? "Fotoğrafı yükleyip önizleme alınca tüm çerçeveler burada görünecek." : "Upload a photo and preview to see all frames here."}</div>
+        <div class="preview-placeholder">${t.previewPlaceholder}</div>
       </div>
       <div class="thumb-strip" id="frameThumbs"></div>
     </div>
     <div class="controls-panel">
       <div class="desktop-title">
-        <h1>${template.name}</h1>
-        ${template.description ? `<p class="subtitle">${template.description.replace(/</g, "&lt;")}</p>` : ""}
+        <h1>${escapeHtml(template.name)}</h1>
+        ${templateDescription ? `<p class="subtitle">${escapeHtml(templateDescription)}</p>` : ""}
       </div>
 
     <!-- Step 1: Photo + Text -->
@@ -183,6 +218,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   var TEMPLATE_ID = ${JSON.stringify(resolvedTemplateId)};
   var VARIANT_ID = ${JSON.stringify(variantId)};
   var SHOP = ${JSON.stringify(shop)};
+  var LOCALE = ${JSON.stringify(normalizedLocale)};
   var TEMPLATE_TEXT_FIELDS = ${textFieldsJson};
   var ALL_TEXT_FIELDS = ${allTextFieldsJson};
   var FRAMES = ${framesJson};
@@ -254,7 +290,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     errEl.hidden = true;
 
     if (!photoFile) {
-      errEl.textContent = ${JSON.stringify(isTr ? "Lütfen bir fotoğraf yükleyin." : "Please upload a photo.")};
+      errEl.textContent = ${JSON.stringify(t.photoRequired)};
       errEl.hidden = false;
       return;
     }
@@ -272,6 +308,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     var fd = new FormData();
     fd.append('templateId', TEMPLATE_ID);
+    fd.append('locale', LOCALE);
     fd.append('photo', photoFile);
     fd.append('textValues', JSON.stringify(textValues));
 
@@ -314,6 +351,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     var body = {
       templateId: TEMPLATE_ID,
+      locale: LOCALE,
       transformedPhotoUrl: transformedPhotoUrl,
       textValues: window._previewTextValues || {},
     };
@@ -358,7 +396,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (window.parent !== window) {
           window.parent.postMessage(cartMsg, '*');
           btn.disabled = false;
-          btn.innerHTML = '&#10003; ${isTr ? "Sepete Eklendi" : "Added to Cart"}';
+          btn.innerHTML = '&#10003; ${t.addedToCart}';
           btn.style.background = '#059669';
         } else if (VARIANT_ID && SHOP) {
           fetch(APP_URL + '/api/embed/cart', {
@@ -385,7 +423,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             });
         } else {
           btn.disabled = false;
-          btn.innerHTML = '&#10003; Done';
+          btn.innerHTML = '&#10003; ${t.done}';
         }
       })
       .catch(function() {
@@ -406,7 +444,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (FRAMES.length && FRAMES[0].mockup_url) {
       renderPreviewGrid([{ frameId: FRAMES[0].id, frameName: FRAMES[0].name, previewUrl: FRAMES[0].mockup_url }]);
     } else {
-      box.innerHTML = '<div class="preview-placeholder">' + ${JSON.stringify(isTr ? "Önizleme burada görünecek." : "Preview will appear here.")} + '</div>';
+      box.innerHTML = '<div class="preview-placeholder">' + ${JSON.stringify(t.previewEmpty)} + '</div>';
       renderFrameThumbs([]);
     }
   }
@@ -417,7 +455,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     box.innerHTML = '';
     (items || galleryItems || []).forEach(function(galleryItem, idx) {
       var frame = FRAMES.find(function(f) { return f.id === galleryItem.frameId; });
-      var title = galleryItem.frameName || (frame && frame.name) || (${JSON.stringify(isTr ? "Çerçeve" : "Frame")} + ' ' + (idx + 1));
+      var title = (frame && frame.name) || galleryItem.frameName || (${JSON.stringify(t.frame)} + ' ' + (idx + 1));
       var thumb = document.createElement('div');
       thumb.className = 'thumb-card' + (idx === galleryIndex ? ' active' : '');
       thumb.onclick = function() { window.plGoSlide(idx); };
@@ -445,13 +483,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (galleryIndex >= galleryItems.length) galleryIndex = galleryItems.length - 1;
     var item = galleryItems[galleryIndex];
     var frame = FRAMES.find(function(f) { return f.id === item.frameId; });
-    var title = item.frameName || (frame && frame.name) || (${JSON.stringify(isTr ? "Çerçeve" : "Frame")} + ' ' + (galleryIndex + 1));
+    var title = (frame && frame.name) || item.frameName || (${JSON.stringify(t.frame)} + ' ' + (galleryIndex + 1));
     var showControls = galleryItems.length > 1;
     box.innerHTML =
-      (showControls ? '<button class="slide-btn prev" type="button" aria-label="${isTr ? "Önceki" : "Previous"}" onclick="window.plPrevSlide()">‹</button>' : '') +
+      (showControls ? '<button class="slide-btn prev" type="button" aria-label="${t.previous}" onclick="window.plPrevSlide()">‹</button>' : '') +
       '<img src="' + escHtml(item.previewUrl) + '" alt="' + escHtml(title) + '">' +
       '<div class="slide-title">' + escHtml(title) + '</div>' +
-      (showControls ? '<button class="slide-btn next" type="button" aria-label="${isTr ? "Sonraki" : "Next"}" onclick="window.plNextSlide()">›</button>' : '');
+      (showControls ? '<button class="slide-btn next" type="button" aria-label="${t.next}" onclick="window.plNextSlide()">›</button>' : '');
     renderFrameThumbs(galleryItems);
   }
 
@@ -486,7 +524,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  // iframe auto-resize: parent'a yüksekliği bildir
+  // Notify parent page about iframe height changes.
   function notifyHeight() {
     var h = document.documentElement.scrollHeight;
     if (window.parent !== window) {
