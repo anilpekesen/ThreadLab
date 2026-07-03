@@ -611,4 +611,11 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS personalizer_templates_shop_sort
       ON personalizer_templates (shop, sort_order, active)
   `);
+  await query(`
+    ALTER TABLE personalizer_templates
+      ADD COLUMN IF NOT EXISTS mockup_x      INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS mockup_y      INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS mockup_width  INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS mockup_height INTEGER NOT NULL DEFAULT 0
+  `);
 }

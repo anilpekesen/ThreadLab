@@ -19,12 +19,16 @@ export interface PersonalizerTemplate {
   shop: string;
   name: string;
   description: string;
-  template_url: string;
-  mockup_url: string;
-  photo_x: number;
+  template_url: string;   // design template (karikatürün yerleşeceği tasarım)
+  mockup_url: string;     // frame/lifestyle (tasarımın gireceği çerçeve)
+  photo_x: number;        // karikatür → tasarım üzerindeki alan
   photo_y: number;
   photo_width: number;
   photo_height: number;
+  mockup_x: number;       // tasarım → çerçeve üzerindeki alan
+  mockup_y: number;
+  mockup_width: number;
+  mockup_height: number;
   text_fields: TextFieldDef[];
   ai_style: string;
   active: boolean;
@@ -33,24 +37,7 @@ export interface PersonalizerTemplate {
   updated_at: string;
 }
 
-type Row = {
-  id: string;
-  shop: string;
-  name: string;
-  description: string;
-  template_url: string;
-  mockup_url: string;
-  photo_x: number;
-  photo_y: number;
-  photo_width: number;
-  photo_height: number;
-  text_fields: TextFieldDef[];
-  ai_style: string;
-  active: boolean;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-};
+type Row = PersonalizerTemplate;
 
 export async function listPersonalizerTemplates(shop: string, activeOnly = false): Promise<PersonalizerTemplate[]> {
   const res = await query<Row>(
@@ -88,6 +75,10 @@ export interface CreatePersonalizerTemplateInput {
   photo_y: number;
   photo_width: number;
   photo_height: number;
+  mockup_x?: number;
+  mockup_y?: number;
+  mockup_width?: number;
+  mockup_height?: number;
   text_fields?: TextFieldDef[];
   ai_style?: string;
   sort_order?: number;
@@ -97,20 +88,17 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
   const id = randomBytes(12).toString("hex");
   const res = await query<Row>(
     `INSERT INTO personalizer_templates
-       (id, shop, name, description, template_url, mockup_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, sort_order)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       (id, shop, name, description, template_url, mockup_url,
+        photo_x, photo_y, photo_width, photo_height,
+        mockup_x, mockup_y, mockup_width, mockup_height,
+        text_fields, ai_style, sort_order)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
      RETURNING *`,
     [
-      id,
-      input.shop,
-      input.name,
-      input.description ?? "",
-      input.template_url,
-      input.mockup_url ?? "",
-      input.photo_x,
-      input.photo_y,
-      input.photo_width,
-      input.photo_height,
+      id, input.shop, input.name, input.description ?? "",
+      input.template_url, input.mockup_url ?? "",
+      input.photo_x, input.photo_y, input.photo_width, input.photo_height,
+      input.mockup_x ?? 0, input.mockup_y ?? 0, input.mockup_width ?? 0, input.mockup_height ?? 0,
       JSON.stringify(input.text_fields ?? []),
       input.ai_style ?? "caricature",
       input.sort_order ?? 0,
@@ -128,6 +116,10 @@ export interface UpdatePersonalizerTemplateInput {
   photo_y?: number;
   photo_width?: number;
   photo_height?: number;
+  mockup_x?: number;
+  mockup_y?: number;
+  mockup_width?: number;
+  mockup_height?: number;
   text_fields?: TextFieldDef[];
   ai_style?: string;
   active?: boolean;

@@ -53,6 +53,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const photo_y = parseInt(String(form.get("photo_y") ?? "0"), 10);
     const photo_width = parseInt(String(form.get("photo_width") ?? "400"), 10);
     const photo_height = parseInt(String(form.get("photo_height") ?? "400"), 10);
+    const mockup_x = parseInt(String(form.get("mockup_x") ?? "0"), 10);
+    const mockup_y = parseInt(String(form.get("mockup_y") ?? "0"), 10);
+    const mockup_width = parseInt(String(form.get("mockup_width") ?? "0"), 10);
+    const mockup_height = parseInt(String(form.get("mockup_height") ?? "0"), 10);
     const ai_style = String(form.get("ai_style") ?? "caricature");
     const sort_order = parseInt(String(form.get("sort_order") ?? "0"), 10);
 
@@ -80,9 +84,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (!template_url) return json({ error: "Şablon görseli gerekli" }, { status: 400 });
 
     if (id === "new") {
-      await createPersonalizerTemplate({ shop, name, description, template_url, mockup_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, sort_order });
+      await createPersonalizerTemplate({ shop, name, description, template_url, mockup_url, photo_x, photo_y, photo_width, photo_height, mockup_x, mockup_y, mockup_width, mockup_height, text_fields, ai_style, sort_order });
     } else {
-      await updatePersonalizerTemplate(id, shop, { name, description, template_url, mockup_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, sort_order });
+      await updatePersonalizerTemplate(id, shop, { name, description, template_url, mockup_url, photo_x, photo_y, photo_width, photo_height, mockup_x, mockup_y, mockup_width, mockup_height, text_fields, ai_style, sort_order });
     }
     return redirect("/app/personalizer");
   }
@@ -102,6 +106,8 @@ function TemplateVisualEditor({
   mockupUrl,
   photoRect,
   onPhotoRect,
+  mockupRect,
+  onMockupRect,
   textFields,
   onTextPos,
 }: {
@@ -109,6 +115,8 @@ function TemplateVisualEditor({
   mockupUrl?: string;
   photoRect: Rect;
   onPhotoRect: (r: Rect) => void;
+  mockupRect: Rect;
+  onMockupRect: (r: Rect) => void;
   textFields: TextFieldDef[];
   onTextPos: (idx: number, x: number, y: number) => void;
 }) {
@@ -123,18 +131,15 @@ function TemplateVisualEditor({
   const [mode, setMode] = useState<EditorMode>({ type: "photo" });
   const [activeTab, setActiveTab] = useState<"template" | "mockup">("template");
 
-  function getImgCoords(e: React.MouseEvent) {
-    const img = imgRef.current!;
+  function getCoords(e: React.MouseEvent, ref: React.RefObject<HTMLImageElement | null>, nw: number, nh: number) {
+    const img = ref.current!;
     const rect = img.getBoundingClientRect();
-    const sx = naturalW / rect.width;
-    const sy = naturalH / rect.height;
     return {
-      x: Math.round((e.clientX - rect.left) * sx),
-      y: Math.round((e.clientY - rect.top) * sy),
+      x: Math.round((e.clientX - rect.left) * (nw / rect.width)),
+      y: Math.round((e.clientY - rect.top) * (nh / rect.height)),
     };
   }
 
-  // image-space rect → display-space CSS (relative to img container)
   function toCSS(ix: number, iy: number, iw: number, ih: number, ref: React.RefObject<HTMLImageElement | null>, nw: number, nh: number) {
     const img = ref.current;
     if (!img || nw === 1) return {};
@@ -147,42 +152,44 @@ function TemplateVisualEditor({
     };
   }
 
-  // Mockup overlay: same photo area coords scaled to mockup natural size
-  // (assumes mockup and template have proportionally same layout)
-  function mockupOverlayCSS() {
-    const img = mockupRef.current;
-    if (!img || mockupNaturalW === 1) return {};
-    const rect = img.getBoundingClientRect();
-    const sx = rect.width / mockupNaturalW;
-    const sy = rect.height / mockupNaturalH;
-    // Scale template coords to mockup coords proportionally
-    const scaleX = mockupNaturalW / (naturalW || mockupNaturalW);
-    const scaleY = mockupNaturalH / (naturalH || mockupNaturalH);
-    return {
-      left: `${photoRect.x * scaleX * sx}px`,
-      top: `${photoRect.y * scaleY * sy}px`,
-      width: `${photoRect.w * scaleX * sx}px`,
-      height: `${photoRect.h * scaleY * sy}px`,
-    };
-  }
-
-  function onMouseDown(e: React.MouseEvent) {
+  // ── Template tab handlers ────────────────────────────────────────────────
+  function onTemplateMouseDown(e: React.MouseEvent) {
     e.preventDefault();
     if (mode.type === "text") {
-      const c = getImgCoords(e);
+      const c = getCoords(e, imgRef, naturalW, naturalH);
       onTextPos(mode.idx, c.x, c.y);
       return;
     }
-    const c = getImgCoords(e);
+    const c = getCoords(e, imgRef, naturalW, naturalH);
     setDragStart(c);
     setDragging(true);
     onPhotoRect({ x: c.x, y: c.y, w: 0, h: 0 });
   }
 
-  function onMouseMove(e: React.MouseEvent) {
+  function onTemplateMouseMove(e: React.MouseEvent) {
     if (!dragging || mode.type !== "photo") return;
-    const c = getImgCoords(e);
+    const c = getCoords(e, imgRef, naturalW, naturalH);
     onPhotoRect({
+      x: Math.min(dragStart.x, c.x),
+      y: Math.min(dragStart.y, c.y),
+      w: Math.abs(c.x - dragStart.x),
+      h: Math.abs(c.y - dragStart.y),
+    });
+  }
+
+  // ── Mockup tab handlers (drag to set inner frame area) ──────────────────
+  function onMockupMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    const c = getCoords(e, mockupRef, mockupNaturalW, mockupNaturalH);
+    setDragStart(c);
+    setDragging(true);
+    onMockupRect({ x: c.x, y: c.y, w: 0, h: 0 });
+  }
+
+  function onMockupMouseMove(e: React.MouseEvent) {
+    if (!dragging) return;
+    const c = getCoords(e, mockupRef, mockupNaturalW, mockupNaturalH);
+    onMockupRect({
       x: Math.min(dragStart.x, c.x),
       y: Math.min(dragStart.y, c.y),
       w: Math.abs(c.x - dragStart.x),
@@ -193,53 +200,9 @@ function TemplateVisualEditor({
   function onMouseUp() { setDragging(false); }
 
   const photoCss = toCSS(photoRect.x, photoRect.y, photoRect.w, photoRect.h, imgRef, naturalW, naturalH);
+  const mockupCss = toCSS(mockupRect.x, mockupRect.y, mockupRect.w, mockupRect.h, mockupRef, mockupNaturalW, mockupNaturalH);
   const isPhotoMode = mode.type === "photo";
   const showMockupTab = !!mockupUrl;
-
-  // Switch to mockup tab automatically when mockup is set
-  useEffect(() => {
-    if (mockupUrl && activeTab === "template" && naturalW > 1) {
-      // don't auto-switch, let user choose
-    }
-  }, [mockupUrl]);
-
-  function renderOverlays(
-    refEl: React.RefObject<HTMLImageElement | null>,
-    nw: number,
-    nh: number,
-    isMockup = false,
-  ) {
-    const pCss = isMockup ? mockupOverlayCSS() : photoCss;
-    return (
-      <>
-        {photoRect.w > 0 && photoRect.h > 0 && (
-          <div style={{
-            position: "absolute", ...pCss,
-            border: `2px solid ${isMockup ? "#f59e0b" : "#6366f1"}`,
-            background: isMockup ? "rgba(245,158,11,0.15)" : "rgba(99,102,241,0.15)",
-            pointerEvents: "none", boxSizing: "border-box",
-          }}>
-            <span style={{ position: "absolute", top: 2, left: 4, fontSize: 11, fontWeight: 700, color: isMockup ? "#b45309" : "#4f46e5", background: "rgba(255,255,255,.85)", padding: "0 4px", borderRadius: 3 }}>
-              📷 {photoRect.w}×{photoRect.h}
-            </span>
-          </div>
-        )}
-        {!isMockup && textFields.map((f, idx) => {
-          const img = refEl.current;
-          if (!img || nw === 1) return null;
-          const rect = img.getBoundingClientRect();
-          const isActive = mode.type === "text" && mode.idx === idx;
-          return (
-            <div key={f.id} style={{ position: "absolute", left: f.x * (rect.width / nw), top: f.y * (rect.height / nh), transform: "translate(-50%,-50%)", pointerEvents: "none", zIndex: 10 }}>
-              <div style={{ background: isActive ? "#6366f1" : "#10b981", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }}>
-                T{idx + 1} {f.label}
-              </div>
-            </div>
-          );
-        })}
-      </>
-    );
-  }
 
   return (
     <BlockStack gap="300">
@@ -259,7 +222,7 @@ function TemplateVisualEditor({
                 marginRight: tab === "template" ? -1 : 0,
               }}
             >
-              {tab === "template" ? "✏️ Şablon Editörü" : "🖼 Mockup Önizleme"}
+              {tab === "template" ? "✏️ Şablon Editörü" : "🖼 Çerçeve Editörü"}
             </button>
           ))}
         </InlineStack>
@@ -282,14 +245,14 @@ function TemplateVisualEditor({
             ))}
           </InlineStack>
           <Text as="p" tone="subdued" variant="bodySm">
-            {isPhotoMode ? "Fotoğrafın yerleştirileceği alana tıklayıp sürükleyin." : `"${textFields[mode.idx]?.label}" metninin çıkacağı yere tıklayın.`}
+            {isPhotoMode ? "Karikatürün yerleştirileceği alana tıklayıp sürükleyin." : `"${textFields[mode.idx]?.label}" metninin çıkacağı yere tıklayın.`}
           </Text>
         </>
       )}
 
       {activeTab === "mockup" && (
         <Text as="p" tone="subdued" variant="bodySm">
-          Turuncu alan, fotoğrafın çerçeve içinde görüneceği yeri gösterir. Koordinatları değiştirmek için Şablon Editörü sekmesine geçin.
+          Çerçevenin <strong>iç boş alanına</strong> tıklayıp sürükleyin — tasarım bu alana yerleştirilecek.
         </Text>
       )}
 
@@ -297,8 +260,8 @@ function TemplateVisualEditor({
       {activeTab === "template" && (
         <div
           style={{ position: "relative", display: "inline-block", cursor: isPhotoMode ? "crosshair" : "cell", userSelect: "none" }}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
+          onMouseDown={onTemplateMouseDown}
+          onMouseMove={onTemplateMouseMove}
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseUp}
         >
@@ -310,30 +273,66 @@ function TemplateVisualEditor({
             onLoad={(e) => { setNaturalW(e.currentTarget.naturalWidth || 1); setNaturalH(e.currentTarget.naturalHeight || 1); }}
             draggable={false}
           />
-          {renderOverlays(imgRef, naturalW, naturalH, false)}
+          {photoRect.w > 0 && photoRect.h > 0 && (
+            <div style={{ position: "absolute", ...photoCss, border: "2px solid #6366f1", background: "rgba(99,102,241,0.15)", pointerEvents: "none", boxSizing: "border-box" }}>
+              <span style={{ position: "absolute", top: 2, left: 4, fontSize: 11, fontWeight: 700, color: "#4f46e5", background: "rgba(255,255,255,.85)", padding: "0 4px", borderRadius: 3 }}>
+                📷 {photoRect.w}×{photoRect.h}
+              </span>
+            </div>
+          )}
+          {textFields.map((f, idx) => {
+            const img = imgRef.current;
+            if (!img || naturalW === 1) return null;
+            const rect = img.getBoundingClientRect();
+            const isActive = mode.type === "text" && mode.idx === idx;
+            return (
+              <div key={f.id} style={{ position: "absolute", left: f.x * (rect.width / naturalW), top: f.y * (rect.height / naturalH), transform: "translate(-50%,-50%)", pointerEvents: "none", zIndex: 10 }}>
+                <div style={{ background: isActive ? "#6366f1" : "#10b981", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }}>
+                  T{idx + 1} {f.label}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Mockup preview view */}
+      {/* Mockup frame-area editor */}
       {activeTab === "mockup" && mockupUrl && (
-        <div style={{ position: "relative", display: "inline-block", userSelect: "none" }}>
+        <div
+          style={{ position: "relative", display: "inline-block", cursor: "crosshair", userSelect: "none" }}
+          onMouseDown={onMockupMouseDown}
+          onMouseMove={onMockupMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+        >
           <img
             ref={mockupRef}
             src={mockupUrl}
-            alt="Mockup"
+            alt="Çerçeve"
             style={{ display: "block", maxWidth: "100%", maxHeight: "70vh", borderRadius: 8, border: "1px solid #e5e7eb" }}
             onLoad={(e) => { setMockupNaturalW(e.currentTarget.naturalWidth || 1); setMockupNaturalH(e.currentTarget.naturalHeight || 1); }}
             draggable={false}
           />
-          {renderOverlays(mockupRef, mockupNaturalW, mockupNaturalH, true)}
+          {mockupRect.w > 0 && mockupRect.h > 0 && (
+            <div style={{ position: "absolute", ...mockupCss, border: "2px solid #f59e0b", background: "rgba(245,158,11,0.2)", pointerEvents: "none", boxSizing: "border-box" }}>
+              <span style={{ position: "absolute", top: 2, left: 4, fontSize: 11, fontWeight: 700, color: "#b45309", background: "rgba(255,255,255,.85)", padding: "0 4px", borderRadius: 3 }}>
+                🖼 {mockupRect.w}×{mockupRect.h}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
       {/* Coords summary */}
       <Box background="bg-surface-secondary" padding="300" borderRadius="200">
         <Text as="p" variant="bodySm">
-          {`📷 Fotoğraf: X=${photoRect.x} Y=${photoRect.y} — ${photoRect.w}×${photoRect.h} px`}
+          {`📷 Fotoğraf (şablonda): X=${photoRect.x} Y=${photoRect.y} — ${photoRect.w}×${photoRect.h} px`}
         </Text>
+        {mockupRect.w > 0 && (
+          <Text as="p" variant="bodySm">
+            {`🖼 Tasarım alanı (çerçevede): X=${mockupRect.x} Y=${mockupRect.y} — ${mockupRect.w}×${mockupRect.h} px`}
+          </Text>
+        )}
         {textFields.map((f, idx) => (
           <Text key={f.id} as="p" variant="bodySm">{`T${idx + 1} ${f.label}: X=${f.x} Y=${f.y}`}</Text>
         ))}
@@ -372,6 +371,12 @@ export default function PersonalizerEditor() {
     w: template?.photo_width ?? 1600,
     h: template?.photo_height ?? 1600,
   });
+  const [mockupRect, setMockupRect] = useState<Rect>({
+    x: template?.mockup_x ?? 0,
+    y: template?.mockup_y ?? 0,
+    w: template?.mockup_width ?? 0,
+    h: template?.mockup_height ?? 0,
+  });
   const [aiStyle, setAiStyle] = useState(template?.ai_style ?? "caricature");
   const [sortOrder, setSortOrder] = useState(String(template?.sort_order ?? 0));
   const [textFields, setTextFields] = useState<TextFieldDef[]>(template?.text_fields ?? []);
@@ -402,11 +407,14 @@ export default function PersonalizerEditor() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     fd.set("text_fields", JSON.stringify(textFields));
-    // inject photo rect from state (hidden inputs may be stale)
     fd.set("photo_x", String(photoRect.x));
     fd.set("photo_y", String(photoRect.y));
     fd.set("photo_width", String(photoRect.w));
     fd.set("photo_height", String(photoRect.h));
+    fd.set("mockup_x", String(mockupRect.x));
+    fd.set("mockup_y", String(mockupRect.y));
+    fd.set("mockup_width", String(mockupRect.w));
+    fd.set("mockup_height", String(mockupRect.h));
     fetcher.submit(fd, { method: "POST", encType: "multipart/form-data" });
   }
 
@@ -419,11 +427,14 @@ export default function PersonalizerEditor() {
         <input type="hidden" name="intent" value="save" />
         <input type="hidden" name="existing_template_url" value={template?.template_url ?? ""} />
         <input type="hidden" name="existing_mockup_url" value={template?.mockup_url ?? ""} />
-        {/* These are overridden in handleSubmit but needed as form fields */}
         <input type="hidden" name="photo_x" value={photoRect.x} readOnly />
         <input type="hidden" name="photo_y" value={photoRect.y} readOnly />
         <input type="hidden" name="photo_width" value={photoRect.w} readOnly />
         <input type="hidden" name="photo_height" value={photoRect.h} readOnly />
+        <input type="hidden" name="mockup_x" value={mockupRect.x} readOnly />
+        <input type="hidden" name="mockup_y" value={mockupRect.y} readOnly />
+        <input type="hidden" name="mockup_width" value={mockupRect.w} readOnly />
+        <input type="hidden" name="mockup_height" value={mockupRect.h} readOnly />
 
         <Layout>
           {fetcher.data?.error && (
@@ -475,6 +486,8 @@ export default function PersonalizerEditor() {
                     mockupUrl={mockupPreview || undefined}
                     photoRect={photoRect}
                     onPhotoRect={setPhotoRect}
+                    mockupRect={mockupRect}
+                    onMockupRect={setMockupRect}
                     textFields={textFields}
                     onTextPos={handleTextPos}
                   />

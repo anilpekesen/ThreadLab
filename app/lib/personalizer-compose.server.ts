@@ -9,6 +9,12 @@ export interface ComposeOptions {
   photoY: number;
   photoWidth: number;
   photoHeight: number;
+  // Optional frame: design result is composited INTO the frame at these coords
+  mockupUrl?: string;
+  mockupX?: number;
+  mockupY?: number;
+  mockupWidth?: number;
+  mockupHeight?: number;
   textFields: TextFieldDef[];
   textValues: Record<string, string>;
   outputFormat?: "png" | "jpeg";
@@ -57,16 +63,11 @@ function makeTextSvgOverlay(
 
 export async function composePersonalizerImage(opts: ComposeOptions): Promise<string> {
   const {
-    templateUrl,
-    photoUrl,
-    photoX,
-    photoY,
-    photoWidth,
-    photoHeight,
-    textFields,
-    textValues,
-    outputFormat = "png",
-    quality = 90,
+    templateUrl, photoUrl,
+    photoX, photoY, photoWidth, photoHeight,
+    mockupUrl, mockupX = 0, mockupY = 0, mockupWidth = 0, mockupHeight = 0,
+    textFields, textValues,
+    outputFormat = "png", quality = 90,
   } = opts;
 
   const [templateBuf, photoBuf] = await Promise.all([
@@ -78,35 +79,53 @@ export async function composePersonalizerImage(opts: ComposeOptions): Promise<st
   const templateW = templateMeta.width ?? 2480;
   const templateH = templateMeta.height ?? 3508;
 
-  // Clamp photo area to fit within template bounds
+  // ── Step 1: composite customer photo onto design template ─────────────────
   const safeX = Math.max(0, Math.min(photoX, templateW - 1));
   const safeY = Math.max(0, Math.min(photoY, templateH - 1));
   const safeW = Math.max(1, Math.min(photoWidth, templateW - safeX));
   const safeH = Math.max(1, Math.min(photoHeight, templateH - safeY));
 
-  // Resize photo to fit the photo area (cover, centered crop)
   const resizedPhoto = await sharp(photoBuf)
     .resize(safeW, safeH, { fit: "cover", position: "center" })
     .png()
     .toBuffer();
 
-  const composites: sharp.OverlayOptions[] = [
-    { input: resizedPhoto, left: safeX, top: safeY },
-  ];
+  const composites: sharp.OverlayOptions[] = [{ input: resizedPhoto, left: safeX, top: safeY }];
 
   if (textFields.length > 0) {
-    const textSvg = makeTextSvgOverlay(textFields, textValues, templateW, templateH);
-    composites.push({ input: textSvg });
+    composites.push({ input: makeTextSvgOverlay(textFields, textValues, templateW, templateH) });
   }
 
-  const outBuf = await sharp(templateBuf)
-    .composite(composites)
-    [outputFormat]({ quality })
-    .toBuffer();
+  let designBuf = await sharp(templateBuf).composite(composites).png().toBuffer();
 
-  const ext = outputFormat;
-  const url = await uploadToR2(outBuf, ext, "personalizer");
-  return url;
+  // ── Step 2: composite design result INTO frame/mockup (if frame provided) ─
+  if (mockupUrl && mockupWidth > 0 && mockupHeight > 0) {
+    const frameBuf = await fetchBuffer(mockupUrl);
+    const frameMeta = await sharp(frameBuf).metadata();
+    const frameW = frameMeta.width ?? 1000;
+    const frameH = frameMeta.height ?? 1000;
+
+    const fX = Math.max(0, Math.min(mockupX, frameW - 1));
+    const fY = Math.max(0, Math.min(mockupY, frameH - 1));
+    const fW = Math.max(1, Math.min(mockupWidth, frameW - fX));
+    const fH = Math.max(1, Math.min(mockupHeight, frameH - fY));
+
+    const scaledDesign = await sharp(designBuf)
+      .resize(fW, fH, { fit: "cover", position: "center" })
+      .png()
+      .toBuffer();
+
+    designBuf = await sharp(frameBuf)
+      .composite([{ input: scaledDesign, left: fX, top: fY }])
+      .png()
+      .toBuffer();
+  }
+
+  const outBuf = outputFormat === "jpeg"
+    ? await sharp(designBuf).jpeg({ quality }).toBuffer()
+    : designBuf;
+
+  return uploadToR2(outBuf, outputFormat === "jpeg" ? "jpg" : "png", "personalizer");
 }
 
 export async function composePreview(opts: ComposeOptions): Promise<string> {

@@ -39,6 +39,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       photoY: template.photo_y,
       photoWidth: template.photo_width,
       photoHeight: template.photo_height,
+      mockupUrl: template.mockup_url || undefined,
+      mockupX: template.mockup_x,
+      mockupY: template.mockup_y,
+      mockupWidth: template.mockup_width,
+      mockupHeight: template.mockup_height,
       textFields: template.text_fields,
       textValues,
     });
