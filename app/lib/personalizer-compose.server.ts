@@ -78,14 +78,20 @@ export async function composePersonalizerImage(opts: ComposeOptions): Promise<st
   const templateW = templateMeta.width ?? 2480;
   const templateH = templateMeta.height ?? 3508;
 
+  // Clamp photo area to fit within template bounds
+  const safeX = Math.max(0, Math.min(photoX, templateW - 1));
+  const safeY = Math.max(0, Math.min(photoY, templateH - 1));
+  const safeW = Math.max(1, Math.min(photoWidth, templateW - safeX));
+  const safeH = Math.max(1, Math.min(photoHeight, templateH - safeY));
+
   // Resize photo to fit the photo area (cover, centered crop)
   const resizedPhoto = await sharp(photoBuf)
-    .resize(photoWidth, photoHeight, { fit: "cover", position: "center" })
+    .resize(safeW, safeH, { fit: "cover", position: "center" })
     .png()
     .toBuffer();
 
   const composites: sharp.OverlayOptions[] = [
-    { input: resizedPhoto, left: photoX, top: photoY },
+    { input: resizedPhoto, left: safeX, top: safeY },
   ];
 
   if (textFields.length > 0) {
