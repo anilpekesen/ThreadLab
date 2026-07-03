@@ -16,6 +16,7 @@ export async function sendEmail(opts: EmailOptions): Promise<void> {
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
+    signal: AbortSignal.timeout(20_000),
     headers: {
       Authorization: `Bearer ${API_KEY}`,
       "Content-Type": "application/json",
@@ -33,4 +34,7 @@ export async function sendEmail(opts: EmailOptions): Promise<void> {
     const body = await res.text();
     throw new Error(`Resend API error ${res.status}: ${body}`);
   }
+
+  const data = await res.json().catch(() => ({})) as { id?: string };
+  console.log(`[email] gönderildi → ${Array.isArray(opts.to) ? opts.to.join(",") : opts.to} id=${data.id ?? "?"}`);
 }

@@ -42,10 +42,17 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
 
   if (promises.length === 0) return;
 
+  const channels: string[] = [];
+  if (notificationEmail?.trim()) channels.push("merchant-email");
+  if (notificationWhatsapp?.trim()) channels.push("whatsapp");
+  if (payload.customerEmail?.trim()) channels.push("customer-email");
+
   await Promise.allSettled(promises).then((results) => {
     results.forEach((r, i) => {
       if (r.status === "rejected") {
-        console.error(`[notify] kanal ${i} başarısız:`, r.reason);
+        console.error(`[notify] ${channels[i] ?? `kanal ${i}`} başarısız:`, r.reason);
+      } else {
+        console.log(`[notify] ${channels[i] ?? `kanal ${i}`} OK — sipariş ${payload.orderName}`);
       }
     });
   });

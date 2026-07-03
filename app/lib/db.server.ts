@@ -587,4 +587,28 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS cliparts_category_sort
       ON cliparts (category, sort_order ASC)
   `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS personalizer_templates (
+      id           TEXT PRIMARY KEY,
+      shop         TEXT NOT NULL,
+      name         TEXT NOT NULL DEFAULT '',
+      description  TEXT NOT NULL DEFAULT '',
+      template_url TEXT NOT NULL DEFAULT '',
+      mockup_url   TEXT NOT NULL DEFAULT '',
+      photo_x      INTEGER NOT NULL DEFAULT 0,
+      photo_y      INTEGER NOT NULL DEFAULT 0,
+      photo_width  INTEGER NOT NULL DEFAULT 400,
+      photo_height INTEGER NOT NULL DEFAULT 400,
+      text_fields  JSONB NOT NULL DEFAULT '[]',
+      ai_style     TEXT NOT NULL DEFAULT 'caricature',
+      active       BOOLEAN NOT NULL DEFAULT TRUE,
+      sort_order   INTEGER NOT NULL DEFAULT 0,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS personalizer_templates_shop_sort
+      ON personalizer_templates (shop, sort_order, active)
+  `);
 }
