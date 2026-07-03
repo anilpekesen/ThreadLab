@@ -68,6 +68,7 @@ export default function PersonalizerIndex() {
     <Page
       title="Personalizer Şablonları"
       primaryAction={{ content: "+ Şablon Ekle", onAction: () => navigate("/app/personalizer/new") }}
+      secondaryActions={[{ content: "Mağaza Kurulum Rehberi →", onAction: () => navigate("/app/personalizer/setup") }]}
     >
       <Layout>
           <Layout.Section>

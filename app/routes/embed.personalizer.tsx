@@ -398,6 +398,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+
+  // iframe auto-resize: parent'a yüksekliği bildir
+  function notifyHeight() {
+    var h = document.documentElement.scrollHeight;
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'PERSONALIZER_RESIZE', height: h }, '*');
+    }
+  }
+  notifyHeight();
+  window.addEventListener('resize', notifyHeight);
+  // Her adım geçişinde de bildir
+  var _origGoToStep1 = window.goToStep1;
+  window.goToStep1 = function() { _origGoToStep1 && _origGoToStep1(); setTimeout(notifyHeight, 100); };
+  var _origGoBack = window.goBack;
+  window.goBack = function() { _origGoBack && _origGoBack(); setTimeout(notifyHeight, 100); };
 })();
 </script>
 </body>

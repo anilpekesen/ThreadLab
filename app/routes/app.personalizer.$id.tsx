@@ -74,7 +74,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const ext = templateFile.type === "image/jpeg" ? "jpg" : templateFile.type === "image/webp" ? "webp" : "png";
       template_url = await uploadToR2(buf, ext, "personalizer-template");
     }
-    if (!template_url) return json({ error: "Şablon görseli gerekli" }, { status: 400 });
+    // template_url opsiyonel — sadece çerçeve bazlı kullanımda boş olabilir
 
     if (id === "new") {
       const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, sort_order });
@@ -575,6 +575,21 @@ function PersonalizerEditor() {
       backAction={{ content: "Şablonlar", onAction: () => navigate("/app/personalizer") }}
     >
       <Layout>
+        {isNew && (
+          <Layout.Section>
+            <Banner tone="warning">
+              <BlockStack gap="100">
+                <Text as="p" fontWeight="semibold">📋 Önce şablonu oluşturun, sonra çerçeveleri ekleyin</Text>
+                <Text as="p">
+                  1. Sadece <strong>adı</strong> girin ve kaydedin → 2. Açılan sayfada <strong>"+ Çerçeve Ekle"</strong> ile ahşap çerçeve/tablo resimlerinizi tek tek ekleyin
+                </Text>
+                <Text as="p">
+                  4 farklı çerçeveniz varsa: 1 şablon oluşturun, içine 4 çerçeve ekleyin. Her çerçeve ayrı şablon OLMAMALI.
+                </Text>
+              </BlockStack>
+            </Banner>
+          </Layout.Section>
+        )}
         {fetcher.data?.error && (
           <Layout.Section>
             <Banner tone="critical">{fetcher.data.error}</Banner>
@@ -613,9 +628,19 @@ function PersonalizerEditor() {
               {/* Şablon görseli */}
               <Card>
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Şablon Görseli (Tasarım)</Text>
-                  <Text as="p" tone="subdued">
-                    Karikatürün yerleştirileceği arka plan tasarımı. Önerilen: 2480×3508 px (A4 @300dpi).
+                  <Text as="h2" variant="headingMd">Arka Plan Tasarımı (Opsiyonel)</Text>
+                  <Banner tone="info">
+                    <BlockStack gap="100">
+                      <Text as="p" fontWeight="semibold">Çerçeve bazlı kullanım için bu alanı boş bırakın.</Text>
+                      <Text as="p">
+                        Eğer sadece ahşap çerçeve veya tablo görselleri kullanıyorsanız buraya bir şey yüklemenize gerek yok.
+                        Çerçeve resimlerini aşağıdaki <strong>"Çerçeve Ekle"</strong> bölümünden ekleyin.
+                        Karikatür doğrudan seçilen çerçevenin içine yerleşecek.
+                      </Text>
+                    </BlockStack>
+                  </Banner>
+                  <Text as="p" tone="subdued" variant="bodySm">
+                    İsteğe bağlı: Ayrı bir artistik tasarım şablonu (örn. "Birlikte Sonsuza Dek" yazılı arka plan) varsa buraya yükleyin.
                   </Text>
                   {templatePreview && (
                     <img src={templatePreview} alt="Şablon" style={{ maxWidth: 200, maxHeight: 200, objectFit: "contain", borderRadius: 8, border: "1px solid #e5e7eb" }} />

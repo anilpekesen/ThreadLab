@@ -70,35 +70,68 @@ export async function composePersonalizerImage(opts: ComposeOptions): Promise<st
     outputFormat = "png", quality = 90,
   } = opts;
 
-  const [templateBuf, photoBuf] = await Promise.all([
-    fetchBuffer(templateUrl),
-    fetchBuffer(photoUrl),
-  ]);
+  const photoBuf = await fetchBuffer(photoUrl);
+  let designBuf: Buffer;
 
-  const templateMeta = await sharp(templateBuf).metadata();
-  const templateW = templateMeta.width ?? 2480;
-  const templateH = templateMeta.height ?? 3508;
+  if (templateUrl) {
+    // ── Mod A: karikatür → tasarım şablonu → (opsiyonel çerçeve) ─────────────
+    const templateBuf = await fetchBuffer(templateUrl);
+    const templateMeta = await sharp(templateBuf).metadata();
+    const templateW = templateMeta.width ?? 2480;
+    const templateH = templateMeta.height ?? 3508;
 
-  // ── Step 1: composite customer photo onto design template ─────────────────
-  const safeX = Math.max(0, Math.min(photoX, templateW - 1));
-  const safeY = Math.max(0, Math.min(photoY, templateH - 1));
-  const safeW = Math.max(1, Math.min(photoWidth, templateW - safeX));
-  const safeH = Math.max(1, Math.min(photoHeight, templateH - safeY));
+    const safeX = Math.max(0, Math.min(photoX, templateW - 1));
+    const safeY = Math.max(0, Math.min(photoY, templateH - 1));
+    const safeW = Math.max(1, Math.min(photoWidth, templateW - safeX));
+    const safeH = Math.max(1, Math.min(photoHeight, templateH - safeY));
 
-  const resizedPhoto = await sharp(photoBuf)
-    .resize(safeW, safeH, { fit: "cover", position: "center" })
-    .png()
-    .toBuffer();
+    const resizedPhoto = await sharp(photoBuf)
+      .resize(safeW, safeH, { fit: "cover", position: "center" })
+      .png()
+      .toBuffer();
 
-  const composites: sharp.OverlayOptions[] = [{ input: resizedPhoto, left: safeX, top: safeY }];
+    const composites: sharp.OverlayOptions[] = [{ input: resizedPhoto, left: safeX, top: safeY }];
+    if (textFields.length > 0) {
+      composites.push({ input: makeTextSvgOverlay(textFields, textValues, templateW, templateH) });
+    }
+    designBuf = await sharp(templateBuf).composite(composites).png().toBuffer();
 
-  if (textFields.length > 0) {
-    composites.push({ input: makeTextSvgOverlay(textFields, textValues, templateW, templateH) });
+  } else if (mockupUrl && mockupWidth > 0 && mockupHeight > 0) {
+    // ── Mod B: şablon yok — karikatür doğrudan çerçeveye ────────────────────
+    // (çerçeve koordinatlarını fotoğraf koordinatı olarak kullan)
+    const frameBuf = await fetchBuffer(mockupUrl);
+    const frameMeta = await sharp(frameBuf).metadata();
+    const frameW = frameMeta.width ?? 1000;
+    const frameH = frameMeta.height ?? 1000;
+
+    const fX = Math.max(0, Math.min(mockupX, frameW - 1));
+    const fY = Math.max(0, Math.min(mockupY, frameH - 1));
+    const fW = Math.max(1, Math.min(mockupWidth, frameW - fX));
+    const fH = Math.max(1, Math.min(mockupHeight, frameH - fY));
+
+    const resizedPhoto = await sharp(photoBuf)
+      .resize(fW, fH, { fit: "cover", position: "center" })
+      .png()
+      .toBuffer();
+
+    const composites: sharp.OverlayOptions[] = [{ input: resizedPhoto, left: fX, top: fY }];
+    if (textFields.length > 0) {
+      composites.push({ input: makeTextSvgOverlay(textFields, textValues, frameW, frameH) });
+    }
+    designBuf = await sharp(frameBuf).composite(composites).png().toBuffer();
+
+    // Mod B'de zaten çerçeveye yerleştirdik, ikinci adım gerekmiyor
+    const outBuf = outputFormat === "jpeg"
+      ? await sharp(designBuf).jpeg({ quality }).toBuffer()
+      : designBuf;
+    return uploadToR2(outBuf, outputFormat === "jpeg" ? "jpg" : "png", "personalizer");
+
+  } else {
+    // Hiç görsel yok — fotoğrafı olduğu gibi kullan
+    designBuf = await sharp(photoBuf).png().toBuffer();
   }
 
-  let designBuf = await sharp(templateBuf).composite(composites).png().toBuffer();
-
-  // ── Step 2: composite design result INTO frame/mockup (if frame provided) ─
+  // ── Adım 2 (Mod A için): tasarım → çerçeve ───────────────────────────────
   if (mockupUrl && mockupWidth > 0 && mockupHeight > 0) {
     const frameBuf = await fetchBuffer(mockupUrl);
     const frameMeta = await sharp(frameBuf).metadata();
