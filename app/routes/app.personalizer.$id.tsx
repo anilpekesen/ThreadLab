@@ -24,6 +24,7 @@ import {
   type TextFieldDef,
   type PersonalizerFrame,
 } from "~/models/personalizer.server";
+import { fetchShopifyProducts } from "~/models/product-config.server";
 import { uploadToR2 } from "~/lib/r2.server";
 
 const MAX_UPLOAD = 20 * 1024 * 1024;
@@ -41,15 +42,32 @@ function normalizeShopifyNumericId(value: string) {
   return trimmed.split("/").filter(Boolean).pop() ?? trimmed;
 }
 
+function productOptionLabel(product: { title: string; handle: string }) {
+  return product.handle ? `${product.title} (${product.handle})` : product.title;
+}
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate(request);
+  const { admin, session } = await authenticate(request);
   const id = params.id ?? "";
-  if (id === "new") return json({ shop: session.shop, template: null, frames: [], productLinks: [], isNew: true });
+  if (id === "new") return json({ shop: session.shop, template: null, frames: [], productLinks: [], products: [], isNew: true });
   const template = await getPersonalizerTemplate(id, session.shop);
   if (!template) throw new Response("Şablon bulunamadı", { status: 404 });
   const frames = await listPersonalizerFrames(id);
   const productLinks = await listPersonalizerProductLinks(id);
-  return json({ shop: session.shop, template, frames, productLinks, isNew: false });
+  const products = (await fetchShopifyProducts(admin)).map((product) => ({
+    id: normalizeShopifyNumericId(product.id),
+    gid: product.id,
+    title: product.title,
+    handle: product.handle,
+    featuredImage: product.featuredImage ?? "",
+    variants: product.variants.map((variant) => ({
+      id: normalizeShopifyNumericId(variant.id),
+      gid: variant.id,
+      title: variant.title,
+      price: variant.price,
+    })),
+  }));
+  return json({ shop: session.shop, template, frames, productLinks, products, isNew: false });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -721,11 +739,18 @@ function newTextField(): TextFieldDef {
 // ── Main Component ───────────────────────────────────────────────────────────
 
 function PersonalizerEditor() {
-  const { shop, template, frames, productLinks, isNew } = useLoaderData<typeof loader>();
+  const { shop, template, frames, productLinks, products, isNew } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ error?: string; ok?: boolean; redirectTo?: string }>();
   const linkFetcher = useFetcher<{ error?: string; ok?: boolean; linked?: boolean }>();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
+  const firstLinkedProduct = productLinks[0];
+  const initialProductId = firstLinkedProduct?.product_id || products[0]?.id || "";
+  const initialProduct = products.find((product) => product.id === initialProductId) || products[0];
+  const initialVariantId = firstLinkedProduct?.variant_id || initialProduct?.variants[0]?.id || "";
+  const [selectedProductId, setSelectedProductId] = useState(initialProductId);
+  const [selectedVariantId, setSelectedVariantId] = useState(initialVariantId);
+  const selectedProduct = products.find((product) => product.id === selectedProductId) || products[0];
 
   // Yeni şablon oluşturulduktan sonra client-side navigate
   useEffect(() => {
@@ -739,6 +764,14 @@ function PersonalizerEditor() {
       revalidator.revalidate();
     }
   }, [linkFetcher.state, linkFetcher.data, revalidator]);
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+    const hasVariant = selectedProduct.variants.some((variant) => variant.id === selectedVariantId);
+    if (!hasVariant) {
+      setSelectedVariantId(selectedProduct.variants[0]?.id || "");
+    }
+  }, [selectedProduct, selectedVariantId]);
 
   const [name, setName] = useState(template?.name ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
@@ -790,6 +823,16 @@ function PersonalizerEditor() {
   const productEmbedUrl = productLinks[0]
     ? `${appUrl}/embed/personalizer?productId=${productLinks[0].product_id}&variantId=${productLinks[0].variant_id || "VARIANT_ID"}&shop=${shop}&locale=tr`
     : "";
+  const productOptions = products.map((product) => ({
+    label: productOptionLabel(product),
+    value: product.id,
+  }));
+  const variantOptions = (selectedProduct?.variants ?? []).map((variant) => ({
+    label: variant.title === "Default Title"
+      ? `Default Title${variant.price ? ` - ${variant.price}` : ""}`
+      : `${variant.title}${variant.price ? ` - ${variant.price}` : ""}`,
+    value: variant.id,
+  }));
 
   return (
     <Page
@@ -966,44 +1009,51 @@ function PersonalizerEditor() {
                 {linkFetcher.data?.error && <Banner tone="critical">{linkFetcher.data.error}</Banner>}
                 {linkFetcher.data?.linked && <Banner tone="success">Ürün bu şablona bağlandı.</Banner>}
 
-                <linkFetcher.Form method="post" encType="multipart/form-data">
-                  <input type="hidden" name="intent" value="link_product" />
-                  <FormLayout>
-                    <FormLayout.Group>
-                      <TextField
-                        label="Shopify Ürün ID"
+                {products.length === 0 ? (
+                  <Banner tone="warning">
+                    Aktif Shopify ürünü bulunamadı. Önce Shopify tarafında ürünü aktif hale getirin.
+                  </Banner>
+                ) : (
+                  <linkFetcher.Form method="post" encType="multipart/form-data">
+                    <input type="hidden" name="intent" value="link_product" />
+                    <input type="hidden" name="product_title" value={selectedProduct?.title ?? ""} />
+                    <input type="hidden" name="product_handle" value={selectedProduct?.handle ?? ""} />
+                    <FormLayout>
+                      <Select
+                        label="Shopify Ürünü"
                         name="product_id"
-                        autoComplete="off"
-                        placeholder="9246607180002"
-                        helpText="Düz ID veya gid://shopify/Product/... yazabilirsiniz."
+                        options={productOptions}
+                        value={selectedProductId}
+                        onChange={(value) => setSelectedProductId(value)}
+                        helpText="Son güncellenen 50 aktif Shopify ürünü listelenir."
                       />
-                      <TextField
-                        label="Varsayılan Varyant ID"
+                      <Select
+                        label="Varsayılan Varyant"
                         name="variant_id"
-                        autoComplete="off"
-                        placeholder="47962953220322"
-                        helpText="Sepete ekleme için gerçek variant ID gerekir."
+                        options={variantOptions.length ? variantOptions : [{ label: "Varyant yok", value: "" }]}
+                        value={selectedVariantId}
+                        onChange={(value) => setSelectedVariantId(value)}
+                        disabled={!variantOptions.length}
+                        helpText="Sepete ekleme için bu varyant kullanılır."
                       />
-                    </FormLayout.Group>
-                    <FormLayout.Group>
-                      <TextField
-                        label="Ürün Başlığı"
-                        name="product_title"
-                        autoComplete="off"
-                        placeholder="TIB Free Design - Gen AI | Caricature Funny Couple Portrait"
-                      />
-                      <TextField
-                        label="Handle"
-                        name="product_handle"
-                        autoComplete="off"
-                        placeholder="tib-free-design-gen-ai-caricature-funny-couple-portrait"
-                      />
-                    </FormLayout.Group>
-                    <Button submit variant="primary" loading={linkFetcher.state !== "idle"}>
-                      Ürüne Bağla
-                    </Button>
-                  </FormLayout>
-                </linkFetcher.Form>
+                      {selectedProduct && (
+                        <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+                          <BlockStack gap="100">
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {`Product ID: ${selectedProduct.id}`}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {`Handle: ${selectedProduct.handle || "-"}`}
+                            </Text>
+                          </BlockStack>
+                        </Box>
+                      )}
+                      <Button submit variant="primary" loading={linkFetcher.state !== "idle"} disabled={!selectedProductId || !selectedVariantId}>
+                        Seçili Ürüne Bağla
+                      </Button>
+                    </FormLayout>
+                  </linkFetcher.Form>
+                )}
 
                 {productLinks.length > 0 && (
                   <BlockStack gap="200">
