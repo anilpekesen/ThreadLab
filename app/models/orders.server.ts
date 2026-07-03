@@ -109,7 +109,9 @@ const ORDER_SELECT = `
     d.back_print_url    AS design_back_print_url,
     d.preview_issue     AS preview_issue
   FROM orders o
-  LEFT JOIN designs d ON o.shop = d.shop AND o.design_token = d.token
+  -- Token global benzersiz; shop eşitliği aranmaz — üreticiye devredilen
+  -- siparişlerde (PrintLabHub) tasarım başka mağazaya kayıtlıdır
+  LEFT JOIN designs d ON o.design_token = d.token
 `;
 
 export async function setOrderDriveUpload(orderId: string, folderId: string): Promise<void> {

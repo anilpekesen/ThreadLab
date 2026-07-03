@@ -76,8 +76,17 @@ export async function getDesignByToken(shop: string, token: string): Promise<Des
     "SELECT * FROM designs WHERE shop = $1 AND token = $2",
     [shop, token],
   );
-  if (!result.rows.length) return null;
-  return rowToRecord(result.rows[0]);
+  if (result.rows.length) return rowToRecord(result.rows[0]);
+
+  // PrintLabHub akışı: mağazanın siparişi üreticiye devredildiğinde üretici
+  // siparişindeki design_token BAŞKA mağazanın tasarımını işaret eder.
+  // Token global benzersiz olduğu için token-bazlı fallback güvenlidir.
+  const fallback = await query<DbRow>(
+    "SELECT * FROM designs WHERE token = $1",
+    [token],
+  );
+  if (!fallback.rows.length) return null;
+  return rowToRecord(fallback.rows[0]);
 }
 
 export async function saveDesign(shop: string, record: Omit<DesignRecord, "createdAt">): Promise<void> {
