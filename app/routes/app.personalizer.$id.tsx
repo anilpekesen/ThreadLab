@@ -3,13 +3,13 @@ import {
   unstable_parseMultipartFormData,
 } from "@remix-run/node";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useNavigate, useRevalidator } from "@remix-run/react";
+import { json } from "@remix-run/node";
+import { useLoaderData, useFetcher, useNavigate, useRevalidator, useParams } from "@remix-run/react";
 import {
   Page, Layout, Card, FormLayout, TextField, Select, Checkbox,
   Button, BlockStack, InlineStack, Text, Banner, Box, Badge,
 } from "@shopify/polaris";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { authenticate } from "~/lib/authenticate.server";
 import {
   getPersonalizerTemplate,
@@ -78,7 +78,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
     if (id === "new") {
       const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, sort_order });
-      return redirect(`/app/personalizer/${created.id}`);
+      // json döndür, client tarafı navigate etsin (Shopify embedded app redirect güvenilmez)
+      return json({ redirectTo: `/app/personalizer/${created.id}` });
     } else {
       await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, sort_order });
       return json({ ok: true });
@@ -508,10 +509,17 @@ function newTextField(): TextFieldDef {
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
-export default function PersonalizerEditor() {
+function PersonalizerEditor() {
   const { template, frames, isNew } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<{ error?: string; ok?: boolean }>();
+  const fetcher = useFetcher<{ error?: string; ok?: boolean; redirectTo?: string }>();
   const navigate = useNavigate();
+
+  // Yeni şablon oluşturulduktan sonra client-side navigate
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.redirectTo) {
+      navigate(fetcher.data.redirectTo);
+    }
+  }, [fetcher.state, fetcher.data, navigate]);
 
   const [name, setName] = useState(template?.name ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
@@ -554,8 +562,12 @@ export default function PersonalizerEditor() {
     fetcher.submit(fd, { method: "POST", encType: "multipart/form-data" });
   }
 
-  const appUrl = typeof window !== "undefined" ? window.location.origin : "";
-  const embedUrl = template ? `${appUrl}/embed/personalizer?templateId=${template.id}&variantId=VARIANT_ID&shop=SHOP&locale=tr` : "";
+  const appUrl = typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.host}`
+    : "";
+  const embedUrl = template
+    ? `${appUrl}/embed/personalizer?templateId=${template.id}&variantId=VARIANT_ID&shop=SHOP&locale=tr`
+    : "";
 
   return (
     <Page
@@ -713,4 +725,10 @@ export default function PersonalizerEditor() {
       </Layout>
     </Page>
   );
+}
+
+// Key prop ile state sıfırlama — aynı route component farklı $id için yeniden mount olur
+export default function PersonalizerEditorWrapper() {
+  const params = useParams();
+  return <PersonalizerEditor key={params.id ?? "new"} />;
 }
