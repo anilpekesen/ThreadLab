@@ -22,8 +22,10 @@ export interface ComposeOptions {
 }
 
 async function fetchBuffer(url: string): Promise<Buffer> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-  if (!res.ok) throw new Error(`Görsel indirilemedi (${res.status}): ${url}`);
+  const safeUrl = String(url ?? "").trim();
+  if (!safeUrl) throw new Error("Görsel URL boş geldi");
+  const res = await fetch(safeUrl, { signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) throw new Error(`Görsel indirilemedi (${res.status}): ${safeUrl}`);
   return Buffer.from(await res.arrayBuffer());
 }
 

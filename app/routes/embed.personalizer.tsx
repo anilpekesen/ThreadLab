@@ -21,6 +21,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const appUrl = process.env.SHOPIFY_APP_URL ?? url.origin;
   const isTr = locale !== "en";
+  const hasVariant = Boolean(variantId && variantId !== "VARIANT_ID" && variantId !== "undefined" && variantId !== "null");
 
   const t = {
     title: isTr ? "Kişiselleştir" : "Personalize",
@@ -166,7 +167,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <div id="errorMsg2" class="error-msg" hidden></div>
       <div style="height:14px"></div>
       <button class="btn btn-secondary" onclick="goBack()">${t.back}</button>
-      ${variantId ? `<button class="btn btn-success" id="addToCartBtn" onclick="doAddToCart()">${t.addToCart}</button>` : ""}
+      ${hasVariant ? `<button class="btn btn-success" id="addToCartBtn" onclick="doAddToCart()">${t.addToCart}</button>` : ""}
     </div>
   </div>
   </div>
@@ -188,7 +189,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   var activeTextFields = ALL_TEXT_FIELDS.length ? ALL_TEXT_FIELDS : TEMPLATE_TEXT_FIELDS;
 
   renderFrameThumbs();
-  updateLivePreview();
+  renderInitialFrameGrid();
 
   // ── Build text input fields ──────────────────────────────────────────────
   function getActiveTextFields() {
@@ -444,6 +445,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         '<div class="preview-card-title">' + escHtml(title) + '</div>';
       grid.appendChild(card);
     });
+  }
+
+  function renderInitialFrameGrid() {
+    var initialItems = FRAMES
+      .filter(function(frame) { return frame.mockup_url; })
+      .map(function(frame) {
+        return { frameId: frame.id, frameName: frame.name, previewUrl: frame.mockup_url };
+      });
+    if (initialItems.length) {
+      renderPreviewGrid(initialItems);
+    } else {
+      updateLivePreview();
+    }
   }
 
   // iframe auto-resize: parent'a yüksekliği bildir
