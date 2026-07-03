@@ -253,3 +253,68 @@ export async function deletePersonalizerFrame(id: string, templateId: string): P
   );
   return (res.rowCount ?? 0) > 0;
 }
+
+// ── Product links ───────────────────────────────────────────────────────────
+
+export interface PersonalizerProductLink {
+  shop: string;
+  product_id: string;
+  template_id: string;
+  product_title: string;
+  product_handle: string;
+  variant_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function linkPersonalizerProduct(input: {
+  shop: string;
+  product_id: string;
+  template_id: string;
+  product_title?: string;
+  product_handle?: string;
+  variant_id?: string;
+}): Promise<PersonalizerProductLink> {
+  const res = await query<PersonalizerProductLink>(
+    `INSERT INTO personalizer_product_links
+       (shop, product_id, template_id, product_title, product_handle, variant_id)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (shop, product_id)
+     DO UPDATE SET
+       template_id = EXCLUDED.template_id,
+       product_title = EXCLUDED.product_title,
+       product_handle = EXCLUDED.product_handle,
+       variant_id = EXCLUDED.variant_id,
+       updated_at = now()
+     RETURNING *`,
+    [
+      input.shop,
+      input.product_id,
+      input.template_id,
+      input.product_title ?? "",
+      input.product_handle ?? "",
+      input.variant_id ?? "",
+    ],
+  );
+  return res.rows[0];
+}
+
+export async function listPersonalizerProductLinks(templateId: string): Promise<PersonalizerProductLink[]> {
+  const res = await query<PersonalizerProductLink>(
+    `SELECT * FROM personalizer_product_links WHERE template_id = $1 ORDER BY updated_at DESC`,
+    [templateId],
+  );
+  return res.rows;
+}
+
+export async function getPersonalizerTemplateByProduct(shop: string, productId: string): Promise<PersonalizerTemplate | null> {
+  const res = await query<PersonalizerTemplate>(
+    `SELECT pt.*
+       FROM personalizer_product_links ppl
+       JOIN personalizer_templates pt ON pt.id = ppl.template_id
+      WHERE ppl.shop = $1 AND ppl.product_id = $2 AND pt.active = TRUE
+      LIMIT 1`,
+    [shop, productId],
+  );
+  return res.rows[0] ?? null;
+}

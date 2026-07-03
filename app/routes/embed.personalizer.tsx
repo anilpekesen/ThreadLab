@@ -1,23 +1,25 @@
 import { type LoaderFunctionArgs } from "@remix-run/node";
-import { getPersonalizerTemplatePublic, listPersonalizerFrames } from "~/models/personalizer.server";
+import { getPersonalizerTemplateByProduct, getPersonalizerTemplatePublic, listPersonalizerFrames } from "~/models/personalizer.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const templateId = url.searchParams.get("templateId") ?? "";
+  const productId  = url.searchParams.get("productId") ?? "";
   const variantId  = url.searchParams.get("variantId") ?? "";
   const shop       = url.searchParams.get("shop") ?? "";
   const locale     = url.searchParams.get("locale") ?? "tr";
 
-  if (!templateId) {
-    return new Response("templateId parametresi gerekli.", { status: 400 });
-  }
-
-  const template = await getPersonalizerTemplatePublic(templateId);
+  const template = templateId
+    ? await getPersonalizerTemplatePublic(templateId)
+    : shop && productId
+      ? await getPersonalizerTemplateByProduct(shop, productId)
+      : null;
   if (!template) {
     return new Response("Şablon bulunamadı veya aktif değil.", { status: 404 });
   }
 
-  const frames = await listPersonalizerFrames(templateId);
+  const resolvedTemplateId = template.id;
+  const frames = await listPersonalizerFrames(resolvedTemplateId);
 
   const appUrl = process.env.SHOPIFY_APP_URL ?? url.origin;
   const isTr = locale !== "en";
@@ -74,15 +76,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     .product-shell{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(340px,.92fr);gap:20px;align-items:start}
     .media-panel,.controls-panel{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px}
     .media-panel{position:sticky;top:12px}
-    .live-preview{width:100%;aspect-ratio:1;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .live-preview{width:100%;aspect-ratio:1;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
     .live-preview img{width:100%;height:100%;object-fit:contain;display:block}
     .preview-placeholder{font-size:13px;color:#6b7280;text-align:center;padding:20px}
-    .preview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;width:100%;align-self:stretch;padding:12px;overflow:auto}
-    .preview-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}
-    .preview-card img{width:100%;aspect-ratio:1;object-fit:contain;background:#f9fafb;display:block}
-    .preview-card-title{font-size:12px;font-weight:600;color:#374151;padding:8px 10px;border-top:1px solid #eef0f3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .thumb-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px;margin-top:12px}
-    .thumb-card{border:1px solid #d8dde5;border-radius:8px;overflow:hidden;background:#fff}
+    .slide-title{position:absolute;left:12px;right:12px;bottom:12px;background:rgba(17,24,39,.78);color:#fff;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .slide-btn{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:999px;border:1px solid rgba(17,24,39,.18);background:rgba(255,255,255,.92);color:#111827;font-size:22px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .slide-btn:hover{background:#fff}
+    .slide-btn.prev{left:10px}
+    .slide-btn.next{right:10px}
+    .thumb-strip{display:flex;gap:10px;margin-top:12px;overflow-x:auto;padding-bottom:4px}
+    .thumb-card{border:2px solid transparent;border-radius:8px;overflow:hidden;background:#fff;min-width:92px;cursor:pointer}
+    .thumb-card.active{border-color:#6366f1}
     .thumb-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
     .thumb-card span{display:block;font-size:11px;font-weight:600;color:#4b5563;padding:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .mobile-title{display:none}
@@ -176,7 +180,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 <script>
 (function() {
   var APP_URL = ${JSON.stringify(appUrl)};
-  var TEMPLATE_ID = ${JSON.stringify(templateId)};
+  var TEMPLATE_ID = ${JSON.stringify(resolvedTemplateId)};
   var VARIANT_ID = ${JSON.stringify(variantId)};
   var SHOP = ${JSON.stringify(shop)};
   var TEMPLATE_TEXT_FIELDS = ${textFieldsJson};
@@ -187,8 +191,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   var photoFile = null;
   var transformedPhotoUrl = null;
   var activeTextFields = ALL_TEXT_FIELDS.length ? ALL_TEXT_FIELDS : TEMPLATE_TEXT_FIELDS;
+  var galleryItems = [];
+  var galleryIndex = 0;
 
-  renderFrameThumbs();
   renderInitialFrameGrid();
 
   // ── Build text input fields ──────────────────────────────────────────────
@@ -395,56 +400,77 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function setLivePreviewImage(src) {
-    var box = document.getElementById('liveFramePreview');
-    if (!box) return;
-    box.innerHTML = '<img src="' + escHtml(src) + '" alt="">';
-  }
-
   function updateLivePreview() {
     var box = document.getElementById('liveFramePreview');
     if (!box) return;
     if (FRAMES.length && FRAMES[0].mockup_url) {
-      setLivePreviewImage(FRAMES[0].mockup_url);
+      renderPreviewGrid([{ frameId: FRAMES[0].id, frameName: FRAMES[0].name, previewUrl: FRAMES[0].mockup_url }]);
     } else {
       box.innerHTML = '<div class="preview-placeholder">' + ${JSON.stringify(isTr ? "Önizleme burada görünecek." : "Preview will appear here.")} + '</div>';
+      renderFrameThumbs([]);
     }
   }
 
-  function renderFrameThumbs() {
+  function renderFrameThumbs(items) {
     var box = document.getElementById('frameThumbs');
     if (!box) return;
     box.innerHTML = '';
-    FRAMES.forEach(function(frame) {
-      var item = document.createElement('div');
-      item.className = 'thumb-card';
-      item.innerHTML =
-        (frame.mockup_url ? '<img src="' + escHtml(frame.mockup_url) + '" alt="' + escHtml(frame.name || '') + '">' : '') +
-        '<span>' + escHtml(frame.name || '') + '</span>';
-      box.appendChild(item);
+    (items || galleryItems || []).forEach(function(galleryItem, idx) {
+      var frame = FRAMES.find(function(f) { return f.id === galleryItem.frameId; });
+      var title = galleryItem.frameName || (frame && frame.name) || (${JSON.stringify(isTr ? "Çerçeve" : "Frame")} + ' ' + (idx + 1));
+      var thumb = document.createElement('div');
+      thumb.className = 'thumb-card' + (idx === galleryIndex ? ' active' : '');
+      thumb.onclick = function() { window.plGoSlide(idx); };
+      thumb.innerHTML =
+        (galleryItem.previewUrl ? '<img src="' + escHtml(galleryItem.previewUrl) + '" alt="' + escHtml(title) + '">' : '') +
+        '<span>' + escHtml(title) + '</span>';
+      box.appendChild(thumb);
     });
   }
 
   function renderPreviewGrid(items) {
+    galleryItems = (items || []).filter(function(item) { return item && item.previewUrl; });
+    galleryIndex = 0;
+    renderCurrentSlide();
+  }
+
+  function renderCurrentSlide() {
     var box = document.getElementById('liveFramePreview');
     if (!box) return;
-    var list = items || [];
-    if (!list.length) {
+    if (!galleryItems.length) {
       updateLivePreview();
       return;
     }
-    box.innerHTML = '<div class="preview-grid"></div>';
-    var grid = box.querySelector('.preview-grid');
-    list.forEach(function(item, idx) {
-      var frame = FRAMES.find(function(f) { return f.id === item.frameId; });
-      var title = item.frameName || (frame && frame.name) || (${JSON.stringify(isTr ? "Çerçeve" : "Frame")} + ' ' + (idx + 1));
-      var card = document.createElement('div');
-      card.className = 'preview-card';
-      card.innerHTML =
-        '<img src="' + escHtml(item.previewUrl) + '" alt="' + escHtml(title) + '">' +
-        '<div class="preview-card-title">' + escHtml(title) + '</div>';
-      grid.appendChild(card);
-    });
+    if (galleryIndex < 0) galleryIndex = 0;
+    if (galleryIndex >= galleryItems.length) galleryIndex = galleryItems.length - 1;
+    var item = galleryItems[galleryIndex];
+    var frame = FRAMES.find(function(f) { return f.id === item.frameId; });
+    var title = item.frameName || (frame && frame.name) || (${JSON.stringify(isTr ? "Çerçeve" : "Frame")} + ' ' + (galleryIndex + 1));
+    var showControls = galleryItems.length > 1;
+    box.innerHTML =
+      (showControls ? '<button class="slide-btn prev" type="button" aria-label="${isTr ? "Önceki" : "Previous"}" onclick="window.plPrevSlide()">‹</button>' : '') +
+      '<img src="' + escHtml(item.previewUrl) + '" alt="' + escHtml(title) + '">' +
+      '<div class="slide-title">' + escHtml(title) + '</div>' +
+      (showControls ? '<button class="slide-btn next" type="button" aria-label="${isTr ? "Sonraki" : "Next"}" onclick="window.plNextSlide()">›</button>' : '');
+    renderFrameThumbs(galleryItems);
+  }
+
+  window.plPrevSlide = function() {
+    if (!galleryItems.length) return;
+    galleryIndex = (galleryIndex - 1 + galleryItems.length) % galleryItems.length;
+    renderCurrentSlide();
+  };
+
+  window.plNextSlide = function() {
+    if (!galleryItems.length) return;
+    galleryIndex = (galleryIndex + 1) % galleryItems.length;
+    renderCurrentSlide();
+  };
+
+  window.plGoSlide = function(idx) {
+    if (!galleryItems.length) return;
+    galleryIndex = Math.max(0, Math.min(Number(idx) || 0, galleryItems.length - 1));
+    renderCurrentSlide();
   }
 
   function renderInitialFrameGrid() {

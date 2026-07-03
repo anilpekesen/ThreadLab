@@ -19,6 +19,8 @@ import {
   createPersonalizerFrame,
   updatePersonalizerFrame,
   deletePersonalizerFrame,
+  linkPersonalizerProduct,
+  listPersonalizerProductLinks,
   type TextFieldDef,
   type PersonalizerFrame,
 } from "~/models/personalizer.server";
@@ -33,14 +35,21 @@ const AI_STYLE_OPTIONS = [
   { label: "AI Dönüşümü Yok (orijinal fotoğraf)", value: "none" },
 ];
 
+function normalizeShopifyNumericId(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.split("/").filter(Boolean).pop() ?? trimmed;
+}
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const id = params.id ?? "";
-  if (id === "new") return json({ shop: session.shop, template: null, frames: [], isNew: true });
+  if (id === "new") return json({ shop: session.shop, template: null, frames: [], productLinks: [], isNew: true });
   const template = await getPersonalizerTemplate(id, session.shop);
   if (!template) throw new Response("Şablon bulunamadı", { status: 404 });
   const frames = await listPersonalizerFrames(id);
-  return json({ shop: session.shop, template, frames, isNew: false });
+  const productLinks = await listPersonalizerProductLinks(id);
+  return json({ shop: session.shop, template, frames, productLinks, isNew: false });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -153,6 +162,29 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const frameId = String(form.get("frame_id") ?? "");
     if (frameId) await deletePersonalizerFrame(frameId, id);
     return json({ ok: true });
+  }
+
+  // ── Link Shopify product ─────────────────────────────────────────────────
+  if (intent === "link_product") {
+    if (id === "new") return json({ error: "Önce şablonu kaydedin" }, { status: 400 });
+    const template = await getPersonalizerTemplate(id, shop);
+    if (!template) return json({ error: "Şablon bulunamadı" }, { status: 404 });
+
+    const productId = normalizeShopifyNumericId(String(form.get("product_id") ?? ""));
+    const variantId = normalizeShopifyNumericId(String(form.get("variant_id") ?? ""));
+    const productTitle = String(form.get("product_title") ?? "").trim();
+    const productHandle = String(form.get("product_handle") ?? "").trim();
+    if (!productId) return json({ error: "Shopify ürün ID gerekli" }, { status: 400 });
+
+    await linkPersonalizerProduct({
+      shop,
+      product_id: productId,
+      template_id: id,
+      product_title: productTitle,
+      product_handle: productHandle,
+      variant_id: variantId,
+    });
+    return json({ ok: true, linked: true });
   }
 
   return json({ error: "Bilinmeyen işlem" }, { status: 400 });
@@ -689,9 +721,11 @@ function newTextField(): TextFieldDef {
 // ── Main Component ───────────────────────────────────────────────────────────
 
 function PersonalizerEditor() {
-  const { template, frames, isNew } = useLoaderData<typeof loader>();
+  const { shop, template, frames, productLinks, isNew } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ error?: string; ok?: boolean; redirectTo?: string }>();
+  const linkFetcher = useFetcher<{ error?: string; ok?: boolean; linked?: boolean }>();
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
 
   // Yeni şablon oluşturulduktan sonra client-side navigate
   useEffect(() => {
@@ -699,6 +733,12 @@ function PersonalizerEditor() {
       navigate(fetcher.data.redirectTo);
     }
   }, [fetcher.state, fetcher.data, navigate]);
+
+  useEffect(() => {
+    if (linkFetcher.state === "idle" && linkFetcher.data?.linked) {
+      revalidator.revalidate();
+    }
+  }, [linkFetcher.state, linkFetcher.data, revalidator]);
 
   const [name, setName] = useState(template?.name ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
@@ -746,6 +786,9 @@ function PersonalizerEditor() {
     : "";
   const embedUrl = template
     ? `${appUrl}/embed/personalizer?templateId=${template.id}&variantId=VARIANT_ID&shop=SHOP&locale=tr`
+    : "";
+  const productEmbedUrl = productLinks[0]
+    ? `${appUrl}/embed/personalizer?productId=${productLinks[0].product_id}&variantId=${productLinks[0].variant_id || "VARIANT_ID"}&shop=${shop}&locale=tr`
     : "";
 
   return (
@@ -904,6 +947,90 @@ function PersonalizerEditor() {
           <Layout.Section>
             <Card>
               <FramesSection templateId={template.id} frames={frames} />
+            </Card>
+          </Layout.Section>
+        )}
+
+        {/* ── Shopify product link ── */}
+        {!isNew && template && (
+          <Layout.Section>
+            <Card>
+              <BlockStack gap="400">
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd">Shopify Ürün Eşleştirme</Text>
+                  <Text as="p" tone="subdued" variant="bodySm">
+                    Bu şablonu Shopify ürün ID ile bağlayın. Böylece ürün sayfası iframe içinde templateId taşımadan productId ile bu personalizer'ı açabilir.
+                  </Text>
+                </BlockStack>
+
+                {linkFetcher.data?.error && <Banner tone="critical">{linkFetcher.data.error}</Banner>}
+                {linkFetcher.data?.linked && <Banner tone="success">Ürün bu şablona bağlandı.</Banner>}
+
+                <linkFetcher.Form method="post" encType="multipart/form-data">
+                  <input type="hidden" name="intent" value="link_product" />
+                  <FormLayout>
+                    <FormLayout.Group>
+                      <TextField
+                        label="Shopify Ürün ID"
+                        name="product_id"
+                        autoComplete="off"
+                        placeholder="9246607180002"
+                        helpText="Düz ID veya gid://shopify/Product/... yazabilirsiniz."
+                      />
+                      <TextField
+                        label="Varsayılan Varyant ID"
+                        name="variant_id"
+                        autoComplete="off"
+                        placeholder="47962953220322"
+                        helpText="Sepete ekleme için gerçek variant ID gerekir."
+                      />
+                    </FormLayout.Group>
+                    <FormLayout.Group>
+                      <TextField
+                        label="Ürün Başlığı"
+                        name="product_title"
+                        autoComplete="off"
+                        placeholder="TIB Free Design - Gen AI | Caricature Funny Couple Portrait"
+                      />
+                      <TextField
+                        label="Handle"
+                        name="product_handle"
+                        autoComplete="off"
+                        placeholder="tib-free-design-gen-ai-caricature-funny-couple-portrait"
+                      />
+                    </FormLayout.Group>
+                    <Button submit variant="primary" loading={linkFetcher.state !== "idle"}>
+                      Ürüne Bağla
+                    </Button>
+                  </FormLayout>
+                </linkFetcher.Form>
+
+                {productLinks.length > 0 && (
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm">Bağlı Ürünler</Text>
+                    {productLinks.map((link) => (
+                      <Box key={`${link.shop}-${link.product_id}`} background="bg-surface-secondary" padding="300" borderRadius="200">
+                        <BlockStack gap="100">
+                          <Text as="p" variant="bodyMd" fontWeight="semibold">
+                            {link.product_title || link.product_handle || link.product_id}
+                          </Text>
+                          <Text as="p" tone="subdued" variant="bodySm">
+                            {`Product ID: ${link.product_id}${link.variant_id ? ` — Variant ID: ${link.variant_id}` : ""}`}
+                          </Text>
+                        </BlockStack>
+                      </Box>
+                    ))}
+                  </BlockStack>
+                )}
+
+                {productEmbedUrl && (
+                  <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+                    <Text as="p" variant="bodyMd">
+                      <code style={{ fontSize: 12, wordBreak: "break-all" }}>{productEmbedUrl}</code>
+                    </Text>
+                  </Box>
+                )}
+              </BlockStack>
             </Card>
           </Layout.Section>
         )}

@@ -643,4 +643,22 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS personalizer_frames_template
       ON personalizer_frames (template_id, sort_order)
   `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS personalizer_product_links (
+      shop          TEXT NOT NULL,
+      product_id    TEXT NOT NULL,
+      template_id   TEXT NOT NULL REFERENCES personalizer_templates(id) ON DELETE CASCADE,
+      product_title TEXT NOT NULL DEFAULT '',
+      product_handle TEXT NOT NULL DEFAULT '',
+      variant_id    TEXT NOT NULL DEFAULT '',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (shop, product_id)
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS personalizer_product_links_template
+      ON personalizer_product_links (template_id)
+  `);
 }
