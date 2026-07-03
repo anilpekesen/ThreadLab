@@ -48,6 +48,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     mockup_url: f.mockup_url,
     text_fields: f.text_fields ?? [],
   })));
+  const allTextFields = new Map<string, (typeof template.text_fields)[number]>();
+  for (const field of template.text_fields) allTextFields.set(field.id, field);
+  for (const frame of frames) {
+    for (const field of frame.text_fields ?? []) {
+      if (!allTextFields.has(field.id)) allTextFields.set(field.id, field);
+    }
+  }
+  const allTextFieldsJson = JSON.stringify([...allTextFields.values()]);
   const hasFrames = frames.length > 0;
 
   const html = `<!DOCTYPE html>
@@ -68,6 +76,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     .live-preview{width:100%;aspect-ratio:1;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden}
     .live-preview img{width:100%;height:100%;object-fit:contain;display:block}
     .preview-placeholder{font-size:13px;color:#6b7280;text-align:center;padding:20px}
+    .preview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;width:100%;align-self:stretch;padding:12px;overflow:auto}
+    .preview-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}
+    .preview-card img{width:100%;aspect-ratio:1;object-fit:contain;background:#f9fafb;display:block}
+    .preview-card-title{font-size:12px;font-weight:600;color:#374151;padding:8px 10px;border-top:1px solid #eef0f3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .thumb-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px;margin-top:12px}
+    .thumb-card{border:1px solid #d8dde5;border-radius:8px;overflow:hidden;background:#fff}
+    .thumb-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+    .thumb-card span{display:block;font-size:11px;font-weight:600;color:#4b5563;padding:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .mobile-title{display:none}
     .desktop-title{display:block}
     .label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px}
@@ -94,14 +110,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     .char-count{font-size:11px;color:#9ca3af;text-align:right;margin-top:3px}
     [hidden]{display:none!important}
 
-    /* Frame picker */
-    .frames-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-top:12px}
-    .frame-card{border:2px solid #e5e7eb;border-radius:10px;padding:8px;cursor:pointer;transition:border-color .2s,box-shadow .2s;text-align:center;background:#fff}
-    .frame-card:hover{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
-    .frame-card.selected{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.2)}
-    .frame-card img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;margin-bottom:6px}
-    .frame-card .fname{font-size:12px;font-weight:600;color:#374151}
-    .frame-card .fbadge{display:inline-block;margin-top:4px;font-size:10px;background:#6366f1;color:#fff;padding:2px 8px;border-radius:20px}
     @media(max-width:820px){
       .container{padding:10px}
       .product-shell{grid-template-columns:1fr;gap:12px}
@@ -121,8 +129,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     </div>
     <div class="media-panel">
       <div id="liveFramePreview" class="live-preview">
-        <div class="preview-placeholder">${isTr ? "Çerçeve seçince önizleme burada görünecek." : "Choose a frame to preview it here."}</div>
+        <div class="preview-placeholder">${isTr ? "Fotoğrafı yükleyip önizleme alınca tüm çerçeveler burada görünecek." : "Upload a photo and preview to see all frames here."}</div>
       </div>
+      <div class="thumb-strip" id="frameThumbs"></div>
     </div>
     <div class="controls-panel">
       <div class="desktop-title">
@@ -130,17 +139,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ${template.description ? `<p class="subtitle">${template.description.replace(/</g, "&lt;")}</p>` : ""}
       </div>
 
-    <!-- Step 0: Frame selection (only if frames exist) -->
-    <div id="step0" ${!hasFrames ? "hidden" : ""}>
-      <p class="label">${t.chooseFrame}</p>
-      <p style="font-size:13px;color:#6b7280;margin-bottom:4px">${t.chooseFrameHint}</p>
-      <div class="frames-grid" id="framesGrid"></div>
-      <div style="height:16px"></div>
-      <button class="btn btn-primary" id="continueBtn" onclick="goToStep1()" disabled>${t.continue}</button>
-    </div>
-
     <!-- Step 1: Photo + Text -->
-    <div id="step1" ${hasFrames ? "hidden" : ""}>
+    <div id="step1">
       <div class="field-row">
         <label class="label">${t.uploadPhoto}</label>
         <div class="upload-zone" id="uploadZone" onclick="document.getElementById('photoInput').click()">
@@ -159,14 +159,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ${t.preview}
       </button>
       <p class="note">${t.previewNote}</p>
-      ${hasFrames ? `<div style="height:8px"></div><button class="btn btn-secondary" onclick="goToStep0()" style="font-size:13px">&larr; ${t.chooseFrame}</button>` : ""}
     </div>
 
     <!-- Step 2: Preview + Add to Cart -->
     <div id="step2" hidden>
-      <div id="previewFrameInfo" style="font-size:13px;color:#6b7280;margin-bottom:10px;text-align:center"></div>
       <div id="errorMsg2" class="error-msg" hidden></div>
-      <img id="previewImg" class="preview-img" />
       <div style="height:14px"></div>
       <button class="btn btn-secondary" onclick="goBack()">${t.back}</button>
       ${variantId ? `<button class="btn btn-success" id="addToCartBtn" onclick="doAddToCart()">${t.addToCart}</button>` : ""}
@@ -182,62 +179,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   var VARIANT_ID = ${JSON.stringify(variantId)};
   var SHOP = ${JSON.stringify(shop)};
   var TEMPLATE_TEXT_FIELDS = ${textFieldsJson};
+  var ALL_TEXT_FIELDS = ${allTextFieldsJson};
   var FRAMES = ${framesJson};
   var HAS_FRAMES = ${hasFrames ? "true" : "false"};
 
   var photoFile = null;
   var transformedPhotoUrl = null;
-  var selectedFrameId = HAS_FRAMES ? null : '';
-  var activeTextFields = HAS_FRAMES ? [] : TEMPLATE_TEXT_FIELDS;
+  var activeTextFields = ALL_TEXT_FIELDS.length ? ALL_TEXT_FIELDS : TEMPLATE_TEXT_FIELDS;
 
-  // ── Build frame grid ─────────────────────────────────────────────────────
-  if (HAS_FRAMES) {
-    var grid = document.getElementById('framesGrid');
-    FRAMES.forEach(function(f) {
-      var card = document.createElement('div');
-      card.className = 'frame-card';
-      card.dataset.frameId = f.id;
-      card.innerHTML =
-        (f.mockup_url ? '<img src="' + escHtml(f.mockup_url) + '" alt="' + escHtml(f.name) + '" loading="lazy">' : '<div style="width:100%;aspect-ratio:1;background:#f3f4f6;border-radius:6px;margin-bottom:6px;display:flex;align-items:center;justify-content:center;font-size:28px">🖼</div>') +
-        '<div class="fname">' + escHtml(f.name) + '</div>' +
-        '<div class="fbadge" hidden>' + ${JSON.stringify(t.selectedFrame)} + '</div>';
-      card.addEventListener('click', function() { selectFrame(f.id, card); });
-      grid.appendChild(card);
-    });
-  } else {
-    updateLivePreview(null);
-  }
-
-  function selectFrame(frameId, cardEl) {
-    selectedFrameId = frameId;
-    activeTextFields = getActiveTextFields();
-    document.querySelectorAll('.frame-card').forEach(function(c) {
-      c.classList.remove('selected');
-      c.querySelector('.fbadge').hidden = true;
-    });
-    cardEl.classList.add('selected');
-    cardEl.querySelector('.fbadge').hidden = false;
-    document.getElementById('continueBtn').disabled = false;
-    renderTextFields();
-    updateLivePreview(FRAMES.find(function(f) { return f.id === frameId; }) || null);
-  }
-
-  window.goToStep1 = function() {
-    if (!selectedFrameId) return;
-    document.getElementById('step0').hidden = true;
-    document.getElementById('step1').hidden = false;
-  };
-
-  window.goToStep0 = function() {
-    document.getElementById('step1').hidden = true;
-    document.getElementById('step0').hidden = false;
-  };
+  renderFrameThumbs();
+  updateLivePreview();
 
   // ── Build text input fields ──────────────────────────────────────────────
   function getActiveTextFields() {
-    if (!selectedFrameId) return TEMPLATE_TEXT_FIELDS;
-    var frame = FRAMES.find(function(f) { return f.id === selectedFrameId; });
-    return frame && frame.text_fields && frame.text_fields.length ? frame.text_fields : TEMPLATE_TEXT_FIELDS;
+    return ALL_TEXT_FIELDS.length ? ALL_TEXT_FIELDS : TEMPLATE_TEXT_FIELDS;
   }
 
   function renderTextFields() {
@@ -311,7 +266,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     var fd = new FormData();
     fd.append('templateId', TEMPLATE_ID);
-    if (selectedFrameId) fd.append('frameId', selectedFrameId);
     fd.append('photo', photoFile);
     fd.append('textValues', JSON.stringify(textValues));
 
@@ -327,17 +281,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
         transformedPhotoUrl = data.transformedPhotoUrl;
         window._previewTextValues = textValues;
-
-        // Show selected frame name in preview
-        if (selectedFrameId) {
-          var fr = FRAMES.find(function(f) { return f.id === selectedFrameId; });
-          if (fr) {
-            document.getElementById('previewFrameInfo').textContent = '🖼 ' + fr.name;
-          }
-        }
-
-        document.getElementById('previewImg').src = data.previewUrl;
-        setLivePreviewImage(data.previewUrl);
+        window._previewItems = data.previews || (data.previewUrl ? [{ frameId: data.frameId || null, previewUrl: data.previewUrl }] : []);
+        renderPreviewGrid(window._previewItems);
         document.getElementById('step1').hidden = true;
         document.getElementById('step2').hidden = false;
       })
@@ -352,9 +297,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   window.goBack = function() {
     document.getElementById('step1').hidden = false;
     document.getElementById('step2').hidden = true;
-    if (selectedFrameId) {
-      updateLivePreview(FRAMES.find(function(f) { return f.id === selectedFrameId; }) || null);
-    }
   };
 
   window.doAddToCart = function() {
@@ -366,7 +308,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     var body = {
       templateId: TEMPLATE_ID,
-      frameId: selectedFrameId || null,
       transformedPhotoUrl: transformedPhotoUrl,
       textValues: window._previewTextValues || {},
     };
@@ -394,9 +335,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           if (textValues[f.id]) properties[f.label] = textValues[f.id];
         });
         properties['_personalizer_template'] = TEMPLATE_ID;
-        if (selectedFrameId) properties['_personalizer_frame'] = selectedFrameId;
         properties['_design_token'] = designToken;
         properties['_print_file'] = data.printUrl;
+        if (data.printUrls && data.printUrls.length) {
+          properties['_print_files'] = data.printUrls.map(function(p) { return p.printUrl; }).join(',');
+        }
 
         var cartMsg = {
           type: 'PERSONALIZER_ADD_TO_CART',
@@ -457,16 +400,50 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     box.innerHTML = '<img src="' + escHtml(src) + '" alt="">';
   }
 
-  function updateLivePreview(frame) {
+  function updateLivePreview() {
     var box = document.getElementById('liveFramePreview');
     if (!box) return;
-    if (frame && frame.mockup_url) {
-      setLivePreviewImage(frame.mockup_url);
-    } else if (FRAMES.length && FRAMES[0].mockup_url) {
+    if (FRAMES.length && FRAMES[0].mockup_url) {
       setLivePreviewImage(FRAMES[0].mockup_url);
     } else {
       box.innerHTML = '<div class="preview-placeholder">' + ${JSON.stringify(isTr ? "Önizleme burada görünecek." : "Preview will appear here.")} + '</div>';
     }
+  }
+
+  function renderFrameThumbs() {
+    var box = document.getElementById('frameThumbs');
+    if (!box) return;
+    box.innerHTML = '';
+    FRAMES.forEach(function(frame) {
+      var item = document.createElement('div');
+      item.className = 'thumb-card';
+      item.innerHTML =
+        (frame.mockup_url ? '<img src="' + escHtml(frame.mockup_url) + '" alt="' + escHtml(frame.name || '') + '">' : '') +
+        '<span>' + escHtml(frame.name || '') + '</span>';
+      box.appendChild(item);
+    });
+  }
+
+  function renderPreviewGrid(items) {
+    var box = document.getElementById('liveFramePreview');
+    if (!box) return;
+    var list = items || [];
+    if (!list.length) {
+      updateLivePreview();
+      return;
+    }
+    box.innerHTML = '<div class="preview-grid"></div>';
+    var grid = box.querySelector('.preview-grid');
+    list.forEach(function(item, idx) {
+      var frame = FRAMES.find(function(f) { return f.id === item.frameId; });
+      var title = item.frameName || (frame && frame.name) || (${JSON.stringify(isTr ? "Çerçeve" : "Frame")} + ' ' + (idx + 1));
+      var card = document.createElement('div');
+      card.className = 'preview-card';
+      card.innerHTML =
+        '<img src="' + escHtml(item.previewUrl) + '" alt="' + escHtml(title) + '">' +
+        '<div class="preview-card-title">' + escHtml(title) + '</div>';
+      grid.appendChild(card);
+    });
   }
 
   // iframe auto-resize: parent'a yüksekliği bildir
@@ -478,9 +455,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
   notifyHeight();
   window.addEventListener('resize', notifyHeight);
-  // Her adım geçişinde de bildir
-  var _origGoToStep1 = window.goToStep1;
-  window.goToStep1 = function() { _origGoToStep1 && _origGoToStep1(); setTimeout(notifyHeight, 100); };
   var _origGoBack = window.goBack;
   window.goBack = function() { _origGoBack && _origGoBack(); setTimeout(notifyHeight, 100); };
 })();

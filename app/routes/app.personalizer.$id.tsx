@@ -17,6 +17,7 @@ import {
   updatePersonalizerTemplate,
   listPersonalizerFrames,
   createPersonalizerFrame,
+  updatePersonalizerFrame,
   deletePersonalizerFrame,
   type TextFieldDef,
   type PersonalizerFrame,
@@ -109,6 +110,41 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const mockup_url = await uploadToR2(buf, ext, "personalizer-frame");
 
     await createPersonalizerFrame({ template_id: templateId, name: frameName, mockup_url, mockup_x, mockup_y, mockup_width, mockup_height, text_fields, sort_order });
+    return json({ ok: true });
+  }
+
+  // ── Update frame ──────────────────────────────────────────────────────────
+  if (intent === "update_frame") {
+    const frameId = String(form.get("frame_id") ?? "");
+    if (!frameId) return json({ error: "Çerçeve ID gerekli" }, { status: 400 });
+
+    const frameName    = String(form.get("frame_name") ?? "").trim() || "Çerçeve";
+    const mockup_x     = parseInt(String(form.get("mockup_x") ?? "0"), 10);
+    const mockup_y     = parseInt(String(form.get("mockup_y") ?? "0"), 10);
+    const mockup_width  = parseInt(String(form.get("mockup_width") ?? "0"), 10);
+    const mockup_height = parseInt(String(form.get("mockup_height") ?? "0"), 10);
+    const sort_order   = parseInt(String(form.get("sort_order") ?? "0"), 10);
+    let text_fields: TextFieldDef[] = [];
+    try { text_fields = JSON.parse(String(form.get("frame_text_fields") ?? "[]")); } catch { /* ignore */ }
+
+    const input: Parameters<typeof updatePersonalizerFrame>[1] = {
+      name: frameName,
+      mockup_x,
+      mockup_y,
+      mockup_width,
+      mockup_height,
+      text_fields,
+      sort_order,
+    };
+
+    const mockupFile = form.get("mockup_image");
+    if (mockupFile instanceof File && mockupFile.size > 0) {
+      const buf = Buffer.from(await mockupFile.arrayBuffer());
+      const ext = mockupFile.type === "image/jpeg" ? "jpg" : mockupFile.type === "image/webp" ? "webp" : "png";
+      input.mockup_url = await uploadToR2(buf, ext, "personalizer-frame");
+    }
+
+    await updatePersonalizerFrame(frameId, input);
     return json({ ok: true });
   }
 
@@ -384,17 +420,25 @@ function FrameAreaEditor({
 
 // ── Add Frame Form ───────────────────────────────────────────────────────────
 
-function AddFrameForm({ templateId, onDone }: { templateId: string; onDone: () => void }) {
+function FrameForm({ frame, onDone }: { frame?: PersonalizerFrame; onDone: () => void }) {
   const fetcher = useFetcher<{ error?: string; ok?: boolean }>();
-  const [frameName, setFrameName] = useState("");
-  const [previewUrl, setPreviewUrl] = useState("");
-  const [rect, setRect] = useState<Rect>({ x: 0, y: 0, w: 0, h: 0 });
-  const [textFields, setTextFields] = useState<TextFieldDef[]>([
-    { ...newTextField(), label: "Yazı", placeholder: "Yazınızı girin", x: 500, y: 900, font_size: 64, max_length: 40 },
-  ]);
+  const [frameName, setFrameName] = useState(frame?.name ?? "");
+  const [previewUrl, setPreviewUrl] = useState(frame?.mockup_url ?? "");
+  const [rect, setRect] = useState<Rect>({
+    x: frame?.mockup_x ?? 0,
+    y: frame?.mockup_y ?? 0,
+    w: frame?.mockup_width ?? 0,
+    h: frame?.mockup_height ?? 0,
+  });
+  const [textFields, setTextFields] = useState<TextFieldDef[]>(
+    frame?.text_fields?.length
+      ? frame.text_fields
+      : [{ ...newTextField(), label: "Yazı", placeholder: "Yazınızı girin", x: 500, y: 900, font_size: 64, max_length: 40 }],
+  );
   const fileRef = useRef<HTMLInputElement>(null);
 
   const isLoading = fetcher.state !== "idle";
+  const isEdit = Boolean(frame);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -407,7 +451,8 @@ function AddFrameForm({ templateId, onDone }: { templateId: string; onDone: () =
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    fd.set("intent", "add_frame");
+    fd.set("intent", isEdit ? "update_frame" : "add_frame");
+    if (frame) fd.set("frame_id", frame.id);
     fd.set("mockup_x", String(rect.x));
     fd.set("mockup_y", String(rect.y));
     fd.set("mockup_width", String(rect.w));
@@ -440,9 +485,11 @@ function AddFrameForm({ templateId, onDone }: { templateId: string; onDone: () =
   return (
     <Box background="bg-surface-secondary" padding="400" borderRadius="200">
       <form onSubmit={handleSubmit} encType="multipart/form-data">
-        <input type="hidden" name="intent" value="add_frame" />
+        <input type="hidden" name="intent" value={isEdit ? "update_frame" : "add_frame"} />
+        {frame && <input type="hidden" name="frame_id" value={frame.id} />}
+        <input type="hidden" name="sort_order" value={frame?.sort_order ?? 0} />
         <BlockStack gap="300">
-          <Text as="h3" variant="headingSm">Yeni Çerçeve</Text>
+          <Text as="h3" variant="headingSm">{isEdit ? "Çerçeveyi Düzenle" : "Yeni Çerçeve"}</Text>
           {fetcher.data?.error && <Banner tone="critical">{fetcher.data.error}</Banner>}
           <TextField
             label="Çerçeve Adı"
@@ -454,7 +501,7 @@ function AddFrameForm({ templateId, onDone }: { templateId: string; onDone: () =
           />
           <BlockStack gap="100">
             <Text as="span" variant="bodySm" fontWeight="semibold">Çerçeve Görseli</Text>
-            <input ref={fileRef} type="file" name="mockup_image" accept="image/png,image/jpeg,image/webp" onChange={handleFile} required />
+            <input ref={fileRef} type="file" name="mockup_image" accept="image/png,image/jpeg,image/webp" onChange={handleFile} required={!isEdit} />
           </BlockStack>
 
           {previewUrl && (
@@ -513,7 +560,7 @@ function AddFrameForm({ templateId, onDone }: { templateId: string; onDone: () =
 
           <InlineStack gap="200">
             <Button submit variant="primary" loading={isLoading} disabled={!previewUrl || rect.w === 0}>
-              Çerçeveyi Kaydet
+              {isEdit ? "Değişiklikleri Kaydet" : "Çerçeveyi Kaydet"}
             </Button>
             <Button onClick={onDone}>İptal</Button>
           </InlineStack>
@@ -530,6 +577,7 @@ function AddFrameForm({ templateId, onDone }: { templateId: string; onDone: () =
 
 function FramesSection({ templateId, frames }: { templateId: string; frames: PersonalizerFrame[] }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [editingFrameId, setEditingFrameId] = useState<string | null>(null);
   const revalidator = useRevalidator();
   const deleteFetcher = useFetcher();
 
@@ -540,6 +588,7 @@ function FramesSection({ templateId, frames }: { templateId: string; frames: Per
 
   function handleDone() {
     setShowAdd(false);
+    setEditingFrameId(null);
     revalidator.revalidate();
   }
 
@@ -549,10 +598,10 @@ function FramesSection({ templateId, frames }: { templateId: string; frames: Per
         <BlockStack gap="100">
           <Text as="h2" variant="headingMd">Çerçeve Seçenekleri</Text>
           <Text as="p" tone="subdued" variant="bodySm">
-            Müşteri bu çerçevelerden birini seçecek. Her çerçeve için iç boş alanı işaretleyin.
+            Müşteri tek fotoğraf ve yazı girer; önizleme tüm çerçevelerde aynı anda oluşur. Her çerçeve için fotoğraf ve yazı alanını işaretleyin.
           </Text>
         </BlockStack>
-        {!showAdd && (
+        {!showAdd && !editingFrameId && (
           <Button onClick={() => setShowAdd(true)} variant="primary" size="slim">
             + Çerçeve Ekle
           </Button>
@@ -567,7 +616,11 @@ function FramesSection({ templateId, frames }: { templateId: string; frames: Per
         </Box>
       )}
 
-      {frames.map((frame) => (
+      {frames.map((frame) => editingFrameId === frame.id ? (
+        <Box key={frame.id} background="bg-surface-secondary" padding="400" borderRadius="200">
+          <FrameForm frame={frame} onDone={handleDone} />
+        </Box>
+      ) : (
         <Box key={frame.id} background="bg-surface-secondary" padding="400" borderRadius="200">
           <InlineStack align="space-between" blockAlign="start" gap="400">
             <InlineStack gap="400" blockAlign="start">
@@ -594,19 +647,24 @@ function FramesSection({ templateId, frames }: { templateId: string; frames: Per
                 )}
               </BlockStack>
             </InlineStack>
-            <Button
-              tone="critical"
-              size="slim"
-              onClick={() => handleDelete(frame.id)}
-              loading={deleteFetcher.state !== "idle"}
-            >
-              Sil
-            </Button>
+            <InlineStack gap="200" wrap={false}>
+              <Button size="slim" onClick={() => { setShowAdd(false); setEditingFrameId(frame.id); }}>
+                Düzenle
+              </Button>
+              <Button
+                tone="critical"
+                size="slim"
+                onClick={() => handleDelete(frame.id)}
+                loading={deleteFetcher.state !== "idle"}
+              >
+                Sil
+              </Button>
+            </InlineStack>
           </InlineStack>
         </Box>
       ))}
 
-      {showAdd && <AddFrameForm templateId={templateId} onDone={handleDone} />}
+      {showAdd && <FrameForm onDone={handleDone} />}
     </BlockStack>
   );
 }

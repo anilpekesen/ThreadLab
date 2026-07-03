@@ -1,6 +1,6 @@
 import { json, unstable_createMemoryUploadHandler, unstable_parseMultipartFormData, type ActionFunctionArgs } from "@remix-run/node";
 import { uploadToR2 } from "~/lib/r2.server";
-import { getPersonalizerTemplatePublic, getPersonalizerFramePublic } from "~/models/personalizer.server";
+import { getPersonalizerTemplatePublic, getPersonalizerFramePublic, listPersonalizerFrames } from "~/models/personalizer.server";
 import { transformPhoto } from "~/lib/personalizer-ai.server";
 import { composePreview } from "~/lib/personalizer-compose.server";
 
@@ -36,10 +36,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const template = await getPersonalizerTemplatePublic(templateId);
     if (!template) return json({ error: "Şablon bulunamadı" }, { status: 404, headers: CORS });
 
-    // Frame seçildiyse o frame'in mockup koordinatlarını kullan
-    const frame = frameId ? await getPersonalizerFramePublic(frameId) : null;
-    const activeTextFields = frame?.text_fields?.length ? frame.text_fields : template.text_fields;
-
     let textValues: Record<string, string> = {};
     try { textValues = JSON.parse(textValuesRaw); } catch { /* ignore */ }
 
@@ -59,25 +55,38 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    // Composite: photo → design template → frame (frame seçilmişse)
-    const previewUrl = await composePreview({
-      templateUrl: template.template_url,
-      photoUrl: transformedUrl,
-      photoX: template.photo_x,
-      photoY: template.photo_y,
-      photoWidth: template.photo_width,
-      photoHeight: template.photo_height,
-      mockupUrl: frame?.mockup_url || undefined,
-      mockupX: frame?.mockup_x ?? 0,
-      mockupY: frame?.mockup_y ?? 0,
-      mockupWidth: frame?.mockup_width ?? 0,
-      mockupHeight: frame?.mockup_height ?? 0,
-      textFields: activeTextFields,
-      textValues,
-    });
+    const frames = frameId
+      ? [await getPersonalizerFramePublic(frameId)].filter(Boolean)
+      : await listPersonalizerFrames(templateId);
+
+    const targets = frames.length > 0 ? frames : [null];
+    const previews = await Promise.all(targets.map(async (frame) => {
+      const activeTextFields = frame?.text_fields?.length ? frame.text_fields : template.text_fields;
+      const previewUrl = await composePreview({
+        templateUrl: template.template_url,
+        photoUrl: transformedUrl,
+        photoX: template.photo_x,
+        photoY: template.photo_y,
+        photoWidth: template.photo_width,
+        photoHeight: template.photo_height,
+        mockupUrl: frame?.mockup_url || undefined,
+        mockupX: frame?.mockup_x ?? 0,
+        mockupY: frame?.mockup_y ?? 0,
+        mockupWidth: frame?.mockup_width ?? 0,
+        mockupHeight: frame?.mockup_height ?? 0,
+        textFields: activeTextFields,
+        textValues,
+      });
+      return { frameId: frame?.id ?? null, frameName: frame?.name ?? null, previewUrl };
+    }));
 
     return json(
-      { previewUrl, transformedPhotoUrl: transformedUrl, frameId: frame?.id ?? null },
+      {
+        previewUrl: previews[0]?.previewUrl ?? "",
+        previews,
+        transformedPhotoUrl: transformedUrl,
+        frameId: previews[0]?.frameId ?? null,
+      },
       { headers: CORS },
     );
   } catch (err) {
