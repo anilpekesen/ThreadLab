@@ -1,5 +1,6 @@
-import { Bookmark, Trash2 } from 'lucide-react';
+import { Bookmark, Trash2, CloudUpload } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
+import { customerLoggedIn } from '@/utils/savedDesignsSync';
 
 interface Props {
   onLoad: (frontJson: string, backJson: string) => void;
@@ -23,6 +24,12 @@ export default function SavedPanel({ onLoad }: Props) {
       <div>
         <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-600">Arşiv</p>
         <p className="text-sm font-semibold text-slate-500">{savedDesigns.length} kayıtlı tasarım</p>
+        <p className="mt-1 flex items-center gap-1 text-xs font-medium text-slate-400">
+          <CloudUpload className="h-3.5 w-3.5" />
+          {customerLoggedIn
+            ? 'Tasarımların hesabında saklanıyor — her cihazdan erişebilirsin.'
+            : 'Tasarımların bu tarayıcıda saklanıyor. Giriş yaparsan hesabında saklanır.'}
+        </p>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">

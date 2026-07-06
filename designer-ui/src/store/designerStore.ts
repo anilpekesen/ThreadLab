@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 import type { Side, LeftTab, UploadedImage, SavedDesign, DesignerConfig } from '@/types';
+import {
+  customerLoggedIn, fetchServerDesigns, pushServerDesign, deleteServerDesign,
+  migrationDone, markMigrationDone,
+} from '@/utils/savedDesignsSync';
 
 const IMAGES_KEY = 'bkf_uploaded_images';
 const SAVED_KEY = 'bkf_saved_designs';
@@ -78,12 +82,14 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     const designs = [design, ...get().savedDesigns].slice(0, 20);
     set({ savedDesigns: designs });
     try { localStorage.setItem(SAVED_KEY, JSON.stringify(designs)); } catch {}
+    pushServerDesign(design);
   },
 
   removeSavedDesign: (id) => {
     const designs = get().savedDesigns.filter((d) => d.id !== id);
     set({ savedDesigns: designs });
     try { localStorage.setItem(SAVED_KEY, JSON.stringify(designs)); } catch {}
+    deleteServerDesign(id);
   },
 
   setCanvasJson: (side, json) => {
@@ -99,3 +105,24 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   setIsBgRemoving: (v) => set({ isBgRemoving: v }),
   setPrintSide: (v) => set({ printSide: v }),
 }));
+
+// Giriş yapmış müşteri: kayıtlı tasarımları hesabından yükle. localStorage'daki
+// eski kayıtlar ilk girişte bir defalık hesaba taşınır; sonrasında hesap (sunucu)
+// tek doğruluk kaynağıdır. Misafir kullanıcılar localStorage ile devam eder.
+if (customerLoggedIn) {
+  fetchServerDesigns()
+    .then((remote) => {
+      let designs = remote;
+      if (!migrationDone()) {
+        const remoteIds = new Set(remote.map((d) => d.id));
+        const localOnly = useDesignerStore.getState().savedDesigns.filter((d) => !remoteIds.has(d.id));
+        localOnly.forEach(pushServerDesign);
+        markMigrationDone();
+        designs = [...localOnly, ...remote]
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, 20);
+      }
+      useDesignerStore.setState({ savedDesigns: designs });
+    })
+    .catch(() => {});
+}

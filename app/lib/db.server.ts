@@ -661,4 +661,25 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS personalizer_product_links_template
       ON personalizer_product_links (template_id)
   `);
+
+  // Giriş yapmış müşterilerin "Kayıtlı Tasarımlar"ı — localStorage yerine hesapla
+  // taşınabilir kayıt. id istemci tarafında üretilir, bu yüzden PK müşteriye
+  // bileşiktir ki bir müşteri başka müşterinin kaydını ezemesin.
+  await query(`
+    CREATE TABLE IF NOT EXISTS customer_saved_designs (
+      shop        TEXT NOT NULL,
+      customer_id TEXT NOT NULL,
+      id          TEXT NOT NULL,
+      name        TEXT NOT NULL DEFAULT '',
+      thumbnail   TEXT NOT NULL DEFAULT '',
+      front_json  TEXT NOT NULL DEFAULT '',
+      back_json   TEXT NOT NULL DEFAULT '',
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (shop, customer_id, id)
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS customer_saved_designs_lookup
+      ON customer_saved_designs (shop, customer_id, created_at DESC)
+  `);
 }
