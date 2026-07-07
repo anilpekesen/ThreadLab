@@ -1623,7 +1623,8 @@ export default function App() {
     const frontJson = frontCanvasRef.current?.saveDesign() ?? '';
     const backJson = backCanvasRef.current?.saveDesign() ?? '';
     const thumbnail = frontCanvasRef.current?.exportPng(0.5) ?? '';
-    const name = `Tasarım ${new Date().toLocaleDateString('tr-TR')} ${new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
+    const dateLocale = isTurkish ? 'tr-TR' : 'en-US';
+    const name = `${t.savedDefaultName} ${new Date().toLocaleDateString(dateLocale)} ${new Date().toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}`;
     const design: SavedDesign = { id: generateId(), name, thumbnail, frontJson, backJson, createdAt: Date.now() };
     addSavedDesign(design);
     setActiveTab('saved');
@@ -1639,7 +1640,7 @@ export default function App() {
 
   const handleRemoveBg = async (dataUrl: string): Promise<string> => {
     if (!personalization.removeBgAvailable) {
-      showToast('Photoroom API key ayarlanmamış', 'error');
+      showToast(isTurkish ? 'Photoroom API key ayarlanmamış' : 'Photoroom API key is not configured', 'error');
       return '';
     }
     setIsBgRemoving(true);
@@ -2673,14 +2674,14 @@ export default function App() {
               <button
                 onClick={() => getActiveCanvasHandle()?.undo()}
                 className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-50 md:p-2"
-                title="Geri al"
+                title={t.btnUndo}
               >
                 <Undo2 className="h-4 w-4 md:h-5 md:w-5" />
               </button>
               <button
                 onClick={() => getActiveCanvasHandle()?.redo()}
                 className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-50 md:p-2"
-                title="İleri al"
+                title={t.btnRedo}
               >
                 <Redo2 className="h-4 w-4 md:h-5 md:w-5" />
               </button>
@@ -3285,10 +3286,10 @@ export default function App() {
                       <button
                         onClick={() => { getActiveCanvasHandle()?.convertSelectedToCurved(); }}
                         className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-purple-50"
-                        title="Kavisli yazıya çevir"
+                        title={t.curvedMakeTitle}
                       >
                         <span className="text-base leading-none text-gray-400 group-hover:text-purple-500">⌒</span>
-                        <span className="text-[9px] font-bold text-gray-400 group-hover:text-purple-500">Kavisli</span>
+                        <span className="text-[9px] font-bold text-gray-400 group-hover:text-purple-500">{t.curvedLabel}</span>
                       </button>
 
                     </div>
@@ -3335,10 +3336,10 @@ export default function App() {
                       <button
                         onClick={() => { getActiveCanvasHandle()?.convertSelectedToFlat(); }}
                         className="flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
-                        title="Düz yazıya çevir"
+                        title={t.flatMakeTitle}
                       >
                         <span className="text-base font-bold leading-none text-gray-500">| T</span>
-                        <span className="text-[9px] font-bold text-gray-500">Düz</span>
+                        <span className="text-[9px] font-bold text-gray-500">{t.flatLabel}</span>
                       </button>
                       {/* Bold */}
                       <button
@@ -3406,12 +3407,12 @@ export default function App() {
                         <button
                           onClick={() => updateCurvedTextProp({ isReverse: false })}
                           className={cn('flex-1 rounded-lg py-1 text-sm transition-colors', !objState.isReverse ? 'bg-white font-bold text-blue-600 shadow-sm' : 'text-gray-400')}
-                          title="Üst yay"
+                          title={t.arcTop}
                         >⌒</button>
                         <button
                           onClick={() => updateCurvedTextProp({ isReverse: true })}
                           className={cn('flex-1 rounded-lg py-1 text-sm transition-colors', objState.isReverse ? 'bg-white font-bold text-blue-600 shadow-sm' : 'text-gray-400')}
-                          title="Alt yay"
+                          title={t.arcBottom}
                         >⌣</button>
                       </div>
                       {/* Radius */}
@@ -3422,7 +3423,7 @@ export default function App() {
                           onChange={(e) => updateCurvedTextProp({ radius: Number(e.target.value) })}
                           className="w-full"
                         />
-                        <span className="text-[9px] font-bold text-gray-400">Kavis {objState.radius ?? 100}</span>
+                        <span className="text-[9px] font-bold text-gray-400">{t.curveLabel} {objState.radius ?? 100}</span>
                       </div>
 
                       {/* Color swatches */}

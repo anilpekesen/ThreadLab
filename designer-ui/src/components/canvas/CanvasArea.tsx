@@ -978,7 +978,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
               className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-slate-50/92 transition-opacity duration-200"
               style={{ opacity: bgLoaded ? 0 : 1, pointerEvents: bgLoaded ? 'none' : 'auto' }}
             >
-              <span className="text-sm text-gray-400">Yükleniyor...</span>
+              <span className="text-sm text-gray-400">{config?.locale && !config.locale.startsWith('tr') ? 'Loading...' : 'Yükleniyor...'}</span>
             </div>
             {/* Canvas host — fabric injects its canvas here, starts at 0,0 */}
             <div ref={hostEl} />

@@ -224,7 +224,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                   onClick={async () => {
                     const url = pendingUrl; setPendingUrl(null);
                     const result = await onRemoveBg(url);
-                    if (result) addUploadedImage({ id: generateId(), dataUrl: result, serverUrl: result, name: 'Temizlenmiş', addedAt: Date.now() });
+                    if (result) addUploadedImage({ id: generateId(), dataUrl: result, serverUrl: result, name: tr ? 'Temizlenmiş' : 'Cleaned', addedAt: Date.now() });
                     onAddImage(result || url);
                   }}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
@@ -579,7 +579,7 @@ function AiPanel({
       {/* Sonuç */}
       {result && (
         <div className="flex flex-col gap-3 rounded-xl border border-violet-100 bg-violet-50/40 p-3">
-          <img src={result} alt="AI görseli" className="w-full rounded-lg object-contain" style={{ maxHeight: 300 }} />
+          <img src={result} alt={tr ? 'AI görseli' : 'AI image'} className="w-full rounded-lg object-contain" style={{ maxHeight: 300 }} />
 
           {enhancedPrompt && (
             <details className="group">

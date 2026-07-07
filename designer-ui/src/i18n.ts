@@ -188,6 +188,26 @@ export const tr = {
   propBulkDiscount: 'Toplu alım indirimi',
   propPrintDiscount: 'Baskı indirimi',
   propDesignDetail: 'Müşteri Tasarım Linki',
+
+  // Saved designs panel
+  savedArchive: 'Arşiv',
+  savedCount: 'kayıtlı tasarım',
+  savedEmptyTitle: 'Kayıtlı tasarım yok',
+  savedEmptyHint: 'Üstteki kaydet butonu ile tasarımlarını saklayabilirsin.',
+  savedLoad: 'Yükle',
+  savedDelete: 'Sil',
+  savedStorageAccount: 'Tasarımların hesabında saklanıyor — her cihazdan erişebilirsin.',
+  savedStorageLocal: 'Tasarımların bu tarayıcıda saklanıyor. Giriş yaparsan hesabında saklanır.',
+  savedDefaultName: 'Tasarım',
+
+  // Curved text controls
+  curvedMakeTitle: 'Kavisli yazıya çevir',
+  curvedLabel: 'Kavisli',
+  flatMakeTitle: 'Düz yazıya çevir',
+  flatLabel: 'Düz',
+  arcTop: 'Üst yay',
+  arcBottom: 'Alt yay',
+  curveLabel: 'Kavis',
 } as const;
 
 export const en: { [K in keyof typeof tr]: string } = {
@@ -360,6 +380,24 @@ export const en: { [K in keyof typeof tr]: string } = {
   propBulkDiscount: 'Bulk discount',
   propPrintDiscount: 'Print discount',
   propDesignDetail: 'Customer Design Link',
+
+  savedArchive: 'Archive',
+  savedCount: 'saved designs',
+  savedEmptyTitle: 'No saved designs',
+  savedEmptyHint: 'Use the save button above to store your designs.',
+  savedLoad: 'Load',
+  savedDelete: 'Delete',
+  savedStorageAccount: 'Your designs are stored in your account — access them from any device.',
+  savedStorageLocal: 'Your designs are stored in this browser. Sign in to keep them in your account.',
+  savedDefaultName: 'Design',
+
+  curvedMakeTitle: 'Convert to curved text',
+  curvedLabel: 'Curved',
+  flatMakeTitle: 'Convert to straight text',
+  flatLabel: 'Straight',
+  arcTop: 'Top arc',
+  arcBottom: 'Bottom arc',
+  curveLabel: 'Curve',
 };
 
 export type I18nKey = keyof typeof tr;

@@ -12,6 +12,7 @@ export interface GlobalClipart {
 interface ClipartShape {
   id: string;
   label: string;
+  labelEn?: string;
   category: 'sekil' | 'cerceve' | 'sembol';
   emoji: string;
   build: (cv: fabric.Canvas) => void;
@@ -42,6 +43,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'star5',
     label: 'Yıldız',
+    labelEn: 'Star',
     category: 'sekil',
     emoji: '⭐',
     build: (cv) => {
@@ -55,6 +57,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'heart',
     label: 'Kalp',
+    labelEn: 'Heart',
     category: 'sekil',
     emoji: '❤️',
     build: (cv) => {
@@ -69,6 +72,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'arrow-right',
     label: 'Ok →',
+    labelEn: 'Arrow →',
     category: 'sekil',
     emoji: '➡️',
     build: (cv) => {
@@ -83,6 +87,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'lightning',
     label: 'Şimşek',
+    labelEn: 'Lightning',
     category: 'sekil',
     emoji: '⚡',
     build: (cv) => {
@@ -97,6 +102,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'crown',
     label: 'Taç',
+    labelEn: 'Crown',
     category: 'sekil',
     emoji: '👑',
     build: (cv) => {
@@ -111,6 +117,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'diamond',
     label: 'Elmas',
+    labelEn: 'Diamond',
     category: 'sekil',
     emoji: '💎',
     build: (cv) => {
@@ -125,6 +132,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'hexagon',
     label: 'Altıgen',
+    labelEn: 'Hexagon',
     category: 'sekil',
     emoji: '⬡',
     build: (cv) => {
@@ -138,6 +146,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'star8',
     label: 'Rozet',
+    labelEn: 'Badge',
     category: 'sekil',
     emoji: '✴️',
     build: (cv) => {
@@ -151,6 +160,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'circle-frame',
     label: 'Daire Çerçeve',
+    labelEn: 'Circle Frame',
     category: 'cerceve',
     emoji: '⭕',
     build: (cv) => {
@@ -165,6 +175,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'rect-frame',
     label: 'Kare Çerçeve',
+    labelEn: 'Square Frame',
     category: 'cerceve',
     emoji: '⬛',
     build: (cv) => {
@@ -179,6 +190,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'double-circle',
     label: 'Çift Daire',
+    labelEn: 'Double Circle',
     category: 'cerceve',
     emoji: '🔵',
     build: (cv) => {
@@ -191,6 +203,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'moon-star',
     label: 'Ay Yıldız',
+    labelEn: 'Star & Crescent',
     category: 'sembol',
     emoji: '☪️',
     build: (cv) => {
@@ -206,6 +219,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'infinity',
     label: 'Sonsuzluk',
+    labelEn: 'Infinity',
     category: 'sembol',
     emoji: '∞',
     build: (cv) => {
@@ -220,6 +234,7 @@ const CLIPART_SHAPES: ClipartShape[] = [
   {
     id: 'peace',
     label: 'Barış',
+    labelEn: 'Peace',
     category: 'sembol',
     emoji: '☮️',
     build: (cv) => {
@@ -1371,12 +1386,12 @@ export default function TemplatesPanel({ onApply, onAddImage, onAddClipart, shop
             ).map((shape) => (
               <button
                 key={shape.id}
-                onClick={() => onApply({ id: shape.id, label: shape.label, labelEn: shape.label, category: shape.category, description: '', tone: '', preview: null, build: shape.build })}
-                title={shape.label}
+                onClick={() => onApply({ id: shape.id, label: shape.label, labelEn: shape.labelEn ?? shape.label, category: shape.category, description: '', tone: '', preview: null, build: shape.build })}
+                title={isTurkish ? shape.label : (shape.labelEn ?? shape.label)}
                 className="group flex flex-col items-center gap-1 rounded-xl border border-emerald-100 bg-white p-2 text-center transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50/40 hover:shadow-md"
               >
                 <span className="text-2xl leading-none">{shape.emoji}</span>
-                <span className="text-[9px] font-bold text-emerald-700 leading-tight">{shape.label}</span>
+                <span className="text-[9px] font-bold text-emerald-700 leading-tight">{isTurkish ? shape.label : (shape.labelEn ?? shape.label)}</span>
               </button>
             ))}
           </div>
