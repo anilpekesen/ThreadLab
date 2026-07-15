@@ -14,8 +14,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return new Response("forbidden", { status: 403 });
   }
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
-  if (!res?.ok) return new Response("fetch failed", { status: 502 });
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(15_000),
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; PrintlabImgProxy/1.0)",
+      "Accept": "image/*,*/*;q=0.8",
+    },
+  }).catch((err) => {
+    console.error(`[img-proxy] fetch threw for ${url}:`, err);
+    return null;
+  });
+  if (!res?.ok) {
+    console.error(`[img-proxy] upstream failed for ${url}: status=${res?.status} statusText=${res?.statusText}`);
+    return new Response("fetch failed", { status: 502 });
+  }
 
   const contentType = res.headers.get("content-type") || "image/png";
   const buffer = await res.arrayBuffer();
