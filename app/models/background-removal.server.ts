@@ -8,13 +8,14 @@ import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
 import { trackAnalyticsEvent } from "~/models/analytics.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
-const WAVESPEED_MODEL = "wavespeed-ai/image-background-remover";
+const WAVESPEED_MODEL = "ideogram-ai/remove-background";
 
 interface WaveSpeedJob {
   id: string;
-  status: "pending" | "processing" | "completed" | "failed";
+  status: "created" | "pending" | "processing" | "completed" | "failed";
   outputs: string[];
   error?: string;
+  urls?: { get: string };
 }
 
 interface WaveSpeedResponse {
@@ -37,7 +38,7 @@ async function removeBackground(apiKey: string, imageBase64: string): Promise<st
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ image: imageBase64, enable_sync_mode: true }),
+    body: JSON.stringify({ image: imageBase64 }),
   });
 
   if (!res.ok) {
@@ -48,12 +49,41 @@ async function removeBackground(apiKey: string, imageBase64: string): Promise<st
   const body = await res.json() as WaveSpeedResponse;
   if (body.code !== 200) throw new Error(`WaveSpeed error: ${body.message}`);
 
-  const job = body.data;
+  const resultUrl = body.data.urls?.get ?? `${WAVESPEED_BASE}/predictions/${body.data.id}/result`;
+  const job = await pollWaveSpeedResult(apiKey, resultUrl);
+
   if (job.status === "failed" || !job.outputs?.length) {
     throw new Error(`WaveSpeed job failed: ${job.error ?? "no output"}`);
   }
 
   return job.outputs[0];
+}
+
+async function pollWaveSpeedResult(apiKey: string, resultUrl: string): Promise<WaveSpeedJob> {
+  const maxAttempts = 30;
+  const intervalMs = 2000;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+
+    const res = await fetch(resultUrl, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`WaveSpeed poll failed (${res.status}): ${detail.slice(0, 400)}`);
+    }
+
+    const body = await res.json() as WaveSpeedResponse;
+    if (body.code !== 200) throw new Error(`WaveSpeed error: ${body.message}`);
+
+    const job = body.data;
+    if (job.status === "completed" || job.status === "failed") {
+      return job;
+    }
+  }
+
+  throw new Error("WaveSpeed job timed out");
 }
 
 export async function handleWaveSpeedRemoveBackground(
