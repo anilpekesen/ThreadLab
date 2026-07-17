@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import tr, { type TranslationKey } from "./tr";
 import en from "./en";
 
@@ -15,8 +15,25 @@ function readLangFromCookie(): Lang {
   return val === "en" ? "en" : "tr";
 }
 
+// Uygulama Shopify admin iframe'inde çalıştığı için üçüncü taraf çerezler
+// tarayıcılar tarafından engellenebiliyor; localStorage kalıcı kaynak olarak kullanılır.
+function readStoredLang(): Lang | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const val = window.localStorage.getItem(COOKIE_NAME);
+    return val === "en" || val === "tr" ? val : null;
+  } catch {
+    return null;
+  }
+}
+
 function writeLangCookie(lang: Lang) {
   document.cookie = `${COOKIE_NAME}=${lang}; path=/; max-age=31536000; SameSite=None; Secure`;
+  try {
+    window.localStorage.setItem(COOKIE_NAME, lang);
+  } catch {
+    // localStorage kullanılamıyorsa (gizli mod vb.) çerezle devam et
+  }
 }
 
 interface LanguageContextValue {
@@ -33,6 +50,15 @@ const LanguageContext = createContext<LanguageContextValue>({
 
 export function LanguageProvider({ initialLang, children }: { initialLang: Lang; children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(initialLang);
+
+  // Sunucu çerezi göremediyse (iframe'de engellenmiş olabilir) localStorage'daki seçimi uygula
+  useEffect(() => {
+    const stored = readStoredLang();
+    if (stored && stored !== initialLang) {
+      setLangState(stored);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setLang = useCallback((next: Lang) => {
     writeLangCookie(next);
