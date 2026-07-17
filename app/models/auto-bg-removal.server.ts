@@ -9,7 +9,7 @@ import { getUploadsDir } from "~/lib/storage.server";
 import { uploadToR2 } from "~/lib/r2.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
-const WAVESPEED_MODEL = "wavespeed-ai/image-background-remover";
+const WAVESPEED_MODEL = "ideogram-ai/remove-background";
 const POLL_MAX_MS = 60_000;
 const POLL_INTERVAL_MS = 1_500;
 
@@ -40,7 +40,7 @@ async function removeBackground(apiKey: string, imageUrl: string): Promise<Buffe
 
   while (job.status !== "completed" && job.status !== "failed" && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    const pollRes = await fetch(`${WAVESPEED_BASE}/predictions/${job.id}`, {
+    const pollRes = await fetch(`${WAVESPEED_BASE}/predictions/${job.id}/result`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (pollRes.ok) {
