@@ -921,12 +921,14 @@ function wait(ms: number) {
 async function waitForCanvasBackground(
   handle: CanvasAreaHandle | null,
   expectedSrc?: string,
-  timeoutMs = 8000,
+  timeoutMs = 6000,
 ): Promise<boolean> {
   if (!handle || !expectedSrc) return true;
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     if (handle.isBackgroundReady(expectedSrc)) return true;
+    // Yükleme hata verdiyse timeout'u bekleme — çağıran taraf yeniden dener
+    if (handle.isBackgroundFailed()) return false;
     await wait(50);
   }
   return false;
@@ -1717,14 +1719,18 @@ export default function App() {
 
     if (sizes.length === 0) {
       // Beden seçeneği olmayan ürünler (kupa, bardak vb.)
-      const variantId = String(
-        (selectedColor
-          ? config?.variants?.find((v) => v[colorKey] === selectedColor)?.id
-          : config?.variants?.[0]?.id)
-        ?? config?.singleVariantId
-        ?? config?.doubleVariantId
-        ?? ''
-      );
+      const colorVariant = selectedColor
+        ? config?.variants?.find((v) => v[colorKey] === selectedColor)
+        : config?.variants?.[0];
+      if (selectedColor && !colorVariant) {
+        // Seçili renkte varyant yoksa başka renge sessizce DÜŞME — müşteri
+        // gördüğünden farklı renkte ürün sipariş etmesin
+        showToast(isTurkish
+          ? `"${selectedColor}" renginde ürün bulunamadı — lütfen başka bir renk seçin`
+          : `No product found in "${selectedColor}" — please pick another color`, 'error');
+        return;
+      }
+      const variantId = String(colorVariant?.id ?? config?.singleVariantId ?? config?.doubleVariantId ?? '');
       if (!variantId) {
         showToast(t.errorNoVariant, 'error');
         return;
@@ -1732,12 +1738,22 @@ export default function App() {
       cartItems = [{ variantId, quantity: noSizeQuantity }];
     } else {
       const selectedSizes = sizes.filter((size) => (sizeQuantities[size!] ?? 0) > 0);
-      cartItems = selectedSizes
-        .map((size) => {
-          const variantId = String(baseVariantForSize(size!)?.id ?? config?.singleVariantId ?? config?.doubleVariantId ?? '');
-          return { variantId, quantity: sizeQuantities[size!] ?? 0, size: size ?? undefined };
-        })
-        .filter((item) => item.variantId);
+      const missingSizes: string[] = [];
+      cartItems = [];
+      for (const size of selectedSizes) {
+        const variant = baseVariantForSize(size!);
+        if (!variant?.id) {
+          missingSizes.push(String(size));
+          continue;
+        }
+        cartItems.push({ variantId: String(variant.id), quantity: sizeQuantities[size!] ?? 0, size: size ?? undefined });
+      }
+      if (missingSizes.length > 0) {
+        showToast(isTurkish
+          ? `${selectedColor ? `"${selectedColor}" renginde` : 'Bu üründe'} şu bedenler mevcut değil: ${missingSizes.join(', ')}`
+          : `These sizes are not available${selectedColor ? ` in "${selectedColor}"` : ''}: ${missingSizes.join(', ')}`, 'error');
+        return;
+      }
       if (cartItems.length === 0) {
         setShowSizeErrorModal(true);
         return;
@@ -1761,11 +1777,27 @@ export default function App() {
         setConfig(resolvedMockupConfig);
         await wait(0);
       }
-      const [frontBgReady, backBgReady] = await Promise.all([
+      let [frontBgReady, backBgReady] = await Promise.all([
         frontHas ? waitForCanvasBackground(frontCanvasRef.current, resolvedMockupConfig?.frontImage) : Promise.resolve(true),
         backHas ? waitForCanvasBackground(backCanvasRef.current, resolvedMockupConfig?.backImage) : Promise.resolve(true),
       ]);
-      const previewIssue = !frontBgReady || !backBgReady;
+      // Mockup hazır değilse yeniden yüklemeyi dene — hazır olmadan asla export etme
+      for (let attempt = 0; (!frontBgReady || !backBgReady) && attempt < 2; attempt++) {
+        if (!frontBgReady) frontCanvasRef.current?.reloadBackground(resolvedMockupConfig?.frontImage);
+        if (!backBgReady) backCanvasRef.current?.reloadBackground(resolvedMockupConfig?.backImage);
+        [frontBgReady, backBgReady] = await Promise.all([
+          frontBgReady ? Promise.resolve(true) : waitForCanvasBackground(frontCanvasRef.current, resolvedMockupConfig?.frontImage),
+          backBgReady ? Promise.resolve(true) : waitForCanvasBackground(backCanvasRef.current, resolvedMockupConfig?.backImage),
+        ]);
+      }
+      if (!frontBgReady || !backBgReady) {
+        // Yanlış arka planla önizleme üretmektense akışı durdur (eskiden
+        // previewIssue bayrağıyla devam ediliyordu ve hatalı görsel oluşuyordu)
+        showToast(isTurkish
+          ? 'Ürün görseli yüklenemedi. Önizlemenin hatalı oluşmaması için sepete ekleme durduruldu — lütfen tekrar deneyin.'
+          : 'The product mockup could not be loaded. Add to cart was stopped to prevent a broken preview — please try again.', 'error');
+        return;
+      }
 
       // Export canvas: 3x preview (1440px+) + print at 300 DPI
       const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(3) ?? '') : '';
@@ -1815,7 +1847,6 @@ export default function App() {
           backPreviewUrl,
           frontPrintUrl,
           backPrintUrl,
-          previewIssue: previewIssue || undefined,
         }),
       }).then((r) => r.json());
 
@@ -2292,8 +2323,15 @@ export default function App() {
     if (!colorOptions.length) return;
     if (!selectedColor || !colorOptions.includes(selectedColor)) {
       const firstAvailable = colorOptions.find((c) => isColorAvailable(c ?? '')) ?? colorOptions[0];
+      // Müşterinin seçtiği renk sessizce değişmesin — haber ver
+      if (selectedColor && firstAvailable && firstAvailable !== selectedColor) {
+        showToast(isTurkish
+          ? `"${selectedColor}" rengi artık mevcut değil — "${firstAvailable}" seçildi`
+          : `"${selectedColor}" is no longer available — switched to "${firstAvailable}"`, 'warning');
+      }
       setSelectedColor(firstAvailable ?? '');
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colorOptions, selectedColor]);
 
   useEffect(() => { configRef.current = config; }, [config]);
@@ -2345,9 +2383,23 @@ export default function App() {
     const variants = selectedColor
       ? allVariants.filter((variant) => variant[colorKey] === selectedColor)
       : allVariants;
-    const pool = variants.length ? variants : allVariants;
-    return pool[0] ?? null;
-  }, [config?.variants, selectedColor]);
+    // Seçili renkte bu beden yoksa başka renkten varyanta DÜŞME — müşteri
+    // beyaz görürken sepete siyah varyant girmesin (yanlış renkte üretim)
+    return variants[0] ?? null;
+  }, [config?.variants, selectedColor, colorKey, sizeKey]);
+
+  // Renk değişince yeni renkte mevcut olmayan bedenlerin adetlerini sıfırla
+  useEffect(() => {
+    if (!selectedColor) return;
+    sizes.forEach((size) => {
+      if (!size) return;
+      const key = String(size);
+      if ((sizeQuantities[key] ?? 0) <= 0) return;
+      const variant = baseVariantForSize(key);
+      if (!variant || variant.available === false) setSizeQuantity(key, 0);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedColor]);
 
   const baseUnitPrice = useMemo(() => {
     const firstSize = sizes[0];
@@ -3772,7 +3824,7 @@ export default function App() {
                 {sizes.map((size) => {
                   const qty = sizeQuantities[size!] ?? 0;
                   const variant = baseVariantForSize(size!);
-                  const inStock = variant?.available !== false;
+                  const inStock = Boolean(variant) && variant?.available !== false;
                   return (
                     <div
                       key={size!}
@@ -3937,7 +3989,7 @@ export default function App() {
                 {sizes.map((size) => {
                   const qty = sizeQuantities[size!] ?? 0;
                   const variant = baseVariantForSize(size!);
-                  const inStock = variant?.available !== false;
+                  const inStock = Boolean(variant) && variant?.available !== false;
                   return (
                     <div
                       key={size!}

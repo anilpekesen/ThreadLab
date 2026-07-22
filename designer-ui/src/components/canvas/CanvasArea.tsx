@@ -37,6 +37,8 @@ export interface CanvasAreaHandle {
   /** Print dosyası export: print area'ya clip edilmiş, gerçek mm boyutlarında 300 DPI PNG */
   exportPrintFile: (area: { x: number; y: number; width: number; height: number; realWidthMm: number; realHeightMm: number }, dpi?: number) => string;
   isBackgroundReady: (expectedSrc?: string) => boolean;
+  isBackgroundFailed: () => boolean;
+  reloadBackground: (src?: string) => void;
   loadDesign: (json: string) => void;
   saveDesign: () => string;
   getCanvas: () => fabric.Canvas | null;
@@ -381,6 +383,8 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
 
   const { config, activeSide } = useDesignerStore();
   const [bgLoaded, setBgLoaded] = useState(false);
+  const bgLoadGenRef = useRef(0);
+  const bgFailedRef = useRef(false);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
@@ -511,14 +515,13 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     setCanvasTouchAction(cv, allowPageScroll ? 'pan-y' : 'none');
   }, [allowPageScroll]);
 
-  useEffect(() => {
+  const loadBackgroundImage = useCallback((imgSrc: string | null | undefined) => {
     const cv = canvasRef.current;
-    if (!cv || !config) return;
-    let cancelled = false;
-    const imgSrc = side === 'front' ? config.frontImage : config.backImage;
+    if (!cv) return;
+    const gen = ++bgLoadGenRef.current;
+    const canRender = () => bgLoadGenRef.current === gen && canvasRef.current === cv && hasLiveContext(cv);
 
-    const canRender = () => !cancelled && canvasRef.current === cv && hasLiveContext(cv);
-
+    bgFailedRef.current = false;
     if (!imgSrc) {
       cv.setBackgroundImage(null as unknown as fabric.Image, () => {
         if (!canRender()) return;
@@ -526,13 +529,17 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       });
       setBgLoaded(true);
       onDesignChangeRef.current(side);
-      return () => {
-        cancelled = true;
-      };
+      return;
     }
     setBgLoaded(false);
     fabric.Image.fromURL(imgSrc, (img) => {
       if (!canRender()) return;
+      // Yükleme hatasında fabric boyutsuz bir img döndürür — eski arka planı
+      // koruyup hazır saymıyoruz ki export yanlış mockup'la yapılmasın.
+      if (!img?.width || !img?.height) {
+        bgFailedRef.current = true;
+        return;
+      }
       const scale = Math.max(PRINT_W / (img.width ?? 1), PRINT_H / (img.height ?? 1));
       img.scale(scale);
       img.set({
@@ -553,10 +560,12 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
         onDesignChangeRef.current(side);
       }
     }, { crossOrigin: 'anonymous' });
-    return () => {
-      cancelled = true;
-    };
-  }, [config, side]);
+  }, [side]);
+
+  useEffect(() => {
+    if (!canvasRef.current || !config) return;
+    loadBackgroundImage(side === 'front' ? config.frontImage : config.backImage);
+  }, [config, side, loadBackgroundImage]);
 
   const addImageFromUrl = useCallback((url: string) => {
     const cv = canvasRef.current;
@@ -849,8 +858,20 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     if (!expectedSrc) return bgLoaded;
     const bg = cv.backgroundImage as (fabric.Image & { getSrc?: () => string }) | undefined;
     const currentSrc = bg?.getSrc?.() || String((bg as unknown as { src?: string })?.src || '');
-    return bgLoaded && currentSrc === expectedSrc;
+    // Tarayıcı img.src'yi mutlak URL'e çevirir — göreli/mutlak farkı yüzünden
+    // yanlış "hazır değil" sonucu çıkmasın diye iki tarafı da normalize et.
+    const normalize = (u: string) => {
+      try { return new URL(u, window.location.href).href; } catch { return u; }
+    };
+    return bgLoaded && normalize(currentSrc) === normalize(expectedSrc);
   }, [bgLoaded]);
+
+  const isBackgroundFailed = useCallback(() => bgFailedRef.current, []);
+
+  const reloadBackground = useCallback((src?: string) => {
+    const fallback = side === 'front' ? config?.frontImage : config?.backImage;
+    loadBackgroundImage(src || fallback);
+  }, [config, side, loadBackgroundImage]);
 
   const loadDesign = useCallback((json: string) => {
     const cv = canvasRef.current;
@@ -882,11 +903,13 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     exportPng,
     exportPrintFile,
     isBackgroundReady,
+    isBackgroundFailed,
+    reloadBackground,
     loadDesign,
     saveDesign,
     getCanvas: () => canvasRef.current,
     canvas: canvasRef.current,
-  }), [addImageFromUrl, addSVGClipart, addText, addCurvedText, convertSelectedToCurved, convertSelectedToFlat, cloneSelected, deleteSelected, undo, redo, exportPng, exportPrintFile, isBackgroundReady, loadDesign, saveDesign]);
+  }), [addImageFromUrl, addSVGClipart, addText, addCurvedText, convertSelectedToCurved, convertSelectedToFlat, cloneSelected, deleteSelected, undo, redo, exportPng, exportPrintFile, isBackgroundReady, isBackgroundFailed, reloadBackground, loadDesign, saveDesign]);
 
   useEffect(() => {
     const cv = canvasRef.current;
