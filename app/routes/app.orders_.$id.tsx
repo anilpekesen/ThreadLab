@@ -420,6 +420,20 @@ export default function OrderDetail() {
     >
       <BlockStack gap="500">
 
+        {/* Renk uyuşmazlığı uyarısı — müşterinin seçtiği renk ile sipariş edilen varyant farklı */}
+        {order.colorMismatch && (
+          <Banner
+            tone="critical"
+            title={lang === "tr" ? "Renk uyuşmazlığı — yanlış renkte üretim riski" : "Color mismatch — risk of wrong-color production"}
+          >
+            <p>
+              {lang === "tr"
+                ? `Bu siparişteki varyant (${order.variantTitle}) müşterinin tasarımcıda seçtiği renkle uyuşmuyor. Basıma göndermeden önce müşteriyle teyit edin.`
+                : `The variant on this order (${order.variantTitle}) does not match the color the customer selected in the designer. Confirm with the customer before sending to production.`}
+            </p>
+          </Banner>
+        )}
+
         {/* Önizleme sorunu uyarısı */}
         {(order.previewIssue || design?.previewIssue) && (
           <Banner

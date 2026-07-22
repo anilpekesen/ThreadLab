@@ -237,6 +237,7 @@ interface OrderGroup {
   backPrintUrl: string;
   hasMissingSurcharge: boolean;
   hasPreviewIssue: boolean;
+  hasColorMismatch: boolean;
   driveFolderId: string | null;
   ids: string[];
   representativeId: string;
@@ -262,6 +263,7 @@ function groupOrders(orders: Order[]): OrderGroup[] {
         backPrintUrl: o.designBackPrintUrl || "",
         hasMissingSurcharge: false,
         hasPreviewIssue: false,
+        hasColorMismatch: false,
         driveFolderId: null,
         ids: [],
         representativeId: o.id,
@@ -273,6 +275,7 @@ function groupOrders(orders: Order[]): OrderGroup[] {
     g.variants.push({ id: o.id, variantTitle: o.variantTitle, quantity: o.quantity ?? 1 });
     if (o.missingSurcharge) g.hasMissingSurcharge = true;
     if (o.previewIssue) g.hasPreviewIssue = true;
+    if (o.colorMismatch) g.hasColorMismatch = true;
     if (o.driveFolderId && !g.driveFolderId) g.driveFolderId = o.driveFolderId;
     if ((STATUS_PRIORITY[o.productionStatus] ?? 99) < (STATUS_PRIORITY[g.status] ?? 99)) {
       g.status = o.productionStatus;
@@ -431,6 +434,9 @@ export default function Orders() {
             )}
             {g.hasPreviewIssue && (
               <Badge tone="warning">{lang === "tr" ? "Önizleme sorunu" : "Preview issue"}</Badge>
+            )}
+            {g.hasColorMismatch && (
+              <Badge tone="critical">{lang === "tr" ? "Renk uyuşmazlığı" : "Color mismatch"}</Badge>
             )}
             {g.driveFolderId && (
               <a

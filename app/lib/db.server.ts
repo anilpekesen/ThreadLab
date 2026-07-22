@@ -572,6 +572,7 @@ async function _runMigrationsLocked() {
       ON support_tickets (shop, status, updated_at DESC)
   `);
   await query(`ALTER TABLE designs ADD COLUMN IF NOT EXISTS preview_issue BOOLEAN NOT NULL DEFAULT FALSE`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS color_mismatch BOOLEAN NOT NULL DEFAULT FALSE`);
   await query(`
     CREATE TABLE IF NOT EXISTS cliparts (
       id          TEXT PRIMARY KEY,

@@ -148,6 +148,19 @@ function getDesignToken(attrs: Attr[] | undefined): string | undefined {
   return getAttr(attrs, "_design_token") ?? getAttr(attrs, "design_token");
 }
 
+function normalizeColorValue(v: string): string {
+  return v.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// Tasarımcıda müşterinin seçtiği renk (_pl_color) ile Shopify'a giden
+// varyantın rengi uyuşuyor mu — uyuşmazsa yanlış renkte üretim riski var
+// (bkz. tasarımcı tarafındaki baseVariantForSize renk-fallback düzeltmesi)
+function hasColorMismatch(variantTitle: string | undefined, selectedColor: string | undefined): boolean {
+  if (!selectedColor || !variantTitle) return false;
+  const segments = variantTitle.split("/").map(normalizeColorValue);
+  return !segments.includes(normalizeColorValue(selectedColor));
+}
+
 function extractDesignToken(payload: OrderPayload): string | undefined {
   const fromOrder =
     getDesignToken(payload.note_attributes) ??
@@ -235,6 +248,15 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
     const lineTotalPrice = unitPrice * qty;
     const currencyCode = item.price_set?.shop_money?.currency_code ?? payload.currency ?? "";
 
+    const selectedColor =
+      getAttr(item.properties, "_pl_color") ?? getAttr(item.attributes, "_pl_color");
+    const colorMismatch = hasColorMismatch(item.variant_title ?? undefined, selectedColor);
+    if (colorMismatch) {
+      console.warn(
+        `[webhook] renk uyuşmazlığı: order=${payload.name} variant="${item.variant_title}" seçilen="${selectedColor}"`,
+      );
+    }
+
     const id = `order_${randomBytes(8).toString("hex")}`;
     await query(
       `INSERT INTO orders
@@ -242,8 +264,8 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
           variant_id, variant_title, line_item_id, quantity, design_token, preview_url,
           production_file_url, customer_name, customer_email,
           production_status, missing_surcharge, created_at,
-          line_total_price, currency_code)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'pending',FALSE,$16,$17,$18)
+          line_total_price, currency_code, color_mismatch)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'pending',FALSE,$16,$17,$18,$19)
        ON CONFLICT DO NOTHING`,
       [
         id,
@@ -264,6 +286,7 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
         payload.created_at ? new Date(payload.created_at) : new Date(),
         lineTotalPrice,
         currencyCode,
+        colorMismatch,
       ],
     );
     console.log(

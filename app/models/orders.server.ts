@@ -37,6 +37,7 @@ export interface Order {
   designFrontPrintUrl?: string;
   designBackPrintUrl?: string;
   previewIssue?: boolean;
+  colorMismatch?: boolean;
 }
 
 type DbRow = {
@@ -65,6 +66,7 @@ type DbRow = {
   design_front_print_url?: string | null;
   design_back_print_url?: string | null;
   preview_issue?: boolean | null;
+  color_mismatch?: boolean | null;
 };
 
 function rowToOrder(row: DbRow): Order {
@@ -94,6 +96,7 @@ function rowToOrder(row: DbRow): Order {
     designFrontPrintUrl: row.design_front_print_url || undefined,
     designBackPrintUrl: row.design_back_print_url || undefined,
     previewIssue: row.preview_issue ?? false,
+    colorMismatch: row.color_mismatch ?? false,
   };
 }
 
@@ -102,7 +105,7 @@ const ORDER_SELECT = `
     o.product_id, o.product_name, o.variant_id, o.variant_title, o.quantity,
     o.design_token, o.preview_url,
     o.production_file_url, o.production_status, o.missing_surcharge, o.created_at, o.updated_at,
-    o.drive_folder_id, o.drive_uploaded_at,
+    o.drive_folder_id, o.drive_uploaded_at, o.color_mismatch,
     d.front_preview_url AS design_front_preview_url,
     d.back_preview_url  AS design_back_preview_url,
     d.front_print_url   AS design_front_print_url,
