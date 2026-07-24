@@ -6,6 +6,7 @@ import { checkAndIncrementCustomerBg } from "~/models/customer-bg-quota.server";
 import { getTestStoreLimits } from "~/models/test-store-limits.server";
 import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
 import { trackAnalyticsEvent } from "~/models/analytics.server";
+import { cleanupCutoutEdges } from "~/lib/image-matting.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const WAVESPEED_MODEL = "ideogram-ai/remove-background";
@@ -182,7 +183,11 @@ export async function handleWaveSpeedRemoveBackground(
   if (!imageRes.ok) {
     return json({ error: "Could not download result image" }, { status: 502 });
   }
-  const imageBytes = await imageRes.arrayBuffer();
+  const rawBytes = Buffer.from(await imageRes.arrayBuffer());
+  const imageBytes = await cleanupCutoutEdges(rawBytes).catch((err) => {
+    console.error("[remove-bg] cleanupCutoutEdges failed, ham çıktı kullanılıyor:", err);
+    return rawBytes;
+  });
 
   trackAnalyticsEvent({
     shop,
@@ -203,5 +208,5 @@ export async function handleWaveSpeedRemoveBackground(
     headers["X-BG-Quota-Remaining"] = String(quotaRemaining);
   }
 
-  return new Response(imageBytes, { headers });
+  return new Response(new Uint8Array(imageBytes), { headers });
 }

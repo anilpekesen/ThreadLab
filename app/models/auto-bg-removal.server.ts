@@ -7,6 +7,7 @@ import { getShopSettings } from "~/models/shop-settings.server";
 import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
 import { getUploadsDir } from "~/lib/storage.server";
 import { uploadToR2 } from "~/lib/r2.server";
+import { cleanupCutoutEdges } from "~/lib/image-matting.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const WAVESPEED_MODEL = "ideogram-ai/remove-background";
@@ -55,7 +56,11 @@ async function removeBackground(apiKey: string, imageUrl: string): Promise<Buffe
 
   const outRes = await fetch(job.outputs[0]);
   if (!outRes.ok) throw new Error(`Could not download result (${outRes.status})`);
-  return Buffer.from(await outRes.arrayBuffer());
+  const rawBuffer = Buffer.from(await outRes.arrayBuffer());
+  return cleanupCutoutEdges(rawBuffer).catch((err) => {
+    console.error("[auto-bg] cleanupCutoutEdges failed, ham çıktı kullanılıyor:", err);
+    return rawBuffer;
+  });
 }
 
 function isProcessableImageUrl(src: string | undefined): boolean {
