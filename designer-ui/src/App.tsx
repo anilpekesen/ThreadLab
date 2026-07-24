@@ -2311,6 +2311,15 @@ export default function App() {
   }, [config?.variants, colorKey]);
 
   const handleContinueDesigning = useCallback(() => {
+    // "Bir tasarım daha yapacağım" — önceki tasarımın öğeleri kalırsa
+    // müşteri farkında olmadan 2. üründe 1. ürünün görselini/metnini
+    // gönderebilir. Her iki yüzü de temizleyip sıfır canvas'la başlat.
+    frontCanvasRef.current?.clearAllObjects();
+    backCanvasRef.current?.clearAllObjects();
+    setSelectedObj(null);
+    setObjState(null);
+    setToolbarPos(null);
+    setSidePreviews({ front: '', back: '' });
     sizes.forEach((size) => {
       if (size) setSizeQuantity(String(size), 0);
     });

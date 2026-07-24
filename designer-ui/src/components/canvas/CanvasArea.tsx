@@ -30,6 +30,7 @@ export interface CanvasAreaHandle {
   convertSelectedToFlat: () => void;
   cloneSelected: () => void;
   deleteSelected: () => void;
+  clearAllObjects: () => void;
   undo: () => void;
   redo: () => void;
   getActiveObject: () => fabric.Object | null;
@@ -737,6 +738,16 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     cv.renderAll();
   }, []);
 
+  const clearAllObjects = useCallback(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    cv.discardActiveObject();
+    // getObjects() üzerinde forEach ile silmek dizi index kaymasına yol açar
+    cv.getObjects().slice().forEach((o) => removeFabricObject(o));
+    clearCanvasTopLayer(cv);
+    cv.renderAll();
+  }, []);
+
   const cloneSelected = useCallback(() => {
     const cv = canvasRef.current;
     const obj = cv?.getActiveObject();
@@ -897,6 +908,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     convertSelectedToFlat,
     cloneSelected,
     deleteSelected,
+    clearAllObjects,
     undo,
     redo,
     getActiveObject: () => canvasRef.current?.getActiveObject() ?? null,
@@ -909,7 +921,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     saveDesign,
     getCanvas: () => canvasRef.current,
     canvas: canvasRef.current,
-  }), [addImageFromUrl, addSVGClipart, addText, addCurvedText, convertSelectedToCurved, convertSelectedToFlat, cloneSelected, deleteSelected, undo, redo, exportPng, exportPrintFile, isBackgroundReady, isBackgroundFailed, reloadBackground, loadDesign, saveDesign]);
+  }), [addImageFromUrl, addSVGClipart, addText, addCurvedText, convertSelectedToCurved, convertSelectedToFlat, cloneSelected, deleteSelected, clearAllObjects, undo, redo, exportPng, exportPrintFile, isBackgroundReady, isBackgroundFailed, reloadBackground, loadDesign, saveDesign]);
 
   useEffect(() => {
     const cv = canvasRef.current;
