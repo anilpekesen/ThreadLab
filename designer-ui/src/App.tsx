@@ -325,10 +325,10 @@ function applyPercentageDiscount(value: number, percentage: number): number {
   return Math.max(0, value * (1 - percentage / 100));
 }
 
-function PanelLoading() {
+function PanelLoading({ isTurkish }: { isTurkish: boolean }) {
   return (
     <div className="flex min-h-[180px] items-center justify-center text-sm font-medium text-gray-400">
-      Yükleniyor...
+      {isTurkish ? 'Yükleniyor...' : 'Loading...'}
     </div>
   );
 }
@@ -570,7 +570,7 @@ async function cropImageDataUrl(src: string, rect: CropRect): Promise<string> {
       canvas.height = cropHeight;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        reject(new Error('Canvas olusturulamadi'));
+        reject(new Error('Canvas oluşturulamadı'));
         return;
       }
       ctx.drawImage(
@@ -586,7 +586,7 @@ async function cropImageDataUrl(src: string, rect: CropRect): Promise<string> {
       );
       resolve(canvas.toDataURL('image/png'));
     };
-    img.onerror = () => reject(new Error('Gorsel yuklenemedi'));
+    img.onerror = () => reject(new Error('Görsel yüklenemedi'));
     img.src = src;
   });
 }
@@ -748,7 +748,7 @@ function ImageCropModal({
             className="relative mx-auto aspect-square max-h-[65vh] overflow-hidden rounded-2xl bg-gray-100"
             style={{ touchAction: 'none' }}
           >
-            <img src={src} alt="Crop preview" className="h-full w-full object-contain select-none" draggable={false} />
+            <img src={src} alt={labels.title} className="h-full w-full object-contain select-none" draggable={false} />
             <div className="pointer-events-none absolute inset-0 bg-black/35" />
             <div
               className="absolute rounded-[20px] border-2 border-white shadow-[0_0_0_9999px_rgba(15,23,42,0.18)]"
@@ -1679,7 +1679,9 @@ export default function App() {
       }
       const remaining = parseInt(res.headers.get('X-BG-Quota-Remaining') ?? '', 10);
       if (!isNaN(remaining) && remaining <= 2 && remaining > 0) {
-        showToast(`⚠️ ${remaining} background removal use left — resets after your next order`, 'warning');
+        showToast(isTurkish
+          ? `⚠️ ${remaining} arka plan kaldırma hakkınız kaldı — bir sonraki siparişinizde yenilenir`
+          : `⚠️ ${remaining} background removal use left — resets after your next order`, 'warning');
       }
       const blob2 = await res.blob();
       trackDesignActivity('background_removed');
@@ -3098,7 +3100,7 @@ export default function App() {
                   style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
                 >
                   {activeTab === 'image' && (
-                    <Suspense fallback={<PanelLoading />}>
+                    <Suspense fallback={<PanelLoading isTurkish={isTurkish} />}>
                       <ImagePanel
                         onAddImage={handleAddImage}
                         onRemoveBg={handleRemoveBg}
@@ -3113,7 +3115,7 @@ export default function App() {
                   )}
 
                   {activeTab === 'text' && (
-                    <Suspense fallback={<PanelLoading />}>
+                    <Suspense fallback={<PanelLoading isTurkish={isTurkish} />}>
                       <TextPanel
                         value={textDraft}
                         onChange={setTextDraft}
@@ -3190,7 +3192,7 @@ export default function App() {
                   )}
 
                   {activeTab === 'templates' && (
-                    <Suspense fallback={<PanelLoading />}>
+                    <Suspense fallback={<PanelLoading isTurkish={isTurkish} />}>
                       <TemplatesPanel
                         onApply={handleApplyTemplate}
                         onAddImage={handleAddImage}
@@ -3203,7 +3205,7 @@ export default function App() {
                   )}
 
                   {activeTab === 'saved' && (
-                    <Suspense fallback={<PanelLoading />}>
+                    <Suspense fallback={<PanelLoading isTurkish={isTurkish} />}>
                       <SavedPanel onLoad={handleLoadSaved} />
                     </Suspense>
                   )}
@@ -3295,7 +3297,7 @@ export default function App() {
                           onChange={(e) => updateTextProp({ fontSize: Number(e.target.value) || 40 })}
                           className="w-full rounded-md border-0 bg-transparent text-center text-xs font-bold focus:outline-none"
                         />
-                        <span className="text-[9px] font-bold text-gray-400">Boyut</span>
+                        <span className="text-[9px] font-bold text-gray-400">{t.fontSizeLabel}</span>
                       </div>
 
                       <div className="group relative col-span-2 flex items-center justify-center rounded-xl bg-gray-50 p-1">
@@ -3371,7 +3373,7 @@ export default function App() {
                           );
                         })}
                         <label className="flex h-6 cursor-pointer items-center gap-1 rounded-full border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-500 shadow-sm">
-                          Özel
+                          {t.customColorLabel}
                           <input
                             type="color"
                             value={colorInputValue(objState.color)}
@@ -3446,7 +3448,7 @@ export default function App() {
                           onChange={(e) => updateCurvedTextProp({ fontSize: Number(e.target.value) || 36 })}
                           className="w-full rounded-md border-0 bg-transparent text-center text-xs font-bold focus:outline-none"
                         />
-                        <span className="text-[9px] font-bold text-gray-400">Boyut</span>
+                        <span className="text-[9px] font-bold text-gray-400">{t.fontSizeLabel}</span>
                       </div>
                       <div className="group relative col-span-2 flex items-center justify-center rounded-xl bg-gray-50 p-1">
                         <select
@@ -3503,7 +3505,7 @@ export default function App() {
                             );
                           })}
                           <label className="flex h-6 cursor-pointer items-center gap-1 rounded-full border border-gray-200 bg-white px-2 text-[10px] font-bold text-gray-500 shadow-sm">
-                            Özel
+                            {t.customColorLabel}
                             <input
                               type="color"
                               value={colorInputValue(objState.color)}

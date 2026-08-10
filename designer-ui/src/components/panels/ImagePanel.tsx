@@ -378,7 +378,7 @@ function AiPanel({
   const [quota, setQuota] = useState<QuotaInfo | null>(null);
 
   const appUrl = uploadEndpoint?.split('/apps/')[0] ?? '';
-  const aiImages = uploadedImages.filter((img) => img.name.startsWith('AI Tasarim'));
+  const aiImages = uploadedImages.filter((img) => img.name.startsWith('AI Tasarım') || img.name.startsWith('AI Design'));
 
   const saveAiImage = useCallback((url: string, name: string) => {
     const alreadyExists = uploadedImages.some((img) => (img.serverUrl ?? img.dataUrl) === url);
@@ -420,13 +420,13 @@ function AiPanel({
         try {
           return JSON.parse(rawText) as { url?: string; enhancedPrompt?: string; error?: string; customerRemaining?: number; shopRemaining?: number };
         } catch {
-          return { error: rawText || 'Gorsel olusturulamadi' };
+          return { error: rawText || (tr ? 'Görsel oluşturulamadı' : 'Could not generate image') };
         }
       })();
       if (!res.ok || !data.url) { setError(data.error ?? (tr ? 'Görsel oluşturulamadı' : 'Could not generate image')); return; }
       setResult(data.url);
       setEnhancedPrompt(data.enhancedPrompt ?? '');
-      saveAiImage(data.url, 'AI Tasarim');
+      saveAiImage(data.url, tr ? 'AI Tasarım' : 'AI Design');
       if (data.customerRemaining !== undefined || data.shopRemaining !== undefined) {
         setQuota((prev) => prev ? {
           ...prev,
@@ -447,7 +447,7 @@ function AiPanel({
     if (!result) return;
     setAdding(true);
     try {
-      saveAiImage(result, 'AI Tasarim');
+      saveAiImage(result, tr ? 'AI Tasarım' : 'AI Design');
       onAddImage(result);
       setError('');
     } catch {
@@ -461,7 +461,7 @@ function AiPanel({
     if (!result) return;
     setSaving(true);
     try {
-      saveAiImage(result, 'AI Tasarim');
+      saveAiImage(result, tr ? 'AI Tasarım' : 'AI Design');
       setError('');
     } finally {
       setSaving(false);
@@ -475,13 +475,13 @@ function AiPanel({
     try {
       const cleaned = await onRemoveBg(result);
       if (!cleaned) {
-        setError('Arka plan kaldirilamadi. Lutfen tekrar deneyin.');
+        setError(tr ? 'Arka plan kaldırılamadı. Lütfen tekrar deneyin.' : 'Could not remove background. Please try again.');
         return;
       }
       setResult(cleaned);
-      saveAiImage(cleaned, 'AI Tasarim PNG');
+      saveAiImage(cleaned, tr ? 'AI Tasarım PNG' : 'AI Design PNG');
     } catch {
-      setError('Arka plan kaldirilamadi. Lutfen tekrar deneyin.');
+      setError(tr ? 'Arka plan kaldırılamadı. Lütfen tekrar deneyin.' : 'Could not remove background. Please try again.');
     } finally {
       setRemovingBg(false);
     }
@@ -546,7 +546,7 @@ function AiPanel({
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder={tr ? 'Orn: Turk bayragi hilal ve yildizi kartalin gogus ve kanatlarina gecmis, tek parca guclu bir amblem, yuksek enerjili streetwear tisort tasarimi' : 'E.g. A fierce eagle mascot fused with the crescent moon, single piece bold emblem, high-energy streetwear print design'}
+          placeholder={tr ? 'Örn: Türk bayrağı hilal ve yıldızı kartalın göğüs ve kanatlarına geçmiş, tek parça güçlü bir amblem, yüksek enerjili streetwear tişört tasarımı' : 'E.g. A fierce eagle mascot fused with the crescent moon, single piece bold emblem, high-energy streetwear print design'}
           rows={4}
           className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-relaxed outline-none placeholder:text-gray-300 focus:border-violet-400"
         />
@@ -638,7 +638,7 @@ function AiPanel({
                   type="button"
                   onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)}
                   className="block aspect-square w-full cursor-pointer md:cursor-default"
-                  aria-label={`${img.name} tasarima ekle`}
+                  aria-label={`${img.name} ${tr ? 'tasarıma ekle' : 'add to design'}`}
                 >
                   <img src={img.dataUrl} alt={img.name} className="h-full w-full object-cover" />
                 </button>
@@ -651,13 +651,13 @@ function AiPanel({
                       onClick={async () => {
                         const cleaned = await onRemoveBg(img.serverUrl ?? img.dataUrl);
                         if (cleaned) {
-                          saveAiImage(cleaned, 'AI Tasarim PNG');
+                          saveAiImage(cleaned, tr ? 'AI Tasarım PNG' : 'AI Design PNG');
                           onAddImage(cleaned);
                         }
                       }}
                       className="w-[80%] rounded-lg bg-white/20 py-1.5 text-xs font-semibold text-white hover:bg-white/30"
                     >
-                      Seffaf PNG
+                      {t.btnMakeTransparentPng}
                     </button>
                   )}
                   <button onClick={() => removeUploadedImage(img.id)} className="rounded-lg bg-red-500/80 p-1.5 text-white hover:bg-red-500">
@@ -675,7 +675,7 @@ function AiPanel({
                         onClick={async () => {
                           const cleaned = await onRemoveBg(img.serverUrl ?? img.dataUrl);
                           if (cleaned) {
-                            saveAiImage(cleaned, 'AI Tasarim PNG');
+                            saveAiImage(cleaned, tr ? 'AI Tasarım PNG' : 'AI Design PNG');
                             onAddImage(cleaned);
                           }
                         }}

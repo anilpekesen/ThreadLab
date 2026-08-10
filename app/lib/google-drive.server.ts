@@ -57,7 +57,7 @@ export async function exchangeCodeForToken(code: string): Promise<TokenResponse>
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Google token exchange failed: ${res.status} ${text}`);
+    throw new Error(`Google token değişimi başarısız: ${res.status} ${text}`);
   }
   return res.json() as Promise<TokenResponse>;
 }
@@ -77,7 +77,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<{ access
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Google refresh failed: ${res.status} ${text}`);
+    throw new Error(`Google token yenileme başarısız: ${res.status} ${text}`);
   }
   const data = (await res.json()) as TokenResponse;
   return {
@@ -90,14 +90,14 @@ export async function getUserEmail(accessToken: string): Promise<string> {
   const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!res.ok) throw new Error(`userinfo failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Kullanıcı bilgisi alınamadı: ${res.status}`);
   const data = (await res.json()) as { email?: string };
   return data.email ?? "";
 }
 
 export async function getValidAccessToken(shop: string): Promise<string> {
   const conn = await getDriveConnection(shop);
-  if (!conn) throw new Error("Google Drive not connected for this shop.");
+  if (!conn) throw new Error("Bu mağaza için Google Drive bağlı değil.");
 
   const expiresSoon = !conn.accessTokenExpiresAt
     || conn.accessTokenExpiresAt.getTime() - Date.now() < 60_000;
@@ -122,7 +122,7 @@ async function driveJson<T>(
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Drive API ${res.status}: ${text}`);
+    throw new Error(`Drive API hatası ${res.status}: ${text}`);
   }
   return res.json() as Promise<T>;
 }
@@ -215,7 +215,7 @@ async function deleteDriveFile(accessToken: string, fileId: string): Promise<voi
   });
   if (!res.ok && res.status !== 404) {
     const text = await res.text();
-    throw new Error(`Drive delete ${res.status}: ${text}`);
+    throw new Error(`Drive silme hatası ${res.status}: ${text}`);
   }
 }
 
@@ -300,7 +300,7 @@ export async function uploadBytes(
   );
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Drive upload ${res.status}: ${text}`);
+    throw new Error(`Drive yükleme hatası ${res.status}: ${text}`);
   }
   return res.json() as Promise<DriveFile>;
 }

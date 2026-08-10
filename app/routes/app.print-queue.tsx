@@ -207,9 +207,9 @@ export default function PrintQueue() {
 
   if (locked) {
     return (
-      <Page title="Print Queue">
+      <Page title="Baskı Kuyruğu">
         <Banner tone="warning" title="Pro veya Business planı gerekli">
-          <p>Print Queue Auto Builder yalnızca aktif Pro ve Business aboneliklerinde kullanılabilir.</p>
+          <p>Baskı Kuyruğu Otomatik Paketleyici yalnızca aktif Pro ve Business aboneliklerinde kullanılabilir.</p>
           <Button onClick={() => navigate("/app/billing")}>Planı Yükselt</Button>
         </Banner>
       </Page>
@@ -218,11 +218,11 @@ export default function PrintQueue() {
 
   return (
     <Page
-      title="Print Queue"
+      title="Baskı Kuyruğu"
       subtitle="Bekleyen siparişlerden etiketli baskı paketi, kesim listesi ve üretim özeti oluşturun."
       backAction={{ content: "Üretim", onAction: () => navigate("/app/production") }}
       primaryAction={{
-        content: downloading ? "Hazırlanıyor..." : "Auto Build ZIP",
+        content: downloading ? "Hazırlanıyor..." : "Paketi Oluştur",
         onAction: buildZip,
         disabled: selectedIds.length === 0 || downloading,
         loading: downloading,
@@ -233,7 +233,7 @@ export default function PrintQueue() {
       ]}
     >
       <BlockStack gap="500">
-        {error && <Banner tone="critical" title="Print Queue oluşturulamadı" onDismiss={() => setError(null)}><p>{error}</p></Banner>}
+        {error && <Banner tone="critical" title="Baskı paketi oluşturulamadı" onDismiss={() => setError(null)}><p>{error}</p></Banner>}
 
         <Grid>
           <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 2, lg: 4, xl: 4 }}>
@@ -260,7 +260,7 @@ export default function PrintQueue() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="100">
-                  <Text as="p" variant="bodySm" tone="subdued">Hazır kuyruk</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">Kuyruktaki Sipariş</Text>
                   <Text as="p" variant="headingXl">{groups.length}</Text>
                 </BlockStack>
               </Box>
@@ -273,7 +273,7 @@ export default function PrintQueue() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="400">
-                  <Text as="h2" variant="headingMd">Auto Build Ayarları</Text>
+                  <Text as="h2" variant="headingMd">Otomatik Paket Ayarları</Text>
                   <Divider />
                   <Select label="Sheet boyutu" options={SHEET_PRESETS} value={preset} onChange={setPreset} />
                   <Select
@@ -298,7 +298,7 @@ export default function PrintQueue() {
                     <p>ZIP içinde ön/arka sheet PNG, cut-list CSV, orders-summary HTML ve manifest JSON oluşur.</p>
                   </Banner>
                   <Button variant="primary" onClick={buildZip} loading={downloading} disabled={!selectedIds.length}>
-                    Auto Build ZIP
+                    Paketi Oluştur
                   </Button>
                 </BlockStack>
               </Box>
@@ -310,7 +310,7 @@ export default function PrintQueue() {
               <Box padding="400">
                 <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingMd">Üretim Kuyruğu</Text>
+                    <Text as="h2" variant="headingMd">Baskı Kuyruğu</Text>
                     <InlineStack gap="200">
                       <Button size="slim" variant="plain" onClick={toggleAll}>
                         {selectedKeys.length === groups.length ? "Tümünü Kaldır" : "Tümünü Seç"}

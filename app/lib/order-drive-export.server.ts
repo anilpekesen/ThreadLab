@@ -113,9 +113,9 @@ async function fetchWithRetry(url: string, maxAttempts = 5): Promise<Buffer> {
       const res = await fetch(url);
       // 429 (rate limit) ve 5xx geçici hatalar — yeniden dene
       if (res.status === 429 || res.status >= 500) {
-        throw new Error(`Source fetch failed (${res.status}): ${url}`);
+        throw new Error(`Kaynak dosya alınamadı (${res.status}): ${url}`);
       }
-      if (!res.ok) throw new Error(`Source fetch failed (${res.status}): ${url}`);
+      if (!res.ok) throw new Error(`Kaynak dosya alınamadı (${res.status}): ${url}`);
       return Buffer.from(await res.arrayBuffer());
     } catch (err) {
       lastErr = err;
@@ -127,7 +127,7 @@ async function fetchWithRetry(url: string, maxAttempts = 5): Promise<Buffer> {
       }
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error(`Source fetch failed: ${url}`);
+  throw lastErr instanceof Error ? lastErr : new Error(`Kaynak dosya alınamadı: ${url}`);
 }
 
 async function uploadCopiesFromUrl(

@@ -6,6 +6,9 @@ const tr = {
   "nav.templates": "Şablonlar",
   "nav.billing": "Abonelik",
   "nav.settings": "Ayarlar",
+  "nav.printQueue": "Baskı Kuyruğu",
+  "nav.cliparts": "Klipartlar",
+  "nav.personalizer": "Kişiselleştirici",
 
   // Plan header
   "planHeader.plan": "Plan:",

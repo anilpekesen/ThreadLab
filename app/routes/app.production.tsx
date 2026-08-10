@@ -290,7 +290,7 @@ export default function Production() {
       }}
       secondaryActions={[
         {
-          content: "Print Queue",
+          content: "Baskı Kuyruğu",
           onAction: () => navigate("/app/print-queue"),
           disabled: orders.filter(hasPrintFile).length === 0,
         },

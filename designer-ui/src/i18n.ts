@@ -94,6 +94,8 @@ export const tr = {
   sizeLabel: 'Beden',
   quantityLabel: 'Adet',
   outOfStock: 'Tükendi',
+  fontSizeLabel: 'Boyut',
+  customColorLabel: 'Özel',
 
   // Preview modal
   previewTitle: 'Önizleme',
@@ -297,6 +299,8 @@ export const en: { [K in keyof typeof tr]: string } = {
   sizeLabel: 'Size',
   quantityLabel: 'Quantity',
   outOfStock: 'Out of stock',
+  fontSizeLabel: 'Size',
+  customColorLabel: 'Custom',
 
   previewTitle: 'Preview',
 

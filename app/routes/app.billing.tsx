@@ -385,7 +385,7 @@ export default function BillingPage() {
         ]} />
 
         {actionData?.error && (
-          <Banner title="Hata" tone="critical">
+          <Banner title={t("common.error")} tone="critical">
             <Text as="p">{actionData.error}</Text>
           </Banner>
         )}

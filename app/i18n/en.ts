@@ -6,6 +6,9 @@ const en = {
   "nav.templates": "Templates",
   "nav.billing": "Billing",
   "nav.settings": "Settings",
+  "nav.printQueue": "Print Queue",
+  "nav.cliparts": "Cliparts",
+  "nav.personalizer": "Personalizer",
 
   // Plan header
   "planHeader.plan": "Plan:",
