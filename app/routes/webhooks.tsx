@@ -135,6 +135,10 @@ type OrderPayload = {
   financial_status?: string;
   currency?: string;
   total_price?: string;
+  // Shopify müşteri e-postasını üç ayrı alanda gönderebiliyor; customer objesi
+  // olmayan (misafir) siparişlerde sadece üst seviyedekiler dolu oluyor
+  email?: string;
+  contact_email?: string;
   note_attributes?: Attr[];
   attributes?: Attr[];
   line_items?: LineItem[];
@@ -160,6 +164,10 @@ function hasColorMismatch(variantTitle: string | undefined, selectedColor: strin
   if (!selectedColor || !variantTitle) return false;
   const segments = variantTitle.split("/").map(normalizeColorValue);
   return !segments.includes(normalizeColorValue(selectedColor));
+}
+
+function extractCustomerEmail(payload: OrderPayload): string {
+  return (payload.customer?.email || payload.email || payload.contact_email || "").trim();
 }
 
 function extractDesignToken(payload: OrderPayload): string | undefined {
@@ -207,7 +215,7 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
   const customerName =
     [payload.customer?.first_name, payload.customer?.last_name].filter(Boolean).join(" ") ||
     "Müşteri";
-  const customerEmail = payload.customer?.email ?? "";
+  const customerEmail = extractCustomerEmail(payload);
 
   for (const item of itemsToProcess) {
     const variantId = String(item.variant_id ?? "");
@@ -496,7 +504,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             orderName: order.name ?? shopifyOrderId,
             shopifyOrderId,
             customerName,
-            customerEmail: order.customer?.email,
+            customerEmail: extractCustomerEmail(order) || undefined,
             productName: firstItem?.name ?? "Ürün",
             variantTitle: firstItem?.variant_title ?? "",
             quantity: firstItem?.quantity ?? 1,

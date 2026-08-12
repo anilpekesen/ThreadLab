@@ -68,6 +68,10 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
   // Yanıtlar PrintLab'e değil mağazaya düşsün diye reply-to = mağazanın bildirim adresi.
   if (payload.customerEmail?.trim()) {
     promises.push(sendCustomerEmail(payload.customerEmail.trim(), payload, notificationEmail?.trim() || undefined));
+  } else {
+    // Webhook payload'ında müşteri e-postası yoksa Shopify "protected customer data"
+    // iznini vermemiş demektir — müşteriye mail atmak mümkün değil
+    console.warn(`[notify] müşteri e-postası yok — ${payload.orderName} için müşteri maili atlandı`);
   }
 
   if (promises.length === 0) return;
