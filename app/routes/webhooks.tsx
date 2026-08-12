@@ -448,6 +448,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           let designBackUrl: string | undefined;
           let printFrontUrl: string | undefined;
           let printBackUrl: string | undefined;
+          let notifyDesignToken = designToken;
 
           if (shopifyOrderId) {
             const dbOrder = await getOrderByShopifyId(shop, shopifyOrderId).catch(() => null);
@@ -456,6 +457,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               designBackUrl  = dbOrder.designBackPreviewUrl  ?? undefined;
               printFrontUrl  = dbOrder.designFrontPrintUrl   ?? undefined;
               printBackUrl   = dbOrder.designBackPrintUrl    ?? undefined;
+              notifyDesignToken = notifyDesignToken || (dbOrder.designToken ?? undefined);
             }
           }
 
@@ -474,6 +476,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             designBackUrl,
             printFrontUrl,
             printBackUrl,
+            designToken: notifyDesignToken,
           });
         } catch (err) {
           console.error(`[webhook] notify failed for order ${order.name}:`, err);

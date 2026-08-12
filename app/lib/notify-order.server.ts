@@ -2,6 +2,18 @@ import { sendEmail } from "~/lib/email.server";
 import { sendWhatsAppMessage } from "~/lib/whatsapp.server";
 import { getShopSettings } from "~/models/shop-settings.server";
 
+const APP_URL = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") || "https://app.printlabapp.com";
+
+/**
+ * Müşterinin kendi tasarımını görüp indirebileceği public link (token = tek gizli bilgi).
+ * lang=tr: müşteri e-postası Türkçe, açılan sayfa da Türkçe olsun (my-order aksi halde
+ * mağaza adına göre karar veriyor ve çoğu mağazada İngilizce açılıyor).
+ */
+function customerDesignUrl(shop: string, designToken?: string): string | null {
+  if (!designToken?.trim()) return null;
+  return `${APP_URL}/apps/tshirt-designer/my-order?shop=${encodeURIComponent(shop)}&token=${encodeURIComponent(designToken.trim())}&lang=tr`;
+}
+
 export interface OrderNotificationPayload {
   shop: string;
   orderName: string;         // "#1042"
@@ -17,6 +29,7 @@ export interface OrderNotificationPayload {
   designBackUrl?: string;
   printFrontUrl?: string;
   printBackUrl?: string;
+  designToken?: string;
 }
 
 export async function notifyOrderPaid(payload: OrderNotificationPayload): Promise<void> {
@@ -131,6 +144,8 @@ async function sendCustomerEmail(to: string, p: OrderNotificationPayload): Promi
     </div>` : null,
   ].filter(Boolean).join("");
 
+  const designUrl = customerDesignUrl(p.shop, p.designToken);
+
   const html = `<!DOCTYPE html>
 <html lang="tr"><head><meta charset="UTF-8"></head>
 <body style="font-family:system-ui,sans-serif;background:#f9fafb;margin:0;padding:24px">
@@ -155,6 +170,16 @@ async function sendCustomerEmail(to: string, p: OrderNotificationPayload): Promi
     <div style="background:#f9fafb;border-radius:12px;padding:20px;margin-bottom:8px">
       <p style="margin:0 0 16px;font-weight:700;font-size:14px;color:#111827;text-align:center">Tasarımınız</p>
       ${previewImgs}
+    </div>` : ""}
+
+    ${designUrl ? `
+    <div style="margin-top:24px;text-align:center">
+      <a href="${designUrl}" style="display:inline-block;background:#111827;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px">
+        Tasarımını Gör ve İndir →
+      </a>
+      <p style="margin:12px 0 0;font-size:12px;color:#6b7280;line-height:1.6">
+        Bu linki saklayın — tasarımınızı istediğiniz zaman görüntüleyip yüksek kaliteli dosyasını indirebilirsiniz.
+      </p>
     </div>` : ""}
   </div>
 </div>
