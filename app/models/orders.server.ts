@@ -323,6 +323,21 @@ export async function getOrderByShopifyId(shop: string, shopifyOrderId: string):
   return rowToOrder(result.rows[0]);
 }
 
+// Bir Shopify siparişinin TÜM satırları (çok ürünlü siparişte ürün başına bir satır)
+export async function getOrdersByShopifyId(shop: string, shopifyOrderId: string): Promise<Order[]> {
+  await ensureMigrations();
+  const result = shop
+    ? await query<DbRow>(
+        `${ORDER_SELECT} WHERE o.shop = $1 AND o.shopify_order_id = $2 ORDER BY o.created_at, o.id`,
+        [shop, shopifyOrderId],
+      )
+    : await query<DbRow>(
+        `${ORDER_SELECT} WHERE o.shopify_order_id = $1 ORDER BY o.created_at, o.id`,
+        [shopifyOrderId],
+      );
+  return result.rows.map(rowToOrder);
+}
+
 export async function updateOrderStatus(id: string, status: string): Promise<Order> {
   await ensureMigrations();
   const result = await query<DbRow>(

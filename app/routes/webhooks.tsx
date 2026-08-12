@@ -1,10 +1,10 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { notifyOrderPaid } from "~/lib/notify-order.server";
+import { notifyOrderPaid, type OrderNotificationItem } from "~/lib/notify-order.server";
 import { randomBytes } from "crypto";
 import { verifyWebhookHmac } from "~/lib/shopify.server";
 import { processOrderBgRemoval } from "~/models/auto-bg-removal.server";
-import { getOrderByShopifyId, updateOrderStatus, cancelShopifyOrder, setShopifyOrderDriveUpload, getSiblingOrders } from "~/models/orders.server";
+import { getOrderByShopifyId, getOrdersByShopifyId, updateOrderStatus, cancelShopifyOrder, setShopifyOrderDriveUpload, getSiblingOrders } from "~/models/orders.server";
 import { resetCustomerBgQuota } from "~/models/customer-bg-quota.server";
 import { resetCustomerAiQuota } from "~/models/customer-ai-quota.server";
 import { getSessionForDesignToken } from "~/models/designs.server";
@@ -134,6 +134,7 @@ type OrderPayload = {
   created_at?: string;
   financial_status?: string;
   currency?: string;
+  total_price?: string;
   note_attributes?: Attr[];
   attributes?: Attr[];
   line_items?: LineItem[];
@@ -443,15 +444,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" ") ||
             "Misafir";
 
-          // Tasarım URL'lerini DB'den çek
+          // Tasarım URL'lerini DB'den çek — çok ürünlü siparişte ürün başına bir satır
           let designFrontUrl: string | undefined;
           let designBackUrl: string | undefined;
           let printFrontUrl: string | undefined;
           let printBackUrl: string | undefined;
           let notifyDesignToken = designToken;
+          let notifyItems: OrderNotificationItem[] | undefined;
+
+          const currency =
+            firstItem?.price_set?.shop_money?.currency_code ?? order.currency ?? "";
 
           if (shopifyOrderId) {
-            const dbOrder = await getOrderByShopifyId(shop, shopifyOrderId).catch(() => null);
+            const dbOrders = await getOrdersByShopifyId(shop, shopifyOrderId).catch(() => []);
+            const dbOrder = dbOrders[0];
             if (dbOrder) {
               designFrontUrl = dbOrder.designFrontPreviewUrl ?? undefined;
               designBackUrl  = dbOrder.designBackPreviewUrl  ?? undefined;
@@ -459,6 +465,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               printBackUrl   = dbOrder.designBackPrintUrl    ?? undefined;
               notifyDesignToken = notifyDesignToken || (dbOrder.designToken ?? undefined);
             }
+
+            // Satır tutarı DB'de yok — webhook payload'ından varyanta göre eşleştir
+            const unitPriceByVariant = new Map<string, number>();
+            for (const li of order.line_items ?? []) {
+              const vId = String(li.variant_id ?? "");
+              if (!vId) continue;
+              const price = Number(li.price_set?.shop_money?.amount ?? li.price ?? 0);
+              if (Number.isFinite(price)) unitPriceByVariant.set(vId, price);
+            }
+
+            notifyItems = dbOrders.map((row) => {
+              const unit = unitPriceByVariant.get(row.variantId);
+              const qty = row.quantity || 1;
+              return {
+                productName: row.productName || "Ürün",
+                variantTitle: row.variantTitle || undefined,
+                quantity: qty,
+                lineTotal: unit !== undefined ? (unit * qty).toFixed(2) : undefined,
+                currency,
+                designFrontUrl: row.designFrontPreviewUrl || row.previewUrl || undefined,
+                designBackUrl: row.designBackPreviewUrl || undefined,
+                designToken: row.designToken || undefined,
+              };
+            });
           }
 
           await notifyOrderPaid({
@@ -471,12 +501,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             variantTitle: firstItem?.variant_title ?? "",
             quantity: firstItem?.quantity ?? 1,
             totalPrice: firstItem?.price_set?.shop_money?.amount ?? firstItem?.price ?? "—",
-            currency: firstItem?.price_set?.shop_money?.currency_code ?? order.currency ?? "",
+            currency,
             designFrontUrl,
             designBackUrl,
             printFrontUrl,
             printBackUrl,
             designToken: notifyDesignToken,
+            items: notifyItems?.length ? notifyItems : undefined,
+            orderTotal: order.total_price,
           });
         } catch (err) {
           console.error(`[webhook] notify failed for order ${order.name}:`, err);

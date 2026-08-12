@@ -14,6 +14,18 @@ function customerDesignUrl(shop: string, designToken?: string): string | null {
   return `${APP_URL}/apps/tshirt-designer/my-order?shop=${encodeURIComponent(shop)}&token=${encodeURIComponent(designToken.trim())}&lang=tr`;
 }
 
+/** Siparişteki tek bir ürün satırı — çok ürünlü siparişlerde müşteri maili bunları listeler */
+export interface OrderNotificationItem {
+  productName: string;
+  variantTitle?: string;
+  quantity: number;
+  lineTotal?: string;
+  currency?: string;
+  designFrontUrl?: string;
+  designBackUrl?: string;
+  designToken?: string;
+}
+
 export interface OrderNotificationPayload {
   shop: string;
   orderName: string;         // "#1042"
@@ -30,6 +42,10 @@ export interface OrderNotificationPayload {
   printFrontUrl?: string;
   printBackUrl?: string;
   designToken?: string;
+  /** Siparişin tüm satırları. Doluysa müşteri maili hepsini ayrı ayrı listeler. */
+  items?: OrderNotificationItem[];
+  /** Siparişin toplam tutarı (çok ürünlüyse satır tutarlarının toplamı) */
+  orderTotal?: string;
 }
 
 export async function notifyOrderPaid(payload: OrderNotificationPayload): Promise<void> {
@@ -48,9 +64,10 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
     promises.push(sendOrderWhatsApp(notificationWhatsapp.trim(), payload));
   }
 
-  // Customer notification — always send if customer e-posta available
+  // Customer notification — always send if customer e-posta available.
+  // Yanıtlar PrintLab'e değil mağazaya düşsün diye reply-to = mağazanın bildirim adresi.
   if (payload.customerEmail?.trim()) {
-    promises.push(sendCustomerEmail(payload.customerEmail.trim(), payload));
+    promises.push(sendCustomerEmail(payload.customerEmail.trim(), payload, notificationEmail?.trim() || undefined));
   }
 
   if (promises.length === 0) return;
@@ -129,22 +146,76 @@ async function sendMerchantEmail(to: string, p: OrderNotificationPayload): Promi
   });
 }
 
-// ── Müşteri e-postası (tasarım önizleme görseller + sipariş özeti) ───
-async function sendCustomerEmail(to: string, p: OrderNotificationPayload): Promise<void> {
-  const previewImgs = [
-    p.designFrontUrl ? `
-    <div style="text-align:center;margin-bottom:16px">
-      <p style="margin:0 0 8px;font-size:13px;color:#6b7280;font-weight:600">ÖN TASARIM</p>
-      <img src="${p.designFrontUrl}" alt="Ön Tasarım" style="max-width:280px;width:100%;border-radius:12px;border:1px solid #e5e7eb">
-    </div>` : null,
-    p.designBackUrl ? `
-    <div style="text-align:center;margin-bottom:16px">
-      <p style="margin:0 0 8px;font-size:13px;color:#6b7280;font-weight:600">ARKA TASARIM</p>
-      <img src="${p.designBackUrl}" alt="Arka Tasarım" style="max-width:280px;width:100%;border-radius:12px;border:1px solid #e5e7eb">
-    </div>` : null,
+// ── Müşteri e-postası (her ürün için önizleme + tasarım linki) ───────
+function esc(v: string): string {
+  return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/** Sadece https:// görselleri maile koy — boş data: URL'leri kırık görsel gösteriyor */
+function safeImg(url?: string): string {
+  return url && url.startsWith("https://") ? url : "";
+}
+
+function renderItemCard(p: OrderNotificationPayload, item: OrderNotificationItem, index: number, total: number): string {
+  const front = safeImg(item.designFrontUrl);
+  const back = safeImg(item.designBackUrl);
+  const designUrl = customerDesignUrl(p.shop, item.designToken);
+
+  const imgs = [
+    front ? `
+      <td style="padding:0 6px;text-align:center;vertical-align:top">
+        <p style="margin:0 0 6px;font-size:11px;color:#6b7280;font-weight:600;letter-spacing:.04em">ÖN</p>
+        <img src="${front}" alt="Ön Tasarım" style="max-width:180px;width:100%;border-radius:10px;border:1px solid #e5e7eb">
+      </td>` : "",
+    back ? `
+      <td style="padding:0 6px;text-align:center;vertical-align:top">
+        <p style="margin:0 0 6px;font-size:11px;color:#6b7280;font-weight:600;letter-spacing:.04em">ARKA</p>
+        <img src="${back}" alt="Arka Tasarım" style="max-width:180px;width:100%;border-radius:10px;border:1px solid #e5e7eb">
+      </td>` : "",
   ].filter(Boolean).join("");
 
-  const designUrl = customerDesignUrl(p.shop, p.designToken);
+  const meta = [
+    item.variantTitle ? esc(item.variantTitle) : "",
+    `${item.quantity} adet`,
+    item.lineTotal ? `${esc(item.lineTotal)} ${esc(item.currency ?? "")}`.trim() : "",
+  ].filter(Boolean).join(" · ");
+
+  return `
+    <div style="border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:14px">
+      ${total > 1 ? `<p style="margin:0 0 4px;font-size:11px;color:#9ca3af;font-weight:700;letter-spacing:.06em">ÜRÜN ${index + 1} / ${total}</p>` : ""}
+      <p style="margin:0;font-size:15px;font-weight:700;color:#111827">${esc(item.productName)}</p>
+      ${meta ? `<p style="margin:4px 0 0;font-size:13px;color:#6b7280">${meta}</p>` : ""}
+
+      ${imgs ? `
+      <table style="width:100%;border-collapse:collapse;margin-top:14px"><tr>${imgs}</tr></table>` : ""}
+
+      ${designUrl ? `
+      <div style="margin-top:16px;text-align:center">
+        <a href="${designUrl}" style="display:inline-block;background:#111827;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px">
+          Tasarımını Gör ve İndir →
+        </a>
+      </div>` : ""}
+    </div>`;
+}
+
+export function renderCustomerEmailHtml(p: OrderNotificationPayload): string {
+  // items doluysa siparişin tüm satırları listelenir; yoksa tek satırlık eski davranış
+  const items: OrderNotificationItem[] = p.items?.length
+    ? p.items
+    : [{
+        productName: p.productName,
+        variantTitle: p.variantTitle,
+        quantity: p.quantity,
+        lineTotal: p.totalPrice,
+        currency: p.currency,
+        designFrontUrl: p.designFrontUrl,
+        designBackUrl: p.designBackUrl,
+        designToken: p.designToken,
+      }];
+
+  const cards = items.map((it, i) => renderItemCard(p, it, i, items.length)).join("");
+  const hasAnyLink = items.some((it) => customerDesignUrl(p.shop, it.designToken));
+  const orderTotal = p.orderTotal ?? p.totalPrice;
 
   const html = `<!DOCTYPE html>
 <html lang="tr"><head><meta charset="UTF-8"></head>
@@ -153,42 +224,38 @@ async function sendCustomerEmail(to: string, p: OrderNotificationPayload): Promi
 
   <div style="background:#111827;padding:24px 28px;text-align:center">
     <h1 style="color:#fff;margin:0;font-size:22px">Siparişiniz Alındı ✓</h1>
-    <p style="color:#9ca3af;margin:8px 0 0;font-size:14px">${p.orderName}</p>
+    <p style="color:#9ca3af;margin:8px 0 0;font-size:14px">${esc(p.orderName)}</p>
   </div>
 
   <div style="padding:28px">
-    <p style="font-size:16px;color:#111827;margin:0 0 24px">Merhaba <strong>${p.customerName}</strong>, siparişiniz başarıyla alındı!</p>
+    <p style="font-size:16px;color:#111827;margin:0 0 24px">Merhaba <strong>${esc(p.customerName)}</strong>, siparişiniz başarıyla alındı!</p>
 
-    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px">
-      <tr><td style="padding:8px 0;color:#6b7280;width:120px">Ürün</td><td style="padding:8px 0;font-weight:600">${p.productName}</td></tr>
-      ${p.variantTitle ? `<tr style="background:#f9fafb"><td style="padding:8px 6px;color:#6b7280">Seçenek</td><td style="padding:8px 6px">${p.variantTitle}</td></tr>` : ""}
-      <tr ${p.variantTitle ? "" : 'style="background:#f9fafb"'}><td style="padding:8px ${p.variantTitle ? "0" : "6px"};color:#6b7280">Adet</td><td style="padding:8px ${p.variantTitle ? "0" : "6px"}">${p.quantity}</td></tr>
-      <tr style="background:#f9fafb"><td style="padding:8px 6px;color:#6b7280">Tutar</td><td style="padding:8px 6px;font-weight:700;color:#059669">${p.totalPrice} ${p.currency}</td></tr>
+    ${cards}
+
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:8px">
+      <tr style="background:#f9fafb">
+        <td style="padding:12px 10px;color:#6b7280;font-weight:600">Toplam</td>
+        <td style="padding:12px 10px;font-weight:700;color:#059669;text-align:right">${esc(orderTotal)} ${esc(p.currency)}</td>
+      </tr>
     </table>
 
-    ${previewImgs ? `
-    <div style="background:#f9fafb;border-radius:12px;padding:20px;margin-bottom:8px">
-      <p style="margin:0 0 16px;font-weight:700;font-size:14px;color:#111827;text-align:center">Tasarımınız</p>
-      ${previewImgs}
-    </div>` : ""}
-
-    ${designUrl ? `
-    <div style="margin-top:24px;text-align:center">
-      <a href="${designUrl}" style="display:inline-block;background:#111827;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px">
-        Tasarımını Gör ve İndir →
-      </a>
-      <p style="margin:12px 0 0;font-size:12px;color:#6b7280;line-height:1.6">
-        Bu linki saklayın — tasarımınızı istediğiniz zaman görüntüleyip yüksek kaliteli dosyasını indirebilirsiniz.
-      </p>
-    </div>` : ""}
+    ${hasAnyLink ? `
+    <p style="margin:20px 0 0;font-size:12px;color:#6b7280;line-height:1.6;text-align:center">
+      Tasarım linklerinizi saklayın — tasarımlarınızı istediğiniz zaman görüntüleyip yüksek kaliteli dosyalarını indirebilirsiniz.
+    </p>` : ""}
   </div>
 </div>
 </body></html>`;
 
+  return html;
+}
+
+async function sendCustomerEmail(to: string, p: OrderNotificationPayload, replyTo?: string): Promise<void> {
   await sendEmail({
     to,
     subject: `Siparişiniz alındı — ${p.orderName}`,
-    html,
+    html: renderCustomerEmailHtml(p),
+    replyTo,
   });
 }
 
