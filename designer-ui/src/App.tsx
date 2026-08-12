@@ -3952,7 +3952,7 @@ export default function App() {
         <div className="flex w-full flex-none flex-col layout:overflow-y-auto border-t border-gray-100 bg-white layout:w-[300px] layout:min-w-[300px] layout:border-l layout:border-t-0 lg:w-[340px] lg:min-w-[340px] xl:w-[380px] xl:min-w-[380px]">
           {config?.productTitle && (
             <div className="border-b border-gray-100 px-3 py-3">
-              <p className="text-xs font-bold leading-snug text-gray-900">{config.productTitle}</p>
+              <h1 className="text-xs font-bold leading-snug text-gray-900">{config.productTitle}</h1>
             </div>
           )}
 
