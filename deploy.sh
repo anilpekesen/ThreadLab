@@ -32,8 +32,10 @@ if [ -f .env ]; then
   done < .env
 fi
 
-# Full restart to ensure all workers run new code and env
-pm2 restart shopify-app --update-env
+# Rolling reload: cluster worker'ları sırayla yenilenir, böylece deploy anında
+# upstream hiç boş kalmaz (restart iki worker'ı birden düşürüp 502 verdiriyordu).
+# --update-env env değişikliklerinin de alınmasını sağlar.
+pm2 reload shopify-app --update-env
 
 # WhatsApp microservice — install deps and restart (or start if first time)
 if [ -d whatsapp-service ]; then
