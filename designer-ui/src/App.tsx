@@ -1873,27 +1873,25 @@ export default function App() {
         sizePreviewUrls.set(previewSize, { front: frontPreviewUrl, back: backPreviewUrl });
       }
 
-      if (sizesToRender.length > 0) {
-        const rendered = await Promise.all(sizesToRender.map(async (size) => {
-          const frontTarget = canvasRectForArea(scaleAreaForSize(personalization.printAreas.front, sizeChart, size));
-          const backTarget = canvasRectForArea(scaleAreaForSize(personalization.printAreas.back, sizeChart, size));
-          const [frontData, backData] = await Promise.all([
-            frontHas
-              ? (frontCanvasRef.current?.exportPreviewForArea(activePrintAreas.front, frontTarget, 3) ?? Promise.resolve(''))
-              : Promise.resolve(''),
-            backHas
-              ? (backCanvasRef.current?.exportPreviewForArea(activePrintAreas.back, backTarget, 3) ?? Promise.resolve(''))
-              : Promise.resolve(''),
-          ]);
-          const [front, back] = await Promise.all([
-            frontData ? dataUrlToServerUrl(frontData, 'front-preview') : Promise.resolve(''),
-            backData ? dataUrlToServerUrl(backData, 'back-preview') : Promise.resolve(''),
-          ]);
-          return { size, front, back };
-        }));
-        for (const entry of rendered) {
-          sizePreviewUrls.set(entry.size, { front: entry.front, back: entry.back });
-        }
+      // Bedenler SIRAYLA işlenir: 5 bedenlik bir sepette paralel gitmek 8 adet
+      // çok megabaytlık PNG'yi aynı anda sunucuya yüklüyor ve tek bir isteğin
+      // düşmesi nginx'e upstream'i ölü işaretletebiliyor. Ayrıca beden
+      // önizlemesi 2x çözünürlükte üretilir — ana önizleme 3x kalır.
+      for (const size of sizesToRender) {
+        const frontTarget = canvasRectForArea(scaleAreaForSize(personalization.printAreas.front, sizeChart, size));
+        const backTarget = canvasRectForArea(scaleAreaForSize(personalization.printAreas.back, sizeChart, size));
+
+        const frontData = frontHas
+          ? await (frontCanvasRef.current?.exportPreviewForArea(activePrintAreas.front, frontTarget, 2) ?? Promise.resolve(''))
+          : '';
+        const front = frontData ? await dataUrlToServerUrl(frontData, 'front-preview') : '';
+
+        const backData = backHas
+          ? await (backCanvasRef.current?.exportPreviewForArea(activePrintAreas.back, backTarget, 2) ?? Promise.resolve(''))
+          : '';
+        const back = backData ? await dataUrlToServerUrl(backData, 'back-preview') : '';
+
+        sizePreviewUrls.set(size, { front, back });
       }
 
       for (const item of cartItems) {
