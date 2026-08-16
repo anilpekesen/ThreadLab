@@ -14,7 +14,9 @@ import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
 import { logAiPrompt } from "~/models/ai-prompt-logs.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
-const IMAGE_MODEL = "wavespeed-ai/z-image";
+// WaveSpeed model id'si üç segmentli olmalı — iki segmentli "wavespeed-ai/z-image"
+// artık 400 "Model not found" döndürüyor. Daha yüksek kalite için ".../z-image/base".
+const IMAGE_MODEL = "wavespeed-ai/z-image/turbo";
 const PROMPT_OPTIMIZER_MODEL = "wavespeed-ai/prompt-optimizer";
 const POLL_MAX_MS = 90_000;
 const POLL_INTERVAL_MS = 2_000;
@@ -123,12 +125,11 @@ async function generateImage(apiKey: string, prompt: string): Promise<string> {
   const res = await fetch(`${WAVESPEED_BASE}/${IMAGE_MODEL}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    // z-image şeması: aspect_ratio / num_inference_steps / guidance_scale kabul
+    // etmiyor (sessizce yok sayılıyordu); size "genişlik*yükseklik" formatında
     body: JSON.stringify({
       prompt,
-      aspect_ratio: "1:1",
-      size: "1024x1024",
-      num_inference_steps: 28,
-      guidance_scale: 3.5,
+      size: "1024*1024",
       output_format: "png",
       enable_sync_mode: false,
       enable_base64_output: false,
