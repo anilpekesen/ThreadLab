@@ -1,5 +1,6 @@
 import { type LoaderFunctionArgs } from "@remix-run/node";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
+import { getOrdersByDesignToken } from "~/models/orders.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -25,7 +26,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const frontObjects = extractObjects(design.designJson, "front");
   const backObjects = extractObjects(design.designJson, "back");
 
-  const html = renderPage(design, frontObjects, backObjects, copy);
+  // Sipariş verilmişse her beden kendi ölçekli önizlemesini taşır — bedene göre
+  // ayrı ayrı göster. Sipariş henüz içe aktarılmadıysa tasarımın kendi görseli.
+  const orderRows = await getOrdersByDesignToken(token).catch(() => []);
+  const sizeVariants: SizeVariant[] = orderRows
+    .filter((row) => row.previewUrl || row.backPreviewUrl)
+    .map((row) => ({
+      label: row.variantTitle || "",
+      quantity: row.quantity ?? 1,
+      frontPreviewUrl: row.previewUrl || undefined,
+      backPreviewUrl: row.backPreviewUrl || undefined,
+    }));
+
+  const html = renderPage(design, frontObjects, backObjects, copy, sizeVariants);
   return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
@@ -80,9 +93,24 @@ interface Design {
   backPrintUrl?: string;
 }
 
-function renderPage(design: Design, frontObjs: DesignObject[], backObjs: DesignObject[], copy: ReturnType<typeof myOrderCopy>) {
+interface SizeVariant {
+  label: string;
+  quantity: number;
+  frontPreviewUrl?: string;
+  backPreviewUrl?: string;
+}
+
+function renderPage(
+  design: Design,
+  frontObjs: DesignObject[],
+  backObjs: DesignObject[],
+  copy: ReturnType<typeof myOrderCopy>,
+  sizeVariants: SizeVariant[] = [],
+) {
   const hasFront = design.frontPreviewUrl || frontObjs.length > 0;
   const hasBack = design.backPreviewUrl || backObjs.length > 0;
+  // Birden fazla beden varsa her biri ayrı kart olarak gösterilir
+  const perSize = sizeVariants.length > 1;
 
   return `<!DOCTYPE html>
 <html lang="${copy.lang}">
@@ -134,8 +162,13 @@ function renderPage(design: Design, frontObjs: DesignObject[], backObjs: DesignO
   </div>
   <div class="container">
     <div class="grid">
-      ${hasFront ? renderSide(copy.front, design.frontPreviewUrl, design.frontPrintUrl, copy) : ""}
-      ${hasBack ? renderSide(copy.back, design.backPreviewUrl, design.backPrintUrl, copy) : ""}
+      ${perSize
+        ? sizeVariants.map((variant) => [
+            hasFront ? renderSide(`${copy.front}${variant.label ? ` \u2014 ${esc(variant.label)}` : ""}`, variant.frontPreviewUrl || design.frontPreviewUrl, design.frontPrintUrl, copy) : "",
+            hasBack ? renderSide(`${copy.back}${variant.label ? ` \u2014 ${esc(variant.label)}` : ""}`, variant.backPreviewUrl || design.backPreviewUrl, design.backPrintUrl, copy) : "",
+          ].join("")).join("")
+        : `${hasFront ? renderSide(copy.front, sizeVariants[0]?.frontPreviewUrl || design.frontPreviewUrl, design.frontPrintUrl, copy) : ""}
+           ${hasBack ? renderSide(copy.back, sizeVariants[0]?.backPreviewUrl || design.backPreviewUrl, design.backPrintUrl, copy) : ""}`}
       ${!hasFront && !hasBack ? `<div class="card full-card"><div class="card-body"><div class="no-preview">${copy.noData}</div></div></div>` : ""}
     </div>
   </div>

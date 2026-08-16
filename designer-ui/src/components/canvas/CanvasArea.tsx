@@ -3,6 +3,7 @@ import { fabric } from 'fabric';
 import { useDesignerStore } from '@/store/designerStore';
 import type { PrintAreaConfig, Side } from '@/types';
 import { CurvedText, registerCurvedText } from '@/utils/curvedText';
+import { remapObjectsBetweenAreas } from '@/utils/sizeScale';
 
 registerCurvedText();
 
@@ -37,6 +38,16 @@ export interface CanvasAreaHandle {
   exportPng: (multiplier?: number, cleanBg?: boolean) => string;
   /** Print dosyası export: print area'ya clip edilmiş, gerçek mm boyutlarında 300 DPI PNG */
   exportPrintFile: (area: { x: number; y: number; width: number; height: number; realWidthMm: number; realHeightMm: number }, dpi?: number) => string;
+  /**
+   * Mockup + tasarımı, tasarım katmanı verilen dikdörtgene yerleştirilmiş
+   * şekilde kompozit eder. Canlı canvas'a dokunmaz — beden başına önizleme
+   * üretmek için kullanılır.
+   */
+  exportPreviewForArea: (
+    sourceArea: { x: number; y: number; width: number; height: number },
+    targetRect: { left: number; top: number; width: number; height: number },
+    multiplier?: number,
+  ) => Promise<string>;
   isBackgroundReady: (expectedSrc?: string) => boolean;
   isBackgroundFailed: () => boolean;
   reloadBackground: (src?: string) => void;
@@ -378,6 +389,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const historyRef = useRef<string[]>([]);
   const historyIdxRef = useRef(-1);
   const isRestoringRef = useRef(false);
+  const prevAreaRectRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
   const printAreaRef = useRef(printArea);
   const onObjectSelectedRef = useRef(onObjectSelected);
   const onDesignChangeRef = useRef(onDesignChange);
@@ -857,6 +869,80 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     return dataUrl;
   }, []);
 
+  const exportPreviewForArea = useCallback(async (
+    sourceArea: { x: number; y: number; width: number; height: number },
+    targetRect: { left: number; top: number; width: number; height: number },
+    multiplier = 3,
+  ): Promise<string> => {
+    const cv = canvasRef.current;
+    if (!cv) return '';
+    if (sourceArea.width <= 0 || sourceArea.height <= 0 || targetRect.width <= 0 || targetRect.height <= 0) {
+      return cv.toDataURL({ format: 'png', multiplier }) ?? '';
+    }
+
+    // 1) Tasarım katmanını arka plansız, baskı alanına kırpılmış olarak al
+    const bg = cv.backgroundImage as fabric.Image | undefined;
+    if (bg) {
+      cv.backgroundImage = undefined as unknown as fabric.Image;
+      cv.renderAll();
+    }
+    const artworkUrl = cv.toDataURL({
+      format: 'png',
+      left: sourceArea.x,
+      top: sourceArea.y,
+      width: sourceArea.width,
+      height: sourceArea.height,
+      multiplier,
+    }) ?? '';
+    if (bg) {
+      cv.backgroundImage = bg;
+      cv.renderAll();
+    }
+    if (!artworkUrl) return '';
+
+    // 2) Mockup + tasarımı offscreen canvas'ta kompozit et
+    const out = document.createElement('canvas');
+    out.width = Math.round(PRINT_W * multiplier);
+    out.height = Math.round(PRINT_H * multiplier);
+    const ctx = out.getContext('2d');
+    if (!ctx) return '';
+
+    const bgEl = bg?.getElement?.() as CanvasImageSource | undefined;
+    if (bgEl) {
+      // Mockup canvas'a "cover" ölçeğiyle ve merkez origin'le yerleştiriliyor
+      // (bkz. setBackgroundImage çağrısı) — aynı yerleşimi burada tekrarla
+      const bgW = (bg?.width ?? PRINT_W) * (bg?.scaleX ?? 1);
+      const bgH = (bg?.height ?? PRINT_H) * (bg?.scaleY ?? 1);
+      const bgLeft = (bg?.left ?? 0) - (bg?.originX === 'center' ? bgW / 2 : 0);
+      const bgTop = (bg?.top ?? 0) - (bg?.originY === 'center' ? bgH / 2 : 0);
+      ctx.drawImage(
+        bgEl,
+        bgLeft * multiplier,
+        bgTop * multiplier,
+        bgW * multiplier,
+        bgH * multiplier,
+      );
+    }
+
+    const artwork = new Image();
+    artwork.src = artworkUrl;
+    try {
+      await artwork.decode();
+    } catch {
+      return '';
+    }
+    ctx.drawImage(
+      artwork,
+      targetRect.left * multiplier,
+      targetRect.top * multiplier,
+      targetRect.width * multiplier,
+      targetRect.height * multiplier,
+    );
+
+    return out.toDataURL('image/png');
+  }, []);
+
+
   const saveDesign = useCallback(() => {
     if (!canvasRef.current) return '';
     const json = JSON.stringify(canvasRef.current.toJSON(['id']));
@@ -914,6 +1000,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     getActiveObject: () => canvasRef.current?.getActiveObject() ?? null,
     exportPng,
     exportPrintFile,
+    exportPreviewForArea,
     isBackgroundReady,
     isBackgroundFailed,
     reloadBackground,
@@ -921,12 +1008,20 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     saveDesign,
     getCanvas: () => canvasRef.current,
     canvas: canvasRef.current,
-  }), [addImageFromUrl, addSVGClipart, addText, addCurvedText, convertSelectedToCurved, convertSelectedToFlat, cloneSelected, deleteSelected, clearAllObjects, undo, redo, exportPng, exportPrintFile, isBackgroundReady, isBackgroundFailed, reloadBackground, loadDesign, saveDesign]);
+  }), [addImageFromUrl, addSVGClipart, addText, addCurvedText, convertSelectedToCurved, convertSelectedToFlat, cloneSelected, deleteSelected, clearAllObjects, undo, redo, exportPng, exportPrintFile, exportPreviewForArea, isBackgroundReady, isBackgroundFailed, reloadBackground, loadDesign, saveDesign]);
 
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
-    const changed = constrainCanvasObjects(cv, toCanvasRect(printArea));
+    const nextRect = toCanvasRect(printArea);
+    // Baskı alanı bedene göre yeniden ölçeklendiyse tasarımı yeni alana taşı —
+    // alan içindeki göreli konumu ve cm ölçüsü korunur. İlk render'da önceki
+    // alan olmadığı için remap yapılmaz.
+    const prevRect = prevAreaRectRef.current;
+    if (prevRect) remapObjectsBetweenAreas(cv, prevRect, nextRect);
+    prevAreaRectRef.current = nextRect;
+
+    const changed = constrainCanvasObjects(cv, nextRect);
     if (changed) {
       cv.renderAll();
       onObjectSelectedRef.current(cv.getActiveObject() ?? null);

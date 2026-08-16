@@ -63,6 +63,18 @@ export interface PrintAreaConfig {
   realHeightMm: number;
 }
 
+export interface SizeChartEntry {
+  size: string;
+  widthCm: number;
+  heightCm: number;
+}
+
+/** Beden başına gerçek gövde ölçüleri — önizlemede baskıyı bedene göre oranlamak için. */
+export interface SizeChart {
+  referenceSize: string;
+  entries: SizeChartEntry[];
+}
+
 export type RuleOperator = 'eq' | 'neq' | 'contains';
 export type RuleField = 'color' | 'variantOption';
 export type RuleAction = 'showWarning' | 'blockCheckout';
@@ -84,6 +96,7 @@ export interface PersonalizationConfig {
   removeBgAvailable: boolean;
   variantMockups?: Record<string, { front?: string; back?: string }>;
   conditionalRules?: ConditionalRule[];
+  sizeChart?: SizeChart;
   termsUrl?: string;
   minOrderQuantity?: number;
 }

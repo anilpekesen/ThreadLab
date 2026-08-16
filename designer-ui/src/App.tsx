@@ -47,8 +47,9 @@ import { useDesignerI18n } from './i18n';
 import { useDesignerStore } from '@/store/designerStore';
 import CanvasArea, { type CanvasAreaHandle } from '@/components/canvas/CanvasArea';
 import type { Template } from '@/components/panels/TemplatesPanel';
-import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type PricingBand, type PrintAreaConfig, type SavedDesign, type Side, type SurfaceMode, type VolumeDiscountTier } from '@/types';
+import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type PricingBand, type PrintAreaConfig, type SavedDesign, type Side, type SizeChart, type SurfaceMode, type VolumeDiscountTier } from '@/types';
 import { generateId } from '@/utils/compress';
+import { scaleAreaForSize } from '@/utils/sizeScale';
 import { evaluateRules, warnings, blockers, type RuleResult } from '@/utils/conditionalLogic';
 
 const ImagePanel = lazy(() => import('@/components/panels/ImagePanel'));
@@ -361,6 +362,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
       removeBgAvailable?: boolean;
       termsUrl?: string;
       minOrderQuantity?: number;
+      sizeChart?: SizeChart;
     };
     printAreas?: PrintAreaConfig[];
     product?: { surfaceMode?: SurfaceMode };
@@ -388,8 +390,30 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     surchargeVariantId: String(source?.settings?.surchargeVariantId || ''),
     removeBgAvailable: Boolean(source?.settings?.removeBgAvailable),
     variantMockups: source?.variantMockups ?? {},
+    sizeChart: normalizeSizeChart(source?.settings?.sizeChart),
     termsUrl: String(source?.settings?.termsUrl || ''),
     minOrderQuantity: Math.max(1, Math.floor(Number(source?.settings?.minOrderQuantity || 1))),
+  };
+}
+
+function normalizeSizeChart(input: unknown): SizeChart | undefined {
+  const source = input as { referenceSize?: unknown; entries?: unknown } | null | undefined;
+  if (!source || !Array.isArray(source.entries)) return undefined;
+  const entries = source.entries
+    .map((raw) => {
+      const entry = raw as { size?: unknown; widthCm?: unknown; heightCm?: unknown };
+      return {
+        size: String(entry?.size ?? '').trim(),
+        widthCm: Number(entry?.widthCm),
+        heightCm: Number(entry?.heightCm),
+      };
+    })
+    .filter((entry) => entry.size && entry.widthCm > 0 && entry.heightCm > 0);
+  if (entries.length === 0) return undefined;
+  const requested = String(source.referenceSize ?? '').trim();
+  return {
+    referenceSize: entries.some((entry) => entry.size === requested) ? requested : entries[0].size,
+    entries,
   };
 }
 
@@ -1807,10 +1831,10 @@ export default function App() {
       // Print dosyasını gerçek mm boyutlarında 300 DPI export et.
       // Baskı tarafında bulanıklık şikayetlerini önlemek için üretim dosyasında piksel kaybı yapmıyoruz.
       const frontPrintDataUrl = frontHas
-        ? (frontCanvasRef.current?.exportPrintFile(personalization.printAreas.front, 300) ?? '')
+        ? (frontCanvasRef.current?.exportPrintFile(activePrintAreas.front, 300) ?? '')
         : '';
       const backPrintDataUrl = backHas
-        ? (backCanvasRef.current?.exportPrintFile(personalization.printAreas.back, 300) ?? '')
+        ? (backCanvasRef.current?.exportPrintFile(activePrintAreas.back, 300) ?? '')
         : '';
       const designSourceCache = new Map<string, Promise<string>>();
       const frontDesignJson = frontCanvasRef.current?.saveDesign() ?? '';
@@ -1832,6 +1856,55 @@ export default function App() {
         persistDesignJsonImages(frontDesignJson, designSourceCache),
         persistDesignJsonImages(backDesignJson, designSourceCache),
       ]);
+
+      // Beden başına önizleme: baskı fiziksel olarak aynı kalır, tişört
+      // üzerindeki oranı bedene göre değişir. Aktif bedenin görseli yukarıda
+      // zaten üretildi — onu tekrar yüklemiyoruz.
+      const cartSizes = [...new Set(
+        cartItems.map((item) => item.size).filter((size): size is string => Boolean(size)),
+      )];
+      const scalableCartSizes = sizeChart
+        ? cartSizes.filter((size) => sizeChart.entries.some((entry) => entry.size === size))
+        : [];
+      const sizesToRender = scalableCartSizes.filter((size) => size !== previewSize);
+      const sizePreviewUrls = new Map<string, { front: string; back: string }>();
+      // Canvas zaten aktif bedene göre ölçekli — o bedenin görselini tekrar üretme
+      if (previewSize && scalableCartSizes.includes(previewSize)) {
+        sizePreviewUrls.set(previewSize, { front: frontPreviewUrl, back: backPreviewUrl });
+      }
+
+      if (sizesToRender.length > 0) {
+        const rendered = await Promise.all(sizesToRender.map(async (size) => {
+          const frontTarget = canvasRectForArea(scaleAreaForSize(personalization.printAreas.front, sizeChart, size));
+          const backTarget = canvasRectForArea(scaleAreaForSize(personalization.printAreas.back, sizeChart, size));
+          const [frontData, backData] = await Promise.all([
+            frontHas
+              ? (frontCanvasRef.current?.exportPreviewForArea(activePrintAreas.front, frontTarget, 3) ?? Promise.resolve(''))
+              : Promise.resolve(''),
+            backHas
+              ? (backCanvasRef.current?.exportPreviewForArea(activePrintAreas.back, backTarget, 3) ?? Promise.resolve(''))
+              : Promise.resolve(''),
+          ]);
+          const [front, back] = await Promise.all([
+            frontData ? dataUrlToServerUrl(frontData, 'front-preview') : Promise.resolve(''),
+            backData ? dataUrlToServerUrl(backData, 'back-preview') : Promise.resolve(''),
+          ]);
+          return { size, front, back };
+        }));
+        for (const entry of rendered) {
+          sizePreviewUrls.set(entry.size, { front: entry.front, back: entry.back });
+        }
+      }
+
+      for (const item of cartItems) {
+        const urls = item.size ? sizePreviewUrls.get(item.size) : undefined;
+        if (!urls) continue;
+        item.properties = {
+          ...(item.properties ?? {}),
+          ...(urls.front ? { '_front_preview_url': urls.front } : {}),
+          ...(urls.back ? { '_back_preview_url': urls.back } : {}),
+        };
+      }
 
       const designRes = await fetch('/api/storefront/designs', {
         method: 'POST',
@@ -2114,7 +2187,7 @@ export default function App() {
     const cv = getActiveCanvasHandle()?.getCanvas();
     const obj = cv?.getActiveObject();
     if (!cv || !obj) return;
-    const areaRect = canvasRectForArea(personalization.printAreas[activeSide]);
+    const areaRect = canvasRectForArea(activePrintAreas[activeSide]);
     const bounds = obj.getBoundingRect(true, true);
     const deltaX = areaRect.left + (areaRect.width / 2) - (bounds.left + bounds.width / 2);
     const deltaY = areaRect.top + (areaRect.height / 2) - (bounds.top + bounds.height / 2);
@@ -2158,7 +2231,7 @@ export default function App() {
   const alignHorizontal = (alignment: 'left' | 'center' | 'right') => {
     const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv || !selectedObj) return;
-    const areaRect = canvasRectForArea(personalization.printAreas[activeSide]);
+    const areaRect = canvasRectForArea(activePrintAreas[activeSide]);
     const bounds = selectedObj.getBoundingRect(true, true);
     const padding = 6;
     if (selectedObj.type === 'text' || selectedObj.type === 'i-text' || selectedObj.type === 'textbox') {
@@ -2281,25 +2354,61 @@ export default function App() {
     [canvasRevisions.back],
   );
 
-  const frontMetrics = useMemo(
-    () => metricsFromObjects(frontObjects, personalization.printAreas.front),
-    [frontObjects, personalization.printAreas.front],
-  );
-  const backMetrics = useMemo(
-    () => metricsFromObjects(backObjects, personalization.printAreas.back),
-    [backObjects, personalization.printAreas.back],
-  );
-
-  const frontHasDesign = frontMetrics.objectCount > 0;
-  const backHasDesign = surfaceMode === 'front_only' ? false : backMetrics.objectCount > 0;
-  const resolvedSide = frontHasDesign && backHasDesign ? 'double' : backHasDesign ? 'back' : frontHasDesign ? 'front' : activeSide;
-
   const sizes = useMemo(
     () => sizeKey
       ? [...new Set(config?.variants?.map((v) => v[sizeKey]).filter(Boolean) ?? [])]
       : [],
     [config?.variants, sizeKey],
   );
+
+  // Önizlemenin ölçekleneceği beden. Baskı fiziksel olarak sabittir; değişen
+  // yalnızca tişört üzerindeki görünen oranıdır.
+  const sizeChart = personalization.sizeChart;
+  const scalableSizes = useMemo(
+    () => sizes
+      .map((size) => String(size ?? ''))
+      .filter((size) => sizeChart?.entries.some((entry) => entry.size === size)),
+    [sizes, sizeChart],
+  );
+  const [previewSize, setPreviewSize] = useState<string>('');
+
+  // Müşteri adet girdikçe önizleme o bedene geçsin
+  useEffect(() => {
+    if (scalableSizes.length === 0) {
+      if (previewSize) setPreviewSize('');
+      return;
+    }
+    const chosen = scalableSizes.filter((size) => (sizeQuantities[size] ?? 0) > 0);
+    if (chosen.length > 0) {
+      if (!chosen.includes(previewSize)) setPreviewSize(chosen[0]);
+      return;
+    }
+    if (!scalableSizes.includes(previewSize)) {
+      setPreviewSize(
+        scalableSizes.includes(sizeChart?.referenceSize ?? '')
+          ? String(sizeChart?.referenceSize)
+          : scalableSizes[0],
+      );
+    }
+  }, [scalableSizes, sizeQuantities, previewSize, sizeChart]);
+
+  const activePrintAreas = useMemo(() => ({
+    front: scaleAreaForSize(personalization.printAreas.front, sizeChart, previewSize),
+    back: scaleAreaForSize(personalization.printAreas.back, sizeChart, previewSize),
+  }), [personalization.printAreas, sizeChart, previewSize]);
+
+  const frontMetrics = useMemo(
+    () => metricsFromObjects(frontObjects, activePrintAreas.front),
+    [frontObjects, activePrintAreas.front],
+  );
+  const backMetrics = useMemo(
+    () => metricsFromObjects(backObjects, activePrintAreas.back),
+    [backObjects, activePrintAreas.back],
+  );
+
+  const frontHasDesign = frontMetrics.objectCount > 0;
+  const backHasDesign = surfaceMode === 'front_only' ? false : backMetrics.objectCount > 0;
+  const resolvedSide = frontHasDesign && backHasDesign ? 'double' : backHasDesign ? 'back' : frontHasDesign ? 'front' : activeSide;
 
   const colorOptions = useMemo(
     () => [...new Set(config?.variants?.map((v) => v[colorKey]).filter(Boolean) ?? [])],
@@ -2445,10 +2554,10 @@ export default function App() {
 
   const pricingSummary = useMemo<PricingSummary>(() => {
     const frontItems = frontHasDesign
-      ? pricingItemsForObjects(frontObjects, personalization.printAreas.front, personalization.pricingBands.front, totalQuantity)
+      ? pricingItemsForObjects(frontObjects, activePrintAreas.front, personalization.pricingBands.front, totalQuantity)
       : [];
     const backItems = backHasDesign
-      ? pricingItemsForObjects(backObjects, personalization.printAreas.back, personalization.pricingBands.back, totalQuantity)
+      ? pricingItemsForObjects(backObjects, activePrintAreas.back, personalization.pricingBands.back, totalQuantity)
       : [];
     const frontBand = frontItems[0]?.band ?? pricingBandForMetrics(personalization.pricingBands.front, frontMetrics);
     const backBand = backItems[0]?.band ?? pricingBandForMetrics(personalization.pricingBands.back, backMetrics);
@@ -2499,8 +2608,8 @@ export default function App() {
     frontHasDesign,
     frontMetrics,
     frontObjects,
-    personalization.printAreas.back,
-    personalization.printAreas.front,
+    activePrintAreas.back,
+    activePrintAreas.front,
     personalization.pricingBands.back,
     personalization.pricingBands.front,
     personalization.volumeDiscounts,
@@ -2524,7 +2633,8 @@ export default function App() {
     : pricingSummary.baseUnitPrice + pricingSummary.front.surcharge + pricingSummary.back.surcharge;
   const formattedPrice = formatMoney(displayTotal);
 
-  const activePrintArea = personalization.printAreas[activeSide];
+  const previewSizeEntry = sizeChart?.entries.find((entry) => entry.size === previewSize) ?? null;
+  const activePrintArea = activePrintAreas[activeSide];
   const activeAreaSummary = `${Math.round(activePrintArea.realWidthMm / 10)} x ${Math.round(activePrintArea.realHeightMm / 10)} cm`;
   const activeAreaCoordsSummary = `X:${Math.round(activePrintArea.x)} Y:${Math.round(activePrintArea.y)} · Kutu ${Math.round(activePrintArea.width)} x ${Math.round(activePrintArea.height)}`;
   const pricingNarrative = surfaceMode === 'front_only'
@@ -2811,12 +2921,38 @@ export default function App() {
               }}
             >
               <div className="relative rounded-3xl bg-white/40 p-2 shadow-inner backdrop-blur-sm md:px-4 md:pb-4 md:pt-4">
+                {scalableSizes.length > 1 && (
+                  <div className="mb-2 flex flex-col items-center gap-1">
+                    <div className="flex flex-wrap items-center justify-center gap-1.5">
+                      <span className="text-xs font-medium text-gray-500">{t.previewSizeLabel}</span>
+                      {scalableSizes.map((size) => (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => setPreviewSize(size)}
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                            previewSize === size
+                              ? 'bg-gray-900 text-white'
+                              : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:ring-gray-400'
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                    {previewSizeEntry && (
+                      <span className="text-[11px] text-gray-400">
+                        {previewSizeEntry.widthCm} × {previewSizeEntry.heightCm} cm {t.previewSizeBody} · {activeAreaSummary} {t.previewSizePrint}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div className={activeSide === 'front' ? 'block' : 'hidden'}>
                   <CanvasArea
                     ref={frontCanvasRef}
                     side="front"
                     zoom={zoom}
-                    printArea={personalization.printAreas.front}
+                    printArea={activePrintAreas.front}
                     allowPageScroll={isMobileLayout && interactionMode === 'navigation'}
                     onObjectSelected={handleObjectSelected}
                     onDesignChange={handleDesignChange}
@@ -2828,7 +2964,7 @@ export default function App() {
                       ref={backCanvasRef}
                       side="back"
                       zoom={zoom}
-                      printArea={personalization.printAreas.back}
+                      printArea={activePrintAreas.back}
                       allowPageScroll={isMobileLayout && interactionMode === 'navigation'}
                       onObjectSelected={handleObjectSelected}
                       onDesignChange={handleDesignChange}

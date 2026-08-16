@@ -24,6 +24,8 @@ export interface Order {
   quantity: number;
   designToken: string;
   previewUrl: string;
+  /** Line-item bazlı arka yüz önizlemesi (beden başına farklı olabilir) */
+  backPreviewUrl?: string;
   productionFileUrl: string;
   productionStatus: string;
   missingSurcharge?: boolean;
@@ -54,6 +56,7 @@ type DbRow = {
   quantity: number;
   design_token: string;
   preview_url: string;
+  back_preview_url?: string | null;
   production_file_url: string;
   production_status: string;
   missing_surcharge: boolean;
@@ -84,6 +87,7 @@ function rowToOrder(row: DbRow): Order {
     quantity: row.quantity ?? 1,
     designToken: row.design_token,
     previewUrl: row.preview_url,
+    backPreviewUrl: row.back_preview_url || undefined,
     productionFileUrl: row.production_file_url,
     productionStatus: row.production_status,
     missingSurcharge: row.missing_surcharge,
@@ -103,7 +107,7 @@ function rowToOrder(row: DbRow): Order {
 const ORDER_SELECT = `
   SELECT o.id, o.shop, o.shopify_order_id, o.order_number, o.customer_name, o.customer_email,
     o.product_id, o.product_name, o.variant_id, o.variant_title, o.quantity,
-    o.design_token, o.preview_url,
+    o.design_token, o.preview_url, o.back_preview_url,
     o.production_file_url, o.production_status, o.missing_surcharge, o.created_at, o.updated_at,
     o.drive_folder_id, o.drive_uploaded_at, o.color_mismatch,
     d.front_preview_url AS design_front_preview_url,
@@ -603,10 +607,10 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
       const id = `order_${randomBytes(8).toString("hex")}`;
       const result = await query(
         `INSERT INTO orders (id, shop, shopify_order_id, order_number, product_id, product_name,
-          variant_id, variant_title, line_item_id, quantity, design_token, preview_url, production_file_url,
-          customer_name, customer_email, production_status, missing_surcharge, created_at,
+          variant_id, variant_title, line_item_id, quantity, design_token, preview_url, back_preview_url,
+          production_file_url, customer_name, customer_email, production_status, missing_surcharge, created_at,
           line_total_price, currency_code)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,FALSE,$17,$18,$19)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,FALSE,$18,$19,$20)
          ON CONFLICT DO NOTHING`,
         [
           id,
@@ -621,6 +625,7 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
           item.quantity ?? 1,
           token,
           frontPreviewUrl,
+          backPreviewUrl,
           frontPrintUrl,
           "Müşteri",
           "",
@@ -640,6 +645,8 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
                WHEN $6 = 'shipped' AND production_status NOT IN ('shipped', 'cancelled') THEN 'shipped'
                ELSE production_status
              END,
+             preview_url = CASE WHEN $7 != '' THEN $7 ELSE preview_url END,
+             back_preview_url = CASE WHEN $8 != '' THEN $8 ELSE back_preview_url END,
              updated_at = now()
            WHERE shop = $1 AND shopify_order_id = $2 AND line_item_id = $3`,
           [
@@ -649,6 +656,8 @@ export async function syncOrdersFromAdmin(admin: AdminClient, shop: string): Pro
             Number.isFinite(lineTotalPrice) ? lineTotalPrice : 0,
             currencyCode,
             initialStatus,
+            frontPreviewUrl,
+            backPreviewUrl,
           ],
         );
       }
@@ -714,6 +723,21 @@ export async function getSiblingOrders(shop: string, shopifyOrderId: string, exc
   const result = await query<DbRow>(
     `${ORDER_SELECT} WHERE o.shop = $1 AND o.shopify_order_id = $2 AND o.id != $3 ORDER BY o.variant_title ASC`,
     [shop, shopifyOrderId, excludeId],
+  );
+  return result.rows.map(rowToOrder);
+}
+
+/**
+ * Bir tasarım token'ına bağlı tüm sipariş satırları (beden başına bir satır).
+ * Token global benzersiz olduğu için shop filtresi uygulanmaz — müşterinin
+ * tasarım linki mağazadan bağımsız çalışır.
+ */
+export async function getOrdersByDesignToken(token: string): Promise<Order[]> {
+  if (!token) return [];
+  await ensureMigrations();
+  const result = await query<DbRow>(
+    `${ORDER_SELECT} WHERE o.design_token = $1 AND o.production_status != 'cancelled' ORDER BY o.variant_title ASC`,
+    [token],
   );
   return result.rows.map(rowToOrder);
 }

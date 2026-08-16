@@ -378,6 +378,10 @@ async function _runMigrationsLocked() {
     )
   `);
 
+  // Line-item bazlı arka yüz önizlemesi — bedene göre ölçeklenen önizlemede
+  // her beden satırının kendi görseli olur (preview_url ön yüz için zaten var)
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS back_preview_url TEXT NOT NULL DEFAULT ''`);
+
   // ── Multi-tenant shop isolation ──────────────────────────────────────────
   // Add shop column to all tenant-scoped tables
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS shop TEXT NOT NULL DEFAULT ''`);

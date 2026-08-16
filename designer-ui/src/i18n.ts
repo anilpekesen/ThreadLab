@@ -71,6 +71,9 @@ export const tr = {
   surfaceBack: 'Arka',
   surfaceEmpty: 'Boş',
   surfaceItems: 'öğe',
+  previewSizeLabel: 'Önizleme bedeni:',
+  previewSizeBody: 'gövde',
+  previewSizePrint: 'baskı',
 
   // Interaction modes
   modeSelection: 'Seçim',
@@ -279,6 +282,9 @@ export const en: { [K in keyof typeof tr]: string } = {
   surfaceBack: 'Back',
   surfaceEmpty: 'Empty',
   surfaceItems: 'items',
+  previewSizeLabel: 'Preview size:',
+  previewSizeBody: 'body',
+  previewSizePrint: 'print',
 
   modeSelection: 'Select',
   modeBulk: 'Multi',

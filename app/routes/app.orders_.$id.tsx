@@ -390,15 +390,25 @@ export default function OrderDetail() {
     }));
   }, [order, siblings, otherProducts]);
 
-  // Fallback URLs: design record → order JOIN data → order own columns
   // Filter out empty data: URLs (data:, saved when designer had no print content)
   const validUrl = (url: string | null | undefined) =>
     url && url.startsWith("https://") ? url : "";
-  const frontPreviewUrl = validUrl(design?.frontPreviewUrl) || validUrl(order.designFrontPreviewUrl) || validUrl(order.previewUrl) || "";
-  const backPreviewUrl = validUrl(design?.backPreviewUrl) || validUrl(order.designBackPreviewUrl) || "";
+  // Önizlemede bu satırın kendi (bedene göre ölçeklenmiş) görseli önce gelir;
+  // yoksa tüm bedenlerin paylaştığı tasarım kaydına düşülür
+  const frontPreviewUrl = validUrl(order.previewUrl) || validUrl(design?.frontPreviewUrl) || validUrl(order.designFrontPreviewUrl) || "";
+  const backPreviewUrl = validUrl(order.backPreviewUrl) || validUrl(design?.backPreviewUrl) || validUrl(order.designBackPreviewUrl) || "";
   const frontPrintUrl = validUrl(design?.frontPrintUrl) || validUrl(order.designFrontPrintUrl) || validUrl(order.productionFileUrl) || "";
   const backPrintUrl = validUrl(design?.backPrintUrl) || validUrl(order.designBackPrintUrl) || "";
   const hasDesignFiles = Boolean(frontPreviewUrl || backPreviewUrl || frontPrintUrl || backPrintUrl);
+
+  // İndirilen dosya adına bedeni ekle — 3 bedenin önizlemesi karışmasın
+  const previewFileName = (base: string) => {
+    const slug = (order.variantTitle || "")
+      .trim()
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-+|-+$/g, "");
+    return slug ? `${base}-${slug}.png` : `${base}.png`;
+  };
 
   return (
     <Page
@@ -603,7 +613,10 @@ export default function OrderDetail() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">{t("orderDetail.frontFace")}</Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    <Text as="h2" variant="headingMd">{t("orderDetail.frontFace")}</Text>
+                    {order.variantTitle && <Badge>{order.variantTitle}</Badge>}
+                  </InlineStack>
                   {frontPreviewUrl ? (
                     <div style={{ display: "flex", justifyContent: "center", background: "#f9fafb", borderRadius: 8, padding: 16 }}>
                       <img
@@ -619,7 +632,7 @@ export default function OrderDetail() {
                   )}
                   <InlineStack gap="300">
                     {frontPreviewUrl && (
-                      <a href={dlUrl(frontPreviewUrl, "on-onizleme.png")} download>
+                      <a href={dlUrl(frontPreviewUrl, previewFileName("on-onizleme"))} download>
                         <Button variant="plain" size="slim">{t("orderDetail.downloadPreview")}</Button>
                       </a>
                     )}
@@ -652,7 +665,10 @@ export default function OrderDetail() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">{t("orderDetail.backFace")}</Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    <Text as="h2" variant="headingMd">{t("orderDetail.backFace")}</Text>
+                    {order.variantTitle && <Badge>{order.variantTitle}</Badge>}
+                  </InlineStack>
                   {backPreviewUrl ? (
                     <div style={{ display: "flex", justifyContent: "center", background: "#f9fafb", borderRadius: 8, padding: 16 }}>
                       <img
@@ -668,7 +684,7 @@ export default function OrderDetail() {
                   )}
                   <InlineStack gap="300">
                     {backPreviewUrl && (
-                      <a href={dlUrl(backPreviewUrl, "arka-onizleme.png")} download>
+                      <a href={dlUrl(backPreviewUrl, previewFileName("arka-onizleme"))} download>
                         <Button variant="plain" size="slim">{t("orderDetail.downloadPreview")}</Button>
                       </a>
                     )}
@@ -742,10 +758,16 @@ export default function OrderDetail() {
                       <span style={{ background: "#4f46e5", color: "#fff", padding: "3px 10px", borderRadius: 20, fontSize: 13, fontWeight: 600 }}>
                         {order.variantTitle || "—"} × {order.quantity ?? 1}
                       </span>
+                      {/* Her beden kendi ölçekli önizlemesini taşır — tıklayınca o satıra geç */}
                       {siblings.map((s: Order) => (
-                        <span key={s.id} style={{ background: "#f3f4f6", color: "#374151", padding: "3px 10px", borderRadius: 20, fontSize: 13, border: "1px solid #e5e7eb" }}>
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => navigate(`/app/orders/${s.id}`)}
+                          style={{ background: "#f3f4f6", color: "#374151", padding: "3px 10px", borderRadius: 20, fontSize: 13, border: "1px solid #e5e7eb", cursor: "pointer" }}
+                        >
                           {s.variantTitle || "—"} × {s.quantity ?? 1}
-                        </span>
+                        </button>
                       ))}
                     </div>
                   </BlockStack>

@@ -39,6 +39,19 @@ export interface ConditionalRule {
   then: { action: RuleAction; message: string; };
 }
 
+export interface SizeChartEntry {
+  size: string;
+  widthCm: number;
+  heightCm: number;
+}
+
+// Beden başına gerçek gövde ölçüleri. Önizlemede baskı alanının bedene göre
+// oranlanması için kullanılır; baskının fiziksel mm ölçüsü değişmez.
+export interface SizeChart {
+  referenceSize: string;
+  entries: SizeChartEntry[];
+}
+
 export interface ProductConfig {
   isActive: boolean;
   productTitle: string;
@@ -67,6 +80,7 @@ export interface ProductConfig {
   minOrderQuantity: number;
   variantMockups?: Record<string, { front?: string; back?: string }>;
   conditionalRules?: ConditionalRule[];
+  sizeChart?: SizeChart;
   updatedAt?: string;
 }
 
@@ -239,6 +253,33 @@ function normalizeVolumeDiscounts(input: unknown): VolumeDiscountTier[] {
     })
     .filter((tier) => tier.minQuantity > 0 && tier.percentage > 0)
     .sort((a, b) => a.minQuantity - b.minQuantity);
+}
+
+export function normalizeSizeChart(input: unknown): SizeChart | undefined {
+  const source = input as { referenceSize?: unknown; entries?: unknown } | null | undefined;
+  if (!source || !Array.isArray(source.entries)) return undefined;
+
+  const entries: SizeChartEntry[] = [];
+  const seen = new Set<string>();
+  for (const raw of source.entries) {
+    const entry = raw as { size?: unknown; widthCm?: unknown; heightCm?: unknown };
+    const size = String(entry?.size ?? "").trim();
+    const widthCm = Number(entry?.widthCm);
+    const heightCm = Number(entry?.heightCm);
+    if (!size || seen.has(size)) continue;
+    if (!Number.isFinite(widthCm) || !Number.isFinite(heightCm)) continue;
+    if (widthCm <= 0 || heightCm <= 0) continue;
+    seen.add(size);
+    entries.push({ size, widthCm, heightCm });
+  }
+  if (entries.length === 0) return undefined;
+
+  const requestedReference = String(source.referenceSize ?? "").trim();
+  const referenceSize = entries.some((entry) => entry.size === requestedReference)
+    ? requestedReference
+    : entries[0].size;
+
+  return { referenceSize, entries };
 }
 
 
@@ -420,6 +461,10 @@ export function normalizeProductConfig(
     conditionalRules: Array.isArray((input as { conditionalRules?: unknown })?.conditionalRules)
       ? (input as { conditionalRules: ConditionalRule[] }).conditionalRules
       : (fallback.conditionalRules ?? []),
+    // Anahtar gönderildiyse (boş tablo dahil) onu esas al — böylece tüm satırlar silinebilir
+    sizeChart: input && "sizeChart" in input
+      ? normalizeSizeChart((input as { sizeChart?: unknown }).sizeChart)
+      : normalizeSizeChart(fallback.sizeChart),
     updatedAt: input?.updatedAt || fallback.updatedAt,
   };
 }

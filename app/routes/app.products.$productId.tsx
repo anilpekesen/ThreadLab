@@ -26,10 +26,11 @@ import {
   getProductConfig,
   getProductPrintAreas,
   normalizeProductConfig,
+  normalizeSizeChart,
   saveProductConfig,
   saveProductPrintAreas,
 } from "~/models/product-config.server";
-import type { PrintAreaRecord, ProductConfig, ConditionalRule } from "~/models/product-config.server";
+import type { PrintAreaRecord, ProductConfig, ConditionalRule, SizeChartEntry } from "~/models/product-config.server";
 
 const PREVIEW_WIDTH = 480;
 const PREVIEW_HEIGHT = 580;
@@ -751,6 +752,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const conditionalRulesRaw = String(form.get("conditionalRules") || "[]");
   try { normalized.conditionalRules = JSON.parse(conditionalRulesRaw); } catch { /* ignore bad JSON */ }
 
+  const sizeChartRaw = String(form.get("sizeChart") || "");
+  if (sizeChartRaw) {
+    try { normalized.sizeChart = normalizeSizeChart(JSON.parse(sizeChartRaw)); }
+    catch { /* ignore bad JSON */ }
+  } else {
+    normalized.sizeChart = undefined;
+  }
+
   await saveProductConfig(shop, productId, normalized);
   await saveProductPrintAreas(shop, productId, printAreas);
   return redirect(`/app/products/${encodeURIComponent(productToken)}?saved=1`);
@@ -786,6 +795,73 @@ export default function ProductSettingsRoute() {
   const [conditionalRules, setConditionalRules] = useState<ConditionalRule[]>(
     config.conditionalRules ?? []
   );
+
+  // Beden option'ı — designer'daki detectOptionKeys ile aynı anahtar kelimeler
+  const sizeOptionKeywords = ["beden", "size", "boyut", "ölçü"];
+  const sizeOptionName = product.variants[0]?.selectedOptions.find(
+    (opt) => sizeOptionKeywords.some((k) => opt.name.toLowerCase().includes(k))
+  )?.name ?? "";
+  const uniqueSizes = sizeOptionName
+    ? [...new Set(
+        product.variants
+          .map((v) => v.selectedOptions.find((o) => o.name === sizeOptionName)?.value)
+          .filter((v): v is string => Boolean(v))
+      )]
+    : [];
+
+  const [sizeChartEntries, setSizeChartEntries] = useState<Record<string, { widthCm: string; heightCm: string }>>(() => {
+    const initial: Record<string, { widthCm: string; heightCm: string }> = {};
+    for (const entry of config.sizeChart?.entries ?? []) {
+      initial[entry.size] = { widthCm: String(entry.widthCm), heightCm: String(entry.heightCm) };
+    }
+    return initial;
+  });
+  const [referenceSize, setReferenceSize] = useState<string>(config.sizeChart?.referenceSize ?? "");
+
+  const filledSizeEntries: SizeChartEntry[] = uniqueSizes
+    .map((size) => ({
+      size,
+      widthCm: Number(sizeChartEntries[size]?.widthCm ?? ""),
+      heightCm: Number(sizeChartEntries[size]?.heightCm ?? ""),
+    }))
+    .filter((entry) => Number.isFinite(entry.widthCm) && Number.isFinite(entry.heightCm)
+      && entry.widthCm > 0 && entry.heightCm > 0);
+
+  const effectiveReferenceSize = filledSizeEntries.some((entry) => entry.size === referenceSize)
+    ? referenceSize
+    : (filledSizeEntries[0]?.size ?? "");
+  const referenceEntry = filledSizeEntries.find((entry) => entry.size === effectiveReferenceSize) ?? null;
+
+  const sizeChartPayload = filledSizeEntries.length > 0
+    ? JSON.stringify({ referenceSize: effectiveReferenceSize, entries: filledSizeEntries })
+    : "";
+
+  // Baskı kutusunu gerçek fiziksel orana getirir: mockup kutusunun genişliği
+  // referans bedenin gövde enine karşılık gelir, kutu bu ölçekten hesaplanır.
+  // Konum (yatay merkez + yaka altı mesafesi) korunur, en/boy oranı bozulmaz.
+  function applyRealScale(reference: SizeChartEntry) {
+    const rescale = (area: AreaState): AreaState => {
+      const mockupWidth = Number(area.mockupWidth || PREVIEW_WIDTH);
+      const printWidthCm = Number(area.realWidthMm || 0) / 10;
+      const printHeightCm = Number(area.realHeightMm || 0) / 10;
+      if (!(mockupWidth > 0) || !(printWidthCm > 0) || !(printHeightCm > 0)) return area;
+
+      const pxPerCm = mockupWidth / reference.widthCm;
+      const width = Math.round(printWidthCm * pxPerCm);
+      const height = Math.round(printHeightCm * pxPerCm);
+      const centerX = Number(area.x || 0) + Number(area.width || 0) / 2;
+
+      return normalizeAreaState({
+        ...area,
+        width: String(width),
+        height: String(height),
+        x: String(Math.round(centerX - width / 2)),
+      });
+    };
+
+    setFrontArea(rescale);
+    setBackArea(rescale);
+  }
 
   const colorOptionNames = ["renk", "color", "colour"];
   const colorOptionName = product.variants[0]?.selectedOptions.find(
@@ -1033,6 +1109,99 @@ export default function ProductSettingsRoute() {
                 </BlockStack>
               </Box>
             </Card>
+
+            <input type="hidden" name="sizeChart" value={sizeChartPayload} />
+            {uniqueSizes.length > 0 ? (
+              <Card>
+                <Box padding="400">
+                  <BlockStack gap="300">
+                    <Text as="h2" variant="headingMd">{t("products.sizeChart")}</Text>
+                    <Text as="p" tone="subdued">{t("products.sizeChartDesc")}</Text>
+
+                    <BlockStack gap="300">
+                      {uniqueSizes.map((size) => {
+                        const row = sizeChartEntries[size] ?? { widthCm: "", heightCm: "" };
+                        const widthCm = Number(row.widthCm);
+                        const heightCm = Number(row.heightCm);
+                        const isFilled = Number.isFinite(widthCm) && Number.isFinite(heightCm) && widthCm > 0 && heightCm > 0;
+                        const printWidthCm = Number(frontArea.realWidthMm || 0) / 10;
+                        const printHeightCm = Number(frontArea.realHeightMm || 0) / 10;
+                        const overflows = isFilled && (printWidthCm > widthCm || printHeightCm > heightCm);
+                        const coverage = isFilled && printWidthCm > 0
+                          ? Math.round((printWidthCm / widthCm) * 100)
+                          : null;
+
+                        return (
+                          <Card key={size}>
+                            <Box padding="300">
+                              <BlockStack gap="200">
+                                <InlineGrid columns={{ xs: 1, md: 4 }} gap="300">
+                                  <Box paddingBlockStart="600">
+                                    <Text as="span" variant="headingSm">{size}</Text>
+                                  </Box>
+                                  <TextField
+                                    label={t("products.sizeBodyWidth")}
+                                    type="number"
+                                    autoComplete="off"
+                                    value={row.widthCm}
+                                    onChange={(value) => setSizeChartEntries((prev) => ({
+                                      ...prev,
+                                      [size]: { ...(prev[size] ?? { widthCm: "", heightCm: "" }), widthCm: value },
+                                    }))}
+                                  />
+                                  <TextField
+                                    label={t("products.sizeBodyHeight")}
+                                    type="number"
+                                    autoComplete="off"
+                                    value={row.heightCm}
+                                    onChange={(value) => setSizeChartEntries((prev) => ({
+                                      ...prev,
+                                      [size]: { ...(prev[size] ?? { widthCm: "", heightCm: "" }), heightCm: value },
+                                    }))}
+                                  />
+                                  <Box paddingBlockStart="600">
+                                    <Checkbox
+                                      label={t("products.sizeReference")}
+                                      checked={effectiveReferenceSize === size}
+                                      disabled={!isFilled}
+                                      onChange={() => setReferenceSize(size)}
+                                    />
+                                  </Box>
+                                </InlineGrid>
+                                {coverage !== null && (
+                                  <InlineStack gap="200" blockAlign="center">
+                                    <Text as="span" variant="bodySm" tone={overflows ? "critical" : "subdued"}>
+                                      {printWidthCm} × {printHeightCm} cm {t("products.sizeCoverage")} %{coverage}
+                                    </Text>
+                                    {overflows && <Badge tone="critical">{t("products.sizeOverflow")}</Badge>}
+                                  </InlineStack>
+                                )}
+                              </BlockStack>
+                            </Box>
+                          </Card>
+                        );
+                      })}
+                    </BlockStack>
+
+                    {referenceEntry && (
+                      <BlockStack gap="200">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {t("products.sizeReferenceHint").replace("{size}", referenceEntry.size)}
+                        </Text>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {t("products.sizeFitHint")}
+                        </Text>
+                        <InlineStack gap="200">
+                          <Button onClick={() => applyRealScale(referenceEntry)}>
+                            {t("products.sizeApplyRealScale")}
+                          </Button>
+                        </InlineStack>
+                      </BlockStack>
+                    )}
+                  </BlockStack>
+                </Box>
+              </Card>
+            ) : null}
 
             <Card>
               <Box padding="400">
