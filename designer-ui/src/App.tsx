@@ -2634,6 +2634,9 @@ export default function App() {
   const formattedPrice = formatMoney(displayTotal);
 
   const previewSizeEntry = sizeChart?.entries.find((entry) => entry.size === previewSize) ?? null;
+  // Beden şeridi görünürken üstteki rozetler (Ön/Arka, baskı alanı) onun
+  // altına iner; yoksa çiplerin sağ ucu rozetlerin arkasında kalıyor
+  const hasSizeStrip = scalableSizes.length > 1;
   const activePrintArea = activePrintAreas[activeSide];
   const activeAreaSummary = `${Math.round(activePrintArea.realWidthMm / 10)} x ${Math.round(activePrintArea.realHeightMm / 10)} cm`;
   const activeAreaCoordsSummary = `X:${Math.round(activePrintArea.x)} Y:${Math.round(activePrintArea.y)} · Kutu ${Math.round(activePrintArea.width)} x ${Math.round(activePrintArea.height)}`;
@@ -2921,8 +2924,10 @@ export default function App() {
               }}
             >
               <div className="relative rounded-3xl bg-white/40 p-2 shadow-inner backdrop-blur-sm md:px-4 md:pb-4 md:pt-4">
+                {/* Ön/Arka ve baskı alanı rozetleri bu şeridin altına kayar
+                    (bkz. sideSwitcherTopClass) — çipler onların altında kalmasın */}
                 {scalableSizes.length > 1 && (
-                  <div className="mb-2 flex flex-col items-center gap-1">
+                  <div className="relative z-[80] mb-2 flex flex-col items-center gap-1">
                     <div className="flex flex-wrap items-center justify-center gap-1.5">
                       <span className="text-xs font-medium text-gray-500">{t.previewSizeLabel}</span>
                       {scalableSizes.map((size) => (
@@ -2982,7 +2987,10 @@ export default function App() {
                 )}
 
 
-                <div className="pointer-events-none absolute right-4 top-4 z-30 hidden rounded-xl border border-gray-200 bg-white/95 p-1.5 shadow-lg backdrop-blur md:block">
+                <div className={cn(
+                  'pointer-events-none absolute right-4 z-30 hidden rounded-xl border border-gray-200 bg-white/95 p-1.5 shadow-lg backdrop-blur md:block',
+                  hasSizeStrip ? 'top-[72px]' : 'top-4',
+                )}>
                   <div className="flex gap-1.5">
                   {availableSides.map((side) => {
                     const label = side === 'front' ? t.frontSurface : t.backSurface;
@@ -3034,7 +3042,10 @@ export default function App() {
             </div>
 
             {surfaceMode !== 'front_only' && (
-              <div className="pointer-events-none absolute right-3 top-3 z-[70] flex flex-col gap-1.5 rounded-xl border border-gray-200 bg-white/95 p-1 shadow-xl backdrop-blur md:hidden">
+              <div className={cn(
+                'pointer-events-none absolute right-3 z-[70] flex flex-col gap-1.5 rounded-xl border border-gray-200 bg-white/95 p-1 shadow-xl backdrop-blur md:hidden',
+                hasSizeStrip ? 'top-[64px]' : 'top-3',
+              )}>
                 {availableSides.map((side) => {
                   const label = side === 'front' ? t.frontSurface : t.backSurface;
                   const image = sidePreviews[side] || (side === 'front' ? config?.frontImage : config?.backImage);
@@ -3083,7 +3094,10 @@ export default function App() {
             )}
 
             {/* Baskı alanı etiketi — scene div dışında, transform etkilenmiyor */}
-            <div className="pointer-events-none absolute left-4 top-4 z-40 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6 md:top-6">
+            <div className={cn(
+              'pointer-events-none absolute left-4 z-40 rounded-2xl border border-white/60 bg-white/92 px-3 py-2 shadow-lg backdrop-blur md:left-6',
+              hasSizeStrip ? 'top-[64px] md:top-[76px]' : 'top-4 md:top-6',
+            )}>
               <p className="text-sm font-bold text-gray-900">
                 {activeAreaSummary}
                 <span className="ml-1.5 text-[9px] font-normal text-gray-400">{t.printAreaLabel}</span>
