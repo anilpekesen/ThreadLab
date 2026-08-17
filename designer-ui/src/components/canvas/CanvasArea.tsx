@@ -9,6 +9,9 @@ registerCurvedText();
 
 const PRINT_W = 480;
 const PRINT_H = 580;
+const BADGE_GAP = 10;      // rozetin nesneye uzaklığı
+const BADGE_MARGIN = 34;   // üstte bu kadar yer yoksa rozet alta geçer
+const BADGE_EDGE = 48;     // rozetin yatayda canvas kenarına en yakın konumu
 const CONTROL_ICON_SIZE = 32;
 const DELETE_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E";
 const CLONE_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='9' width='13' height='13' rx='2' ry='2'%3E%3C/rect%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'%3E%3C/path%3E%3C/svg%3E";
@@ -65,6 +68,12 @@ interface Props {
   allowPageScroll?: boolean;
   onObjectSelected: (obj: fabric.Object | null) => void;
   onDesignChange: (side: Side) => void;
+  /**
+   * Seçili nesnenin canvas ölçüsünü müşteriye gösterilecek metne çevirir
+   * ("10.4 x 15.2 cm"). Hesabı çağıran taraf yapar — fiyat bandıyla aynı
+   * formül kullanılsın diye. Verilmezse rozet gösterilmez.
+   */
+  formatObjectSize?: (rect: { width: number; height: number }) => string;
 }
 
 const HISTORY_LIMIT = 50;
@@ -383,7 +392,7 @@ function unproxyJsonUrls(json: string): string {
     (_, encoded) => `"src":"${decodeURIComponent(encoded)}"`);
 }
 
-const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea, allowPageScroll = false, onObjectSelected, onDesignChange }, ref) => {
+const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea, allowPageScroll = false, onObjectSelected, onDesignChange, formatObjectSize }, ref) => {
   const hostEl = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
   const historyRef = useRef<string[]>([]);
@@ -393,6 +402,10 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const printAreaRef = useRef(printArea);
   const onObjectSelectedRef = useRef(onObjectSelected);
   const onDesignChangeRef = useRef(onDesignChange);
+
+  const formatObjectSizeRef = useRef(formatObjectSize);
+  const refreshSizeBadgeRef = useRef<() => void>(() => {});
+  const [sizeBadge, setSizeBadge] = useState<{ left: number; top: number; below: boolean; text: string } | null>(null);
 
   const { config, activeSide } = useDesignerStore();
   const [bgLoaded, setBgLoaded] = useState(false);
@@ -417,6 +430,46 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   useEffect(() => {
     onDesignChangeRef.current = onDesignChange;
   }, [onDesignChange]);
+
+  useEffect(() => {
+    formatObjectSizeRef.current = formatObjectSize;
+  }, [formatObjectSize]);
+
+  // Seçili nesnenin gerçek baskı ölçüsünü rozet olarak konumlandırır.
+  // Taşıma/boyutlandırma sırasında her karede çağrılır; bu yüzden state
+  // güncellemesi dışında iş yapmaz (onDesignChange gibi ağır yollar burada
+  // çağrılmaz — onlar katman senkronu ve geçmiş kaydı tetikliyor).
+  const refreshSizeBadge = useCallback(() => {
+    const cv = canvasRef.current;
+    const format = formatObjectSizeRef.current;
+    if (!cv || !format) { setSizeBadge(null); return; }
+
+    const active = cv.getActiveObject();
+    if (!active) { setSizeBadge(null); return; }
+
+    const bounds = active.getBoundingRect(true, true);
+    if (!(bounds.width > 0) || !(bounds.height > 0)) { setSizeBadge(null); return; }
+
+    // Nesne üste yapışıksa rozeti altına al ki canvas dışında kalmasın
+    const below = bounds.top < BADGE_MARGIN;
+    setSizeBadge({
+      // Yatayda da canvas içinde tut — kenardaki nesnelerde rozet kırpılmasın
+      left: Math.min(Math.max(bounds.left + bounds.width / 2, BADGE_EDGE), PRINT_W - BADGE_EDGE),
+      top: below ? bounds.top + bounds.height + BADGE_GAP : bounds.top - BADGE_GAP,
+      below,
+      text: format({ width: bounds.width, height: bounds.height }),
+    });
+  }, []);
+
+  useEffect(() => {
+    refreshSizeBadgeRef.current = refreshSizeBadge;
+  }, [refreshSizeBadge]);
+
+  // Beden değişimi baskı alanını ölçeklediğinde nesneler de taşınıyor;
+  // rozet yeni ölçüyle tazelensin (cm değeri değişmemeli — kontrol noktası)
+  useEffect(() => {
+    refreshSizeBadge();
+  }, [printArea, formatObjectSize, refreshSizeBadge]);
 
   const constrainTarget = useCallback((target: fabric.Object | null | undefined) => {
     const cv = canvasRef.current;
@@ -483,6 +536,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       constrainTarget(e.target);
       pushHistory(cv);
       onObjectSelectedRef.current(cv.getActiveObject() ?? null);
+      refreshSizeBadgeRef.current();
       onDesignChangeRef.current(side);
     });
     cv.on('object:removed', () => {
@@ -491,20 +545,32 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     });
     cv.on('object:moving', (e) => {
       constrainTarget(e.target);
+      refreshSizeBadgeRef.current();
       cv.requestRenderAll();
     });
     cv.on('object:scaling', (e) => {
       keepImageUniform(e.target);
       constrainTarget(e.target);
+      refreshSizeBadgeRef.current();
       cv.requestRenderAll();
     });
     cv.on('object:rotating', (e) => {
       constrainTarget(e.target);
+      refreshSizeBadgeRef.current();
       cv.requestRenderAll();
     });
-    cv.on('selection:created', (e) => onObjectSelectedRef.current(cv.getActiveObject() ?? e.selected?.[0] ?? null));
-    cv.on('selection:updated', (e) => onObjectSelectedRef.current(cv.getActiveObject() ?? e.selected?.[0] ?? null));
-    cv.on('selection:cleared', () => onObjectSelectedRef.current(null));
+    cv.on('selection:created', (e) => {
+      onObjectSelectedRef.current(cv.getActiveObject() ?? e.selected?.[0] ?? null);
+      refreshSizeBadgeRef.current();
+    });
+    cv.on('selection:updated', (e) => {
+      onObjectSelectedRef.current(cv.getActiveObject() ?? e.selected?.[0] ?? null);
+      refreshSizeBadgeRef.current();
+    });
+    cv.on('selection:cleared', () => {
+      onObjectSelectedRef.current(null);
+      refreshSizeBadgeRef.current();
+    });
 
     pushHistory(cv);
 
@@ -1112,6 +1178,25 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
             </div>
             {/* Canvas host — fabric injects its canvas here, starts at 0,0 */}
             <div ref={hostEl} />
+
+            {/* Gerçek baskı ölçüsü — seçili nesnenin üstünde, sürüklerken canlı.
+                Zoom'u ters çeviriyoruz ki yazı her zoom seviyesinde okunur kalsın. */}
+            {sizeBadge && (
+              <div
+                className="pointer-events-none absolute z-30 select-none whitespace-nowrap rounded-md bg-gray-900/85 px-2 py-1 text-[11px] font-semibold leading-none text-white shadow-sm backdrop-blur-sm"
+                style={{
+                  left: sizeBadge.left,
+                  top: sizeBadge.top,
+                  // scale önce yazılır ki translate de ölçeklensin — aksi halde
+                  // zoom değiştiğinde rozet nesnenin merkezinden kayıyor
+                  transform: `scale(${100 / Math.max(zoom, 1)}) translate(-50%, ${sizeBadge.below ? '0' : '-100%'})`,
+                  transformOrigin: '0 0',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {sizeBadge.text}
+              </div>
+            )}
           </div>
         </div>
       </div>

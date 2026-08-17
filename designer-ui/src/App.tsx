@@ -2631,6 +2631,17 @@ export default function App() {
     : pricingSummary.baseUnitPrice + pricingSummary.front.surcharge + pricingSummary.back.surcharge;
   const formattedPrice = formatMoney(displayTotal);
 
+  // Nesne rozeti için ölçü metni. Fiyat bandını belirleyen metricsFromRect ile
+  // aynı fonksiyon — müşterinin gördüğü cm ile ücretlendirilen cm hep aynı olsun.
+  const formatFrontObjectSize = useCallback(
+    (rect: { width: number; height: number }) => formatMetricSize(metricsFromRect(rect, activePrintAreas.front, 1)),
+    [activePrintAreas.front],
+  );
+  const formatBackObjectSize = useCallback(
+    (rect: { width: number; height: number }) => formatMetricSize(metricsFromRect(rect, activePrintAreas.back, 1)),
+    [activePrintAreas.back],
+  );
+
   const previewSizeEntry = sizeChart?.entries.find((entry) => entry.size === previewSize) ?? null;
   // Beden şeridi görünürken üstteki rozetler (Ön/Arka, baskı alanı) onun
   // altına iner; yoksa çiplerin sağ ucu rozetlerin arkasında kalıyor
@@ -2959,6 +2970,7 @@ export default function App() {
                     allowPageScroll={isMobileLayout && interactionMode === 'navigation'}
                     onObjectSelected={handleObjectSelected}
                     onDesignChange={handleDesignChange}
+                    formatObjectSize={formatFrontObjectSize}
                   />
                 </div>
                 {surfaceMode !== 'front_only' && (
@@ -2971,6 +2983,7 @@ export default function App() {
                       allowPageScroll={isMobileLayout && interactionMode === 'navigation'}
                       onObjectSelected={handleObjectSelected}
                       onDesignChange={handleDesignChange}
+                      formatObjectSize={formatBackObjectSize}
                     />
                   </div>
                 )}
