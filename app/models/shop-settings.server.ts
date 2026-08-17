@@ -18,6 +18,9 @@ export interface ShopSettings {
   aiQuotaBonus: number;
   bgQuotaBonus: number;
   notificationEmail: string;
+  /** Shopify Admin API'den otomatik eşitlenen gerçek mağaza adı. */
+  shopDisplayName: string;
+  /** Mağaza isterse otomatik adın yerine kullanacağı özel gönderen adı. */
   emailSenderName: string;
   notificationWebhookUrl: string;
   notificationWhatsapp: string;
@@ -32,6 +35,7 @@ const DEFAULTS: ShopSettings = {
   aiQuotaBonus: 0,
   bgQuotaBonus: 0,
   notificationEmail: "",
+  shopDisplayName: "",
   emailSenderName: "",
   notificationWebhookUrl: "",
   notificationWhatsapp: "",
@@ -58,6 +62,7 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
       aiQuotaBonus: DEFAULTS.aiQuotaBonus,
       bgQuotaBonus: DEFAULTS.bgQuotaBonus,
       notificationEmail: DEFAULTS.notificationEmail,
+      shopDisplayName: DEFAULTS.shopDisplayName,
       emailSenderName: DEFAULTS.emailSenderName,
       notificationWebhookUrl: DEFAULTS.notificationWebhookUrl,
       notificationWhatsapp: DEFAULTS.notificationWhatsapp,
@@ -76,6 +81,7 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
     aiQuotaBonus: Number(saved.aiQuotaBonus) >= 0 ? Number(saved.aiQuotaBonus) : DEFAULTS.aiQuotaBonus,
     bgQuotaBonus: Number(saved.bgQuotaBonus) >= 0 ? Number(saved.bgQuotaBonus) : DEFAULTS.bgQuotaBonus,
     notificationEmail: saved.notificationEmail ?? DEFAULTS.notificationEmail,
+    shopDisplayName: saved.shopDisplayName ?? DEFAULTS.shopDisplayName,
     emailSenderName: saved.emailSenderName ?? DEFAULTS.emailSenderName,
     notificationWebhookUrl: saved.notificationWebhookUrl ?? DEFAULTS.notificationWebhookUrl,
     notificationWhatsapp: saved.notificationWhatsapp ?? DEFAULTS.notificationWhatsapp,

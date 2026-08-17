@@ -52,8 +52,10 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
   const settings = await getShopSettings(payload.shop).catch(() => null);
   if (!settings) return;
 
-  const { notificationEmail, notificationWhatsapp, emailSenderName } = settings;
-  const senderName = emailSenderName?.trim() || payload.shop.replace(/\.myshopify\.com$/i, "");
+  const { notificationEmail, notificationWhatsapp, emailSenderName, shopDisplayName } = settings;
+  const senderName = emailSenderName?.trim()
+    || shopDisplayName?.trim()
+    || payload.shop.replace(/\.myshopify\.com$/i, "");
 
   const promises: Promise<void>[] = [];
 

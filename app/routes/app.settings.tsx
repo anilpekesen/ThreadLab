@@ -642,8 +642,8 @@ export default function SettingsRoute() {
                     value={emailSenderName}
                     onChange={setEmailSenderName}
                     autoComplete="off"
-                    placeholder="Mağazanızın adı"
-                    helpText="Müşterinin gelen kutusunda bu ad görünür. Gönderici adresi teslimat güvenliği için PrintLab'in doğrulanmış adresi olarak kalır."
+                    placeholder={settings.shopDisplayName || "Shopify mağazanızın adı"}
+                    helpText={`Boş bırakırsanız Shopify mağaza adınız${settings.shopDisplayName ? ` (${settings.shopDisplayName})` : ""} otomatik kullanılır. Gönderici adresi teslimat güvenliği için PrintLab'in doğrulanmış adresi olarak kalır.`}
                   />
 
                   <TextField

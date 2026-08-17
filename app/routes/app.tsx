@@ -9,6 +9,7 @@ import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "~/lib/authenticate.server";
 import { ensureCartTransformRegistered } from "~/lib/cart-transform.server";
 import { getShopSubscription } from "~/models/billing.server";
+import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
 import { LanguageProvider, useTranslation, type Lang } from "~/i18n";
 import appLayoutStyles from "~/styles/app-layout.css?url";
@@ -18,10 +19,43 @@ export const links = () => [
   { rel: "stylesheet", href: appLayoutStyles },
 ];
 
+async function syncShopDisplayName(
+  admin: Awaited<ReturnType<typeof authenticate>>["admin"],
+  shop: string,
+): Promise<string> {
+  const current = await getShopSettings(shop);
+  try {
+    const response = await admin.graphql(`#graphql
+      query PrintLabShopIdentity {
+        shop {
+          name
+        }
+      }
+    `);
+    const body = await response.json() as {
+      data?: { shop?: { name?: string | null } };
+      errors?: Array<{ message?: string }>;
+    };
+    const shopName = body.data?.shop?.name?.trim() || "";
+    if (shopName && shopName !== current.shopDisplayName) {
+      await saveShopSettings(shop, { shopDisplayName: shopName });
+    }
+    return current.emailSenderName?.trim() || shopName || shop.replace(/\.myshopify\.com$/i, "");
+  } catch (error) {
+    console.error(`[shop-identity] mağaza adı eşitlenemedi: ${shop}`, error);
+    return current.emailSenderName?.trim()
+      || current.shopDisplayName?.trim()
+      || shop.replace(/\.myshopify\.com$/i, "");
+  }
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate(request);
   ensureCartTransformRegistered(admin, session.shop);
-  const sub = await getShopSubscription(session.shop);
+  const [sub, shopDisplayName] = await Promise.all([
+    getShopSubscription(session.shop),
+    syncShopDisplayName(admin, session.shop),
+  ]);
   const cookieHeader = request.headers.get("Cookie") ?? "";
   const langMatch = cookieHeader.match(/(?:^|; )dk_lang=([^;]*)/);
   const lang: Lang = langMatch?.[1] === "en" ? "en" : "tr";
@@ -34,6 +68,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     subscriptionStatus: sub?.subscription_status ?? "none",
     lang,
     shop: session.shop,
+    shopDisplayName,
     allowProduction: hasActiveSubscription && planFeatures.allowProduction,
     allowGangSheet: hasActiveSubscription && planFeatures.allowGangSheet,
     allowPrintQueue: isPaidProductionPlan,
@@ -41,12 +76,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 function AppInner() {
-  const { planKey, subscriptionStatus, shop, allowProduction, allowGangSheet, allowPrintQueue } = useLoaderData<typeof loader>();
+  const { planKey, subscriptionStatus, shop, shopDisplayName, allowProduction, allowGangSheet, allowPrintQueue } = useLoaderData<typeof loader>();
   const { t, setLang, lang } = useTranslation(); // lang context'ten gelsin — anlık değişsin
   const navigate = useNavigate();
 
   const isActive = subscriptionStatus === "active" || subscriptionStatus === "trial";
-  const shopName = shop.replace(".myshopify.com", "");
+  const shopName = shopDisplayName || shop.replace(".myshopify.com", "");
   const planLabel = isActive ? planKey : t("common.noPlan");
 
   const navItems = [
