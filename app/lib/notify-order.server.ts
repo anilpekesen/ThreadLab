@@ -53,12 +53,13 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
   if (!settings) return;
 
   const { notificationEmail, notificationWhatsapp, emailSenderName } = settings;
+  const senderName = emailSenderName?.trim() || payload.shop.replace(/\.myshopify\.com$/i, "");
 
   const promises: Promise<void>[] = [];
 
   // Merchant notification (e-posta + WhatsApp)
   if (notificationEmail?.trim()) {
-    promises.push(sendMerchantEmail(notificationEmail.trim(), payload));
+    promises.push(sendMerchantEmail(notificationEmail.trim(), payload, senderName));
   }
   if (notificationWhatsapp?.trim()) {
     promises.push(sendOrderWhatsApp(notificationWhatsapp.trim(), payload));
@@ -71,7 +72,7 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
       payload.customerEmail.trim(),
       payload,
       notificationEmail?.trim() || undefined,
-      emailSenderName?.trim() || payload.shop.replace(/\.myshopify\.com$/i, ""),
+      senderName,
     ));
   } else {
     // Webhook payload'ında müşteri e-postası yoksa Shopify "protected customer data"
@@ -98,7 +99,11 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
 }
 
 // ── Merchant e-postası (dosya linkleri + Shopify linki) ──────────────
-async function sendMerchantEmail(to: string, p: OrderNotificationPayload): Promise<void> {
+async function sendMerchantEmail(
+  to: string,
+  p: OrderNotificationPayload,
+  fromName?: string,
+): Promise<void> {
   const shopDomain = p.shop.replace(".myshopify.com", "");
   const adminUrl = `https://admin.shopify.com/store/${shopDomain}/orders/${p.shopifyOrderId}`;
 
@@ -152,6 +157,7 @@ async function sendMerchantEmail(to: string, p: OrderNotificationPayload): Promi
     to,
     subject: `🛍 Yeni Sipariş: ${p.orderName} — ${p.customerName} (${p.totalPrice} ${p.currency})`,
     html,
+    fromName,
   });
 }
 
