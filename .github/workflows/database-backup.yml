@@ -1,0 +1,33 @@
+name: Encrypted database backup
+
+on:
+  # GitHub cron ifadeleri UTC'dir. Türkiye yıl boyunca UTC+3 kullandığı için
+  # 09:00 UTC = 12:00, 21:00 UTC = 00:00 (ertesi gün).
+  schedule:
+    - cron: "0 9,21 * * *"
+  workflow_dispatch:
+  # Workflow ilk eklendiğinde bir kez çalışıp yapılandırmayı doğrular.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/database-backup.yml"
+      - "scripts/backup.mjs"
+
+concurrency:
+  group: production-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Create encrypted PostgreSQL backup in R2
+        run: |
+          sudo apt-get install -y sshpass
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=10 \
+            root@144.91.77.39 \
+            "cd /var/www/printlabapp/shopify-app && flock -n /tmp/printlabapp-backup.lock env BACKUP_RETENTION_DAYS=30 node scripts/backup.mjs"
