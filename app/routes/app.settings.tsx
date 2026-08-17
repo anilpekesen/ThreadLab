@@ -442,6 +442,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const newTermsUrl = String(form.get("termsUrl") || "").trim();
   const newAiLimit = parseInt(String(form.get("customerAiLimit") || ""), 10);
   const newNotificationEmail = String(form.get("notificationEmail") || "").trim();
+  const newEmailSenderName = String(form.get("emailSenderName") || "").trim();
   const newNotificationWebhookUrl = String(form.get("notificationWebhookUrl") || "").trim();
   const newNotificationWhatsapp = String(form.get("notificationWhatsapp") || "").trim();
   try {
@@ -451,6 +452,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       termsUrl: newTermsUrl,
       ...(newAiLimit > 0 ? { customerAiLimit: newAiLimit } : {}),
       notificationEmail: newNotificationEmail,
+      emailSenderName: newEmailSenderName,
       notificationWebhookUrl: newNotificationWebhookUrl,
       notificationWhatsapp: newNotificationWhatsapp,
     });
@@ -473,6 +475,7 @@ export default function SettingsRoute() {
   const [termsUrl, setTermsUrl] = useState(settings.termsUrl || "");
   const [customerAiLimit, setCustomerAiLimit] = useState(String(settings.customerAiLimit ?? 3));
   const [notificationEmail, setNotificationEmail] = useState(settings.notificationEmail || "");
+  const [emailSenderName, setEmailSenderName] = useState(settings.emailSenderName || "");
   const [notificationWebhookUrl, setNotificationWebhookUrl] = useState(settings.notificationWebhookUrl || "");
   const [notificationWhatsapp, setNotificationWhatsapp] = useState(settings.notificationWhatsapp || "");
   const selectedVariantExists = surchargeVariantOptions.some((option) => option.value === surchargeVariantId);
@@ -631,6 +634,16 @@ export default function SettingsRoute() {
                     type="email"
                     placeholder="atölye@sirket.com"
                     helpText="Sipariş bilgisi ve tasarım dosya linkleri bu adrese gönderilir."
+                  />
+
+                  <TextField
+                    label="Müşteri e-postası gönderen adı"
+                    name="emailSenderName"
+                    value={emailSenderName}
+                    onChange={setEmailSenderName}
+                    autoComplete="off"
+                    placeholder="Mağazanızın adı"
+                    helpText="Müşterinin gelen kutusunda bu ad görünür. Gönderici adresi teslimat güvenliği için PrintLab'in doğrulanmış adresi olarak kalır."
                   />
 
                   <TextField

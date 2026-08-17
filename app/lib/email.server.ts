@@ -6,6 +6,17 @@ export interface EmailOptions {
   subject: string;
   html: string;
   replyTo?: string;
+  /** Alıcının gelen kutusunda görünen ad. Gönderici adresi doğrulanmış FROM olarak kalır. */
+  fromName?: string;
+}
+
+function safeFromName(value?: string): string {
+  const cleaned = value
+    ?.replace(/[\r\n<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
+  return cleaned || "PrintLab";
 }
 
 export async function sendEmail(opts: EmailOptions): Promise<void> {
@@ -22,7 +33,7 @@ export async function sendEmail(opts: EmailOptions): Promise<void> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: `PrintLab <${FROM}>`,
+      from: `${safeFromName(opts.fromName)} <${FROM}>`,
       to: Array.isArray(opts.to) ? opts.to : [opts.to],
       subject: opts.subject,
       html: opts.html,

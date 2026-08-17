@@ -52,7 +52,7 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
   const settings = await getShopSettings(payload.shop).catch(() => null);
   if (!settings) return;
 
-  const { notificationEmail, notificationWhatsapp } = settings;
+  const { notificationEmail, notificationWhatsapp, emailSenderName } = settings;
 
   const promises: Promise<void>[] = [];
 
@@ -67,7 +67,12 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
   // Customer notification — always send if customer e-posta available.
   // Yanıtlar PrintLab'e değil mağazaya düşsün diye reply-to = mağazanın bildirim adresi.
   if (payload.customerEmail?.trim()) {
-    promises.push(sendCustomerEmail(payload.customerEmail.trim(), payload, notificationEmail?.trim() || undefined));
+    promises.push(sendCustomerEmail(
+      payload.customerEmail.trim(),
+      payload,
+      notificationEmail?.trim() || undefined,
+      emailSenderName?.trim() || payload.shop.replace(/\.myshopify\.com$/i, ""),
+    ));
   } else {
     // Webhook payload'ında müşteri e-postası yoksa Shopify "protected customer data"
     // iznini vermemiş demektir — müşteriye mail atmak mümkün değil
@@ -254,12 +259,18 @@ export function renderCustomerEmailHtml(p: OrderNotificationPayload): string {
   return html;
 }
 
-async function sendCustomerEmail(to: string, p: OrderNotificationPayload, replyTo?: string): Promise<void> {
+async function sendCustomerEmail(
+  to: string,
+  p: OrderNotificationPayload,
+  replyTo?: string,
+  fromName?: string,
+): Promise<void> {
   await sendEmail({
     to,
     subject: `Siparişiniz alındı — ${p.orderName}`,
     html: renderCustomerEmailHtml(p),
     replyTo,
+    fromName,
   });
 }
 

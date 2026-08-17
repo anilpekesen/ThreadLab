@@ -18,6 +18,7 @@ export interface ShopSettings {
   aiQuotaBonus: number;
   bgQuotaBonus: number;
   notificationEmail: string;
+  emailSenderName: string;
   notificationWebhookUrl: string;
   notificationWhatsapp: string;
 }
@@ -31,6 +32,7 @@ const DEFAULTS: ShopSettings = {
   aiQuotaBonus: 0,
   bgQuotaBonus: 0,
   notificationEmail: "",
+  emailSenderName: "",
   notificationWebhookUrl: "",
   notificationWhatsapp: "",
 };
@@ -56,6 +58,7 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
       aiQuotaBonus: DEFAULTS.aiQuotaBonus,
       bgQuotaBonus: DEFAULTS.bgQuotaBonus,
       notificationEmail: DEFAULTS.notificationEmail,
+      emailSenderName: DEFAULTS.emailSenderName,
       notificationWebhookUrl: DEFAULTS.notificationWebhookUrl,
       notificationWhatsapp: DEFAULTS.notificationWhatsapp,
     };
@@ -73,6 +76,7 @@ export async function getShopSettings(shop: string): Promise<ShopSettings> {
     aiQuotaBonus: Number(saved.aiQuotaBonus) >= 0 ? Number(saved.aiQuotaBonus) : DEFAULTS.aiQuotaBonus,
     bgQuotaBonus: Number(saved.bgQuotaBonus) >= 0 ? Number(saved.bgQuotaBonus) : DEFAULTS.bgQuotaBonus,
     notificationEmail: saved.notificationEmail ?? DEFAULTS.notificationEmail,
+    emailSenderName: saved.emailSenderName ?? DEFAULTS.emailSenderName,
     notificationWebhookUrl: saved.notificationWebhookUrl ?? DEFAULTS.notificationWebhookUrl,
     notificationWhatsapp: saved.notificationWhatsapp ?? DEFAULTS.notificationWhatsapp,
   };
