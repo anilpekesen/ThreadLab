@@ -225,7 +225,7 @@ export async function handleAiImageGeneration(request: Request, shop: string): P
     }
   }
 
-  const apiKey = (shopSettings.wavespeedApiKey || process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
+  const apiKey = (process.env.WAVESPEED_API_KEY || shopSettings.wavespeedApiKey || globalSettings.wavespeedApiKey)?.trim();
 
   if (!apiKey) {
     return json({ error: "Yapay zeka servisi yapılandırılmamış." }, { status: 503 });

@@ -94,7 +94,11 @@ function isProcessableImageUrl(src: string | undefined): boolean {
   if (!src) return false;
   if (src.startsWith("data:")) return false;       // embedded data URL — skip
   if (src.endsWith(".svg")) return false;           // SVG — no BG to remove
-  if (src.includes("auto-bg-")) return false;       // already processed
+  // Zaten işlenmiş çıktılar. İki desen de gerekli: yerel dosya adı
+  // "auto-bg-<hex>.png", R2 yolu ise ".../uploads/auto-bg/<hex>.png".
+  // Yalnızca tireli desen kontrol edildiği için R2'ye kaydedilen çıktılar
+  // bu kapıdan geçip ikinci kez AI'dan geçiyordu — çift bozulma.
+  if (src.includes("auto-bg-") || src.includes("/auto-bg/")) return false;
   return src.startsWith("http://") || src.startsWith("https://");
 }
 
@@ -143,7 +147,7 @@ export async function processOrderBgRemoval(shop: string, designToken: string): 
     getGlobalSettings(),
     getShopSettings(shop),
   ]);
-  const apiKey = (shopSettings.wavespeedApiKey || process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
+  const apiKey = (process.env.WAVESPEED_API_KEY || shopSettings.wavespeedApiKey || globalSettings.wavespeedApiKey)?.trim();
   if (!apiKey) {
     console.warn("[auto-bg] No WaveSpeed API key configured — skipping");
     return;

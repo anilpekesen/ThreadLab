@@ -111,7 +111,9 @@ export async function handleWaveSpeedRemoveBackground(
     getShopSettings(shop),
   ]);
 
-  const apiKey = (shopSettings.wavespeedApiKey || process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey)?.trim();
+  // Sunucu ortam anahtarı operasyon ekibi tarafından döndürülen kanonik
+  // anahtardır. Veritabanında kalmış eski mağaza anahtarı bunu ezmemeli.
+  const apiKey = (process.env.WAVESPEED_API_KEY || shopSettings.wavespeedApiKey || globalSettings.wavespeedApiKey)?.trim();
   if (!apiKey) {
     return json({ error: "WaveSpeed API key is not configured" }, { status: 400 });
   }

@@ -22,7 +22,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     "";
 
   const removeBgAvailable = Boolean(
-    shopSettings?.wavespeedApiKey || process.env.WAVESPEED_API_KEY || globalSettings.wavespeedApiKey,
+    process.env.WAVESPEED_API_KEY || shopSettings?.wavespeedApiKey || globalSettings.wavespeedApiKey,
   );
 
   if (!config) {
