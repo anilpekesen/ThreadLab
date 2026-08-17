@@ -4,6 +4,16 @@ import { getShopSettings } from "~/models/shop-settings.server";
 
 const APP_URL = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") || "https://app.printlabapp.com";
 
+// Bu mağazada müşteri ve mağaza sipariş e-postaları devre dışıdır.
+// WhatsApp bildirimleri bu engelden etkilenmez.
+const EMAIL_DISABLED_SHOPS = new Set([
+  "iabvsb-jv.myshopify.com",
+  ...(process.env.EMAIL_DISABLED_SHOPS ?? "")
+    .split(",")
+    .map((shop) => shop.trim().toLowerCase())
+    .filter(Boolean),
+]);
+
 /**
  * Müşterinin kendi tasarımını görüp indirebileceği public link (token = tek gizli bilgi).
  * lang=tr: müşteri e-postası Türkçe, açılan sayfa da Türkçe olsun (my-order aksi halde
@@ -53,6 +63,10 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
   if (!settings) return;
 
   const { notificationEmail, notificationWhatsapp, emailSenderName, shopDisplayName } = settings;
+  const emailEnabled = !EMAIL_DISABLED_SHOPS.has(payload.shop.trim().toLowerCase());
+  if (!emailEnabled) {
+    console.log(`[notify] e-posta gönderimi mağaza için kapalı — ${payload.shop} / ${payload.orderName}`);
+  }
   const senderName = emailSenderName?.trim()
     || shopDisplayName?.trim()
     || payload.shop.replace(/\.myshopify\.com$/i, "");
@@ -60,7 +74,7 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
   const promises: Promise<void>[] = [];
 
   // Merchant notification (e-posta + WhatsApp)
-  if (notificationEmail?.trim()) {
+  if (emailEnabled && notificationEmail?.trim()) {
     promises.push(sendMerchantEmail(notificationEmail.trim(), payload, senderName));
   }
   if (notificationWhatsapp?.trim()) {
@@ -69,14 +83,14 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
 
   // Customer notification — always send if customer e-posta available.
   // Yanıtlar PrintLab'e değil mağazaya düşsün diye reply-to = mağazanın bildirim adresi.
-  if (payload.customerEmail?.trim()) {
+  if (emailEnabled && payload.customerEmail?.trim()) {
     promises.push(sendCustomerEmail(
       payload.customerEmail.trim(),
       payload,
       notificationEmail?.trim() || undefined,
       senderName,
     ));
-  } else {
+  } else if (emailEnabled) {
     // Webhook payload'ında müşteri e-postası yoksa Shopify "protected customer data"
     // iznini vermemiş demektir — müşteriye mail atmak mümkün değil
     console.warn(`[notify] müşteri e-postası yok — ${payload.orderName} için müşteri maili atlandı`);
@@ -85,9 +99,9 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
   if (promises.length === 0) return;
 
   const channels: string[] = [];
-  if (notificationEmail?.trim()) channels.push("merchant-email");
+  if (emailEnabled && notificationEmail?.trim()) channels.push("merchant-email");
   if (notificationWhatsapp?.trim()) channels.push("whatsapp");
-  if (payload.customerEmail?.trim()) channels.push("customer-email");
+  if (emailEnabled && payload.customerEmail?.trim()) channels.push("customer-email");
 
   await Promise.allSettled(promises).then((results) => {
     results.forEach((r, i) => {
