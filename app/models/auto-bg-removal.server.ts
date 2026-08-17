@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import { getDesignByToken, saveDesign } from "~/models/designs.server";
+import { getDesignByToken, saveDesign, unproxyImageUrl } from "~/models/designs.server";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings } from "~/models/shop-settings.server";
 import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
@@ -186,9 +186,16 @@ export async function processOrderBgRemoval(shop: string, designToken: string): 
 
   if (replacements.size === 0) return;
 
-  // Update design JSON with new URLs and save
+  // Update design JSON with new URLs and save.
+  // Değiştirilen orijinal adresler ayrıca saklanıyor: src'yi üzerine yazdığımız
+  // için tasarım JSON'ından geri okunamıyorlar ve yeniden işleme / müşteri
+  // talebi durumunda tek kaynak log dosyası kalıyordu.
   const updatedJson = replaceImageSrcs(design.designJson, replacements);
-  await saveDesign(shop, { ...design, designJson: updatedJson });
+  const originals = [...new Set([
+    ...(design.originalImageUrls ?? []),
+    ...[...replacements.keys()].map(unproxyImageUrl),
+  ])];
+  await saveDesign(shop, { ...design, designJson: updatedJson, originalImageUrls: originals });
   console.log(`[auto-bg] Design ${designToken} updated with ${replacements.size} processed image(s)`);
 }
 

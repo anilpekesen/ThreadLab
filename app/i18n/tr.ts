@@ -676,6 +676,8 @@ const tr = {
   "orderDetail.previewLink": "Önizle →",
   "orderDetail.colorLabel": "Renk",
   "orderDetail.positionLabel": "Konum",
+  "orderDetail.originalUploads": "Müşterinin yüklediği orijinal görseller",
+  "orderDetail.originalUploadsDesc": "Arka plan kaldırılmadan önceki ham dosyalar. Yeniden işlemek veya müşteriye geri dönmek için kullanılır.",
   "orderDetail.downloadImage": "Görseli İndir",
   "orderDetail.orderDesigns": "Siparişteki tasarımlar",
   "orderDetail.piecesLabel": "adet",

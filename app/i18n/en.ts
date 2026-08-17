@@ -677,6 +677,8 @@ const en = {
   "orderDetail.previewLink": "Preview →",
   "orderDetail.colorLabel": "Color",
   "orderDetail.positionLabel": "Position",
+  "orderDetail.originalUploads": "Customer's original uploads",
+  "orderDetail.originalUploadsDesc": "The raw files before background removal. Use these to re-process or to follow up with the customer.",
   "orderDetail.downloadImage": "Download Image",
   "orderDetail.orderDesigns": "Designs in order",
   "orderDetail.piecesLabel": "pcs",

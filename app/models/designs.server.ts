@@ -18,6 +18,8 @@ export interface DesignRecord {
   frontPrintUrl?: string;
   backPrintUrl?: string;
   previewIssue?: boolean;
+  /** Müşterinin yüklediği ham görsellerin URL'leri (işlenmemiş hali) */
+  originalImageUrls?: string[];
   createdAt: string;
 }
 
@@ -53,6 +55,7 @@ type DbRow = {
   front_print_url: string;
   back_print_url: string;
   preview_issue: boolean;
+  original_image_urls: string[] | null;
   created_at: Date;
 };
 
@@ -66,6 +69,7 @@ function rowToRecord(row: DbRow): DesignRecord {
     frontPrintUrl: row.front_print_url || undefined,
     backPrintUrl: row.back_print_url || undefined,
     previewIssue: row.preview_issue || false,
+    originalImageUrls: Array.isArray(row.original_image_urls) ? row.original_image_urls : [],
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -89,11 +93,74 @@ export async function getDesignByToken(shop: string, token: string): Promise<Des
   return rowToRecord(fallback.rows[0]);
 }
 
-export async function saveDesign(shop: string, record: Omit<DesignRecord, "createdAt">): Promise<void> {
+/** İşlenmiş (arka planı kaldırılmış) çıktıların adres desenleri */
+const PROCESSED_SRC_PATTERNS = ["/auto-bg/", "auto-bg-", "/bg-removed/"];
+
+function isProcessedSrc(url: string): boolean {
+  return PROCESSED_SRC_PATTERNS.some((p) => url.includes(p));
+}
+
+/**
+ * Tasarımcı bazı görselleri /api/img-proxy?url=... sarmalayıcısıyla saklıyor.
+ * Orijinali kaydederken gerçek varlık adresine indirgiyoruz, aksi halde
+ * saklanan adres uygulamaya bağımlı ve okunması zor oluyor.
+ */
+export function unproxyImageUrl(url: string): string {
+  const marker = "/api/img-proxy?url=";
+  const idx = url.indexOf(marker);
+  if (idx === -1) return url;
+  const encoded = url.slice(idx + marker.length).split("&")[0];
+  try {
+    const decoded = decodeURIComponent(encoded);
+    return decoded.startsWith("http") ? decoded : url;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Tasarım JSON'ındaki ham görsel adreslerini toplar. İşlenmiş çıktılar
+ * elenir — amaç müşterinin yüklediği orijinali saklamak.
+ */
+export function collectOriginalImageUrls(designJson: unknown): string[] {
+  const urls = new Set<string>();
+  const json = designJson as Record<string, unknown> | null | undefined;
+  if (!json || typeof json !== "object") return [];
+
+  for (const side of ["front", "back"] as const) {
+    let canvas = json[side] as { objects?: Record<string, unknown>[] } | string | undefined;
+    if (typeof canvas === "string") {
+      try { canvas = JSON.parse(canvas) as { objects?: Record<string, unknown>[] }; } catch { continue; }
+    }
+    if (!canvas || typeof canvas !== "object") continue;
+    for (const obj of canvas.objects ?? []) {
+      const raw = obj.src;
+      if (obj.type !== "image" || typeof raw !== "string") continue;
+      const src = unproxyImageUrl(raw);
+      if (!src.startsWith("http")) continue;   // data: URL saklamıyoruz
+      if (isProcessedSrc(src)) continue;
+      urls.add(src);
+    }
+  }
+  return [...urls];
+}
+
+export async function saveDesign(
+  shop: string,
+  record: Omit<DesignRecord, "createdAt">,
+): Promise<void> {
   await ensureMigrations();
+
+  // Açıkça verilmediyse tasarımın kendisinden çıkar. Union SQL tarafında
+  // yapıldığı için sonradan gelen kayıtlar öncekileri silmez — arka plan
+  // kaldırma src'leri değiştirse bile orijinaller kalır.
+  const originals = record.originalImageUrls?.length
+    ? record.originalImageUrls
+    : collectOriginalImageUrls(record.designJson);
+
   await query(
-    `INSERT INTO designs (shop, token, product_id, session_id, design_json, front_preview_url, back_preview_url, front_print_url, back_print_url, preview_issue)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO designs (shop, token, product_id, session_id, design_json, front_preview_url, back_preview_url, front_print_url, back_print_url, preview_issue, original_image_urls)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
      ON CONFLICT (token) DO UPDATE SET
        shop = EXCLUDED.shop,
        product_id = EXCLUDED.product_id,
@@ -103,7 +170,13 @@ export async function saveDesign(shop: string, record: Omit<DesignRecord, "creat
        back_preview_url = EXCLUDED.back_preview_url,
        front_print_url = EXCLUDED.front_print_url,
        back_print_url = EXCLUDED.back_print_url,
-       preview_issue = EXCLUDED.preview_issue`,
+       preview_issue = EXCLUDED.preview_issue,
+       original_image_urls = (
+         SELECT COALESCE(jsonb_agg(DISTINCT elem), '[]'::jsonb)
+         FROM jsonb_array_elements_text(
+           designs.original_image_urls || EXCLUDED.original_image_urls
+         ) AS elem
+       )`,
     [
       shop,
       record.token,
@@ -115,6 +188,7 @@ export async function saveDesign(shop: string, record: Omit<DesignRecord, "creat
       record.frontPrintUrl ?? "",
       record.backPrintUrl ?? "",
       record.previewIssue ?? false,
+      JSON.stringify(originals),
     ],
   );
 }

@@ -714,6 +714,32 @@ export default function OrderDetail() {
           </Grid.Cell>
         </Grid>
 
+        {/* Müşterinin yüklediği ham görseller — arka plan kaldırma tasarımdaki
+            adresi işlenmiş dosyayla değiştirdiği için ayrıca saklanıyor */}
+        {(design?.originalImageUrls?.length ?? 0) > 0 && (
+          <Card>
+            <Box padding="400">
+              <BlockStack gap="300">
+                <Text as="h2" variant="headingMd">{t("orderDetail.originalUploads")}</Text>
+                <Text as="p" tone="subdued" variant="bodySm">{t("orderDetail.originalUploadsDesc")}</Text>
+                <BlockStack gap="200">
+                  {design!.originalImageUrls!.map((url, i) => (
+                    <InlineStack key={url} gap="300" blockAlign="center" wrap={false}>
+                      <Thumbnail source={url} alt={`${t("orderDetail.originalUploads")} ${i + 1}`} size="small" />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <Text as="p" variant="bodySm" truncate>{url}</Text>
+                      </div>
+                      <a href={dlUrl(url, `orijinal-${i + 1}.${url.split(".").pop()?.split("?")[0] || "png"}`)} download>
+                        <Button variant="secondary" size="slim">{t("orderDetail.downloadImage")}</Button>
+                      </a>
+                    </InlineStack>
+                  ))}
+                </BlockStack>
+              </BlockStack>
+            </Box>
+          </Card>
+        )}
+
         {/* Sipariş bilgileri */}
         <Card>
           <Box padding="400">

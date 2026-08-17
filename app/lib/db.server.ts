@@ -577,6 +577,10 @@ async function _runMigrationsLocked() {
   `);
   await query(`ALTER TABLE designs ADD COLUMN IF NOT EXISTS preview_issue BOOLEAN NOT NULL DEFAULT FALSE`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS color_mismatch BOOLEAN NOT NULL DEFAULT FALSE`);
+  // Müşterinin yüklediği ham görsellerin URL'leri. Arka plan kaldırma
+  // tasarım JSON'ındaki src'yi işlenmiş dosyayla değiştirdiği için orijinal
+  // adres kayboluyordu; yeniden işleme ve müşteri talepleri için saklanıyor.
+  await query(`ALTER TABLE designs ADD COLUMN IF NOT EXISTS original_image_urls JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await query(`
     CREATE TABLE IF NOT EXISTS cliparts (
       id          TEXT PRIMARY KEY,
