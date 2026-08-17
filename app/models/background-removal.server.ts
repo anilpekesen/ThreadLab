@@ -6,7 +6,8 @@ import { checkAndIncrementCustomerBg } from "~/models/customer-bg-quota.server";
 import { getTestStoreLimits } from "~/models/test-store-limits.server";
 import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
 import { trackAnalyticsEvent } from "~/models/analytics.server";
-import { cleanupCutoutEdges } from "~/lib/image-matting.server";
+import sharp from "sharp";
+import { hasMeaningfulTransparency, rebuildCutoutAtSourceResolution } from "~/lib/image-matting.server";
 import { tryFlatArtKeying } from "~/lib/flat-art-key.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
@@ -176,16 +177,29 @@ export async function handleWaveSpeedRemoveBackground(
   // renk anahtarlamayla işliyoruz: harf gözleri doğru deliniyor, kenarda hale
   // kalmıyor, üstelik anında ve API çağrısı olmadan.
   let imageBytes: Buffer | null = null;
-  let method: "flat-art-key" | "ai" = "ai";
+  let method: "already-transparent" | "flat-art-key" | "ai" | "ai-original-resolution" = "ai";
+  let sourceSize = "";
+  let modelSize = "";
 
-  const flatArt = await tryFlatArtKeying(sourceBytes).catch((err) => {
+  const alreadyTransparent = await hasMeaningfulTransparency(sourceBytes).catch(() => false);
+  const flatArt = alreadyTransparent ? null : await tryFlatArtKeying(sourceBytes).catch((err) => {
     console.error("[remove-bg] flat-art anahtarlama denemesi başarısız:", err);
     return null;
   });
 
-  if (flatArt) {
+  if (alreadyTransparent) {
+    const meta = await sharp(sourceBytes, { limitInputPixels: false }).metadata();
+    sourceSize = `${meta.width ?? 0}x${meta.height ?? 0}`;
+    imageBytes = await sharp(sourceBytes, { limitInputPixels: false })
+      .rotate()
+      .png({ compressionLevel: 6, adaptiveFiltering: true })
+      .toBuffer();
+    method = "already-transparent";
+  } else if (flatArt) {
     imageBytes = flatArt.buffer;
     method = "flat-art-key";
+    const meta = await sharp(sourceBytes, { limitInputPixels: false }).metadata();
+    sourceSize = `${meta.width ?? 0}x${meta.height ?? 0}`;
     console.log(
       `[remove-bg] flat-art keying: bg=${flatArt.analysis.bg.join(",")} ` +
       `uniformity=${flatArt.analysis.uniformity.toFixed(3)} ` +
@@ -207,10 +221,18 @@ export async function handleWaveSpeedRemoveBackground(
       return json({ error: "Could not download result image" }, { status: 502 });
     }
     const rawBytes = Buffer.from(await imageRes.arrayBuffer());
-    imageBytes = await cleanupCutoutEdges(rawBytes).catch((err) => {
-      console.error("[remove-bg] cleanupCutoutEdges failed, ham çıktı kullanılıyor:", err);
+    const rebuilt = await rebuildCutoutAtSourceResolution(sourceBytes, rawBytes).catch((err) => {
+      console.error("[remove-bg] high-resolution matte rebuild failed, model çıktısı kullanılıyor:", err);
       return rawBytes;
     });
+    if (Buffer.isBuffer(rebuilt)) {
+      imageBytes = rebuilt;
+    } else {
+      imageBytes = rebuilt.buffer;
+      sourceSize = `${rebuilt.sourceWidth}x${rebuilt.sourceHeight}`;
+      modelSize = `${rebuilt.modelWidth}x${rebuilt.modelHeight}`;
+      method = rebuilt.rebuiltFromOriginal ? "ai-original-resolution" : "ai";
+    }
   }
 
   trackAnalyticsEvent({
@@ -222,6 +244,8 @@ export async function handleWaveSpeedRemoveBackground(
       filename: file.name,
       mimeType,
       method,
+      sourceSize,
+      modelSize,
     },
   }).catch((err) => console.error("[analytics] background_removed failed:", err));
 
@@ -230,6 +254,8 @@ export async function handleWaveSpeedRemoveBackground(
     "Content-Type": "image/png",
     "X-BG-Method": method,
   };
+  if (sourceSize) headers["X-BG-Source-Size"] = sourceSize;
+  if (modelSize) headers["X-BG-Model-Size"] = modelSize;
   if (quotaRemaining !== null) {
     headers["X-BG-Quota-Remaining"] = String(quotaRemaining);
   }

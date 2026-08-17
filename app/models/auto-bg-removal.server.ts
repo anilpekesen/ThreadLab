@@ -7,7 +7,8 @@ import { getShopSettings } from "~/models/shop-settings.server";
 import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
 import { getUploadsDir } from "~/lib/storage.server";
 import { uploadToR2 } from "~/lib/r2.server";
-import { cleanupCutoutEdges } from "~/lib/image-matting.server";
+import sharp from "sharp";
+import { hasMeaningfulTransparency, rebuildCutoutAtSourceResolution } from "~/lib/image-matting.server";
 import { tryFlatArtKeying } from "~/lib/flat-art-key.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
@@ -21,6 +22,15 @@ async function removeBackground(apiKey: string, imageUrl: string): Promise<Buffe
   if (!imgRes.ok) throw new Error(`Could not fetch image (${imgRes.status}): ${imageUrl}`);
   const bytes = await imgRes.arrayBuffer();
   const sourceBuffer = Buffer.from(bytes);
+
+  // Sipariş sonrasında zaten şeffaf olan bir baskı kaynağını yeniden AI'dan
+  // geçirmek kenar ve çözünürlük kaybettirir.
+  if (await hasMeaningfulTransparency(sourceBuffer).catch(() => false)) {
+    return sharp(sourceBuffer, { limitInputPixels: false })
+      .rotate()
+      .png({ compressionLevel: 6, adaptiveFiltering: true })
+      .toBuffer();
+  }
 
   // Düz zeminli yazı/çizim ise yerel anahtarlama — AI bu sınıfta harf
   // gözlerini dolduruyor (bkz. flat-art-key.server.ts)
@@ -68,8 +78,14 @@ async function removeBackground(apiKey: string, imageUrl: string): Promise<Buffe
   const outRes = await fetch(job.outputs[0]);
   if (!outRes.ok) throw new Error(`Could not download result (${outRes.status})`);
   const rawBuffer = Buffer.from(await outRes.arrayBuffer());
-  return cleanupCutoutEdges(rawBuffer).catch((err) => {
-    console.error("[auto-bg] cleanupCutoutEdges failed, ham çıktı kullanılıyor:", err);
+  return rebuildCutoutAtSourceResolution(sourceBuffer, rawBuffer).then((result) => {
+    console.log(
+      `[auto-bg] matte source=${result.sourceWidth}x${result.sourceHeight} ` +
+      `model=${result.modelWidth}x${result.modelHeight} rebuilt=${result.rebuiltFromOriginal}`,
+    );
+    return result.buffer;
+  }).catch((err) => {
+    console.error("[auto-bg] high-resolution matte rebuild failed, model çıktısı kullanılıyor:", err);
     return rawBuffer;
   });
 }

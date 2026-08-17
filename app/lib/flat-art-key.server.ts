@@ -35,7 +35,7 @@ export interface FlatArtAnalysis {
 
 // Eşikler gerçek müşteri dosyalarıyla kalibre edildi. Yanlış pozitif (gölgeli
 // fotoğrafı anahtarlamak) kaliteyi bozacağı için muhafazakâr tutuldu.
-const UNIFORMITY_MIN = 0.97;    // kenarların neredeyse tamamı aynı renk olmalı
+const UNIFORMITY_MIN = 0.90;    // tasarım kenara değse bile baskın zemin belirlenebilmeli
 const AMBIGUOUS_MAX = 0.02;     // gölge rampası olan görselleri eler
 const BORDER_TOLERANCE = 12;    // aynı renk sayılma yarıçapı
 
@@ -54,11 +54,14 @@ export async function analyzeFlatArt(input: Buffer): Promise<FlatArtAnalysis | n
   for (let x = 0; x < W; x += step) coords.push([x, 0], [x, H - 1]);
   for (let y = 0; y < H; y += step) coords.push([0, y], [W - 1, y]);
 
-  let sr = 0, sg = 0, sb = 0, opaque = 0, transparent = 0;
+  const borderR: number[] = [];
+  const borderG: number[] = [];
+  const borderB: number[] = [];
+  let opaque = 0, transparent = 0;
   for (const [x, y] of coords) {
     const i = (y * W + x) * 4;
     if (data[i + 3] < 250) { transparent++; continue; }
-    sr += data[i]; sg += data[i + 1]; sb += data[i + 2];
+    borderR.push(data[i]); borderG.push(data[i + 1]); borderB.push(data[i + 2]);
     opaque++;
   }
 
@@ -68,11 +71,13 @@ export async function analyzeFlatArt(input: Buffer): Promise<FlatArtAnalysis | n
     return { bg: [255, 255, 255], uniformity: 0, ambiguousRatio: 0, alreadyCutout: true, isFlatArt: false };
   }
 
-  const bg: [number, number, number] = [
-    Math.round(sr / opaque),
-    Math.round(sg / opaque),
-    Math.round(sb / opaque),
-  ];
+  // Ortalama, tasarım kenara değdiğinde birkaç koyu piksel yüzünden beyaz
+  // zemini griye kaydırıyordu. Kanal medyanı baskın zemin rengini korur.
+  borderR.sort((a, b) => a - b);
+  borderG.sort((a, b) => a - b);
+  borderB.sort((a, b) => a - b);
+  const middle = Math.floor(opaque / 2);
+  const bg: [number, number, number] = [borderR[middle], borderG[middle], borderB[middle]];
 
   let within = 0;
   for (const [x, y] of coords) {
@@ -124,6 +129,7 @@ export async function keyOutBackground(
 ): Promise<Buffer> {
   const { softStart = DEFAULT_SOFT_START, softEnd = DEFAULT_SOFT_END } = opts;
 
+  const sourceMetadata = await sharp(input).metadata();
   const { data, info } = await sharp(input).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width: W, height: H, channels } = info;
   if (channels < 4) return input;
@@ -132,6 +138,58 @@ export async function keyOutBackground(
   const [bgR, bgG, bgB] = bg;
   const span = Math.max(1, softEnd - softStart);
 
+  // Düz grafiğin gerçek opak renklerinden küçük bir palet çıkar. Kenardaki
+  // açık pikseller çoğunlukla bu renklerle zemin renginin anti-aliasing
+  // karışımıdır. Palet sayesinde alfa ve temiz ön plan rengini birlikte geri
+  // çözebiliriz.
+  const foregroundBuckets = new Map<number, { count: number; r: number; g: number; b: number }>();
+  for (let p = 0; p < W * H; p++) {
+    const i = p * 4;
+    if (data[i + 3] < 250) continue;
+    const dr = data[i] - bgR, dg = data[i + 1] - bgG, db = data[i + 2] - bgB;
+    if (Math.sqrt(dr * dr + dg * dg + db * db) < softEnd) continue;
+    const key = ((data[i] >> 3) << 10) | ((data[i + 1] >> 3) << 5) | (data[i + 2] >> 3);
+    const bucket = foregroundBuckets.get(key) ?? { count: 0, r: 0, g: 0, b: 0 };
+    bucket.count++;
+    bucket.r += data[i]; bucket.g += data[i + 1]; bucket.b += data[i + 2];
+    foregroundBuckets.set(key, bucket);
+  }
+  const paletteCandidates = [...foregroundBuckets.values()]
+    .filter((entry) => entry.count >= Math.max(2, Math.round((W * H) / 1_000_000)))
+    .map((entry) => {
+      const color = {
+        r: entry.r / entry.count,
+        g: entry.g / entry.count,
+        b: entry.b / entry.count,
+      };
+      const distance = Math.hypot(color.r - bgR, color.g - bgG, color.b - bgB);
+      return {
+        ...color,
+        distance,
+        direction: {
+          r: (color.r - bgR) / distance,
+          g: (color.g - bgG) / distance,
+          b: (color.b - bgB) / distance,
+        },
+      };
+    })
+    .sort((a, b) => b.distance - a.distance);
+
+  // Aynı rengin beyaz zeminle karışmış daha açık tonları aynı renk doğrusu
+  // üzerindedir. Her doğrultuda yalnızca zeminden en uzaktaki, gerçek opak
+  // rengi tutarak bu açık kenar tonlarının palete girmesini önlüyoruz.
+  const foregroundPalette: typeof paletteCandidates = [];
+  for (const candidate of paletteCandidates) {
+    const sameDirection = foregroundPalette.some((existing) => {
+      const cosine = candidate.direction.r * existing.direction.r
+        + candidate.direction.g * existing.direction.g
+        + candidate.direction.b * existing.direction.b;
+      return cosine > 0.99;
+    });
+    if (!sameDirection) foregroundPalette.push(candidate);
+    if (foregroundPalette.length >= 32) break;
+  }
+
   for (let p = 0; p < W * H; p++) {
     const i = p * 4;
     const r = data[i], g = data[i + 1], b = data[i + 2], a0 = data[i + 3];
@@ -139,7 +197,31 @@ export async function keyOutBackground(
     const dr = r - bgR, dg = g - bgG, db = b - bgB;
     const dist = Math.sqrt(dr * dr + dg * dg + db * db);
 
-    let a = dist <= softStart ? 0 : dist >= softEnd ? 1 : (dist - softStart) / span;
+    let a = 0;
+    let foreground: { r: number; g: number; b: number } | null = null;
+
+    if (dist > softStart && foregroundPalette.length) {
+      let bestError = Number.POSITIVE_INFINITY;
+      for (const candidate of foregroundPalette) {
+        const vr = candidate.r - bgR;
+        const vg = candidate.g - bgG;
+        const vb = candidate.b - bgB;
+        const denom = vr * vr + vg * vg + vb * vb;
+        if (denom < 1) continue;
+        const candidateAlpha = Math.max(0, Math.min(1, (dr * vr + dg * vg + db * vb) / denom));
+        const er = r - (bgR + candidateAlpha * vr);
+        const eg = g - (bgG + candidateAlpha * vg);
+        const eb = b - (bgB + candidateAlpha * vb);
+        const error = er * er + eg * eg + eb * eb;
+        if (error < bestError) {
+          bestError = error;
+          a = candidateAlpha;
+          foreground = candidate;
+        }
+      }
+    } else if (dist > softStart) {
+      a = dist >= softEnd ? 1 : (dist - softStart) / span;
+    }
     a *= a0 / 255;
 
     if (a <= 0.002) {
@@ -147,13 +229,17 @@ export async function keyOutBackground(
       continue;
     }
 
-    out[i]     = clamp255((r - bgR * (1 - a)) / a);
-    out[i + 1] = clamp255((g - bgG * (1 - a)) / a);
-    out[i + 2] = clamp255((b - bgB * (1 - a)) / a);
+    out[i] = foreground ? clamp255(foreground.r) : clamp255((r - bgR * (1 - a)) / a);
+    out[i + 1] = foreground ? clamp255(foreground.g) : clamp255((g - bgG * (1 - a)) / a);
+    out[i + 2] = foreground ? clamp255(foreground.b) : clamp255((b - bgB * (1 - a)) / a);
     out[i + 3] = Math.round(a * 255);
   }
 
-  return sharp(out, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
+  let output = sharp(out, { raw: { width: W, height: H, channels: 4 } }).png();
+  if (sourceMetadata.density) {
+    output = output.withMetadata({ density: sourceMetadata.density });
+  }
+  return output.toBuffer();
 }
 
 function clamp255(v: number) {

@@ -77,6 +77,9 @@ interface Props {
 }
 
 const HISTORY_LIMIT = 50;
+const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl'];
+
+type SourceBackedImage = fabric.Image & { sourceUrl?: string };
 
 function isImageObject(obj: fabric.Object | null | undefined): obj is fabric.Image {
   return obj?.type === 'image';
@@ -122,6 +125,8 @@ function renderControlIcon(
 
 function cloneFabricObject(target: fabric.Object) {
   target.clone((cloned: fabric.Object) => {
+    const sourceUrl = (target as SourceBackedImage).sourceUrl;
+    if (sourceUrl) (cloned as SourceBackedImage).sourceUrl = sourceUrl;
     cloned.set({
       left: (cloned.left ?? 0) + 24,
       top: (cloned.top ?? 0) + 24,
@@ -483,7 +488,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
 
   const pushHistory = useCallback((cv: fabric.Canvas) => {
     if (isRestoringRef.current) return;
-    const json = JSON.stringify(cv.toJSON(['id']));
+    const json = JSON.stringify(cv.toJSON(SERIALIZED_OBJECT_PROPS));
     const list = historyRef.current.slice(0, historyIdxRef.current + 1);
     list.push(json);
     if (list.length > HISTORY_LIMIT) list.shift();
@@ -664,6 +669,9 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
         originX: 'center',
         originY: 'center',
       });
+      // Fabric canvas boyutundan bağımsız olarak, baskı ve arka plan kaldırma
+      // işlemlerinde her zaman ilk yüklenen tam çözünürlüklü kaynağa dön.
+      (img as SourceBackedImage).sourceUrl = url;
       lockImageProportions(img);
       constrainObjectToArea(img, areaRect);
       cv.add(img);
@@ -1011,7 +1019,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
 
   const saveDesign = useCallback(() => {
     if (!canvasRef.current) return '';
-    const json = JSON.stringify(canvasRef.current.toJSON(['id']));
+    const json = JSON.stringify(canvasRef.current.toJSON(SERIALIZED_OBJECT_PROPS));
     return unproxyJsonUrls(json);
   }, []);
 

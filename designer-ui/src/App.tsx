@@ -61,6 +61,7 @@ type Tab = 'image' | 'text' | 'layers' | 'templates' | 'saved' | null;
 
 type InteractionMode = 'selection' | 'navigation';
 type CanvasSelection = fabric.Object | fabric.ActiveSelection;
+type SourceBackedImage = fabric.Image & { sourceUrl?: string };
 
 interface ObjectState {
   type: 'text' | 'image' | 'curvedText';
@@ -2084,6 +2085,7 @@ export default function App() {
             scaleX: (scaledWidth / nextW) * signX,
             scaleY: (scaledHeight / nextH) * signY,
           } as Partial<fabric.Image>);
+          (selectedImage as SourceBackedImage).sourceUrl = url;
           resolve();
         };
         imgEl.onerror = () => reject(new Error(`Image failed to load: ${proxiedUrl}`));
@@ -2101,8 +2103,13 @@ export default function App() {
     const selectedImage = getSelectedImageObject();
     if (!selectedImage || isBgRemoving) return;
     try {
-      const sourceDataUrl = selectedImage.toDataURL({ format: 'png', multiplier: 2 });
-      const cleanedUrl = await handleRemoveBg(sourceDataUrl);
+      // Canvas üzerindeki görsel çoğu zaman birkaç yüz piksele ölçeklenmiş
+      // durumda. Onu yeniden rasterize etmek baskı kaynağını kalıcı olarak
+      // bulanıklaştırır. Her zaman yüklenen tam çözünürlüklü kaynağı işle.
+      const sourceImage = selectedImage as SourceBackedImage;
+      const sourceUrl = sourceImage.sourceUrl || selectedImage.getSrc();
+      if (!sourceUrl) return;
+      const cleanedUrl = await handleRemoveBg(sourceUrl);
       if (!cleanedUrl) return;
       addUploadedImage({ id: generateId(), dataUrl: cleanedUrl, serverUrl: cleanedUrl, name: t.cleanedLabel, addedAt: Date.now() });
       await applyUrlToImageObject(selectedImage, cleanedUrl);
