@@ -1667,7 +1667,7 @@ export default function App() {
 
   const handleRemoveBg = async (dataUrl: string): Promise<string> => {
     if (!personalization.removeBgAvailable) {
-      showToast(isTurkish ? 'Photoroom API key ayarlanmamış' : 'Photoroom API key is not configured', 'error');
+      showToast(isTurkish ? 'WaveSpeed API anahtarı ayarlanmamış' : 'WaveSpeed API key is not configured', 'error');
       return '';
     }
     setIsBgRemoving(true);
