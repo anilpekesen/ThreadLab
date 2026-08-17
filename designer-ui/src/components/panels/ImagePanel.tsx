@@ -16,13 +16,22 @@ interface Props {
   uploadEndpoint?: string;
   sessionId?: string;
   locale?: string;
+  /**
+   * Mağazanın kendi Kullanım Koşulları adresi — sepete ekle altındaki
+   * bağlantıyla aynı kaynak (shop settings → termsUrl). Mağaza tanımlamadıysa
+   * uygulamanın kendi koşul sayfasına düşülür.
+   */
+  termsUrl?: string;
 }
+
+/** Mağaza kendi koşul adresini tanımlamadıysa kullanılan yedek */
+const DEFAULT_TERMS_URL = 'https://app.printlabapp.com/terms-of-service';
 
 function isTR(locale?: string) {
   return !locale || locale.startsWith('tr');
 }
 
-export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource, shop, uploadEndpoint, sessionId, locale }: Props) {
+export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource, shop, uploadEndpoint, sessionId, locale, termsUrl }: Props) {
   const tr = isTR(locale);
   const { t } = useDesignerI18n(locale);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -117,7 +126,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
               </p>
               <p className="mt-0.5 text-[10px] text-gray-400">
                 {tr ? 'Telif ihlali bildiriminde sipariş durdurulabilir.' : 'Orders may be stopped if a copyright claim is filed.'}{' '}
-                <a href="https://app.printlabapp.com/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{tr ? 'Koşullar' : 'Terms'}</a>
+                <a href={termsUrl || DEFAULT_TERMS_URL} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{tr ? 'Koşullar' : 'Terms'}</a>
               </p>
             </div>
           </label>

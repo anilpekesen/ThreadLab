@@ -3287,6 +3287,7 @@ export default function App() {
                         uploadEndpoint={config?.uploadEndpoint}
                         sessionId={getBgSessionId()}
                         locale={config?.locale}
+                        termsUrl={personalization.termsUrl}
                       />
                     </Suspense>
                   )}
