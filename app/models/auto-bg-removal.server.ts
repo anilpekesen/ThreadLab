@@ -8,6 +8,7 @@ import { checkAndIncrementBgRemoval } from "~/models/bg-removal-usage.server";
 import { getUploadsDir } from "~/lib/storage.server";
 import { uploadToR2 } from "~/lib/r2.server";
 import { cleanupCutoutEdges } from "~/lib/image-matting.server";
+import { tryFlatArtKeying } from "~/lib/flat-art-key.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const WAVESPEED_MODEL = "ideogram-ai/remove-background";
@@ -19,7 +20,17 @@ async function removeBackground(apiKey: string, imageUrl: string): Promise<Buffe
   const imgRes = await fetch(imageUrl);
   if (!imgRes.ok) throw new Error(`Could not fetch image (${imgRes.status}): ${imageUrl}`);
   const bytes = await imgRes.arrayBuffer();
-  const b64 = Buffer.from(bytes).toString("base64");
+  const sourceBuffer = Buffer.from(bytes);
+
+  // Düz zeminli yazı/çizim ise yerel anahtarlama — AI bu sınıfta harf
+  // gözlerini dolduruyor (bkz. flat-art-key.server.ts)
+  const flatArt = await tryFlatArtKeying(sourceBuffer).catch(() => null);
+  if (flatArt) {
+    console.log(`[auto-bg] flat-art keying: ${imageUrl}`);
+    return flatArt.buffer;
+  }
+
+  const b64 = sourceBuffer.toString("base64");
   const mime = imgRes.headers.get("content-type") || "image/png";
   const dataUrl = `data:${mime};base64,${b64}`;
 

@@ -7,6 +7,7 @@ import { getTestStoreLimits } from "~/models/test-store-limits.server";
 import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
 import { trackAnalyticsEvent } from "~/models/analytics.server";
 import { cleanupCutoutEdges } from "~/lib/image-matting.server";
+import { tryFlatArtKeying } from "~/lib/flat-art-key.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const WAVESPEED_MODEL = "ideogram-ai/remove-background";
@@ -167,27 +168,50 @@ export async function handleWaveSpeedRemoveBackground(
   }
 
   const bytes = await file.arrayBuffer();
-  const b64 = Buffer.from(bytes).toString("base64");
+  const sourceBytes = Buffer.from(bytes);
   const mimeType = file.type || "image/png";
-  const imageDataUrl = `data:${mimeType};base64,${b64}`;
 
-  let outputUrl: string;
-  try {
-    outputUrl = await removeBackground(apiKey, imageDataUrl);
-  } catch (err) {
-    console.error("[remove-bg]", err);
-    return json({ error: String(err) }, { status: 500 });
-  }
+  // Düz zeminli yazı/çizim tasarımlarında AI segmentasyonu harflerin içindeki
+  // boşlukları dolduruyor ve ince çizgileri aşındırıyor. Bu görselleri yerel
+  // renk anahtarlamayla işliyoruz: harf gözleri doğru deliniyor, kenarda hale
+  // kalmıyor, üstelik anında ve API çağrısı olmadan.
+  let imageBytes: Buffer | null = null;
+  let method: "flat-art-key" | "ai" = "ai";
 
-  const imageRes = await fetch(outputUrl);
-  if (!imageRes.ok) {
-    return json({ error: "Could not download result image" }, { status: 502 });
-  }
-  const rawBytes = Buffer.from(await imageRes.arrayBuffer());
-  const imageBytes = await cleanupCutoutEdges(rawBytes).catch((err) => {
-    console.error("[remove-bg] cleanupCutoutEdges failed, ham çıktı kullanılıyor:", err);
-    return rawBytes;
+  const flatArt = await tryFlatArtKeying(sourceBytes).catch((err) => {
+    console.error("[remove-bg] flat-art anahtarlama denemesi başarısız:", err);
+    return null;
   });
+
+  if (flatArt) {
+    imageBytes = flatArt.buffer;
+    method = "flat-art-key";
+    console.log(
+      `[remove-bg] flat-art keying: bg=${flatArt.analysis.bg.join(",")} ` +
+      `uniformity=${flatArt.analysis.uniformity.toFixed(3)} ` +
+      `ambiguous=${(flatArt.analysis.ambiguousRatio * 100).toFixed(2)}% ` +
+      `transparent=${(flatArt.transparentRatio * 100).toFixed(1)}%`,
+    );
+  } else {
+    const imageDataUrl = `data:${mimeType};base64,${sourceBytes.toString("base64")}`;
+    let outputUrl: string;
+    try {
+      outputUrl = await removeBackground(apiKey, imageDataUrl);
+    } catch (err) {
+      console.error("[remove-bg]", err);
+      return json({ error: String(err) }, { status: 500 });
+    }
+
+    const imageRes = await fetch(outputUrl);
+    if (!imageRes.ok) {
+      return json({ error: "Could not download result image" }, { status: 502 });
+    }
+    const rawBytes = Buffer.from(await imageRes.arrayBuffer());
+    imageBytes = await cleanupCutoutEdges(rawBytes).catch((err) => {
+      console.error("[remove-bg] cleanupCutoutEdges failed, ham çıktı kullanılıyor:", err);
+      return rawBytes;
+    });
+  }
 
   trackAnalyticsEvent({
     shop,
@@ -197,12 +221,14 @@ export async function handleWaveSpeedRemoveBackground(
     metadata: {
       filename: file.name,
       mimeType,
+      method,
     },
   }).catch((err) => console.error("[analytics] background_removed failed:", err));
 
   const headers: Record<string, string> = {
     "Cache-Control": "no-store",
     "Content-Type": "image/png",
+    "X-BG-Method": method,
   };
   if (quotaRemaining !== null) {
     headers["X-BG-Quota-Remaining"] = String(quotaRemaining);
