@@ -61,7 +61,7 @@ type Tab = 'image' | 'text' | 'layers' | 'templates' | 'saved' | null;
 
 type InteractionMode = 'selection' | 'navigation';
 type CanvasSelection = fabric.Object | fabric.ActiveSelection;
-type SourceBackedImage = fabric.Image & { sourceUrl?: string };
+type SourceBackedImage = fabric.Image & { sourceUrl?: string; backgroundRemoved?: boolean };
 
 interface ObjectState {
   type: 'text' | 'image' | 'curvedText';
@@ -1547,7 +1547,11 @@ export default function App() {
     syncLayers();
   }, [syncLayers, updateToolbarPosition]);
 
-  const handleAddImage = async (url: string, template?: import('@/types').ShopTemplate) => {
+  const handleAddImage = async (
+    url: string,
+    template?: import('@/types').ShopTemplate,
+    opts?: { backgroundRemoved?: boolean },
+  ) => {
     let finalUrl = url;
     // Data URL (base64) ise önce sunucuya yükle — canvas'ta base64 tutmak
     // saveDesign JSON'ını şişirir ve localStorage kotasını aşar (tasarım uçar).
@@ -1563,7 +1567,7 @@ export default function App() {
     const cv = canvasHandle?.getCanvas();
     setInteractionMode('selection');
     if (cv) cv.selection = true;
-    canvasHandle?.addImageFromUrl(finalUrl);
+    canvasHandle?.addImageFromUrl(finalUrl, opts);
     trackDesignActivity(template ? 'shop_template' : 'image');
     if (template) {
       trackDesignerEvent({
@@ -2107,16 +2111,21 @@ export default function App() {
       // durumda. Onu yeniden rasterize etmek baskı kaynağını kalıcı olarak
       // bulanıklaştırır. Her zaman yüklenen tam çözünürlüklü kaynağı işle.
       const sourceImage = selectedImage as SourceBackedImage;
+      if (sourceImage.backgroundRemoved) {
+        showToast(isTurkish ? 'Bu görselin arka planı zaten kaldırılmış' : 'This image already has its background removed', 'warning');
+        return;
+      }
       const sourceUrl = sourceImage.sourceUrl || selectedImage.getSrc();
       if (!sourceUrl) return;
       const cleanedUrl = await handleRemoveBg(sourceUrl);
       if (!cleanedUrl) return;
-      addUploadedImage({ id: generateId(), dataUrl: cleanedUrl, serverUrl: cleanedUrl, name: t.cleanedLabel, addedAt: Date.now() });
+      sourceImage.backgroundRemoved = true;
+      addUploadedImage({ id: generateId(), dataUrl: cleanedUrl, serverUrl: cleanedUrl, name: t.cleanedLabel, addedAt: Date.now(), backgroundRemoved: true });
       await applyUrlToImageObject(selectedImage, cleanedUrl);
     } catch {
       showToast(t.errorBgSelected, 'error');
     }
-  }, [addUploadedImage, applyUrlToImageObject, getSelectedImageObject, handleRemoveBg, isBgRemoving, showToast]);
+  }, [addUploadedImage, applyUrlToImageObject, getSelectedImageObject, handleRemoveBg, isBgRemoving, isTurkish, showToast]);
 
   const openCropForSelectedImage = useCallback(() => {
     const selectedImage = getSelectedImageObject();
@@ -3270,7 +3279,7 @@ export default function App() {
                   {activeTab === 'image' && (
                     <Suspense fallback={<PanelLoading isTurkish={isTurkish} />}>
                       <ImagePanel
-                        onAddImage={handleAddImage}
+                        onAddImage={(url, opts) => handleAddImage(url, undefined, opts)}
                         onRemoveBg={handleRemoveBg}
                         canRemoveBg={personalization.removeBgAvailable}
                         activeSource={imageActiveSource}
@@ -3724,15 +3733,21 @@ export default function App() {
                       </button>
                       <button
                         onClick={removeBgFromSelectedImage}
-                        disabled={isActiveSelection(selectedObj) || !isImageSelection(selectedObj) || isBgRemoving}
-                        title={t.imageRemoveBg}
+                        disabled={isActiveSelection(selectedObj) || !isImageSelection(selectedObj) || isBgRemoving || Boolean((selectedObj as SourceBackedImage | null)?.backgroundRemoved)}
+                        title={(selectedObj as SourceBackedImage | null)?.backgroundRemoved
+                          ? (isTurkish ? 'Arka plan zaten kaldırılmış' : 'Background already removed')
+                          : t.imageRemoveBg}
                         className={cn(
                           'group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors',
-                          isActiveSelection(selectedObj) || !isImageSelection(selectedObj) || isBgRemoving ? 'cursor-not-allowed opacity-35' : 'hover:bg-gray-50',
+                          isActiveSelection(selectedObj) || !isImageSelection(selectedObj) || isBgRemoving || Boolean((selectedObj as SourceBackedImage | null)?.backgroundRemoved) ? 'cursor-not-allowed opacity-35' : 'hover:bg-gray-50',
                         )}
                       >
                         <Sparkles className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
-                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">{t.toolbarBgRemove}</span>
+                        <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">
+                          {(selectedObj as SourceBackedImage | null)?.backgroundRemoved
+                            ? (isTurkish ? 'BG Silindi' : 'BG Removed')
+                            : t.toolbarBgRemove}
+                        </span>
                       </button>
                       <button
                         onClick={deleteSelected}

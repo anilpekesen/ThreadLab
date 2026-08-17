@@ -106,6 +106,31 @@ export async function handleWaveSpeedRemoveBackground(
     return json({ error: "image_file is required" }, { status: 400 });
   }
 
+  // Saydamlığı kota kontrollerinden ÖNCE incele. Arka planı daha önce
+  // kaldırılmış bir görsel doğrudan endpoint'e tekrar gönderilse bile ne
+  // müşteri hakkı ne IP hakkı ne de mağaza kotası tüketilsin.
+  const bytes = await file.arrayBuffer();
+  const sourceBytes = Buffer.from(bytes);
+  const mimeType = file.type || "image/png";
+  const alreadyTransparent = await hasMeaningfulTransparency(sourceBytes).catch(() => false);
+  if (alreadyTransparent) {
+    const meta = await sharp(sourceBytes, { limitInputPixels: false }).metadata();
+    let output = sharp(sourceBytes, { limitInputPixels: false })
+      .rotate()
+      .png({ compressionLevel: 6, adaptiveFiltering: true });
+    if (meta.density) output = output.withMetadata({ density: meta.density });
+    const imageBytes = await output.toBuffer();
+    return new Response(new Uint8Array(imageBytes), {
+      headers: {
+        "Cache-Control": "no-store",
+        "Content-Type": "image/png",
+        "X-BG-Method": "already-transparent",
+        "X-BG-Source-Size": `${meta.width ?? 0}x${meta.height ?? 0}`,
+        "X-BG-Skipped": "already-transparent",
+      },
+    });
+  }
+
   const [globalSettings, shopSettings] = await Promise.all([
     getGlobalSettings(),
     getShopSettings(shop),
@@ -170,10 +195,6 @@ export async function handleWaveSpeedRemoveBackground(
     );
   }
 
-  const bytes = await file.arrayBuffer();
-  const sourceBytes = Buffer.from(bytes);
-  const mimeType = file.type || "image/png";
-
   // Düz zeminli yazı/çizim tasarımlarında AI segmentasyonu harflerin içindeki
   // boşlukları dolduruyor ve ince çizgileri aşındırıyor. Bu görselleri yerel
   // renk anahtarlamayla işliyoruz: harf gözleri doğru deliniyor, kenarda hale
@@ -183,21 +204,12 @@ export async function handleWaveSpeedRemoveBackground(
   let sourceSize = "";
   let modelSize = "";
 
-  const alreadyTransparent = await hasMeaningfulTransparency(sourceBytes).catch(() => false);
-  const flatArt = alreadyTransparent ? null : await tryFlatArtKeying(sourceBytes).catch((err) => {
+  const flatArt = await tryFlatArtKeying(sourceBytes).catch((err) => {
     console.error("[remove-bg] flat-art anahtarlama denemesi başarısız:", err);
     return null;
   });
 
-  if (alreadyTransparent) {
-    const meta = await sharp(sourceBytes, { limitInputPixels: false }).metadata();
-    sourceSize = `${meta.width ?? 0}x${meta.height ?? 0}`;
-    imageBytes = await sharp(sourceBytes, { limitInputPixels: false })
-      .rotate()
-      .png({ compressionLevel: 6, adaptiveFiltering: true })
-      .toBuffer();
-    method = "already-transparent";
-  } else if (flatArt) {
+  if (flatArt) {
     imageBytes = flatArt.buffer;
     method = "flat-art-key";
     const meta = await sharp(sourceBytes, { limitInputPixels: false }).metadata();

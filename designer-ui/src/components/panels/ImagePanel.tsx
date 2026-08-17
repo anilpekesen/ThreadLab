@@ -8,7 +8,7 @@ import { useDesignerI18n } from '../../i18n';
 const CONSENT_KEY = 'printlab_image_rights_accepted';
 
 interface Props {
-  onAddImage: (url: string) => void;
+  onAddImage: (url: string, opts?: { backgroundRemoved?: boolean }) => void;
   onRemoveBg: (url: string) => Promise<string>;
   canRemoveBg: boolean;
   activeSource: 'upload' | 'qr' | 'ai';
@@ -224,8 +224,8 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                   onClick={async () => {
                     const url = pendingUrl; setPendingUrl(null);
                     const result = await onRemoveBg(url);
-                    if (result) addUploadedImage({ id: generateId(), dataUrl: result, serverUrl: result, name: tr ? 'Temizlenmiş' : 'Cleaned', addedAt: Date.now() });
-                    onAddImage(result || url);
+                    if (result) addUploadedImage({ id: generateId(), dataUrl: result, serverUrl: result, name: tr ? 'Temizlenmiş' : 'Cleaned', addedAt: Date.now(), backgroundRemoved: true });
+                    onAddImage(result || url, result ? { backgroundRemoved: true } : undefined);
                   }}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
@@ -272,8 +272,8 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                         {tr ? 'Ekle' : 'Add'}
                       </button>
                       {canRemoveBg && (
-                        <button disabled={isBgRemoving} onClick={async () => { const r = await onRemoveBg(img.serverUrl ?? img.dataUrl); if (r) { addUploadedImage({ id: generateId(), dataUrl: r, serverUrl: r, name: `${img.name} ✦`, addedAt: Date.now() }); onAddImage(r); } }} className="w-[80%] rounded-lg bg-white/20 py-1.5 text-xs font-semibold text-white hover:bg-white/30 disabled:opacity-40">
-                          {tr ? 'BG Kaldır' : 'Remove BG'}
+                        <button disabled={isBgRemoving || img.backgroundRemoved} onClick={async () => { const r = await onRemoveBg(img.serverUrl ?? img.dataUrl); if (r) { addUploadedImage({ id: generateId(), dataUrl: r, serverUrl: r, name: `${img.name} ✦`, addedAt: Date.now(), backgroundRemoved: true }); onAddImage(r, { backgroundRemoved: true }); } }} className="w-[80%] rounded-lg bg-white/20 py-1.5 text-xs font-semibold text-white hover:bg-white/30 disabled:opacity-40">
+                          {img.backgroundRemoved ? (tr ? 'BG Silindi' : 'BG Removed') : (tr ? 'BG Kaldır' : 'Remove BG')}
                         </button>
                       )}
                       <button onClick={() => removeUploadedImage(img.id)} className="rounded-lg bg-red-500/80 p-1.5 text-white hover:bg-red-500">
@@ -288,7 +288,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                         {tr ? 'Ekle' : 'Add'}
                       </button>
                       {canRemoveBg && (
-                        <button disabled={isBgRemoving} onClick={async () => { const r = await onRemoveBg(img.serverUrl ?? img.dataUrl); if (r) { addUploadedImage({ id: generateId(), dataUrl: r, serverUrl: r, name: `${img.name} ✦`, addedAt: Date.now() }); onAddImage(r); } }} className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-600 disabled:opacity-40">
+                        <button disabled={isBgRemoving || img.backgroundRemoved} title={img.backgroundRemoved ? (tr ? 'Arka plan zaten kaldırılmış' : 'Background already removed') : undefined} onClick={async () => { const r = await onRemoveBg(img.serverUrl ?? img.dataUrl); if (r) { addUploadedImage({ id: generateId(), dataUrl: r, serverUrl: r, name: `${img.name} ✦`, addedAt: Date.now(), backgroundRemoved: true }); onAddImage(r, { backgroundRemoved: true }); } }} className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-600 disabled:opacity-40">
                           <Sparkles className="h-3.5 w-3.5" />
                         </button>
                       )}

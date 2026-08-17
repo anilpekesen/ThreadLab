@@ -26,7 +26,7 @@ const controlIcons = {
 };
 
 export interface CanvasAreaHandle {
-  addImageFromUrl: (url: string) => void;
+  addImageFromUrl: (url: string, opts?: { backgroundRemoved?: boolean }) => void;
   addSVGClipart: (url: string) => void;
   addText: (text: string, opts?: Partial<fabric.ITextOptions>) => void;
   addCurvedText: (text: string, opts?: Partial<import('@/utils/curvedText').CurvedTextOptions>) => void;
@@ -77,9 +77,9 @@ interface Props {
 }
 
 const HISTORY_LIMIT = 50;
-const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl'];
+const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl', 'backgroundRemoved'];
 
-type SourceBackedImage = fabric.Image & { sourceUrl?: string };
+type SourceBackedImage = fabric.Image & { sourceUrl?: string; backgroundRemoved?: boolean };
 
 function isImageObject(obj: fabric.Object | null | undefined): obj is fabric.Image {
   return obj?.type === 'image';
@@ -127,6 +127,7 @@ function cloneFabricObject(target: fabric.Object) {
   target.clone((cloned: fabric.Object) => {
     const sourceUrl = (target as SourceBackedImage).sourceUrl;
     if (sourceUrl) (cloned as SourceBackedImage).sourceUrl = sourceUrl;
+    (cloned as SourceBackedImage).backgroundRemoved = (target as SourceBackedImage).backgroundRemoved;
     cloned.set({
       left: (cloned.left ?? 0) + 24,
       top: (cloned.top ?? 0) + 24,
@@ -651,7 +652,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     loadBackgroundImage(side === 'front' ? config.frontImage : config.backImage);
   }, [config, side, loadBackgroundImage]);
 
-  const addImageFromUrl = useCallback((url: string) => {
+  const addImageFromUrl = useCallback((url: string, opts?: { backgroundRemoved?: boolean }) => {
     const cv = canvasRef.current;
     if (!cv) return;
     const loadUrl = proxyCrossOriginUrl(url);
@@ -672,6 +673,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       // Fabric canvas boyutundan bağımsız olarak, baskı ve arka plan kaldırma
       // işlemlerinde her zaman ilk yüklenen tam çözünürlüklü kaynağa dön.
       (img as SourceBackedImage).sourceUrl = url;
+      (img as SourceBackedImage).backgroundRemoved = Boolean(opts?.backgroundRemoved);
       lockImageProportions(img);
       constrainObjectToArea(img, areaRect);
       cv.add(img);

@@ -107,6 +107,8 @@ export interface UploadedImage {
   serverUrl?: string;
   name: string;
   addedAt: number;
+  /** Bu dosyanın arka plan kaldırma işleminden geçtiğini belirtir. */
+  backgroundRemoved?: boolean;
 }
 
 export interface ShopTemplate {
