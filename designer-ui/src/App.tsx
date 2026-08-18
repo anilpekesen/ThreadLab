@@ -1051,6 +1051,9 @@ export default function App() {
   const [templateError, setTemplateError] = useState('');
   const [templateAssets, setTemplateAssets] = useState<import('@/components/modals/TemplatePhotoModal').TemplateAssets | null>(null);
   const [templatePhotoFile, setTemplatePhotoFile] = useState<File | null>(null);
+  /** Şablon tişörte kondu ama müşteri henüz fotoğraf eklemedi */
+  const [templateAwaitingPhoto, setTemplateAwaitingPhoto] = useState(false);
+  const templateSeededRef = useRef(false);
   const [selectedObj, setSelectedObj] = useState<CanvasSelection | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
   const [zoom, setZoom] = useState(getAutoZoom);
@@ -1601,8 +1604,19 @@ export default function App() {
     setTemplatePhotoFile(null);
     setTemplateBusy(true);
     try {
+      // Boş şablon yer tutucusunu kaldır — yerine fotoğraflı hali gelecek
+      const cv = getActiveCanvasHandle()?.getCanvas();
+      const placeholder = cv?.getObjects().find(
+        (o) => (o as fabric.Object & { isTemplatePlaceholder?: boolean }).isTemplatePlaceholder,
+      );
+      if (cv && placeholder) {
+        cv.remove(placeholder);
+        cv.requestRenderAll();
+      }
+
       const url = await dataUrlToServerUrl(dataUrl, 'template-design');
       await handleAddImage(url || dataUrl);
+      setTemplateAwaitingPhoto(false);
       setActiveTab(null);
     } catch (err) {
       setTemplateError(String(err));
@@ -1610,6 +1624,36 @@ export default function App() {
       setTemplateBusy(false);
     }
   };
+
+  /**
+   * Şablonlu üründe tasarımı açılışta tişörtün üstüne koyar; kalbin içi boş
+   * kalır ve müşteri "Fotoğrafını ekle" çağrısını görür. Müşterinin panelde
+   * arama yapması gerekmez.
+   */
+  useEffect(() => {
+    const tpl = personalization.templateDesign;
+    if (!tpl?.previewUrl || templateSeededRef.current) return;
+    const handle = frontCanvasRef.current;
+    if (!handle?.getCanvas()) return;
+    templateSeededRef.current = true;
+
+    handle.addImageFromUrl(`/api/img-proxy?url=${encodeURIComponent(tpl.previewUrl)}`);
+    setTemplateAwaitingPhoto(true);
+
+    // fabric görseli asenkron yüklüyor; eklenince yer tutucu olarak işaretle
+    let tries = 0;
+    const mark = window.setInterval(() => {
+      const cv = handle.getCanvas();
+      const last = cv?.getObjects().slice(-1)[0];
+      if (last) {
+        (last as fabric.Object & { isTemplatePlaceholder?: boolean }).isTemplatePlaceholder = true;
+        window.clearInterval(mark);
+      } else if (++tries > 40) {
+        window.clearInterval(mark);
+      }
+    }, 150);
+    return () => window.clearInterval(mark);
+  }, [personalization.templateDesign]);
 
   const handleAddImage = async (
     url: string,
@@ -1800,6 +1844,19 @@ export default function App() {
   };
 
   const handleAddToCart = async () => {
+    // Şablonlu üründe boş kalpli tasarım basılmasın — müşteri fotoğrafını
+    // eklemeden sepete geçerse hem iade hem destek yükü doğuyor.
+    if (templateAwaitingPhoto) {
+      showToast(
+        isTurkish
+          ? 'Önce fotoğrafınızı ekleyin — tasarımın içi boş görünüyor.'
+          : 'Please add your photo first — the design is still empty.',
+        'error',
+      );
+      setActiveTab('image');
+      return;
+    }
+
     // Koşullu mantık: checkout engelleyici kuralları kontrol et
     const checkoutBlockers = blockers(activeRuleResults);
     if (checkoutBlockers.length > 0) {
@@ -3959,6 +4016,33 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {templateAwaitingPhoto && !templatePhotoFile && (
+
+            <button
+
+              type="button"
+
+              onClick={() => templateFileRef.current?.click()}
+
+              disabled={templateBusy}
+
+              className="pointer-events-auto fixed bottom-28 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-2 rounded-full bg-rose-600 px-6 py-3.5 text-sm font-bold text-white shadow-2xl ring-4 ring-rose-600/20 transition hover:bg-rose-700 disabled:opacity-60 md:bottom-10"
+
+            >
+
+              <ImageIcon className="h-4 w-4" />
+
+              {templateBusy
+
+                ? (isTurkish ? 'Hazırlanıyor…' : 'Preparing…')
+
+                : (isTurkish ? 'Fotoğrafını ekle' : 'Add your photo')}
+
+            </button>
+
+          )}
+
 
           {templateAssets && templatePhotoFile && (
 
