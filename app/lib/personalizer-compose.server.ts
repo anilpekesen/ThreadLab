@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import type { TextFieldDef } from "~/models/personalizer.server";
 import { uploadToR2 } from "~/lib/r2.server";
-import { scanTemplateHoles, buildMaskedPhotoLayer } from "~/lib/template-hole.server";
+import { scanTemplateHoles, scanHoleFromPoint, buildMaskedPhotoLayer, punchHoleInTemplate } from "~/lib/template-hole.server";
 
 export interface ComposeOptions {
   templateUrl: string;
@@ -18,6 +18,9 @@ export interface ComposeOptions {
   mockupHeight?: number;
   textFields: TextFieldDef[];
   textValues: Record<string, string>;
+  /** Mağaza sahibinin boşluğa tıkladığı nokta; -1 ise şeffaf delik aranır */
+  holeSeedX?: number;
+  holeSeedY?: number;
   outputFormat?: "png" | "jpeg";
   quality?: number;
 }
@@ -70,6 +73,7 @@ export async function composePersonalizerImage(opts: ComposeOptions): Promise<st
     photoX, photoY, photoWidth, photoHeight,
     mockupUrl, mockupX = 0, mockupY = 0, mockupWidth = 0, mockupHeight = 0,
     textFields, textValues,
+    holeSeedX = -1, holeSeedY = -1,
     outputFormat = "png", quality = 90,
   } = opts;
 
@@ -92,7 +96,11 @@ export async function composePersonalizerImage(opts: ComposeOptions): Promise<st
     // şablonun ALTINA yerleşir; böylece çerçeve, süsleme ve yazılar fotoğrafın
     // üstünde görünür. Delik yoksa eski davranış korunur: dikdörtgen alan,
     // fotoğraf şablonun üstünde.
-    const scan = await scanTemplateHoles(templateBuf).catch((err) => {
+    const useSeed = holeSeedX >= 0 && holeSeedY >= 0;
+    const scan = await (useSeed
+      ? scanHoleFromPoint(templateBuf, holeSeedX, holeSeedY)
+      : scanTemplateHoles(templateBuf)
+    ).catch((err) => {
       console.error("[personalizer] delik taramasi basarisiz, dikdortgen moda dusuluyor:", err);
       return null;
     });
@@ -100,13 +108,18 @@ export async function composePersonalizerImage(opts: ComposeOptions): Promise<st
 
     if (scan && hole) {
       const photoLayer = await buildMaskedPhotoLayer(photoBuf, scan, hole);
-      const composites: sharp.OverlayOptions[] = [{ input: templateBuf }];
+      // Tıklamayla bulunan alanlar opak olabilir; deliği şablondan kesmezsek
+      // şablon fotoğrafı tamamen kapatır.
+      const topLayer = useSeed
+        ? await punchHoleInTemplate(templateBuf, scan, hole)
+        : templateBuf;
+      const composites: sharp.OverlayOptions[] = [{ input: topLayer }];
       if (textFields.length > 0) {
         composites.push({ input: makeTextSvgOverlay(textFields, textValues, templateW, templateH) });
       }
       designBuf = await sharp(photoLayer).composite(composites).png().toBuffer();
       console.log(
-        `[personalizer] maskeli delik kullanildi: ${hole.width}x${hole.height} ` +
+        `[personalizer] maskeli delik (${useSeed ? "tiklama" : "otomatik"}): ${hole.width}x${hole.height} ` +
         `@(${hole.x},${hole.y}) ${hole.pixels}px (toplam ${scan.holes.length} delik)`,
       );
     } else {

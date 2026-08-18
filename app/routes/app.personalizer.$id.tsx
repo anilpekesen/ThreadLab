@@ -88,6 +88,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const photo_width  = parseInt(String(form.get("photo_width") ?? "400"), 10);
     const photo_height = parseInt(String(form.get("photo_height") ?? "400"), 10);
     const ai_style    = String(form.get("ai_style") ?? "caricature");
+    const hole_seed_x = parseInt(String(form.get("hole_seed_x") ?? "-1"), 10);
+    const hole_seed_y = parseInt(String(form.get("hole_seed_y") ?? "-1"), 10);
     const sort_order  = parseInt(String(form.get("sort_order") ?? "0"), 10);
 
     if (!name) return json({ error: "İsim gerekli" }, { status: 400 });
@@ -105,11 +107,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // template_url opsiyonel — sadece çerçeve bazlı kullanımda boş olabilir
 
     if (id === "new") {
-      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, sort_order });
+      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, sort_order });
       // json döndür, client tarafı navigate etsin (Shopify embedded app redirect güvenilmez)
       return json({ redirectTo: `/app/personalizer/${created.id}` });
     } else {
-      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, sort_order });
+      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, sort_order });
       return json({ ok: true });
     }
   }
@@ -212,7 +214,27 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
 interface Rect { x: number; y: number; w: number; h: number }
 
-type EditorMode = { type: "photo" } | { type: "text"; idx: number };
+type EditorMode = { type: "photo" } | { type: "text"; idx: number } | { type: "hole" };
+
+interface HoleDetectResult {
+  found: boolean;
+  message?: string;
+  mode?: string;
+  coverage?: number;
+  hole?: { x: number; y: number; width: number; height: number; pixels: number };
+  maskPreview?: string;
+}
+
+/** Şablonda fotoğrafın gireceği boşluğu sunucuda tespit ettirir. */
+async function detectHole(templateUrl: string, point?: { x: number; y: number }): Promise<HoleDetectResult> {
+  const res = await fetch("/api/personalizer/detect-hole", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ templateUrl, ...(point ?? {}) }),
+  });
+  if (!res.ok) return { found: false, message: `Tespit basarisiz (${res.status})` };
+  return res.json() as Promise<HoleDetectResult>;
+}
 
 function TemplatePhotoEditor({
   imageUrl,
@@ -220,14 +242,20 @@ function TemplatePhotoEditor({
   onPhotoRect,
   textFields,
   onTextPos,
+  holeSeed,
+  onHoleSeed,
 }: {
   imageUrl: string;
   photoRect: Rect;
   onPhotoRect: (r: Rect) => void;
   textFields: TextFieldDef[];
   onTextPos: (idx: number, x: number, y: number) => void;
+  holeSeed: { x: number; y: number };
+  onHoleSeed: (x: number, y: number) => void;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
+  const [holeInfo, setHoleInfo] = useState<HoleDetectResult | null>(null);
+  const [holeBusy, setHoleBusy] = useState(false);
   const [naturalW, setNaturalW] = useState(1);
   const [naturalH, setNaturalH] = useState(1);
   const [dragging, setDragging] = useState(false);
@@ -245,6 +273,16 @@ function TemplatePhotoEditor({
 
   function onMouseDown(e: React.MouseEvent) {
     e.preventDefault();
+    if (mode.type === "hole") {
+      const c = getCoords(e);
+      onHoleSeed(c.x, c.y);
+      setHoleBusy(true);
+      detectHole(imageUrl, { x: c.x, y: c.y })
+        .then(setHoleInfo)
+        .catch((err) => setHoleInfo({ found: false, message: String(err) }))
+        .finally(() => setHoleBusy(false));
+      return;
+    }
     if (mode.type === "text") {
       const c = getCoords(e);
       onTextPos(mode.idx, c.x, c.y);
@@ -282,6 +320,9 @@ function TemplatePhotoEditor({
         <Button size="slim" variant={isPhotoMode ? "primary" : "secondary"} onClick={() => setMode({ type: "photo" })}>
           📷 Fotoğraf alanı çiz
         </Button>
+        <Button size="slim" variant={mode.type === "hole" ? "primary" : "secondary"} onClick={() => setMode({ type: "hole" })}>
+          🎯 Resmin gireceği boşluk
+        </Button>
         {textFields.map((f, idx) => (
           <Button key={f.id} size="slim"
             variant={mode.type === "text" && mode.idx === idx ? "primary" : "secondary"}
@@ -292,7 +333,11 @@ function TemplatePhotoEditor({
         ))}
       </InlineStack>
       <Text as="p" tone="subdued" variant="bodySm">
-        {isPhotoMode ? "Karikatürün yerleştirileceği alana tıklayıp sürükleyin." : `"${textFields[(mode as { type: "text"; idx: number }).idx]?.label}" metninin konumuna tıklayın.`}
+        {mode.type === "hole"
+          ? "Tasarımda fotoğrafın görüneceği BOŞ alana tıklayın. Şeklini sistem kendisi bulur; dikdörtgen çizmenize gerek yok."
+          : isPhotoMode
+            ? "Karikatürün yerleştirileceği alana tıklayıp sürükleyin."
+            : `"${textFields[(mode as { type: "text"; idx: number }).idx]?.label}" metninin konumuna tıklayın.`}
       </Text>
       <div
         style={{ position: "relative", display: "inline-block", cursor: isPhotoMode ? "crosshair" : "cell", userSelect: "none" }}
@@ -316,6 +361,18 @@ function TemplatePhotoEditor({
             </span>
           </div>
         )}
+        {holeInfo?.found && holeInfo.maskPreview && (
+          <img
+            src={holeInfo.maskPreview}
+            alt="Bulunan alan"
+            style={{ position: "absolute", left: 0, top: 0, width: dispW, height: dispH, pointerEvents: "none", zIndex: 5 }}
+          />
+        )}
+        {holeSeed.x >= 0 && holeSeed.y >= 0 && (
+          <div style={{ position: "absolute", left: holeSeed.x * sx, top: holeSeed.y * sy, transform: "translate(-50%,-50%)", pointerEvents: "none", zIndex: 11 }}>
+            <div style={{ width: 14, height: 14, borderRadius: "50%", background: "#6366f1", border: "2px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.4)" }} />
+          </div>
+        )}
         {textFields.map((f, idx) => {
           if (naturalW === 1) return null;
           const isActive = mode.type === "text" && (mode as { type: "text"; idx: number }).idx === idx;
@@ -328,8 +385,30 @@ function TemplatePhotoEditor({
           );
         })}
       </div>
+      {mode.type === "hole" && (
+        <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+          <BlockStack gap="200">
+            {holeBusy && <Text as="p" variant="bodySm">Alan taranıyor…</Text>}
+            {!holeBusy && holeInfo?.found && holeInfo.hole && (
+              <>
+                <Banner tone="success">
+                  {`Alan bulundu: ${holeInfo.hole.width}×${holeInfo.hole.height} px — tasarımın %${holeInfo.coverage ?? 0}'i. Müşterinin fotoğrafı tam bu şekle oturacak.`}
+                </Banner>
+                <Text as="p" tone="subdued" variant="bodySm">Mor alan doğru değilse boşluğun başka bir yerine tıklayın.</Text>
+              </>
+            )}
+            {!holeBusy && holeInfo && !holeInfo.found && (
+              <Banner tone="warning">{holeInfo.message ?? "Alan bulunamadı."}</Banner>
+            )}
+            {!holeBusy && !holeInfo && (
+              <Text as="p" tone="subdued" variant="bodySm">Şablonda fotoğrafın görüneceği boşluğa tıklayın.</Text>
+            )}
+          </BlockStack>
+        </Box>
+      )}
       <Box background="bg-surface-secondary" padding="200" borderRadius="200">
         <Text as="p" variant="bodySm">{`📷 X=${photoRect.x} Y=${photoRect.y} — ${photoRect.w}×${photoRect.h} px`}</Text>
+        {holeSeed.x >= 0 && <Text as="p" variant="bodySm">{`🎯 Boşluk noktası: X=${holeSeed.x} Y=${holeSeed.y}`}</Text>}
         {textFields.map((f, idx) => (
           <Text key={f.id} as="p" variant="bodySm">{`T${idx + 1} ${f.label}: X=${f.x} Y=${f.y}`}</Text>
         ))}
@@ -781,6 +860,10 @@ function PersonalizerEditor() {
     w: template?.photo_width ?? 1600,
     h: template?.photo_height ?? 1600,
   });
+  const [holeSeed, setHoleSeed] = useState({
+    x: template?.hole_seed_x ?? -1,
+    y: template?.hole_seed_y ?? -1,
+  });
   const [aiStyle, setAiStyle] = useState(template?.ai_style ?? "caricature");
   const [sortOrder, setSortOrder] = useState(String(template?.sort_order ?? 0));
   const [textFields, setTextFields] = useState<TextFieldDef[]>(template?.text_fields ?? []);
@@ -807,6 +890,8 @@ function PersonalizerEditor() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     fd.set("text_fields", JSON.stringify(textFields));
+    fd.set("hole_seed_x", String(holeSeed.x));
+    fd.set("hole_seed_y", String(holeSeed.y));
     fd.set("photo_x", String(photoRect.x));
     fd.set("photo_y", String(photoRect.y));
     fd.set("photo_width", String(photoRect.w));
@@ -871,6 +956,8 @@ function PersonalizerEditor() {
           <form onSubmit={handleSubmit} encType="multipart/form-data">
             <input type="hidden" name="intent" value="save" />
             <input type="hidden" name="existing_template_url" value={template?.template_url ?? ""} />
+            <input type="hidden" name="hole_seed_x" value={holeSeed.x} readOnly />
+            <input type="hidden" name="hole_seed_y" value={holeSeed.y} readOnly />
             <input type="hidden" name="photo_x" value={photoRect.x} readOnly />
             <input type="hidden" name="photo_y" value={photoRect.y} readOnly />
             <input type="hidden" name="photo_width" value={photoRect.w} readOnly />
@@ -925,6 +1012,8 @@ function PersonalizerEditor() {
                       onPhotoRect={setPhotoRect}
                       textFields={textFields}
                       onTextPos={handleTextPos}
+                      holeSeed={holeSeed}
+                      onHoleSeed={(x, y) => setHoleSeed({ x, y })}
                     />
                   </BlockStack>
                 </Card>

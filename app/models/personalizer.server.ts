@@ -31,6 +31,9 @@ export interface PersonalizerTemplate {
   mockup_height: number;
   text_fields: TextFieldDef[];
   ai_style: string;
+  /** Fotoğrafın gireceği boşluğa tıklanan nokta; -1 ise şeffaf delik aranır */
+  hole_seed_x: number;
+  hole_seed_y: number;
   active: boolean;
   sort_order: number;
   created_at: string;
@@ -81,6 +84,8 @@ export interface CreatePersonalizerTemplateInput {
   mockup_height?: number;
   text_fields?: TextFieldDef[];
   ai_style?: string;
+  hole_seed_x?: number;
+  hole_seed_y?: number;
   sort_order?: number;
 }
 
@@ -91,8 +96,8 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
        (id, shop, name, description, template_url, mockup_url,
         photo_x, photo_y, photo_width, photo_height,
         mockup_x, mockup_y, mockup_width, mockup_height,
-        text_fields, ai_style, sort_order)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+        text_fields, ai_style, hole_seed_x, hole_seed_y, sort_order)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      RETURNING *`,
     [
       id, input.shop, input.name, input.description ?? "",
@@ -101,6 +106,8 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
       input.mockup_x ?? 0, input.mockup_y ?? 0, input.mockup_width ?? 0, input.mockup_height ?? 0,
       JSON.stringify(input.text_fields ?? []),
       input.ai_style ?? "caricature",
+      input.hole_seed_x ?? -1,
+      input.hole_seed_y ?? -1,
       input.sort_order ?? 0,
     ],
   );
@@ -108,6 +115,8 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
 }
 
 export interface UpdatePersonalizerTemplateInput {
+  hole_seed_x?: number;
+  hole_seed_y?: number;
   name?: string;
   description?: string;
   template_url?: string;

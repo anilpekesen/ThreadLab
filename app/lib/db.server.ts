@@ -581,6 +581,11 @@ async function _runMigrationsLocked() {
   // tasarım JSON'ındaki src'yi işlenmiş dosyayla değiştirdiği için orijinal
   // adres kayboluyordu; yeniden işleme ve müşteri talepleri için saklanıyor.
   await query(`ALTER TABLE designs ADD COLUMN IF NOT EXISTS original_image_urls JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  // Şablonda fotoğrafın gireceği boşluğa mağaza sahibinin tıkladığı nokta.
+  // -1 = tıklanmadı; o zaman şeffaf delik otomatik aranır.
+  await query(`ALTER TABLE personalizer_templates
+    ADD COLUMN IF NOT EXISTS hole_seed_x INTEGER NOT NULL DEFAULT -1,
+    ADD COLUMN IF NOT EXISTS hole_seed_y INTEGER NOT NULL DEFAULT -1`);
   await query(`
     CREATE TABLE IF NOT EXISTS cliparts (
       id          TEXT PRIMARY KEY,

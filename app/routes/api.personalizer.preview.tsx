@@ -98,6 +98,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         mockupHeight: frame?.mockup_height ?? 0,
         textFields: activeTextFields,
         textValues,
+        holeSeedX: template.hole_seed_x,
+        holeSeedY: template.hole_seed_y,
       });
       return { frameId: frame?.id ?? null, frameName: t.frameName(frame?.name), previewUrl };
     }));
