@@ -31,6 +31,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     frontPrintUrl: typeof b.frontPrintUrl === "string" ? b.frontPrintUrl : undefined,
     backPrintUrl: typeof b.backPrintUrl === "string" ? b.backPrintUrl : undefined,
     previewIssue: b.previewIssue === true,
+    // Şablonlu üründe kompozisyon tarayıcıda yapıldığı için müşterinin ham
+    // fotoğrafı tasarım JSON'ında görünmüyor; istemci ayrıca gönderiyor.
+    originalImageUrls: Array.isArray(b.originalImageUrls)
+      ? (b.originalImageUrls as unknown[]).filter((u): u is string => typeof u === "string" && u.startsWith("http"))
+      : undefined,
   });
 
   await trackAnalyticsEvent({

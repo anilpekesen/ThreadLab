@@ -94,7 +94,8 @@ export async function getDesignByToken(shop: string, token: string): Promise<Des
 }
 
 /** İşlenmiş (arka planı kaldırılmış) çıktıların adres desenleri */
-const PROCESSED_SRC_PATTERNS = ["/auto-bg/", "auto-bg-", "/bg-removed/"];
+// template-design: şablon + fotoğraf birleşimi — ham yükleme değil
+const PROCESSED_SRC_PATTERNS = ["/auto-bg/", "auto-bg-", "/bg-removed/", "/template-design/"];
 
 function isProcessedSrc(url: string): boolean {
   return PROCESSED_SRC_PATTERNS.some((p) => url.includes(p));

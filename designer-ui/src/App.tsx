@@ -1052,6 +1052,10 @@ export default function App() {
   const [templateAssets, setTemplateAssets] = useState<import('@/components/modals/TemplatePhotoModal').TemplateAssets | null>(null);
   const [templatePhotoFile, setTemplatePhotoFile] = useState<File | null>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  /** Müşterinin şablon için yüklediği HAM fotoğrafların sunucu adresleri.
+   *  Kompozisyon tarayıcıda yapıldığı için bunlar tasarım JSON'ında yer
+   *  almıyor; baskı ekibinin orijinale ulaşabilmesi için ayrıca saklanıyor. */
+  const [templateOriginalUrls, setTemplateOriginalUrls] = useState<string[]>([]);
   /** Şablon tişörte kondu ama müşteri henüz fotoğraf eklemedi */
   const [templateAwaitingPhoto, setTemplateAwaitingPhoto] = useState(false);
   const templateSeededRef = useRef(false);
@@ -1575,6 +1579,25 @@ export default function App() {
    * Şablonlu üründe fotoğraf penceresini açar. Şablon ve maske bir kez
    * alınır; pencere fotoğraf seçimini ve yerleştirmeyi kendi içinde yürütür.
    */
+  /**
+   * Ham fotoğrafı sunucuya yükler. Müşteriyi bekletmemek için arka planda
+   * çalışır; başarısız olursa akış aksamaz, yalnızca orijinal kaydedilemez.
+   */
+  const uploadTemplateOriginal = async (file: File) => {
+    if (!config?.uploadEndpoint) return;
+    try {
+      const form = new FormData();
+      form.append('image', file, file.name || 'template-original.png');
+      form.append('side', 'user-upload');
+      const res = await fetch(config.uploadEndpoint, { method: 'POST', body: form });
+      if (!res.ok) return;
+      const data = await res.json() as { url?: string };
+      if (data.url) setTemplateOriginalUrls((prev) => (prev.includes(data.url!) ? prev : [...prev, data.url!]));
+    } catch {
+      /* orijinal yüklenemedi — tasarım akışını durdurmuyoruz */
+    }
+  };
+
   const openTemplateModal = async () => {
     if (!config?.shop || !config?.productId) return;
     setTemplateError('');
@@ -2051,6 +2074,7 @@ export default function App() {
           backPreviewUrl,
           frontPrintUrl,
           backPrintUrl,
+          originalImageUrls: templateOriginalUrls,
         }),
       }).then((r) => r.json());
 
@@ -4014,7 +4038,7 @@ export default function App() {
                   isTurkish={isTurkish}
                   termsUrl={personalization.termsUrl}
                   onCancel={() => { setTemplateModalOpen(false); setTemplatePhotoFile(null); }}
-                  onPickFile={(f) => setTemplatePhotoFile(f)}
+                  onPickFile={(f) => { setTemplatePhotoFile(f); void uploadTemplateOriginal(f); }}
                   onConfirm={handleTemplateConfirm}
                 />
               </Suspense>
