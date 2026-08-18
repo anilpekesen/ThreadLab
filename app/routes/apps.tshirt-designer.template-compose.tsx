@@ -6,6 +6,10 @@ import {
 import sharp from "sharp";
 import { uploadToR2 } from "~/lib/r2.server";
 import { getPersonalizerTemplateByProduct } from "~/models/personalizer.server";
+import { composeScatterDesign } from "~/lib/scatter-compose.server";
+import { findConfigForStorefront } from "~/models/product-config.server";
+import { getGlobalSettings } from "~/models/global-settings.server";
+import { getShopSettings } from "~/models/shop-settings.server";
 import {
   scanTemplateHoles,
   scanHoleFromPoint,
@@ -54,8 +58,69 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const template = await getPersonalizerTemplateByProduct(shop, productId);
-    if (!template?.template_url) {
+    if (!template) {
       return json({ error: "Bu ürüne bağlı şablon yok" }, { status: 404, headers: CORS });
+    }
+
+    // ── Dağıtımlı şablon ────────────────────────────────────────────────
+    if (template.layout_mode === "scatter") {
+      const photoBuf = Buffer.from(await photo.arrayBuffer());
+
+      let textValues: Record<string, string> = {};
+      try { textValues = JSON.parse(String(form.get("textValues") ?? "{}")); } catch { /* yoksay */ }
+
+      // Baskı alanı üründen: gerçek mm ölçüsü 300 DPI'da piksele çevrilir
+      const productConfig = await findConfigForStorefront(shop, productId, "").catch(() => null);
+      const areas = productConfig?.printAreas ?? [];
+      const front = areas.find((a) => a.side === "front") ?? areas[0];
+      const mmToPx = (mm: number) => Math.max(300, Math.round((mm / 25.4) * 300));
+      const areaWidth = front?.realWidthMm ? mmToPx(front.realWidthMm) : 2400;
+      const areaHeight = front?.realHeightMm ? mmToPx(front.realHeightMm) : 1650;
+
+      const [globalSettings, shopSettings] = await Promise.all([
+        getGlobalSettings(), getShopSettings(shop),
+      ]);
+      const wavespeedKey = (process.env.WAVESPEED_API_KEY
+        || shopSettings.wavespeedApiKey || globalSettings.wavespeedApiKey)?.trim();
+
+      let decoration: Buffer | null = null;
+      if (template.decoration_url) {
+        const decRes = await fetch(template.decoration_url, { signal: AbortSignal.timeout(20_000) }).catch(() => null);
+        if (decRes?.ok) decoration = Buffer.from(await decRes.arrayBuffer());
+      }
+
+      const result = await composeScatterDesign({
+        photo: photoBuf,
+        decoration,
+        areaWidth,
+        areaHeight,
+        config: template.scatter_config as never,
+        textFields: template.text_fields ?? [],
+        textValues,
+        wavespeedKey,
+      });
+
+      const url = await uploadToR2(result.buffer, "png", "uploads/template-design");
+      console.log(
+        `[template-compose] scatter ${template.name}: ${areaWidth}x${areaHeight}, ` +
+        `${result.placed.faces} kafa + ${result.placed.decorations} susleme, ` +
+        `kafa ${result.headDetected ? "vision" : "tahmin"} -> ${url}`,
+      );
+      return json(
+        {
+          url,
+          width: areaWidth,
+          height: areaHeight,
+          templateName: template.name,
+          headDetected: result.headDetected,
+          placed: result.placed,
+        },
+        { headers: CORS },
+      );
+    }
+
+    if (!template.template_url) {
+      return json({ error: "Şablon görseli yüklenmemiş" }, { status: 404, headers: CORS });
     }
 
     const tplRes = await fetch(template.template_url, { signal: AbortSignal.timeout(20_000) });

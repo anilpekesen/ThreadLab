@@ -34,6 +34,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return json({ error: "Bu ürüne bağlı şablon yok" }, { status: 404, headers: CORS });
   }
 
+  // Dağıtımlı şablonda tasarım dosyası yok: müşteriye yalnızca tip, metin
+  // alanları ve süsleme önizlemesi gerekir. Delik taramasına gerek yok.
+  if (template.layout_mode === "scatter") {
+    return json(
+      {
+        templateId: template.id,
+        templateName: template.name,
+        layoutMode: "scatter" as const,
+        decorationUrl: template.decoration_url || null,
+        textFields: (template.text_fields ?? []).map((f) => ({
+          id: f.id,
+          label: f.label,
+          placeholder: f.placeholder,
+          maxLength: f.max_length,
+        })),
+      },
+      { headers: { ...CORS, "Cache-Control": "public, max-age=300" } },
+    );
+  }
+
   let templateBuf: Buffer;
   try {
     const res = await fetch(template.template_url, { signal: AbortSignal.timeout(20_000) });
@@ -74,6 +94,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     {
       templateId: template.id,
       templateName: template.name,
+      layoutMode: "mask" as const,
       templateUrl: template.template_url,
       width: scan.width,
       height: scan.height,

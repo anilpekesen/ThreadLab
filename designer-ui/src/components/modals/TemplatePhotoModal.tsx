@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+/** Maskeli şablon varlıkları (fotoğraf tasarımın boşluğuna girer) */
 export interface TemplateAssets {
   templateName: string;
+  layoutMode?: "mask";
   templateUrl: string;
   width: number;
   height: number;

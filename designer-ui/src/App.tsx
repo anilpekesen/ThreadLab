@@ -54,6 +54,7 @@ import { evaluateRules, warnings, blockers, type RuleResult } from '@/utils/cond
 
 const ImagePanel = lazy(() => import('@/components/panels/ImagePanel'));
 const TemplatePhotoModal = lazy(() => import('@/components/modals/TemplatePhotoModal'));
+const TemplateScatterModal = lazy(() => import('@/components/modals/TemplateScatterModal'));
 const TextPanel = lazy(() => import('@/components/panels/TextPanel'));
 const TemplatesPanel = lazy(() => import('@/components/panels/TemplatesPanel'));
 const SavedPanel = lazy(() => import('@/components/panels/SavedPanel'));
@@ -1049,7 +1050,7 @@ export default function App() {
   const [imageActiveSource, setImageActiveSource] = useState<'upload' | 'qr' | 'ai'>('upload');
   const [templateBusy, setTemplateBusy] = useState(false);
   const [templateError, setTemplateError] = useState('');
-  const [templateAssets, setTemplateAssets] = useState<import('@/components/modals/TemplatePhotoModal').TemplateAssets | null>(null);
+  const [templateAssets, setTemplateAssets] = useState<Record<string, unknown> | null>(null);
   const [templatePhotoFile, setTemplatePhotoFile] = useState<File | null>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   /** Müşterinin şablon için yüklediği HAM fotoğrafların sunucu adresleri.
@@ -1598,6 +1599,24 @@ export default function App() {
     }
   };
 
+  /** Dağıtımlı şablonda fotoğraf + yazıları sunucuya gönderip sonucu alır */
+  const renderScatterDesign = async (file: File, textValues: Record<string, string>): Promise<string> => {
+    if (!config?.shop || !config?.productId) throw new Error('Ürün bilgisi yok');
+    const fd = new FormData();
+    fd.append('photo', file);
+    fd.append('shop', config.shop);
+    fd.append('productId', String(config.productId).split('/').pop() ?? '');
+    fd.append('textValues', JSON.stringify(textValues));
+
+    const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
+    const data = await res.json() as { url?: string; error?: string };
+    if (!res.ok || !data.url) {
+      throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
+    }
+    void uploadTemplateOriginal(file);   // ham fotoğraf baskı ekibi için saklanır
+    return data.url;
+  };
+
   const openTemplateModal = async () => {
     if (!config?.shop || !config?.productId) return;
     setTemplateError('');
@@ -1612,7 +1631,7 @@ export default function App() {
       });
       const res = await fetch(`/apps/tshirt-designer/template-assets?${params}`);
       const data = await res.json();
-      if (!res.ok || !data?.maskDataUrl) {
+      if (!res.ok || (!data?.maskDataUrl && data?.layoutMode !== 'scatter')) {
         setTemplateError(data?.error || (isTurkish ? 'Şablon yüklenemedi' : 'Could not load the template'));
         setTemplateModalOpen(false);
         return;
@@ -4031,9 +4050,29 @@ export default function App() {
 
 
           {templateModalOpen && templateAssets && (
-              <Suspense fallback={null}>
+            <Suspense fallback={null}>
+              {templateAssets.layoutMode === 'scatter' ? (
+                <TemplateScatterModal
+                  assets={templateAssets as unknown as import('@/components/modals/TemplateScatterModal').ScatterAssets}
+                  isTurkish={isTurkish}
+                  termsUrl={personalization.termsUrl}
+                  onRender={renderScatterDesign}
+                  onCancel={() => setTemplateModalOpen(false)}
+                  onConfirm={async (url) => {
+                    setTemplateModalOpen(false);
+                    setTemplateBusy(true);
+                    try {
+                      await handleAddImage(url);
+                      setTemplateAwaitingPhoto(false);
+                      setActiveTab(null);
+                    } finally {
+                      setTemplateBusy(false);
+                    }
+                  }}
+                />
+              ) : (
                 <TemplatePhotoModal
-                  assets={templateAssets}
+                  assets={templateAssets as unknown as import('@/components/modals/TemplatePhotoModal').TemplateAssets}
                   file={templatePhotoFile}
                   isTurkish={isTurkish}
                   termsUrl={personalization.termsUrl}
@@ -4041,8 +4080,9 @@ export default function App() {
                   onPickFile={(f) => { setTemplatePhotoFile(f); void uploadTemplateOriginal(f); }}
                   onConfirm={handleTemplateConfirm}
                 />
-              </Suspense>
-            )}
+              )}
+            </Suspense>
+          )}
 
             {showPreview && (
             <>
