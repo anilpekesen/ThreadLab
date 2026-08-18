@@ -14,6 +14,18 @@ export interface TextFieldDef {
   align: "left" | "center" | "right";
 }
 
+/** Dağıtımlı şablonun ayarları */
+export interface ScatterTemplateConfig {
+  faceCount: number;
+  decorationCount: number;
+  faceScale: number;
+  decorationScale: number;
+  sizeJitter: number;
+  angleJitter: number;
+  reserveCenter: { width: number; height: number } | null;
+  seed: number;
+}
+
 export interface PersonalizerTemplate {
   id: string;
   shop: string;
@@ -34,6 +46,11 @@ export interface PersonalizerTemplate {
   /** Fotoğrafın gireceği boşluğa tıklanan nokta; -1 ise şeffaf delik aranır */
   hole_seed_x: number;
   hole_seed_y: number;
+  /** 'mask' = boşluğa maskele, 'scatter' = kafa kesitini dağıt */
+  layout_mode: "mask" | "scatter";
+  scatter_config: ScatterTemplateConfig | Record<string, never>;
+  /** Dağıtımda kullanılacak süsleme görseli (kalp vb.) */
+  decoration_url: string;
   active: boolean;
   sort_order: number;
   created_at: string;
@@ -86,6 +103,9 @@ export interface CreatePersonalizerTemplateInput {
   ai_style?: string;
   hole_seed_x?: number;
   hole_seed_y?: number;
+  layout_mode?: "mask" | "scatter";
+  scatter_config?: ScatterTemplateConfig;
+  decoration_url?: string;
   sort_order?: number;
 }
 
@@ -117,6 +137,9 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
 export interface UpdatePersonalizerTemplateInput {
   hole_seed_x?: number;
   hole_seed_y?: number;
+  layout_mode?: "mask" | "scatter";
+  scatter_config?: ScatterTemplateConfig;
+  decoration_url?: string;
   name?: string;
   description?: string;
   template_url?: string;
@@ -147,7 +170,7 @@ export async function updatePersonalizerTemplate(
   for (const [k, v] of Object.entries(input)) {
     if (v === undefined) continue;
     sets.push(`${k} = $${i++}`);
-    vals.push(k === "text_fields" ? JSON.stringify(v) : v);
+    vals.push(k === "text_fields" || k === "scatter_config" ? JSON.stringify(v) : v);
   }
   if (sets.length === 0) return getPersonalizerTemplate(id, shop);
 

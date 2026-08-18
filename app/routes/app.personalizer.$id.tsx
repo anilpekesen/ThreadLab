@@ -7,7 +7,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate, useRevalidator, useParams } from "@remix-run/react";
 import {
   Page, Layout, Card, FormLayout, TextField, Select, Checkbox,
-  Button, BlockStack, InlineStack, Text, Banner, Box, Badge,
+  Button, BlockStack, InlineStack, Text, Banner, Box, Badge, Thumbnail,
 } from "@shopify/polaris";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { authenticate } from "~/lib/authenticate.server";
@@ -90,6 +90,22 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const ai_style    = String(form.get("ai_style") ?? "caricature");
     const hole_seed_x = parseInt(String(form.get("hole_seed_x") ?? "-1"), 10);
     const hole_seed_y = parseInt(String(form.get("hole_seed_y") ?? "-1"), 10);
+    const layout_mode = String(form.get("layout_mode") ?? "mask") === "scatter" ? "scatter" as const : "mask" as const;
+
+    let scatter_config: import("~/models/personalizer.server").ScatterTemplateConfig | undefined;
+    try {
+      const raw = String(form.get("scatter_config") ?? "");
+      if (raw) scatter_config = JSON.parse(raw);
+    } catch { /* bozuk JSON — varsayilanla devam */ }
+
+    // Süsleme görseli: yeni dosya varsa yükle, yoksa mevcut adresi koru
+    let decoration_url = String(form.get("existing_decoration_url") ?? "");
+    const decorationFile = form.get("decoration_image");
+    if (decorationFile instanceof File && decorationFile.size > 0) {
+      const buf = Buffer.from(await decorationFile.arrayBuffer());
+      const ext = decorationFile.type === "image/webp" ? "webp" : "png";
+      decoration_url = await uploadToR2(buf, ext, "personalizer-decoration");
+    }
     const sort_order  = parseInt(String(form.get("sort_order") ?? "0"), 10);
 
     if (!name) return json({ error: "İsim gerekli" }, { status: 400 });
@@ -107,11 +123,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // template_url opsiyonel — sadece çerçeve bazlı kullanımda boş olabilir
 
     if (id === "new") {
-      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, sort_order });
+      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, sort_order });
       // json döndür, client tarafı navigate etsin (Shopify embedded app redirect güvenilmez)
       return json({ redirectTo: `/app/personalizer/${created.id}` });
     } else {
-      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, sort_order });
+      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, sort_order });
       return json({ ok: true });
     }
   }
@@ -860,6 +876,15 @@ function PersonalizerEditor() {
     w: template?.photo_width ?? 1600,
     h: template?.photo_height ?? 1600,
   });
+  const [layoutMode, setLayoutMode] = useState<"mask" | "scatter">(template?.layout_mode ?? "mask");
+  const [decorationUrl, setDecorationUrl] = useState(template?.decoration_url ?? "");
+  const sc = (template?.scatter_config ?? {}) as Partial<import("~/models/personalizer.server").ScatterTemplateConfig>;
+  const [faceCount, setFaceCount] = useState(String(sc.faceCount ?? 13));
+  const [decorationCount, setDecorationCount] = useState(String(sc.decorationCount ?? 8));
+  const [faceScale, setFaceScale] = useState(String(Math.round((sc.faceScale ?? 0.16) * 100)));
+  const [decorationScale, setDecorationScale] = useState(String(Math.round((sc.decorationScale ?? 0.1) * 100)));
+  const [reserveText, setReserveText] = useState(sc.reserveCenter !== null);
+
   const [holeSeed, setHoleSeed] = useState({
     x: template?.hole_seed_x ?? -1,
     y: template?.hole_seed_y ?? -1,
@@ -971,11 +996,95 @@ function PersonalizerEditor() {
                   <FormLayout>
                     <TextField label="Şablon Adı" name="name" value={name} onChange={setName} autoComplete="off" placeholder="Örn: Karikatür Tablo" />
                     <TextField label="Açıklama (opsiyonel)" name="description" value={description} onChange={setDescription} multiline={2} autoComplete="off" />
+                    <Select
+                      label="Şablon Tipi"
+                      name="layout_mode"
+                      options={[
+                        { label: "Maskeli — fotoğraf tasarımın boşluğuna girer (kalpli tişört)", value: "mask" },
+                        { label: "Dağıtımlı — kafa kesiti çoğaltılıp yayılır (Hepsi Benim boxer)", value: "scatter" },
+                      ]}
+                      value={layoutMode}
+                      onChange={(v) => setLayoutMode(v as "mask" | "scatter")}
+                      helpText={layoutMode === "scatter"
+                        ? "Tasarım görseli yüklemezsiniz; sistem üretir. Aşağıdaki sayıları ve süsleme görselini ayarlayın."
+                        : "Tasarımı yükleyip fotoğrafın gireceği boşluğu işaretlersiniz."}
+                    />
                     <Select label="AI Dönüşüm Stili" name="ai_style" options={AI_STYLE_OPTIONS} value={aiStyle} onChange={setAiStyle} />
                     <TextField label="Sıralama" name="sort_order" type="number" value={sortOrder} onChange={setSortOrder} autoComplete="off" />
                   </FormLayout>
                 </BlockStack>
               </Card>
+
+              {layoutMode === "scatter" && (
+                <Card>
+                  <BlockStack gap="400">
+                    <Text as="h2" variant="headingMd">Dağıtım Ayarları</Text>
+                    <Banner tone="info">
+                      <Text as="p">
+                        Bu tipte tasarım dosyası yüklemezsiniz. Müşterinin fotoğrafından kafa kesilir,
+                        aşağıdaki sayılarla baskı alanına dağıtılır. Baskı alanı ürün ayarlarından otomatik alınır.
+                      </Text>
+                    </Banner>
+
+                    <FormLayout>
+                      <FormLayout.Group>
+                        <TextField label="Kaç kafa" type="number" value={faceCount}
+                          onChange={setFaceCount} autoComplete="off" helpText="Örn: 13" />
+                        <TextField label="Kaç süsleme" type="number" value={decorationCount}
+                          onChange={setDecorationCount} autoComplete="off" helpText="Süsleme yoksa 0" />
+                      </FormLayout.Group>
+                      <FormLayout.Group>
+                        <TextField label="Kafa boyutu (%)" type="number" value={faceScale}
+                          onChange={setFaceScale} autoComplete="off" helpText="Baskı alanı genişliğine oranı" />
+                        <TextField label="Süsleme boyutu (%)" type="number" value={decorationScale}
+                          onChange={setDecorationScale} autoComplete="off" />
+                      </FormLayout.Group>
+                      <Checkbox
+                        label="Ortada yazı için yer bırak"
+                        checked={reserveText}
+                        onChange={setReserveText}
+                        helpText="İşaretliyse parçalar ortadaki yazının üstüne binmez."
+                      />
+                    </FormLayout>
+
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">Süsleme Görseli</Text>
+                      <Text as="p" tone="subdued" variant="bodySm">
+                        Kalp, yıldız gibi tekrarlanacak öğe. Arka planı saydam PNG olmalı.
+                      </Text>
+                      {decorationUrl ? (
+                        <InlineStack gap="300" blockAlign="center">
+                          <Thumbnail source={decorationUrl} alt="Süsleme" size="small" />
+                          <Button variant="plain" tone="critical" onClick={() => setDecorationUrl("")}>Kaldır</Button>
+                        </InlineStack>
+                      ) : (
+                        <Text as="p" tone="subdued" variant="bodySm">Henüz yüklenmedi.</Text>
+                      )}
+                      <input
+                        type="file"
+                        name="decoration_image"
+                        accept="image/png,image/webp"
+                        style={{ display: "block", fontSize: 13 }}
+                      />
+                      <Text as="p" tone="subdued" variant="bodySm">
+                        Dosya seçip aşağıdan <strong>Kaydet</strong> deyin.
+                      </Text>
+                    </BlockStack>
+
+                    <input type="hidden" name="existing_decoration_url" value={decorationUrl} readOnly />
+                    <input type="hidden" name="scatter_config" readOnly value={JSON.stringify({
+                      faceCount: parseInt(faceCount, 10) || 0,
+                      decorationCount: parseInt(decorationCount, 10) || 0,
+                      faceScale: (parseFloat(faceScale) || 16) / 100,
+                      decorationScale: (parseFloat(decorationScale) || 10) / 100,
+                      sizeJitter: 0.18,
+                      angleJitter: 0,
+                      reserveCenter: reserveText ? { width: 0.42, height: 0.26 } : null,
+                      seed: 1,
+                    })} />
+                  </BlockStack>
+                </Card>
+              )}
 
               {/* Şablon görseli */}
               <Card>

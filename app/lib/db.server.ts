@@ -586,6 +586,12 @@ async function _runMigrationsLocked() {
   await query(`ALTER TABLE personalizer_templates
     ADD COLUMN IF NOT EXISTS hole_seed_x INTEGER NOT NULL DEFAULT -1,
     ADD COLUMN IF NOT EXISTS hole_seed_y INTEGER NOT NULL DEFAULT -1`);
+  // Şablon tipi: 'mask' = fotoğraf tasarımın boşluğuna maskelenir (kalpli tişört),
+  // 'scatter' = kafa kesiti + süsleme baskı alanına dağıtılır (Hepsi Benim boxer).
+  await query(`ALTER TABLE personalizer_templates
+    ADD COLUMN IF NOT EXISTS layout_mode TEXT NOT NULL DEFAULT 'mask',
+    ADD COLUMN IF NOT EXISTS scatter_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS decoration_url TEXT NOT NULL DEFAULT ''`);
   await query(`
     CREATE TABLE IF NOT EXISTS cliparts (
       id          TEXT PRIMARY KEY,
