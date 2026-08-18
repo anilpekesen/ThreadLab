@@ -21,12 +21,26 @@ interface Props {
 
 interface View { x: number; y: number; scale: number; angle: number }
 
+/**
+ * Uzak görselleri kendi alan adımızdaki proxy üzerinden yükler.
+ *
+ * Doğrudan yüklemek iki nedenle kırılgan: (1) tarayıcı aynı URL'yi daha önce
+ * CORS'suz önbelleğe aldıysa (ör. panel önizlemesi) crossOrigin isteği
+ * reddediliyor, (2) CDN önbelleği Origin'e göre ayrışmazsa CORS başlığı
+ * gelmeyebiliyor. Proxy aynı kaynaktan servis ettiği için tuval kirlenmiyor
+ * ve toDataURL her zaman çalışıyor.
+ */
+function proxied(url: string): string {
+  if (!url.startsWith('http')) return url;          // data: / blob: dokunma
+  return `/api/img-proxy?url=${encodeURIComponent(url)}`;
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Görsel yüklenemedi: ${src.slice(0, 80)}`));
+    img.onerror = () => reject(new Error(`Görsel yüklenemedi: ${src.slice(0, 120)}`));
     img.src = src;
   });
 }
@@ -122,7 +136,7 @@ export default function TemplatePhotoModal({
         const photoUrl = URL.createObjectURL(file);
         revoked = photoUrl;
         const [template, mask, photo] = await Promise.all([
-          loadImage(assets.templateUrl),
+          loadImage(proxied(assets.templateUrl)),
           loadImage(assets.maskDataUrl),
           loadImage(photoUrl),
         ]);

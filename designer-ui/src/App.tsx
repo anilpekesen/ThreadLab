@@ -3346,6 +3346,7 @@ export default function App() {
                         <img
                           src={personalization.templateDesign.previewUrl}
                           alt={personalization.templateDesign.name}
+                          crossOrigin="anonymous"
                           className="h-16 w-16 shrink-0 rounded-lg border border-rose-200 bg-white object-contain p-1"
                         />
                         <div className="min-w-0 flex-1">
