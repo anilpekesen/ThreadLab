@@ -1679,13 +1679,19 @@ export default function App() {
    */
   useEffect(() => {
     const tpl = personalization.templateDesign;
-    if (!tpl?.previewUrl || templateSeededRef.current) return;
+    if (!tpl || templateSeededRef.current) return;
     const handle = frontCanvasRef.current;
     if (!handle?.getCanvas()) return;
     templateSeededRef.current = true;
 
-    handle.addImageFromUrl(`/api/img-proxy?url=${encodeURIComponent(tpl.previewUrl)}`);
+    // Her iki modda da müşteri "Fotoğrafını ekle" çağrısını görmeli. Dağıtımlı
+    // şablonun hazır tasarım görseli yok — tasarım fotoğraftan üretiliyor —
+    // bu yüzden yer tutucu koymadan sadece çağrıyı gösteriyoruz. Eskiden
+    // previewUrl boş olunca effect erken dönüyor ve buton hiç çıkmıyordu.
     setTemplateAwaitingPhoto(true);
+    if (!tpl.previewUrl) return;
+
+    handle.addImageFromUrl(`/api/img-proxy?url=${encodeURIComponent(tpl.previewUrl)}`);
 
     // fabric görseli asenkron yüklüyor; eklenince yer tutucu olarak işaretle
     let tries = 0;

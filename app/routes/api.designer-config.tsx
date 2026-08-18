@@ -46,6 +46,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           name: linkedTemplate.name,
           description: linkedTemplate.description,
           previewUrl: linkedTemplate.template_url,
+          // Dağıtımlı şablonun hazır tasarım görseli yoktur; tasarımcı
+          // yer tutucu koymadan doğrudan "fotoğrafını ekle" çağrısını gösterir.
+          layoutMode: linkedTemplate.layout_mode === "scatter" ? "scatter" : "mask",
         }
       : null,
     product: {

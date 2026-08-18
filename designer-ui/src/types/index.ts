@@ -68,7 +68,9 @@ export interface TemplateDesign {
   id: string;
   name: string;
   description?: string;
+  /** Yalnızca maskeli şablonda dolu; dağıtımlı şablonda boştur. */
   previewUrl: string;
+  layoutMode?: 'mask' | 'scatter';
 }
 
 export interface SizeChartEntry {
