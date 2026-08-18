@@ -5,9 +5,8 @@ import {
 } from "@remix-run/node";
 import sharp from "sharp";
 import { uploadToR2 } from "~/lib/r2.server";
-import { getPersonalizerTemplateByProduct } from "~/models/personalizer.server";
+import { getPersonalizerTemplateByProduct, type ScatterTemplateConfig } from "~/models/personalizer.server";
 import { composeScatterDesign } from "~/lib/scatter-compose.server";
-import { findConfigForStorefront } from "~/models/product-config.server";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings } from "~/models/shop-settings.server";
 import {
@@ -16,6 +15,13 @@ import {
   buildMaskedPhotoLayer,
   punchHoleInTemplate,
 } from "~/lib/template-hole.server";
+
+/** Şablonun bildirdiği tuval ölçüsünü makul sınırlara çeker. */
+function clampCanvas(value: unknown, fallback: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(6000, Math.max(600, Math.round(n)));
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -69,13 +75,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       let textValues: Record<string, string> = {};
       try { textValues = JSON.parse(String(form.get("textValues") ?? "{}")); } catch { /* yoksay */ }
 
-      // Baskı alanı üründen: gerçek mm ölçüsü 300 DPI'da piksele çevrilir
-      const productConfig = await findConfigForStorefront(shop, productId, "").catch(() => null);
-      const areas = productConfig?.printAreas ?? [];
-      const front = areas.find((a) => a.side === "front") ?? areas[0];
-      const mmToPx = (mm: number) => Math.max(300, Math.round((mm / 25.4) * 300));
-      const areaWidth = front?.realWidthMm ? mmToPx(front.realWidthMm) : 2400;
-      const areaHeight = front?.realHeightMm ? mmToPx(front.realHeightMm) : 1650;
+      // Tuval ölçüsü şablonun kendisinden gelir. Ürünün baskı alanına
+      // bakılmaz: dağıtımlı şablon hazır bir tasarım üretir, tasarımcı onu
+      // baskı alanına oranını koruyarak yerleştirir. Alan tanımını zorunlu
+      // kılmak, ayarı eksik/hatalı ürünlerde çıktıyı bozuyordu.
+      const scatterCfg = (template.scatter_config ?? {}) as Partial<ScatterTemplateConfig>;
+      const areaWidth = clampCanvas(scatterCfg.canvasWidth, 2400);
+      const areaHeight = clampCanvas(scatterCfg.canvasHeight, 1650);
 
       const [globalSettings, shopSettings] = await Promise.all([
         getGlobalSettings(), getShopSettings(shop),

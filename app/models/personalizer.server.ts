@@ -24,6 +24,9 @@ export interface ScatterTemplateConfig {
   angleJitter: number;
   reserveCenter: { width: number; height: number } | null;
   seed: number;
+  /** Üretilecek tasarımın piksel tuvali; yoksa 2400x1650 kullanılır. */
+  canvasWidth?: number;
+  canvasHeight?: number;
 }
 
 export interface PersonalizerTemplate {
