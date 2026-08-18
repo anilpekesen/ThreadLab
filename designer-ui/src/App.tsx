@@ -1557,8 +1557,6 @@ export default function App() {
     syncLayers();
   }, [syncLayers, updateToolbarPosition]);
 
-  const templateFileRef = useRef<HTMLInputElement>(null);
-
   /**
    * Şablonlu ürünlerde müşterinin fotoğrafını sunucuya gönderir; sunucu onu
    * tasarımın boşluğuna maskeleyip tek PNG döndürür. Sonuç normal bir görsel
@@ -3397,51 +3395,6 @@ export default function App() {
                   className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-[max(110px,calc(env(safe-area-inset-bottom)+88px))] pt-4 md:p-6"
                   style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
                 >
-                  {activeTab === 'image' && personalization.templateDesign && (
-                    <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50/60 p-3">
-                      <div className="flex items-start gap-3">
-                        <img
-                          src={personalization.templateDesign.previewUrl}
-                          alt={personalization.templateDesign.name}
-                          crossOrigin="anonymous"
-                          className="h-16 w-16 shrink-0 rounded-lg border border-rose-200 bg-white object-contain p-1"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold text-gray-800">{personalization.templateDesign.name}</p>
-                          <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
-                            {isTurkish
-                              ? 'Fotoğrafını yükle, tasarımın boşluğuna otomatik yerleşsin.'
-                              : 'Upload your photo — it drops into the design automatically.'}
-                          </p>
-                        </div>
-                      </div>
-                      <input
-                        ref={templateFileRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleTemplatePhoto(file);
-                          e.target.value = '';
-                        }}
-                      />
-                      <button
-                        type="button"
-                        disabled={templateBusy}
-                        onClick={() => templateFileRef.current?.click()}
-                        className="mt-3 w-full rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-rose-700 disabled:opacity-50"
-                      >
-                        {templateBusy
-                          ? (isTurkish ? 'Hazırlanıyor…' : 'Preparing…')
-                          : (isTurkish ? 'Fotoğrafını Yükle' : 'Upload Your Photo')}
-                      </button>
-                      {templateError && (
-                        <p className="mt-2 text-[11px] font-medium text-red-600">{templateError}</p>
-                      )}
-                    </div>
-                  )}
-
                   {activeTab === 'image' && (
                     <Suspense fallback={<PanelLoading isTurkish={isTurkish} />}>
                       <ImagePanel
@@ -3454,6 +3407,10 @@ export default function App() {
                         sessionId={getBgSessionId()}
                         locale={config?.locale}
                         termsUrl={personalization.termsUrl}
+                        templateDesign={personalization.templateDesign}
+                        templateBusy={templateBusy}
+                        templateError={templateError}
+                        onTemplatePhoto={handleTemplatePhoto}
                       />
                     </Suspense>
                   )}
@@ -4023,7 +3980,7 @@ export default function App() {
 
               type="button"
 
-              onClick={() => templateFileRef.current?.click()}
+              onClick={() => { setImageActiveSource('upload'); setActiveTab('image'); }}
 
               disabled={templateBusy}
 
@@ -4058,7 +4015,7 @@ export default function App() {
 
                 onCancel={() => setTemplatePhotoFile(null)}
 
-                onChangePhoto={() => { setTemplatePhotoFile(null); templateFileRef.current?.click(); }}
+                onChangePhoto={() => { setTemplatePhotoFile(null); setImageActiveSource('upload'); setActiveTab('image'); }}
 
                 onConfirm={handleTemplateConfirm}
 

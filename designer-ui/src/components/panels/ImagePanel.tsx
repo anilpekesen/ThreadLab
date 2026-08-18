@@ -22,6 +22,14 @@ interface Props {
    * uygulamanın kendi koşul sayfasına düşülür.
    */
   termsUrl?: string;
+  /**
+   * Ürüne bağlı hazır şablon. Kart panelin içinde gösterilir ki telif onayı
+   * kapısı şablonlu yüklemeler için de geçerli olsun.
+   */
+  templateDesign?: { name: string; previewUrl: string; description?: string } | null;
+  templateBusy?: boolean;
+  templateError?: string;
+  onTemplatePhoto?: (file: File) => void;
 }
 
 /** Mağaza kendi koşul adresini tanımlamadıysa kullanılan yedek */
@@ -31,10 +39,11 @@ function isTR(locale?: string) {
   return !locale || locale.startsWith('tr');
 }
 
-export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource, shop, uploadEndpoint, sessionId, locale, termsUrl }: Props) {
+export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, activeSource, shop, uploadEndpoint, sessionId, locale, termsUrl, templateDesign, templateBusy, templateError, onTemplatePhoto }: Props) {
   const tr = isTR(locale);
   const { t } = useDesignerI18n(locale);
   const fileRef = useRef<HTMLInputElement>(null);
+  const templateFileRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(() => {
@@ -130,6 +139,50 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
               </p>
             </div>
           </label>
+
+          {templateDesign && onTemplatePhoto && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-3">
+              <div className="flex items-start gap-3">
+                <img
+                  src={`/api/img-proxy?url=${encodeURIComponent(templateDesign.previewUrl)}`}
+                  alt={templateDesign.name}
+                  className="h-16 w-16 shrink-0 rounded-lg border border-rose-200 bg-white object-contain p-1"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-gray-800">{templateDesign.name}</p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
+                    {tr
+                      ? 'Fotoğrafını seç, tasarımın boşluğuna otomatik yerleşsin.'
+                      : 'Pick your photo — it drops into the design automatically.'}
+                  </p>
+                </div>
+              </div>
+              <input
+                ref={templateFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onTemplatePhoto(f);
+                  e.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                disabled={!consentAccepted || templateBusy}
+                onClick={() => templateFileRef.current?.click()}
+                className="mt-3 w-full rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-rose-700 disabled:opacity-40"
+              >
+                {templateBusy
+                  ? (tr ? 'Hazırlanıyor…' : 'Preparing…')
+                  : !consentAccepted
+                    ? (tr ? 'Önce yukarıdaki onayı verin' : 'Accept the notice above first')
+                    : (tr ? 'Fotoğraf Seç' : 'Choose Photo')}
+              </button>
+              {templateError && <p className="mt-2 text-[11px] font-medium text-red-600">{templateError}</p>}
+            </div>
+          )}
 
           <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
 
