@@ -21,7 +21,19 @@ async function removeBackground(apiKey: string, imageUrl: string): Promise<Buffe
   const imgRes = await fetch(imageUrl);
   if (!imgRes.ok) throw new Error(`Could not fetch image (${imgRes.status}): ${imageUrl}`);
   const bytes = await imgRes.arrayBuffer();
-  const sourceBuffer = Buffer.from(bytes);
+  return removeBackgroundFromBuffer(apiKey, Buffer.from(bytes), imageUrl);
+}
+
+/**
+ * Arka planı kaldırılmış hali döndürür. URL yerine tampon alır ki dağıtımlı
+ * şablon akışı gibi görseli zaten elinde tutan çağıranlar tekrar indirmesin.
+ */
+export async function removeBackgroundFromBuffer(
+  apiKey: string,
+  sourceBuffer: Buffer,
+  label = "buffer",
+): Promise<Buffer> {
+  const imageUrl = label;
 
   // Sipariş sonrasında zaten şeffaf olan bir baskı kaynağını yeniden AI'dan
   // geçirmek kenar ve çözünürlük kaybettirir.
@@ -41,7 +53,8 @@ async function removeBackground(apiKey: string, imageUrl: string): Promise<Buffe
   }
 
   const b64 = sourceBuffer.toString("base64");
-  const mime = imgRes.headers.get("content-type") || "image/png";
+  const meta = await sharp(sourceBuffer).metadata().catch(() => null);
+  const mime = meta?.format === "jpeg" ? "image/jpeg" : meta?.format === "webp" ? "image/webp" : "image/png";
   const dataUrl = `data:${mime};base64,${b64}`;
 
   // Submit job
