@@ -330,73 +330,6 @@ function maxArtworkCanvasSize(area: PrintAreaConfig, areaRect: ReturnType<typeof
   };
 }
 
-function objectsBoundingRect(objects: fabric.Object[]) {
-  const bounds = objects.map((obj) => obj.getBoundingRect(true, true));
-  if (!bounds.length) return null;
-  const left = Math.min(...bounds.map((rect) => rect.left));
-  const top = Math.min(...bounds.map((rect) => rect.top));
-  const right = Math.max(...bounds.map((rect) => rect.left + rect.width));
-  const bottom = Math.max(...bounds.map((rect) => rect.top + rect.height));
-  return { left, top, width: right - left, height: bottom - top };
-}
-
-type ObjectTransformSnapshot = Pick<fabric.IObjectOptions,
-  'left' | 'top' | 'scaleX' | 'scaleY' | 'angle' | 'skewX' | 'skewY' | 'flipX' | 'flipY'>;
-
-function snapshotObjectTransform(obj: fabric.Object): ObjectTransformSnapshot {
-  return {
-    left: obj.left,
-    top: obj.top,
-    scaleX: obj.scaleX,
-    scaleY: obj.scaleY,
-    angle: obj.angle,
-    skewX: obj.skewX,
-    skewY: obj.skewY,
-    flipX: obj.flipX,
-    flipY: obj.flipY,
-  };
-}
-
-function fitsArtworkLimit(cv: fabric.Canvas, area: PrintAreaConfig, areaRect: ReturnType<typeof toCanvasRect>) {
-  const bounds = objectsBoundingRect(cv.getObjects());
-  if (!bounds) return true;
-  const maximum = maxArtworkCanvasSize(area, areaRect);
-  return bounds.width <= maximum.width + 0.5 && bounds.height <= maximum.height + 0.5;
-}
-
-function fitCanvasDesignToArtworkLimit(
-  cv: fabric.Canvas,
-  area: PrintAreaConfig,
-  areaRect: ReturnType<typeof toCanvasRect>,
-) {
-  const objects = cv.getObjects();
-  const bounds = objectsBoundingRect(objects);
-  if (!bounds) return false;
-  const maximum = maxArtworkCanvasSize(area, areaRect);
-  if (bounds.width <= maximum.width + 0.5 && bounds.height <= maximum.height + 0.5) return false;
-
-  const ratio = Math.min(
-    maximum.width / Math.max(bounds.width, 1),
-    maximum.height / Math.max(bounds.height, 1),
-  );
-  const center = new fabric.Point(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
-  for (const obj of objects) {
-    const objectCenter = obj.getCenterPoint();
-    obj.set({
-      scaleX: (obj.scaleX ?? 1) * ratio,
-      scaleY: (obj.scaleY ?? 1) * ratio,
-    });
-    keepImageUniform(obj);
-    obj.setPositionByOrigin(new fabric.Point(
-      center.x + (objectCenter.x - center.x) * ratio,
-      center.y + (objectCenter.y - center.y) * ratio,
-    ), 'center', 'center');
-    obj.setCoords();
-    constrainObjectToArea(obj, areaRect);
-  }
-  return true;
-}
-
 function scaleObjectToFitArea(obj: fabric.Object, areaRect: ReturnType<typeof toCanvasRect>) {
   let changed = false;
   let bounds = obj.getBoundingRect(true, true);
@@ -444,10 +377,40 @@ function constrainObjectToArea(obj: fabric.Object, areaRect: ReturnType<typeof t
   return scaled.changed;
 }
 
-function constrainCanvasObjects(cv: fabric.Canvas, areaRect: ReturnType<typeof toCanvasRect>) {
+function constrainObjectToArtworkLimit(
+  obj: fabric.Object,
+  area: PrintAreaConfig,
+  areaRect: ReturnType<typeof toCanvasRect>,
+) {
+  let changed = constrainObjectToArea(obj, areaRect);
+  const maximum = maxArtworkCanvasSize(area, areaRect);
+  const bounds = obj.getBoundingRect(true, true);
+
+  if (bounds.width > maximum.width || bounds.height > maximum.height) {
+    const ratio = Math.min(
+      maximum.width / Math.max(bounds.width, 1),
+      maximum.height / Math.max(bounds.height, 1),
+    );
+    obj.set({
+      scaleX: (obj.scaleX ?? 1) * ratio,
+      scaleY: (obj.scaleY ?? 1) * ratio,
+    });
+    keepImageUniform(obj);
+    obj.setCoords();
+    changed = constrainObjectToArea(obj, areaRect) || changed;
+  }
+
+  return changed;
+}
+
+function constrainCanvasObjects(
+  cv: fabric.Canvas,
+  area: PrintAreaConfig,
+  areaRect: ReturnType<typeof toCanvasRect>,
+) {
   let changed = false;
   cv.getObjects().forEach((obj) => {
-    changed = constrainObjectToArea(obj, areaRect) || changed;
+    changed = constrainObjectToArtworkLimit(obj, area, areaRect) || changed;
   });
   return changed;
 }
@@ -482,7 +445,6 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const isRestoringRef = useRef(false);
   const prevAreaRectRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
   const printAreaRef = useRef(printArea);
-  const validTransformsRef = useRef(new WeakMap<fabric.Object, ObjectTransformSnapshot>());
   const onObjectSelectedRef = useRef(onObjectSelected);
   const onDesignChangeRef = useRef(onDesignChange);
 
@@ -559,43 +521,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     if (!cv || !target) return false;
     const area = printAreaRef.current;
     const areaRect = toCanvasRect(area);
-    let changed = constrainObjectToArea(target, areaRect);
-
-    // Tek nesnenin fiziksel maksimumu aşmasını oranını bozmadan engelle.
-    const maximum = maxArtworkCanvasSize(area, areaRect);
-    const bounds = target.getBoundingRect(true, true);
-    if (bounds.width > maximum.width || bounds.height > maximum.height) {
-      const ratio = Math.min(
-        maximum.width / Math.max(bounds.width, 1),
-        maximum.height / Math.max(bounds.height, 1),
-      );
-      target.set({
-        scaleX: (target.scaleX ?? 1) * ratio,
-        scaleY: (target.scaleY ?? 1) * ratio,
-      });
-      keepImageUniform(target);
-      target.setCoords();
-      constrainObjectToArea(target, areaRect);
-      changed = true;
-    }
-
-    // Birden fazla öğede toplam tasarım sınırını koru. Geçersiz hareket veya
-    // dönüşte yalnızca aktif nesne son geçerli konumuna döner.
-    if (!fitsArtworkLimit(cv, area, areaRect)) {
-      const previous = validTransformsRef.current.get(target);
-      if (previous) {
-        target.set(previous);
-        target.setCoords();
-        constrainObjectToArea(target, areaRect);
-        changed = true;
-      } else {
-        changed = fitCanvasDesignToArtworkLimit(cv, area, areaRect) || changed;
-      }
-    }
-
-    if (fitsArtworkLimit(cv, area, areaRect)) {
-      validTransformsRef.current.set(target, snapshotObjectTransform(target));
-    }
+    const changed = constrainObjectToArtworkLimit(target, area, areaRect);
     if (changed && hasLiveContext(cv)) {
       cv.renderAll();
     }
@@ -646,7 +572,6 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     runtimeCanvas.lowerCanvasEl?.style.setProperty('-webkit-user-select', 'none');
     cv.on('mouse:down', (e) => {
       if (e.target) {
-        validTransformsRef.current.set(e.target, snapshotObjectTransform(e.target));
         onObjectSelectedRef.current(e.target);
       }
     });
@@ -1171,11 +1096,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       normalizeCanvasImages(cv);
       const area = printAreaRef.current;
       const areaRect = toCanvasRect(area);
-      constrainCanvasObjects(cv, areaRect);
-      fitCanvasDesignToArtworkLimit(cv, area, areaRect);
-      cv.getObjects().forEach((obj) => {
-        validTransformsRef.current.set(obj, snapshotObjectTransform(obj));
-      });
+      constrainCanvasObjects(cv, area, areaRect);
       cv.renderAll();
       isRestoringRef.current = false;
       pushHistory(cv);
@@ -1219,11 +1140,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     if (prevRect) remapObjectsBetweenAreas(cv, prevRect, nextRect);
     prevAreaRectRef.current = nextRect;
 
-    let changed = constrainCanvasObjects(cv, nextRect);
-    changed = fitCanvasDesignToArtworkLimit(cv, printArea, nextRect) || changed;
-    cv.getObjects().forEach((obj) => {
-      validTransformsRef.current.set(obj, snapshotObjectTransform(obj));
-    });
+    const changed = constrainCanvasObjects(cv, printArea, nextRect);
     if (changed) {
       cv.renderAll();
       onObjectSelectedRef.current(cv.getActiveObject() ?? null);
