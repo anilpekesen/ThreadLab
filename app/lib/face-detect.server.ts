@@ -227,3 +227,46 @@ export async function extractHeadCutout(transparentSubject: Buffer): Promise<Hea
     box,
   };
 }
+
+/**
+ * Kafa kesitine yumuşak oval maske uygular.
+ *
+ * Vision'ın kutusu kare olduğu için kesitte omuz, kazak veya arka plan
+ * artıkları kalıyor; koyu ürün üzerinde bunlar görünür bir dikdörtgen
+ * oluşturuyor. Oval maske bu artıkları kesiyor, yumuşak kenar da sert
+ * kesim izini engelliyor.
+ */
+export async function applySoftOvalMask(
+  headCutout: Buffer,
+  feather = 0.06,
+): Promise<Buffer> {
+  const { data, info } = await sharp(headCutout).ensureAlpha().raw()
+    .toBuffer({ resolveWithObject: true });
+  const W = info.width;
+  const H = info.height;
+
+  const cx = W / 2;
+  const cy = H / 2;
+  // Yatayda biraz dar, dikeyde tam: kafa ovali genelde dikey uzundur
+  const rx = W * 0.46;
+  const ry = H * 0.50;
+  const soft = Math.max(0.001, feather);
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const dx = (x - cx) / rx;
+      const dy = (y - cy) / ry;
+      const d = Math.sqrt(dx * dx + dy * dy);   // 1 = oval sınırı
+
+      let k = 1;
+      if (d >= 1) k = 0;
+      else if (d > 1 - soft) k = (1 - d) / soft;
+
+      if (k >= 1) continue;
+      const i = (y * W + x) * 4 + 3;
+      data[i] = Math.round(data[i] * k);
+    }
+  }
+
+  return sharp(data, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
+}

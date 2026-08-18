@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { computeScatterLayout, DEFAULT_SCATTER, type ScatterConfig } from "~/lib/scatter-layout.server";
-import { extractHeadCutout } from "~/lib/face-detect.server";
+import { extractHeadCutout, applySoftOvalMask } from "~/lib/face-detect.server";
 import { removeBackgroundFromBuffer } from "~/models/auto-bg-removal.server";
 import type { TextFieldDef } from "~/models/personalizer.server";
 
@@ -76,8 +76,10 @@ export async function composeScatterDesign(opts: ScatterComposeOptions): Promise
       });
   }
 
-  // 2) Kafayı kes
+  // 2) Kafayı kes ve oval maskele — kare kesitte kalan omuz/kazak artıkları
+  //    koyu üründe görünür dikdörtgen oluşturuyor
   const head = await extractHeadCutout(subject);
+  const headPiece = await applySoftOvalMask(head.buffer).catch(() => head.buffer);
 
   // 3) Yerleşimi hesapla
   const items = computeScatterLayout(areaWidth, areaHeight, config);
@@ -89,7 +91,7 @@ export async function composeScatterDesign(opts: ScatterComposeOptions): Promise
 
   for (const item of items) {
     if (item.kind === "decoration" && !decoration) continue;
-    const source = item.kind === "face" ? head.buffer : decoration!;
+    const source = item.kind === "face" ? headPiece : decoration!;
     const w = Math.max(4, Math.round(item.width));
 
     let piece = sharp(source).resize(w, w, { fit: "inside" });
