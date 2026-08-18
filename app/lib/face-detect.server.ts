@@ -155,8 +155,10 @@ export function expandToHeadCrop(
   box: HeadBox,
   imageWidth: number,
   imageHeight: number,
-  padding = 0.35,
+  padding = 0.12,
 ): { left: number; top: number; width: number; height: number } {
+  // Vision'in boundingPoly'si sac ve ceneyi zaten kapsiyor; buyuk pay
+  // vermek kesiti tum gorsele tasiriyor. Kenar payi kucuk tutulur.
   const size = Math.max(box.width, box.height) * (1 + padding);
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
