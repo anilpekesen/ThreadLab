@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import type { TextFieldDef } from "~/models/personalizer.server";
 import { uploadToR2 } from "~/lib/r2.server";
+import { scanTemplateHoles, buildMaskedPhotoLayer } from "~/lib/template-hole.server";
 
 export interface ComposeOptions {
   templateUrl: string;
@@ -87,16 +88,39 @@ export async function composePersonalizerImage(opts: ComposeOptions): Promise<st
     const safeW = Math.max(1, Math.min(photoWidth, templateW - safeX));
     const safeH = Math.max(1, Math.min(photoHeight, templateH - safeY));
 
-    const resizedPhoto = await sharp(photoBuf)
-      .resize(safeW, safeH, { fit: "cover", position: "center" })
-      .png()
-      .toBuffer();
+    // Şablonda kapalı şeffaf bir delik varsa fotoğraf ONUN ŞEKLİNE kesilir ve
+    // şablonun ALTINA yerleşir; böylece çerçeve, süsleme ve yazılar fotoğrafın
+    // üstünde görünür. Delik yoksa eski davranış korunur: dikdörtgen alan,
+    // fotoğraf şablonun üstünde.
+    const scan = await scanTemplateHoles(templateBuf).catch((err) => {
+      console.error("[personalizer] delik taramasi basarisiz, dikdortgen moda dusuluyor:", err);
+      return null;
+    });
+    const hole = scan?.holes[0] ?? null;
 
-    const composites: sharp.OverlayOptions[] = [{ input: resizedPhoto, left: safeX, top: safeY }];
-    if (textFields.length > 0) {
-      composites.push({ input: makeTextSvgOverlay(textFields, textValues, templateW, templateH) });
+    if (scan && hole) {
+      const photoLayer = await buildMaskedPhotoLayer(photoBuf, scan, hole);
+      const composites: sharp.OverlayOptions[] = [{ input: templateBuf }];
+      if (textFields.length > 0) {
+        composites.push({ input: makeTextSvgOverlay(textFields, textValues, templateW, templateH) });
+      }
+      designBuf = await sharp(photoLayer).composite(composites).png().toBuffer();
+      console.log(
+        `[personalizer] maskeli delik kullanildi: ${hole.width}x${hole.height} ` +
+        `@(${hole.x},${hole.y}) ${hole.pixels}px (toplam ${scan.holes.length} delik)`,
+      );
+    } else {
+      const resizedPhoto = await sharp(photoBuf)
+        .resize(safeW, safeH, { fit: "cover", position: "center" })
+        .png()
+        .toBuffer();
+
+      const composites: sharp.OverlayOptions[] = [{ input: resizedPhoto, left: safeX, top: safeY }];
+      if (textFields.length > 0) {
+        composites.push({ input: makeTextSvgOverlay(textFields, textValues, templateW, templateH) });
+      }
+      designBuf = await sharp(templateBuf).composite(composites).png().toBuffer();
     }
-    designBuf = await sharp(templateBuf).composite(composites).png().toBuffer();
 
   } else if (mockupUrl && mockupWidth > 0 && mockupHeight > 0) {
     // ── Mod B: şablon yok — karikatür doğrudan çerçeveye ────────────────────
