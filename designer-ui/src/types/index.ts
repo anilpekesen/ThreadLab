@@ -63,6 +63,14 @@ export interface PrintAreaConfig {
   realHeightMm: number;
 }
 
+/** Ürüne bağlı hazır tasarım şablonu (fotoğraf boşluğa maskelenir) */
+export interface TemplateDesign {
+  id: string;
+  name: string;
+  description?: string;
+  previewUrl: string;
+}
+
 export interface SizeChartEntry {
   size: string;
   widthCm: number;
@@ -97,6 +105,7 @@ export interface PersonalizationConfig {
   variantMockups?: Record<string, { front?: string; back?: string }>;
   conditionalRules?: ConditionalRule[];
   sizeChart?: SizeChart;
+  templateDesign?: TemplateDesign | null;
   termsUrl?: string;
   minOrderQuantity?: number;
 }

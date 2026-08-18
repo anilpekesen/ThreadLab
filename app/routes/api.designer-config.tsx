@@ -2,6 +2,7 @@ import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { findConfigForStorefront, toStorefrontSettings } from "~/models/product-config.server";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings } from "~/models/shop-settings.server";
+import { getPersonalizerTemplateByProduct } from "~/models/personalizer.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -33,7 +34,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const termsUrl = shopSettings?.termsUrl || "";
 
+  // Ürüne şablon bağlıysa tasarımcı "fotoğrafını yükle" panelini gösterir;
+  // fotoğraf sunucuda şablonun boşluğuna maskelenip tek görsel olarak döner.
+  const numericProductId = String(config.productId).split("/").pop() ?? "";
+  const linkedTemplate = await getPersonalizerTemplateByProduct(shop, numericProductId).catch(() => null);
+
   return json({
+    templateDesign: linkedTemplate
+      ? {
+          id: linkedTemplate.id,
+          name: linkedTemplate.name,
+          description: linkedTemplate.description,
+          previewUrl: linkedTemplate.template_url,
+        }
+      : null,
     product: {
       id: config.productId,
       title: config.settings.productTitle,

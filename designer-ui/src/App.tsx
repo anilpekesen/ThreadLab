@@ -47,7 +47,7 @@ import { useDesignerI18n } from './i18n';
 import { useDesignerStore } from '@/store/designerStore';
 import CanvasArea, { type CanvasAreaHandle } from '@/components/canvas/CanvasArea';
 import type { Template } from '@/components/panels/TemplatesPanel';
-import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type PricingBand, type PrintAreaConfig, type SavedDesign, type Side, type SizeChart, type SurfaceMode, type VolumeDiscountTier } from '@/types';
+import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type PricingBand, type PrintAreaConfig, type SavedDesign, type Side, type SizeChart, type SurfaceMode, type TemplateDesign, type VolumeDiscountTier } from '@/types';
 import { generateId } from '@/utils/compress';
 import { scaleAreaForSize } from '@/utils/sizeScale';
 import { evaluateRules, warnings, blockers, type RuleResult } from '@/utils/conditionalLogic';
@@ -368,6 +368,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     printAreas?: PrintAreaConfig[];
     product?: { surfaceMode?: SurfaceMode };
     variantMockups?: Record<string, { front?: string; back?: string }>;
+    templateDesign?: TemplateDesign | null;
   } | null;
   const base = defaultPersonalization();
   const surfaceMode = source?.settings?.surfaceMode || source?.product?.surfaceMode || base.surfaceMode;
@@ -392,6 +393,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     removeBgAvailable: Boolean(source?.settings?.removeBgAvailable),
     variantMockups: source?.variantMockups ?? {},
     sizeChart: normalizeSizeChart(source?.settings?.sizeChart),
+    templateDesign: source?.templateDesign ?? null,
     termsUrl: String(source?.settings?.termsUrl || ''),
     minOrderQuantity: Math.max(1, Math.floor(Number(source?.settings?.minOrderQuantity || 1))),
   };
@@ -1044,6 +1046,8 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<Tab>(null);
   const [imageActiveSource, setImageActiveSource] = useState<'upload' | 'qr' | 'ai'>('upload');
+  const [templateBusy, setTemplateBusy] = useState(false);
+  const [templateError, setTemplateError] = useState('');
   const [selectedObj, setSelectedObj] = useState<CanvasSelection | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
   const [zoom, setZoom] = useState(getAutoZoom);
@@ -1546,6 +1550,39 @@ export default function App() {
     updateToolbarPosition(obj);
     syncLayers();
   }, [syncLayers, updateToolbarPosition]);
+
+  const templateFileRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Şablonlu ürünlerde müşterinin fotoğrafını sunucuya gönderir; sunucu onu
+   * tasarımın boşluğuna maskeleyip tek PNG döndürür. Sonuç normal bir görsel
+   * gibi tuvale eklenir — taşıma, ölçekleme, baskı alanı ve fiyat akışı
+   * olduğu gibi çalışır.
+   */
+  const handleTemplatePhoto = async (file: File) => {
+    if (!config?.shop || !config?.productId) return;
+    setTemplateBusy(true);
+    setTemplateError('');
+    try {
+      const fd = new FormData();
+      fd.append('photo', file);
+      fd.append('shop', config.shop);
+      fd.append('productId', String(config.productId).split('/').pop() ?? '');
+
+      const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        setTemplateError(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
+        return;
+      }
+      await handleAddImage(data.url);
+      setActiveTab(null);
+    } catch (err) {
+      setTemplateError(String(err));
+    } finally {
+      setTemplateBusy(false);
+    }
+  };
 
   const handleAddImage = async (
     url: string,
@@ -3276,6 +3313,50 @@ export default function App() {
                   className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-[max(110px,calc(env(safe-area-inset-bottom)+88px))] pt-4 md:p-6"
                   style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
                 >
+                  {activeTab === 'image' && personalization.templateDesign && (
+                    <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50/60 p-3">
+                      <div className="flex items-start gap-3">
+                        <img
+                          src={personalization.templateDesign.previewUrl}
+                          alt={personalization.templateDesign.name}
+                          className="h-16 w-16 shrink-0 rounded-lg border border-rose-200 bg-white object-contain p-1"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-gray-800">{personalization.templateDesign.name}</p>
+                          <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
+                            {isTurkish
+                              ? 'Fotoğrafını yükle, tasarımın boşluğuna otomatik yerleşsin.'
+                              : 'Upload your photo — it drops into the design automatically.'}
+                          </p>
+                        </div>
+                      </div>
+                      <input
+                        ref={templateFileRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleTemplatePhoto(file);
+                          e.target.value = '';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={templateBusy}
+                        onClick={() => templateFileRef.current?.click()}
+                        className="mt-3 w-full rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-rose-700 disabled:opacity-50"
+                      >
+                        {templateBusy
+                          ? (isTurkish ? 'Hazırlanıyor…' : 'Preparing…')
+                          : (isTurkish ? 'Fotoğrafını Yükle' : 'Upload Your Photo')}
+                      </button>
+                      {templateError && (
+                        <p className="mt-2 text-[11px] font-medium text-red-600">{templateError}</p>
+                      )}
+                    </div>
+                  )}
+
                   {activeTab === 'image' && (
                     <Suspense fallback={<PanelLoading isTurkish={isTurkish} />}>
                       <ImagePanel
