@@ -30,7 +30,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const template = await getPersonalizerTemplateByProduct(shop, productId).catch(() => null);
-  if (!template?.template_url) {
+  if (!template) {
     return json({ error: "Bu ürüne bağlı şablon yok" }, { status: 404, headers: CORS });
   }
 
@@ -52,6 +52,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
       { headers: { ...CORS, "Cache-Control": "public, max-age=300" } },
     );
+  }
+
+  // Maskeli tipte tasarım dosyası zorunlu
+  if (!template.template_url) {
+    return json({ error: "Şablon görseli yüklenmemiş" }, { status: 404, headers: CORS });
   }
 
   let templateBuf: Buffer;
