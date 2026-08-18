@@ -1051,6 +1051,7 @@ export default function App() {
   const [templateError, setTemplateError] = useState('');
   const [templateAssets, setTemplateAssets] = useState<import('@/components/modals/TemplatePhotoModal').TemplateAssets | null>(null);
   const [templatePhotoFile, setTemplatePhotoFile] = useState<File | null>(null);
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
   /** Şablon tişörte kondu ama müşteri henüz fotoğraf eklemedi */
   const [templateAwaitingPhoto, setTemplateAwaitingPhoto] = useState(false);
   const templateSeededRef = useRef(false);
@@ -1074,6 +1075,8 @@ export default function App() {
   const [isEditingText, setIsEditingText] = useState(false);
   const [draggedLayerIndex, setDraggedLayerIndex] = useState<number | null>(null);
   const [personalization, setPersonalization] = useState<PersonalizationConfig>(defaultPersonalization);
+  /** Ürüne hazır şablon bağlıysa tasarımcı sadeleşir: sadece fotoğraf */
+  const isTemplateProduct = Boolean(personalization.templateDesign);
   const [canvasRevisions, setCanvasRevisions] = useState({ front: 0, back: 0 });
   const [shopTemplates, setShopTemplates] = useState<import('@/types').ShopTemplate[]>([]);
   const [globalCliparts, setGlobalCliparts] = useState<import('@/components/panels/TemplatesPanel').GlobalClipart[]>([]);
@@ -1568,12 +1571,15 @@ export default function App() {
    * tarayıcıda yapıldığı için müşterinin gördüğü görsel basılan görselin
    * kendisidir; sunucuda ikinci bir hesap yok.
    */
-  const handleTemplatePhoto = async (file: File) => {
+  /**
+   * Şablonlu üründe fotoğraf penceresini açar. Şablon ve maske bir kez
+   * alınır; pencere fotoğraf seçimini ve yerleştirmeyi kendi içinde yürütür.
+   */
+  const openTemplateModal = async () => {
     if (!config?.shop || !config?.productId) return;
     setTemplateError('');
-    setTemplatePhotoFile(file);
-
-    if (templateAssets) return;   // şablon varlıkları zaten alındı
+    setTemplateModalOpen(true);
+    if (templateAssets) return;
 
     setTemplateBusy(true);
     try {
@@ -1585,13 +1591,13 @@ export default function App() {
       const data = await res.json();
       if (!res.ok || !data?.maskDataUrl) {
         setTemplateError(data?.error || (isTurkish ? 'Şablon yüklenemedi' : 'Could not load the template'));
-        setTemplatePhotoFile(null);
+        setTemplateModalOpen(false);
         return;
       }
       setTemplateAssets(data);
     } catch (err) {
       setTemplateError(String(err));
-      setTemplatePhotoFile(null);
+      setTemplateModalOpen(false);
     } finally {
       setTemplateBusy(false);
     }
@@ -1615,6 +1621,7 @@ export default function App() {
       const url = await dataUrlToServerUrl(dataUrl, 'template-design');
       await handleAddImage(url || dataUrl);
       setTemplateAwaitingPhoto(false);
+      setTemplateModalOpen(false);
       setActiveTab(null);
     } catch (err) {
       setTemplateError(String(err));
@@ -1851,7 +1858,7 @@ export default function App() {
           : 'Please add your photo first — the design is still empty.',
         'error',
       );
-      setActiveTab('image');
+      void openTemplateModal();
       return;
     }
 
@@ -3020,7 +3027,9 @@ export default function App() {
           className="relative flex min-h-0 flex-1 flex-col overflow-clip layout:overflow-hidden bg-[#F9FAFB]"
           style={isMobileLayout && interactionMode === 'selection' ? { touchAction: 'none' } : undefined}
         >
-          <div className="relative z-40 flex w-full border-b border-gray-100 bg-white">
+          {/* Şablonlu üründe müşterinin tek işi fotoğraf vermek; yazı, ek görsel
+              ve katman araçları gizlenir — şablonun bozulma ihtimali kalmaz. */}
+          <div className={cn('relative z-40 w-full border-b border-gray-100 bg-white', isTemplateProduct ? 'hidden' : 'flex')}>
             {MAIN_TABS.map(({ id, label, Icon }) => (
               <button
                 key={id}
@@ -3407,10 +3416,6 @@ export default function App() {
                         sessionId={getBgSessionId()}
                         locale={config?.locale}
                         termsUrl={personalization.termsUrl}
-                        templateDesign={personalization.templateDesign}
-                        templateBusy={templateBusy}
-                        templateError={templateError}
-                        onTemplatePhoto={handleTemplatePhoto}
                       />
                     </Suspense>
                   )}
@@ -3980,7 +3985,7 @@ export default function App() {
 
               type="button"
 
-              onClick={() => { setImageActiveSource('upload'); setActiveTab('image'); }}
+              onClick={openTemplateModal}
 
               disabled={templateBusy}
 
@@ -4001,32 +4006,21 @@ export default function App() {
           )}
 
 
-          {templateAssets && templatePhotoFile && (
+          {templateModalOpen && templateAssets && (
+              <Suspense fallback={null}>
+                <TemplatePhotoModal
+                  assets={templateAssets}
+                  file={templatePhotoFile}
+                  isTurkish={isTurkish}
+                  termsUrl={personalization.termsUrl}
+                  onCancel={() => { setTemplateModalOpen(false); setTemplatePhotoFile(null); }}
+                  onPickFile={(f) => setTemplatePhotoFile(f)}
+                  onConfirm={handleTemplateConfirm}
+                />
+              </Suspense>
+            )}
 
-            <Suspense fallback={null}>
-
-              <TemplatePhotoModal
-
-                assets={templateAssets}
-
-                file={templatePhotoFile}
-
-                isTurkish={isTurkish}
-
-                onCancel={() => setTemplatePhotoFile(null)}
-
-                onChangePhoto={() => { setTemplatePhotoFile(null); setImageActiveSource('upload'); setActiveTab('image'); }}
-
-                onConfirm={handleTemplateConfirm}
-
-              />
-
-            </Suspense>
-
-          )}
-
-
-          {showPreview && (
+            {showPreview && (
             <>
               {/* Backdrop */}
               <div

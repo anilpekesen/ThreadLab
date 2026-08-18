@@ -11,13 +11,18 @@ export interface TemplateAssets {
 
 interface Props {
   assets: TemplateAssets;
-  file: File;
+  /** Seçilmemişse pencere önce fotoğraf seçme adımını gösterir */
+  file: File | null;
   isTurkish: boolean;
+  termsUrl?: string;
   onCancel: () => void;
-  onChangePhoto: () => void;
+  onPickFile: (file: File) => void;
   /** Onaylanan kompozisyon, şablon çözünürlüğünde PNG data URL olarak döner */
   onConfirm: (dataUrl: string) => void;
 }
+
+const CONSENT_KEY = 'printlab_image_rights_accepted';
+const DEFAULT_TERMS_URL = 'https://app.printlabapp.com/terms-of-service';
 
 interface View { x: number; y: number; scale: number; angle: number }
 
@@ -54,13 +59,22 @@ function loadImage(src: string): Promise<HTMLImageElement> {
  * uyuşmazlık riski yoktur.
  */
 export default function TemplatePhotoModal({
-  assets, file, isTurkish, onCancel, onChangePhoto, onConfirm,
+  assets, file, isTurkish, termsUrl, onCancel, onPickFile, onConfirm,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layersRef = useRef<{ template: HTMLImageElement; mask: HTMLImageElement; photo: HTMLImageElement } | null>(null);
   const viewRef = useRef<View>({ x: 0, y: 0, scale: 1, angle: 0 });
   const dragRef = useRef<{ id: number; lastX: number; lastY: number } | null>(null);
   const pinchRef = useRef<{ dist: number; scale: number } | null>(null);
+
+  const pickRef = useRef<HTMLInputElement>(null);
+  const [consent, setConsent] = useState(() => {
+    try { const v = localStorage.getItem(CONSENT_KEY); return v == null ? true : v === '1'; }
+    catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(CONSENT_KEY, consent ? '1' : '0'); } catch { /* yoksay */ }
+  }, [consent]);
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -70,10 +84,20 @@ export default function TemplatePhotoModal({
   const t = isTurkish
     ? { title: 'Fotoğrafını yerleştir', zoom: 'Yakınlaştır', rotate: 'Döndür', center: 'Ortala',
         change: 'Fotoğrafı değiştir', cancel: 'Vazgeç', ok: 'Tamam',
-        hint: 'Fotoğrafı sürükleyerek kaydır, iki parmakla yakınlaştır.', loading: 'Hazırlanıyor…' }
+        hint: 'Fotoğrafı sürükleyerek kaydır, iki parmakla yakınlaştır.', loading: 'Hazırlanıyor…',
+        pickTitle: 'Fotoğrafını seç', pick: 'Fotoğraf Seç',
+        pickHint: 'Yüklediğin fotoğraf tasarımın boşluğuna otomatik yerleşir.',
+        consent: 'Bu görselin kullanım ve baskı hakkına sahibim ya da gerekli izinleri aldım.',
+        consentNote: 'Telif ihlali bildiriminde sipariş durdurulabilir.', terms: 'Koşullar',
+        needConsent: 'Devam etmek için yukarıdaki onayı verin' }
     : { title: 'Position your photo', zoom: 'Zoom', rotate: 'Rotate', center: 'Center',
         change: 'Change photo', cancel: 'Cancel', ok: 'Done',
-        hint: 'Drag to move, pinch to zoom.', loading: 'Preparing…' };
+        hint: 'Drag to move, pinch to zoom.', loading: 'Preparing…',
+        pickTitle: 'Choose your photo', pick: 'Choose Photo',
+        pickHint: 'Your photo drops into the design automatically.',
+        consent: 'I own or have permission to use and print this image.',
+        consentNote: 'Orders may be stopped if a copyright claim is filed.', terms: 'Terms',
+        needConsent: 'Accept the notice above to continue' };
 
   /** Fotoğrafı deliğe "cover" ile ortalayan başlangıç ölçeği */
   const baseScale = useCallback((photo: HTMLImageElement) => {
@@ -129,6 +153,7 @@ export default function TemplatePhotoModal({
   }, [assets, baseScale]);
 
   useEffect(() => {
+    if (!file) { setReady(false); return; }
     let revoked = '';
     let cancelled = false;
     (async () => {
@@ -224,12 +249,41 @@ export default function TemplatePhotoModal({
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-3" role="dialog" aria-modal="true">
       <div className="flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-          <p className="text-sm font-bold text-gray-900">{t.title}</p>
+          <p className="text-sm font-bold text-gray-900">{file ? t.title : t.pickTitle}</p>
           <button type="button" onClick={onCancel} className="rounded-full px-2 py-1 text-sm text-gray-400 hover:bg-gray-100">✕</button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {error ? (
+          {!file ? (
+            <div className="flex flex-col gap-3">
+              <img
+                src={proxied(assets.templateUrl)}
+                alt={assets.templateName}
+                className="mx-auto max-h-[34vh] w-auto rounded-xl border border-gray-100 bg-[repeating-conic-gradient(#f4f4f4_0%_25%,transparent_0%_50%)] bg-[length:14px_14px] object-contain p-2"
+              />
+              <p className="text-center text-xs text-gray-500">{t.pickHint}</p>
+
+              <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${consent ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-amber-50/60'}`}>
+                <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-600" />
+                <div>
+                  <p className="text-xs font-semibold leading-snug text-gray-700">{t.consent}</p>
+                  <p className="mt-0.5 text-[10px] text-gray-400">
+                    {t.consentNote}{' '}
+                    <a href={termsUrl || DEFAULT_TERMS_URL} target="_blank" rel="noopener noreferrer"
+                      className="text-blue-500 hover:underline">{t.terms}</a>
+                  </p>
+                </div>
+              </label>
+
+              <input ref={pickRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickFile(f); e.target.value = ''; }} />
+              <button type="button" disabled={!consent} onClick={() => pickRef.current?.click()}
+                className="w-full rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-rose-700 disabled:opacity-40">
+                {consent ? t.pick : t.needConsent}
+              </button>
+            </div>
+          ) : error ? (
             <p className="py-8 text-center text-sm font-medium text-red-600">{error}</p>
           ) : (
             <>
@@ -275,15 +329,17 @@ export default function TemplatePhotoModal({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 px-4 py-3">
+        <div className={`flex flex-wrap items-center gap-2 border-t border-gray-100 px-4 py-3 ${file ? '' : 'hidden'}`}>
           <button type="button" onClick={recenter} disabled={!ready}
             className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 disabled:opacity-40">
             {t.center}
           </button>
-          <button type="button" onClick={onChangePhoto}
+          <button type="button" onClick={() => pickRef.current?.click()}
             className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600">
             {t.change}
           </button>
+          <input ref={pickRef} type="file" accept="image/*" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickFile(f); e.target.value = ''; }} />
           <div className="flex-1" />
           <button type="button" onClick={onCancel}
             className="rounded-xl px-3 py-2 text-xs font-semibold text-gray-500">
