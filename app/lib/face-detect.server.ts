@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { request as httpsRequest } from "node:https";
 
 /**
  * Yüz/kafa tespiti — Google Cloud Vision (REST).
@@ -12,7 +13,40 @@ import sharp from "sharp";
  * düşer — servis olmadan da ürün çalışır.
  */
 
-const VISION_URL = "https://vision.googleapis.com/v1/images:annotate";
+const VISION_HOST = "vision.googleapis.com";
+const VISION_PATH = "/v1/images:annotate";
+
+/**
+ * Vision'a IPv4 üzerinden gider.
+ *
+ * Sunucu dışarı IPv6 ile çıkıyor; API anahtarı IP kısıtlamalıysa Google
+ * IPv6 adresini görüp reddediyor. Adresi anahtara eklemek yerine isteği
+ * IPv4'e sabitliyoruz — sunucunun IPv6 adresi değişse bile çalışır.
+ */
+function visionPost(apiKey: string, payload: unknown): Promise<{ status: number; body: string }> {
+  const data = Buffer.from(JSON.stringify(payload));
+  return new Promise((resolve, reject) => {
+    const req = httpsRequest(
+      {
+        host: VISION_HOST,
+        path: `${VISION_PATH}?key=${encodeURIComponent(apiKey)}`,
+        method: "POST",
+        family: 4,
+        timeout: 20_000,
+        headers: { "Content-Type": "application/json", "Content-Length": data.length },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c) => chunks.push(c as Buffer));
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error("Vision zaman asimi")));
+    req.on("error", reject);
+    req.write(data);
+    req.end();
+  });
+}
 
 export interface HeadBox {
   /** Kaynak görsel koordinatlarında, saç dahil kafa kutusu */
@@ -46,7 +80,8 @@ function polyToBox(vertices: VisionVertex[] | undefined) {
  * kişiyi almak en makul davranış.
  */
 export async function detectHead(imageBuffer: Buffer): Promise<HeadBox | null> {
-  const apiKey = process.env.GOOGLE_VISION_API_KEY?.trim();
+  // Sunucuda VISION_API_KEY, bazı kurulumlarda GOOGLE_VISION_API_KEY
+  const apiKey = (process.env.GOOGLE_VISION_API_KEY || process.env.VISION_API_KEY)?.trim();
   if (!apiKey) return null;
 
   // Vision 20 MB sınırlı; büyük fotoğrafları küçültüp koordinatları geri ölçekle
@@ -64,22 +99,17 @@ export async function detectHead(imageBuffer: Buffer): Promise<HeadBox | null> {
 
   let faces: VisionFace[] = [];
   try {
-    const res = await fetch(`${VISION_URL}?key=${encodeURIComponent(apiKey)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        requests: [{
-          image: { content: sent.toString("base64") },
-          features: [{ type: "FACE_DETECTION", maxResults: 5 }],
-        }],
-      }),
-      signal: AbortSignal.timeout(20_000),
+    const res = await visionPost(apiKey, {
+      requests: [{
+        image: { content: sent.toString("base64") },
+        features: [{ type: "FACE_DETECTION", maxResults: 5 }],
+      }],
     });
-    if (!res.ok) {
-      console.error("[face-detect] Vision hatasi", res.status, (await res.text()).slice(0, 200));
+    if (res.status !== 200) {
+      console.error("[face-detect] Vision hatasi", res.status, res.body.slice(0, 200));
       return null;
     }
-    const body = await res.json() as { responses?: Array<{ faceAnnotations?: VisionFace[]; error?: { message?: string } }> };
+    const body = JSON.parse(res.body) as { responses?: Array<{ faceAnnotations?: VisionFace[]; error?: { message?: string } }> };
     const first = body.responses?.[0];
     if (first?.error?.message) {
       console.error("[face-detect] Vision yanit hatasi:", first.error.message);
