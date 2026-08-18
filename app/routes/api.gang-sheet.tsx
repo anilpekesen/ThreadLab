@@ -34,8 +34,6 @@ async function fetchBuffer(url: string): Promise<Buffer | null> {
 
 interface PrintAreaInfo {
   sizeMm: { w: number; h: number };
-  canvasW: number; // print area width in 480px canvas space
-  canvasH: number; // print area height in 580px canvas space
 }
 
 async function getPrintAreaInfo(
@@ -49,18 +47,18 @@ async function getPrintAreaInfo(
       const result = await query<{
         real_width_mm: number;
         real_height_mm: number;
-        width: number;
-        height: number;
+        placement_width_mm: number;
+        placement_height_mm: number;
       }>(
-        "SELECT real_width_mm, real_height_mm, width, height FROM product_print_areas WHERE shop = $1 AND product_id = $2 AND side = $3 LIMIT 1",
+        "SELECT real_width_mm, real_height_mm, placement_width_mm, placement_height_mm FROM product_print_areas WHERE shop = $1 AND product_id = $2 AND side = $3 LIMIT 1",
         [shop, productId, s],
       );
       const row = result.rows[0];
-      if (row?.real_width_mm && row?.real_height_mm) {
+      const placementWidth = row?.placement_width_mm || row?.real_width_mm;
+      const placementHeight = row?.placement_height_mm || row?.real_height_mm;
+      if (placementWidth && placementHeight) {
         return {
-          sizeMm: { w: row.real_width_mm, h: row.real_height_mm },
-          canvasW: row.width || 480,
-          canvasH: row.height || 580,
+          sizeMm: { w: placementWidth, h: placementHeight },
         };
       }
     }
@@ -211,15 +209,9 @@ async function buildItemsForSide(
       let targetW: number;
       let targetH: number;
       if (areaInfo) {
-        // Scale the canvas export dimensions to match the print area's canvas pixel size.
-        // origW/origH are the exported PNG dimensions (e.g. 1440×1740 at 3× multiplier).
-        // canvasW/canvasH are the print area dimensions in the 480×580 canvas coordinate space.
-        // By using (canvasW/480 × origW) as the reference width, we get the correct
-        // physical size regardless of where the print area sits on the canvas.
-        const refW = (areaInfo.canvasW / 480) * origW;
-        const refH = (areaInfo.canvasH / 580) * origH;
-        targetW = Math.max(10, Math.round((contentW / refW) * areaInfo.sizeMm.w * pxPerMm));
-        targetH = Math.max(10, Math.round((contentH / refH) * areaInfo.sizeMm.h * pxPerMm));
+        // Print PNG zaten yalnızca mavi yerleşim alanına kırpılmıştır.
+        targetW = Math.max(10, Math.round((contentW / origW) * areaInfo.sizeMm.w * pxPerMm));
+        targetH = Math.max(10, Math.round((contentH / origH) * areaInfo.sizeMm.h * pxPerMm));
       } else {
         targetW = contentW;
         targetH = contentH;

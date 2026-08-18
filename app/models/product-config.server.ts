@@ -100,6 +100,9 @@ export interface PrintAreaRecord {
   height: number;
   realWidthMm: number;
   realHeightMm: number;
+  /** Mavi yerleşim alanının ürün üzerindeki gerçek fiziksel ölçüsü. */
+  placementWidthMm: number;
+  placementHeightMm: number;
   safeMargin: number;
   bleedMargin: number;
   dpi: number;
@@ -166,6 +169,7 @@ export async function readPrintAreas(shop: string): Promise<PrintAreaRecord[]> {
     mockup_image_url: string;
     x: string; y: string; width: string; height: string;
     real_width_mm: number; real_height_mm: number;
+    placement_width_mm: number; placement_height_mm: number;
     safe_margin: string; bleed_margin: string; dpi: number; updated_at: string;
   }>("SELECT * FROM product_print_areas WHERE shop = $1 ORDER BY updated_at", [shop]);
   return result.rows.map((r) => ({
@@ -184,6 +188,8 @@ export async function readPrintAreas(shop: string): Promise<PrintAreaRecord[]> {
     height: Number(r.height),
     realWidthMm: r.real_width_mm,
     realHeightMm: r.real_height_mm,
+    placementWidthMm: Number(r.placement_width_mm || r.real_width_mm || 0),
+    placementHeightMm: Number(r.placement_height_mm || r.real_height_mm || 0),
     safeMargin: Number(r.safe_margin),
     bleedMargin: Number(r.bleed_margin),
     dpi: r.dpi,
@@ -197,14 +203,16 @@ export async function writePrintAreas(shop: string, areas: PrintAreaRecord[]): P
   for (const a of areas) {
     await query(
       `INSERT INTO product_print_areas
-         (id, shop, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now())
+         (id, shop, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, x, y, width, height, real_width_mm, real_height_mm, placement_width_mm, placement_height_mm, safe_margin, bleed_margin, dpi, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,now())
        ON CONFLICT (id) DO UPDATE SET
          shop=$2, product_id=$3, side=$4, name=$5, mockup_x=$6, mockup_y=$7, mockup_width=$8, mockup_height=$9,
          x=$10, y=$11, width=$12, height=$13,
-         real_width_mm=$14, real_height_mm=$15, safe_margin=$16, bleed_margin=$17, dpi=$18, updated_at=now()`,
+         real_width_mm=$14, real_height_mm=$15, placement_width_mm=$16, placement_height_mm=$17,
+         safe_margin=$18, bleed_margin=$19, dpi=$20, updated_at=now()`,
       [a.id, shop, a.productId, a.side, a.name, a.mockupX, a.mockupY, a.mockupWidth, a.mockupHeight,
-       a.x, a.y, a.width, a.height, a.realWidthMm, a.realHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
+       a.x, a.y, a.width, a.height, a.realWidthMm, a.realHeightMm,
+       a.placementWidthMm, a.placementHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
     );
   }
 }
@@ -709,6 +717,12 @@ export async function getProductPrintAreas(
     realHeightMm: Math.round(
       ((side === "front" ? config.frontPrintHeightCm : config.backPrintHeightCm) || 0) * 10,
     ),
+    placementWidthMm: Math.round(
+      ((side === "front" ? config.frontPrintWidthCm : config.backPrintWidthCm) || 0) * 10,
+    ),
+    placementHeightMm: Math.round(
+      ((side === "front" ? config.frontPrintHeightCm : config.backPrintHeightCm) || 0) * 10,
+    ),
     safeMargin: 10,
     bleedMargin: 5,
     dpi: 300,
@@ -731,10 +745,11 @@ export async function saveProductPrintAreas(shop: string, productId: string, are
   for (const a of areas) {
     await query(
       `INSERT INTO product_print_areas
-         (id, shop, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, mockup_image_url, x, y, width, height, real_width_mm, real_height_mm, safe_margin, bleed_margin, dpi, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now())`,
+         (id, shop, product_id, side, name, mockup_x, mockup_y, mockup_width, mockup_height, mockup_image_url, x, y, width, height, real_width_mm, real_height_mm, placement_width_mm, placement_height_mm, safe_margin, bleed_margin, dpi, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,now())`,
       [a.id, shop, productId, a.side, a.name, a.mockupX, a.mockupY, a.mockupWidth, a.mockupHeight, a.mockupImageUrl ?? "",
-       a.x, a.y, a.width, a.height, a.realWidthMm, a.realHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
+       a.x, a.y, a.width, a.height, a.realWidthMm, a.realHeightMm,
+       a.placementWidthMm, a.placementHeightMm, a.safeMargin, a.bleedMargin, a.dpi],
     );
   }
 }

@@ -61,6 +61,9 @@ export interface PrintAreaConfig {
   height: number;
   realWidthMm: number;
   realHeightMm: number;
+  /** Mavi yerleşim alanının ürün üzerindeki gerçek fiziksel ölçüsü. */
+  placementWidthMm: number;
+  placementHeightMm: number;
 }
 
 /** Ürüne bağlı hazır tasarım şablonu (fotoğraf boşluğa maskelenir) */

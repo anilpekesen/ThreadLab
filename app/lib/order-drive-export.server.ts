@@ -87,13 +87,21 @@ function printFileName(side: "front" | "back", index: number, totalProducts: num
 
 async function getPrintAreaDimensions(shop: string, productId: string, side: "front" | "back") {
   if (!productId) return null;
-  const result = await query<{ real_width_mm: number; real_height_mm: number; dpi: number }>(
-    "SELECT real_width_mm, real_height_mm, dpi FROM product_print_areas WHERE shop = $1 AND product_id = $2 AND side = $3 LIMIT 1",
+  const result = await query<{
+    real_width_mm: number;
+    real_height_mm: number;
+    placement_width_mm: number;
+    placement_height_mm: number;
+    dpi: number;
+  }>(
+    "SELECT real_width_mm, real_height_mm, placement_width_mm, placement_height_mm, dpi FROM product_print_areas WHERE shop = $1 AND product_id = $2 AND side = $3 LIMIT 1",
     [shop, productId, side],
   );
   const row = result.rows[0];
-  if (!row?.real_width_mm || !row?.real_height_mm) return null;
-  return { widthMm: row.real_width_mm, heightMm: row.real_height_mm, dpi: row.dpi || 300 };
+  const placementWidth = row?.placement_width_mm || row?.real_width_mm;
+  const placementHeight = row?.placement_height_mm || row?.real_height_mm;
+  if (!placementWidth || !placementHeight) return null;
+  return { widthMm: placementWidth, heightMm: placementHeight, dpi: row.dpi || 300 };
 }
 
 async function normalizeToPhysicalSize(raw: Buffer, widthMm: number, heightMm: number, dpi: number): Promise<Buffer> {

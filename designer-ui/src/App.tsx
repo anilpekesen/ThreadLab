@@ -177,6 +177,8 @@ const DEFAULT_PRINT_AREAS: Record<Side, PrintAreaConfig> = {
     height: 390,
     realWidthMm: 280,
     realHeightMm: 450,
+    placementWidthMm: 280,
+    placementHeightMm: 450,
   },
   back: {
     side: 'back',
@@ -190,6 +192,8 @@ const DEFAULT_PRINT_AREAS: Record<Side, PrintAreaConfig> = {
     height: 390,
     realWidthMm: 280,
     realHeightMm: 450,
+    placementWidthMm: 280,
+    placementHeightMm: 450,
   },
 };
 
@@ -352,6 +356,8 @@ function normalizePrintArea(side: Side, area: Partial<PrintAreaConfig> | null | 
     height: Number(area?.height ?? fallback.height),
     realWidthMm: Number(area?.realWidthMm ?? fallback.realWidthMm),
     realHeightMm: Number(area?.realHeightMm ?? fallback.realHeightMm),
+    placementWidthMm: Number(area?.placementWidthMm ?? area?.realWidthMm ?? fallback.placementWidthMm),
+    placementHeightMm: Number(area?.placementHeightMm ?? area?.realHeightMm ?? fallback.placementHeightMm),
   };
 }
 
@@ -433,8 +439,8 @@ function canvasRectForArea(area: PrintAreaConfig) {
 
 function metricsFromRect(rect: { width: number; height: number }, area: PrintAreaConfig, objectCount: number): SideMetrics {
   const areaRect = canvasRectForArea(area);
-  const widthCm = rect.width * ((area.realWidthMm / 10) / Math.max(areaRect.width, 1));
-  const heightCm = rect.height * ((area.realHeightMm / 10) / Math.max(areaRect.height, 1));
+  const widthCm = rect.width * ((area.placementWidthMm / 10) / Math.max(areaRect.width, 1));
+  const heightCm = rect.height * ((area.placementHeightMm / 10) / Math.max(areaRect.height, 1));
   return {
     widthCm: roundMetric(widthCm),
     heightCm: roundMetric(heightCm),

@@ -67,6 +67,8 @@ type AreaState = {
   height: string;
   realWidthMm: string;
   realHeightMm: string;
+  placementWidthMm: string;
+  placementHeightMm: string;
   safeMargin: string;
   bleedMargin: string;
   dpi: string;
@@ -135,6 +137,14 @@ function parseAreaRows(form: FormData, surfaceMode: ProductConfig["surfaceMode"]
       height: normalized.height,
       realWidthMm: parseNumber(form.get(`${side}AreaRealWidthMm`)),
       realHeightMm: parseNumber(form.get(`${side}AreaRealHeightMm`)),
+      placementWidthMm: parseNumber(
+        form.get(`${side}AreaPlacementWidthMm`),
+        parseNumber(form.get(`${side}AreaRealWidthMm`)),
+      ),
+      placementHeightMm: parseNumber(
+        form.get(`${side}AreaPlacementHeightMm`),
+        parseNumber(form.get(`${side}AreaRealHeightMm`)),
+      ),
       safeMargin: parseNumber(form.get(`${side}AreaSafeMargin`), 10),
       bleedMargin: parseNumber(form.get(`${side}AreaBleedMargin`), 5),
       dpi: parseNumber(form.get(`${side}AreaDpi`), 300),
@@ -169,6 +179,8 @@ function toAreaState(areas: PrintAreaRecord[], side: "front" | "back"): AreaStat
     height: String(area?.height ?? 0),
     realWidthMm: String(area?.realWidthMm ?? 0),
     realHeightMm: String(area?.realHeightMm ?? 0),
+    placementWidthMm: String(area?.placementWidthMm ?? area?.realWidthMm ?? 0),
+    placementHeightMm: String(area?.placementHeightMm ?? area?.realHeightMm ?? 0),
     safeMargin: String(area?.safeMargin ?? 10),
     bleedMargin: String(area?.bleedMargin ?? 5),
     dpi: String(area?.dpi ?? 300),
@@ -377,6 +389,8 @@ function applyProductPreset(area: AreaState, productType: ProductConfig["product
     height: String(overlay.height),
     realWidthMm: String(dimensions.realWidthMm),
     realHeightMm: String(dimensions.realHeightMm),
+    placementWidthMm: String(dimensions.realWidthMm),
+    placementHeightMm: String(dimensions.realHeightMm),
   });
 }
 
@@ -619,23 +633,55 @@ function PrintAreaEditor({
             </Button>
           </InlineStack>
 
-          {/* Real print dimensions — critical for gang sheet calculations */}
-          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
-            <TextField
-              label={t("products.realWidth")}
-              value={currentArea.realWidthMm}
-              onChange={(value) => onChange({ ...currentArea, realWidthMm: value })}
-              autoComplete="off"
-              type="number"
-            />
-            <TextField
-              label={t("products.realHeight")}
-              value={currentArea.realHeightMm}
-              onChange={(value) => onChange({ ...currentArea, realHeightMm: value })}
-              autoComplete="off"
-              type="number"
-            />
-          </InlineGrid>
+          <BlockStack gap="200">
+            <BlockStack gap="100">
+              <Text as="h4" variant="headingSm">{t("products.placementDimensions")}</Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                {t("products.placementDimensionsHelp")}
+              </Text>
+            </BlockStack>
+            <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+              <TextField
+                label={t("products.placementWidth")}
+                value={currentArea.placementWidthMm}
+                onChange={(value) => onChange({ ...currentArea, placementWidthMm: value })}
+                autoComplete="off"
+                type="number"
+              />
+              <TextField
+                label={t("products.placementHeight")}
+                value={currentArea.placementHeightMm}
+                onChange={(value) => onChange({ ...currentArea, placementHeightMm: value })}
+                autoComplete="off"
+                type="number"
+              />
+            </InlineGrid>
+          </BlockStack>
+
+          <BlockStack gap="200">
+            <BlockStack gap="100">
+              <Text as="h4" variant="headingSm">{t("products.maxArtworkDimensions")}</Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                {t("products.maxArtworkDimensionsHelp")}
+              </Text>
+            </BlockStack>
+            <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+              <TextField
+                label={t("products.realWidth")}
+                value={currentArea.realWidthMm}
+                onChange={(value) => onChange({ ...currentArea, realWidthMm: value })}
+                autoComplete="off"
+                type="number"
+              />
+              <TextField
+                label={t("products.realHeight")}
+                value={currentArea.realHeightMm}
+                onChange={(value) => onChange({ ...currentArea, realHeightMm: value })}
+                autoComplete="off"
+                type="number"
+              />
+            </InlineGrid>
+          </BlockStack>
           <InlineGrid columns={{ xs: 1, md: 3 }} gap="300">
             <TextField
               label={t("products.safeMargin")}
@@ -718,6 +764,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const printAreas = parseAreaRows(form, surfaceMode);
   const frontArea = printAreas.find((area) => area.side === "front");
   const backArea = printAreas.find((area) => area.side === "back");
+
+  const invalidArea = printAreas.find((area) =>
+    !(area.placementWidthMm > 0)
+    || !(area.placementHeightMm > 0)
+    || !(area.realWidthMm > 0)
+    || !(area.realHeightMm > 0)
+    || area.realWidthMm > area.placementWidthMm
+    || area.realHeightMm > area.placementHeightMm
+  );
+  if (invalidArea) {
+    return json({
+      error: "Yerleşim ölçüleri sıfırdan büyük olmalı ve maksimum tasarım ölçüsünden küçük olmamalıdır.",
+    }, { status: 400 });
+  }
 
   const normalized = normalizeProductConfig(
     {
@@ -836,19 +896,19 @@ export default function ProductSettingsRoute() {
     ? JSON.stringify({ referenceSize: effectiveReferenceSize, entries: filledSizeEntries })
     : "";
 
-  // Baskı kutusunu gerçek fiziksel orana getirir: mockup kutusunun genişliği
-  // referans bedenin gövde enine karşılık gelir, kutu bu ölçekten hesaplanır.
+  // Yerleşim kutusunu gerçek fiziksel orana getirir: mockup kutusunun genişliği
+  // referans bedenin gövde enine karşılık gelir, mavi alan bu ölçekten hesaplanır.
   // Konum (yatay merkez + yaka altı mesafesi) korunur, en/boy oranı bozulmaz.
   function applyRealScale(reference: SizeChartEntry) {
     const rescale = (area: AreaState): AreaState => {
       const mockupWidth = Number(area.mockupWidth || PREVIEW_WIDTH);
-      const printWidthCm = Number(area.realWidthMm || 0) / 10;
-      const printHeightCm = Number(area.realHeightMm || 0) / 10;
-      if (!(mockupWidth > 0) || !(printWidthCm > 0) || !(printHeightCm > 0)) return area;
+      const placementWidthCm = Number(area.placementWidthMm || 0) / 10;
+      const placementHeightCm = Number(area.placementHeightMm || 0) / 10;
+      if (!(mockupWidth > 0) || !(placementWidthCm > 0) || !(placementHeightCm > 0)) return area;
 
       const pxPerCm = mockupWidth / reference.widthCm;
-      const width = Math.round(printWidthCm * pxPerCm);
-      const height = Math.round(printHeightCm * pxPerCm);
+      const width = Math.round(placementWidthCm * pxPerCm);
+      const height = Math.round(placementHeightCm * pxPerCm);
       const centerX = Number(area.x || 0) + Number(area.width || 0) / 2;
 
       return normalizeAreaState({
@@ -1050,6 +1110,8 @@ export default function ProductSettingsRoute() {
                   <input type="hidden" name="frontAreaHeight" value={frontArea.height} />
                   <input type="hidden" name="frontAreaRealWidthMm" value={frontArea.realWidthMm} />
                   <input type="hidden" name="frontAreaRealHeightMm" value={frontArea.realHeightMm} />
+                  <input type="hidden" name="frontAreaPlacementWidthMm" value={frontArea.placementWidthMm} />
+                  <input type="hidden" name="frontAreaPlacementHeightMm" value={frontArea.placementHeightMm} />
                   <input type="hidden" name="frontAreaSafeMargin" value={frontArea.safeMargin} />
                   <input type="hidden" name="frontAreaBleedMargin" value={frontArea.bleedMargin} />
                   <input type="hidden" name="frontAreaDpi" value={frontArea.dpi} />
@@ -1085,6 +1147,8 @@ export default function ProductSettingsRoute() {
                       <input type="hidden" name="backAreaHeight" value={backArea.height} />
                       <input type="hidden" name="backAreaRealWidthMm" value={backArea.realWidthMm} />
                       <input type="hidden" name="backAreaRealHeightMm" value={backArea.realHeightMm} />
+                      <input type="hidden" name="backAreaPlacementWidthMm" value={backArea.placementWidthMm} />
+                      <input type="hidden" name="backAreaPlacementHeightMm" value={backArea.placementHeightMm} />
                       <input type="hidden" name="backAreaSafeMargin" value={backArea.safeMargin} />
                       <input type="hidden" name="backAreaBleedMargin" value={backArea.bleedMargin} />
                       <input type="hidden" name="backAreaDpi" value={backArea.dpi} />
@@ -1544,7 +1608,11 @@ export default function ProductSettingsRoute() {
 
             <InlineStack gap="200">
               <Button submit variant="primary">{t("products.save")}</Button>
-              {actionData ? <Text as="p" tone="critical">{t("products.saveError")}</Text> : null}
+              {actionData ? (
+                <Text as="p" tone="critical">
+                  {"error" in actionData ? actionData.error : t("products.saveError")}
+                </Text>
+              ) : null}
             </InlineStack>
           </BlockStack>
         </Form>

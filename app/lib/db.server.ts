@@ -203,6 +203,8 @@ async function _runMigrationsLocked() {
       height          NUMERIC NOT NULL DEFAULT 0,
       real_width_mm   INTEGER NOT NULL DEFAULT 0,
       real_height_mm  INTEGER NOT NULL DEFAULT 0,
+      placement_width_mm  INTEGER NOT NULL DEFAULT 0,
+      placement_height_mm INTEGER NOT NULL DEFAULT 0,
       safe_margin     NUMERIC NOT NULL DEFAULT 10,
       bleed_margin    NUMERIC NOT NULL DEFAULT 5,
       dpi             INTEGER NOT NULL DEFAULT 300,
@@ -223,6 +225,23 @@ async function _runMigrationsLocked() {
   await query(`
     ALTER TABLE product_print_areas
       ADD COLUMN IF NOT EXISTS mockup_image_url TEXT NOT NULL DEFAULT ''
+  `);
+  await query(`
+    ALTER TABLE product_print_areas
+      ADD COLUMN IF NOT EXISTS placement_width_mm INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS placement_height_mm INTEGER NOT NULL DEFAULT 0
+  `);
+  // Eski ürünlerde tek ölçü hem yerleşim hem maksimum baskı olarak kullanılıyordu.
+  // Yeni alanları eski ölçüyle doldurunca mevcut ürünlerin görünümü değişmez.
+  await query(`
+    UPDATE product_print_areas
+    SET placement_width_mm = real_width_mm
+    WHERE placement_width_mm <= 0 AND real_width_mm > 0
+  `);
+  await query(`
+    UPDATE product_print_areas
+    SET placement_height_mm = real_height_mm
+    WHERE placement_height_mm <= 0 AND real_height_mm > 0
   `);
   await query(`
     CREATE TABLE IF NOT EXISTS product_categories (

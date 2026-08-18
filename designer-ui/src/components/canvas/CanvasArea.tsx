@@ -40,7 +40,7 @@ export interface CanvasAreaHandle {
   getActiveObject: () => fabric.Object | null;
   exportPng: (multiplier?: number, cleanBg?: boolean) => string;
   /** Print dosyası export: print area'ya clip edilmiş, gerçek mm boyutlarında 300 DPI PNG */
-  exportPrintFile: (area: { x: number; y: number; width: number; height: number; realWidthMm: number; realHeightMm: number }, dpi?: number) => string;
+  exportPrintFile: (area: PrintAreaConfig, dpi?: number) => string;
   /**
    * Mockup + tasarımı, tasarım katmanı verilen dikdörtgene yerleştirilmiş
    * şekilde kompozit eder. Canlı canvas'a dokunmaz — beden başına önizleme
@@ -321,6 +321,82 @@ function toMockupRect(area: PrintAreaConfig) {
   };
 }
 
+function maxArtworkCanvasSize(area: PrintAreaConfig, areaRect: ReturnType<typeof toCanvasRect>) {
+  const placementWidth = Math.max(area.placementWidthMm || area.realWidthMm, 1);
+  const placementHeight = Math.max(area.placementHeightMm || area.realHeightMm, 1);
+  return {
+    width: Math.min(areaRect.width, areaRect.width * (Math.max(area.realWidthMm, 1) / placementWidth)),
+    height: Math.min(areaRect.height, areaRect.height * (Math.max(area.realHeightMm, 1) / placementHeight)),
+  };
+}
+
+function objectsBoundingRect(objects: fabric.Object[]) {
+  const bounds = objects.map((obj) => obj.getBoundingRect(true, true));
+  if (!bounds.length) return null;
+  const left = Math.min(...bounds.map((rect) => rect.left));
+  const top = Math.min(...bounds.map((rect) => rect.top));
+  const right = Math.max(...bounds.map((rect) => rect.left + rect.width));
+  const bottom = Math.max(...bounds.map((rect) => rect.top + rect.height));
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+type ObjectTransformSnapshot = Pick<fabric.IObjectOptions,
+  'left' | 'top' | 'scaleX' | 'scaleY' | 'angle' | 'skewX' | 'skewY' | 'flipX' | 'flipY'>;
+
+function snapshotObjectTransform(obj: fabric.Object): ObjectTransformSnapshot {
+  return {
+    left: obj.left,
+    top: obj.top,
+    scaleX: obj.scaleX,
+    scaleY: obj.scaleY,
+    angle: obj.angle,
+    skewX: obj.skewX,
+    skewY: obj.skewY,
+    flipX: obj.flipX,
+    flipY: obj.flipY,
+  };
+}
+
+function fitsArtworkLimit(cv: fabric.Canvas, area: PrintAreaConfig, areaRect: ReturnType<typeof toCanvasRect>) {
+  const bounds = objectsBoundingRect(cv.getObjects());
+  if (!bounds) return true;
+  const maximum = maxArtworkCanvasSize(area, areaRect);
+  return bounds.width <= maximum.width + 0.5 && bounds.height <= maximum.height + 0.5;
+}
+
+function fitCanvasDesignToArtworkLimit(
+  cv: fabric.Canvas,
+  area: PrintAreaConfig,
+  areaRect: ReturnType<typeof toCanvasRect>,
+) {
+  const objects = cv.getObjects();
+  const bounds = objectsBoundingRect(objects);
+  if (!bounds) return false;
+  const maximum = maxArtworkCanvasSize(area, areaRect);
+  if (bounds.width <= maximum.width + 0.5 && bounds.height <= maximum.height + 0.5) return false;
+
+  const ratio = Math.min(
+    maximum.width / Math.max(bounds.width, 1),
+    maximum.height / Math.max(bounds.height, 1),
+  );
+  const center = new fabric.Point(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+  for (const obj of objects) {
+    const objectCenter = obj.getCenterPoint();
+    obj.set({
+      scaleX: (obj.scaleX ?? 1) * ratio,
+      scaleY: (obj.scaleY ?? 1) * ratio,
+    });
+    keepImageUniform(obj);
+    obj.setPositionByOrigin(new fabric.Point(
+      center.x + (objectCenter.x - center.x) * ratio,
+      center.y + (objectCenter.y - center.y) * ratio,
+    ), 'center', 'center');
+    obj.setCoords();
+    constrainObjectToArea(obj, areaRect);
+  }
+  return true;
+}
+
 function scaleObjectToFitArea(obj: fabric.Object, areaRect: ReturnType<typeof toCanvasRect>) {
   let changed = false;
   let bounds = obj.getBoundingRect(true, true);
@@ -406,6 +482,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const isRestoringRef = useRef(false);
   const prevAreaRectRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
   const printAreaRef = useRef(printArea);
+  const validTransformsRef = useRef(new WeakMap<fabric.Object, ObjectTransformSnapshot>());
   const onObjectSelectedRef = useRef(onObjectSelected);
   const onDesignChangeRef = useRef(onDesignChange);
 
@@ -480,7 +557,45 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const constrainTarget = useCallback((target: fabric.Object | null | undefined) => {
     const cv = canvasRef.current;
     if (!cv || !target) return false;
-    const changed = constrainObjectToArea(target, toCanvasRect(printAreaRef.current));
+    const area = printAreaRef.current;
+    const areaRect = toCanvasRect(area);
+    let changed = constrainObjectToArea(target, areaRect);
+
+    // Tek nesnenin fiziksel maksimumu aşmasını oranını bozmadan engelle.
+    const maximum = maxArtworkCanvasSize(area, areaRect);
+    const bounds = target.getBoundingRect(true, true);
+    if (bounds.width > maximum.width || bounds.height > maximum.height) {
+      const ratio = Math.min(
+        maximum.width / Math.max(bounds.width, 1),
+        maximum.height / Math.max(bounds.height, 1),
+      );
+      target.set({
+        scaleX: (target.scaleX ?? 1) * ratio,
+        scaleY: (target.scaleY ?? 1) * ratio,
+      });
+      keepImageUniform(target);
+      target.setCoords();
+      constrainObjectToArea(target, areaRect);
+      changed = true;
+    }
+
+    // Birden fazla öğede toplam tasarım sınırını koru. Geçersiz hareket veya
+    // dönüşte yalnızca aktif nesne son geçerli konumuna döner.
+    if (!fitsArtworkLimit(cv, area, areaRect)) {
+      const previous = validTransformsRef.current.get(target);
+      if (previous) {
+        target.set(previous);
+        target.setCoords();
+        constrainObjectToArea(target, areaRect);
+        changed = true;
+      } else {
+        changed = fitCanvasDesignToArtworkLimit(cv, area, areaRect) || changed;
+      }
+    }
+
+    if (fitsArtworkLimit(cv, area, areaRect)) {
+      validTransformsRef.current.set(target, snapshotObjectTransform(target));
+    }
     if (changed && hasLiveContext(cv)) {
       cv.renderAll();
     }
@@ -530,7 +645,10 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     runtimeCanvas.upperCanvasEl?.style.setProperty('-webkit-user-select', 'none');
     runtimeCanvas.lowerCanvasEl?.style.setProperty('-webkit-user-select', 'none');
     cv.on('mouse:down', (e) => {
-      if (e.target) onObjectSelectedRef.current(e.target);
+      if (e.target) {
+        validTransformsRef.current.set(e.target, snapshotObjectTransform(e.target));
+        onObjectSelectedRef.current(e.target);
+      }
     });
     cv.on('object:added', (e) => {
       lockImageProportions(e.target);
@@ -659,8 +777,9 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     fabric.Image.fromURL(loadUrl, (img) => {
       if (canvasRef.current !== cv || !hasLiveContext(cv)) return;
       const areaRect = toCanvasRect(printAreaRef.current);
-      const maxW = areaRect.width * 0.72;
-      const maxH = areaRect.height * 0.72;
+      const maximum = maxArtworkCanvasSize(printAreaRef.current, areaRect);
+      const maxW = maximum.width;
+      const maxH = maximum.height;
       // No upper cap of 1 — small SVGs also scale up to fill the target area
       const scale = Math.min(maxW / (img.width ?? 200), maxH / (img.height ?? 200));
       img.scale(scale);
@@ -904,16 +1023,13 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     return dataUrl;
   }, []);
 
-  const exportPrintFile = useCallback((
-    area: { x: number; y: number; width: number; height: number; realWidthMm: number; realHeightMm: number },
-    dpi = 300,
-  ): string => {
+  const exportPrintFile = useCallback((area: PrintAreaConfig, dpi = 300): string => {
     const cv = canvasRef.current;
     if (!cv) return '';
 
     // Hedef boyut: gerçek mm → pixel (DPI bazında)
-    const targetW = Math.round((area.realWidthMm / 25.4) * dpi);
-    const targetH = Math.round((area.realHeightMm / 25.4) * dpi);
+    const targetW = Math.round(((area.placementWidthMm || area.realWidthMm) / 25.4) * dpi);
+    const targetH = Math.round(((area.placementHeightMm || area.realHeightMm) / 25.4) * dpi);
     // Multiplier: print area canvas px → hedef px
     const multiplier = targetW / Math.max(area.width, 1);
 
@@ -1053,7 +1169,13 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     const proxied = proxyJsonUrls(json);
     cv.loadFromJSON(proxied, () => {
       normalizeCanvasImages(cv);
-      constrainCanvasObjects(cv, toCanvasRect(printAreaRef.current));
+      const area = printAreaRef.current;
+      const areaRect = toCanvasRect(area);
+      constrainCanvasObjects(cv, areaRect);
+      fitCanvasDesignToArtworkLimit(cv, area, areaRect);
+      cv.getObjects().forEach((obj) => {
+        validTransformsRef.current.set(obj, snapshotObjectTransform(obj));
+      });
       cv.renderAll();
       isRestoringRef.current = false;
       pushHistory(cv);
@@ -1097,7 +1219,11 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     if (prevRect) remapObjectsBetweenAreas(cv, prevRect, nextRect);
     prevAreaRectRef.current = nextRect;
 
-    const changed = constrainCanvasObjects(cv, nextRect);
+    let changed = constrainCanvasObjects(cv, nextRect);
+    changed = fitCanvasDesignToArtworkLimit(cv, printArea, nextRect) || changed;
+    cv.getObjects().forEach((obj) => {
+      validTransformsRef.current.set(obj, snapshotObjectTransform(obj));
+    });
     if (changed) {
       cv.renderAll();
       onObjectSelectedRef.current(cv.getActiveObject() ?? null);

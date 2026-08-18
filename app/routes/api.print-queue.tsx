@@ -83,18 +83,18 @@ async function printArea(shop: string, productId: string, side: Side) {
     const result = await query<{
       real_width_mm: number;
       real_height_mm: number;
-      width: number;
-      height: number;
+      placement_width_mm: number;
+      placement_height_mm: number;
     }>(
-      "SELECT real_width_mm, real_height_mm, width, height FROM product_print_areas WHERE shop = $1 AND product_id = $2 AND side = $3 LIMIT 1",
+      "SELECT real_width_mm, real_height_mm, placement_width_mm, placement_height_mm FROM product_print_areas WHERE shop = $1 AND product_id = $2 AND side = $3 LIMIT 1",
       [shop, productId, s],
     );
     const row = result.rows[0];
-    if (row?.real_width_mm && row?.real_height_mm) {
+    const placementWidth = row?.placement_width_mm || row?.real_width_mm;
+    const placementHeight = row?.placement_height_mm || row?.real_height_mm;
+    if (placementWidth && placementHeight) {
       return {
-        sizeMm: { w: row.real_width_mm, h: row.real_height_mm },
-        canvasW: row.width || 480,
-        canvasH: row.height || 580,
+        sizeMm: { w: placementWidth, h: placementHeight },
       };
     }
   }
@@ -158,10 +158,8 @@ async function buildItems(
     let targetW = trimmed.width;
     let targetH = trimmed.height;
     if (area) {
-      const refW = (area.canvasW / 480) * origW;
-      const refH = (area.canvasH / 580) * origH;
-      targetW = Math.max(10, Math.round((trimmed.width / refW) * area.sizeMm.w * pxPerMm));
-      targetH = Math.max(10, Math.round((trimmed.height / refH) * area.sizeMm.h * pxPerMm));
+      targetW = Math.max(10, Math.round((trimmed.width / origW) * area.sizeMm.w * pxPerMm));
+      targetH = Math.max(10, Math.round((trimmed.height / origH) * area.sizeMm.h * pxPerMm));
     }
 
     const qty = Math.max(1, order.quantity ?? 1);

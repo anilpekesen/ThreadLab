@@ -19,8 +19,8 @@ export interface AreaRect {
  * Ölçek izotropiktir (genişlik bazlı) — tasarımın en/boy oranı bozulmasın diye.
  * Gövde boyu yalnızca dikey konumu (yaka altı offseti) oranlamakta kullanılır.
  *
- * realWidthMm/realHeightMm dokunulmadan geçer: baskının fiziksel ölçüsü,
- * üretim dosyası ve fiyat bandı hesabı bedene göre değişmez.
+ * Yerleşim ve maksimum tasarımın fiziksel ölçüleri dokunulmadan geçer.
+ * Beden değişimi yalnızca bunların mockup üzerindeki piksel karşılığını etkiler.
  */
 export function scaleAreaForSize(
   area: PrintAreaConfig,
