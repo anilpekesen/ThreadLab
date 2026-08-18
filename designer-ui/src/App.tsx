@@ -53,6 +53,7 @@ import { scaleAreaForSize } from '@/utils/sizeScale';
 import { evaluateRules, warnings, blockers, type RuleResult } from '@/utils/conditionalLogic';
 
 const ImagePanel = lazy(() => import('@/components/panels/ImagePanel'));
+const TemplatePhotoModal = lazy(() => import('@/components/modals/TemplatePhotoModal'));
 const TextPanel = lazy(() => import('@/components/panels/TextPanel'));
 const TemplatesPanel = lazy(() => import('@/components/panels/TemplatesPanel'));
 const SavedPanel = lazy(() => import('@/components/panels/SavedPanel'));
@@ -1048,6 +1049,8 @@ export default function App() {
   const [imageActiveSource, setImageActiveSource] = useState<'upload' | 'qr' | 'ai'>('upload');
   const [templateBusy, setTemplateBusy] = useState(false);
   const [templateError, setTemplateError] = useState('');
+  const [templateAssets, setTemplateAssets] = useState<import('@/components/modals/TemplatePhotoModal').TemplateAssets | null>(null);
+  const [templatePhotoFile, setTemplatePhotoFile] = useState<File | null>(null);
   const [selectedObj, setSelectedObj] = useState<CanvasSelection | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
   const [zoom, setZoom] = useState(getAutoZoom);
@@ -1559,23 +1562,47 @@ export default function App() {
    * gibi tuvale eklenir — taşıma, ölçekleme, baskı alanı ve fiyat akışı
    * olduğu gibi çalışır.
    */
+  /**
+   * Şablonlu ürünlerde fotoğraf seçilince ayar penceresini açar. Kompozisyon
+   * tarayıcıda yapıldığı için müşterinin gördüğü görsel basılan görselin
+   * kendisidir; sunucuda ikinci bir hesap yok.
+   */
   const handleTemplatePhoto = async (file: File) => {
     if (!config?.shop || !config?.productId) return;
-    setTemplateBusy(true);
     setTemplateError('');
-    try {
-      const fd = new FormData();
-      fd.append('photo', file);
-      fd.append('shop', config.shop);
-      fd.append('productId', String(config.productId).split('/').pop() ?? '');
+    setTemplatePhotoFile(file);
 
-      const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
-      const data = await res.json() as { url?: string; error?: string };
-      if (!res.ok || !data.url) {
-        setTemplateError(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
+    if (templateAssets) return;   // şablon varlıkları zaten alındı
+
+    setTemplateBusy(true);
+    try {
+      const params = new URLSearchParams({
+        shop: config.shop,
+        productId: String(config.productId).split('/').pop() ?? '',
+      });
+      const res = await fetch(`/apps/tshirt-designer/template-assets?${params}`);
+      const data = await res.json();
+      if (!res.ok || !data?.maskDataUrl) {
+        setTemplateError(data?.error || (isTurkish ? 'Şablon yüklenemedi' : 'Could not load the template'));
+        setTemplatePhotoFile(null);
         return;
       }
-      await handleAddImage(data.url);
+      setTemplateAssets(data);
+    } catch (err) {
+      setTemplateError(String(err));
+      setTemplatePhotoFile(null);
+    } finally {
+      setTemplateBusy(false);
+    }
+  };
+
+  /** Ayar penceresinde onaylanan kompozisyonu tuvale ekler */
+  const handleTemplateConfirm = async (dataUrl: string) => {
+    setTemplatePhotoFile(null);
+    setTemplateBusy(true);
+    try {
+      const url = await dataUrlToServerUrl(dataUrl, 'template-design');
+      await handleAddImage(url || dataUrl);
       setActiveTab(null);
     } catch (err) {
       setTemplateError(String(err));
@@ -3931,6 +3958,31 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {templateAssets && templatePhotoFile && (
+
+            <Suspense fallback={null}>
+
+              <TemplatePhotoModal
+
+                assets={templateAssets}
+
+                file={templatePhotoFile}
+
+                isTurkish={isTurkish}
+
+                onCancel={() => setTemplatePhotoFile(null)}
+
+                onChangePhoto={() => { setTemplatePhotoFile(null); templateFileRef.current?.click(); }}
+
+                onConfirm={handleTemplateConfirm}
+
+              />
+
+            </Suspense>
+
+          )}
+
 
           {showPreview && (
             <>
