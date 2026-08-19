@@ -90,6 +90,8 @@ export const tr = {
   noDesign: 'tasarım yok',
   itemSingular: 'öğe',
   itemPlural: 'öğe',
+  printPieceSingular: 'baskı parçası',
+  printPiecePlural: 'baskı parçası',
 
   // Color / size
   colorLabel: 'Renk',
@@ -115,6 +117,7 @@ export const tr = {
   layerEmpty: 'Henüz katman eklenmemiş',
   layerLabel: 'Katman',
   groupLabel: 'Grup',
+  ungroupLabel: 'Ayır',
 
   // Errors / toasts
   errorCrop: 'Görsel kırpılamadı',
@@ -187,9 +190,13 @@ export const tr = {
   propFrontSize: 'Ön ölçü',
   propFrontPrintPrice: 'Ön baskı fiyatı',
   propFrontPriceBand: 'Ön fiyat bandı',
+  propFrontPrintCount: 'Ön baskı parçası',
+  propFrontPrintBreakdown: 'Ön baskı dökümü',
   propBackSize: 'Arka ölçü',
   propBackPrintPrice: 'Arka baskı fiyatı',
   propBackPriceBand: 'Arka fiyat bandı',
+  propBackPrintCount: 'Arka baskı parçası',
+  propBackPrintBreakdown: 'Arka baskı dökümü',
   propBulkDiscount: 'Toplu alım indirimi',
   propPrintDiscount: 'Baskı indirimi',
   propDesignDetail: 'Müşteri Tasarım Linki',
@@ -299,6 +306,8 @@ export const en: { [K in keyof typeof tr]: string } = {
   noDesign: 'no design',
   itemSingular: 'item',
   itemPlural: 'items',
+  printPieceSingular: 'print piece',
+  printPiecePlural: 'print pieces',
 
   colorLabel: 'Color',
   colorVariants: 'Color variants',
@@ -320,6 +329,7 @@ export const en: { [K in keyof typeof tr]: string } = {
   layerEmpty: 'No layers yet',
   layerLabel: 'Layer',
   groupLabel: 'Group',
+  ungroupLabel: 'Ungroup',
 
   errorCrop: 'Could not crop image',
   errorBgRemove: 'Background removal failed',
@@ -384,9 +394,13 @@ export const en: { [K in keyof typeof tr]: string } = {
   propFrontSize: 'Front size',
   propFrontPrintPrice: 'Front print price',
   propFrontPriceBand: 'Front price band',
+  propFrontPrintCount: 'Front print pieces',
+  propFrontPrintBreakdown: 'Front print breakdown',
   propBackSize: 'Back size',
   propBackPrintPrice: 'Back print price',
   propBackPriceBand: 'Back price band',
+  propBackPrintCount: 'Back print pieces',
+  propBackPrintBreakdown: 'Back print breakdown',
   propBulkDiscount: 'Bulk discount',
   propPrintDiscount: 'Print discount',
   propDesignDetail: 'Customer Design Link',

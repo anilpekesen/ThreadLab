@@ -77,9 +77,10 @@ interface Props {
 }
 
 const HISTORY_LIMIT = 50;
-const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl', 'backgroundRemoved'];
+const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl', 'backgroundRemoved', 'printGroup'];
 
 type SourceBackedImage = fabric.Image & { sourceUrl?: string; backgroundRemoved?: boolean };
+type SerializablePrintGroup = fabric.Group & { printGroup?: boolean };
 
 function isImageObject(obj: fabric.Object | null | undefined): obj is fabric.Image {
   return obj?.type === 'image';
@@ -128,6 +129,9 @@ function cloneFabricObject(target: fabric.Object) {
     const sourceUrl = (target as SourceBackedImage).sourceUrl;
     if (sourceUrl) (cloned as SourceBackedImage).sourceUrl = sourceUrl;
     (cloned as SourceBackedImage).backgroundRemoved = (target as SourceBackedImage).backgroundRemoved;
+    if ((target as SerializablePrintGroup).printGroup) {
+      (cloned as SerializablePrintGroup).printGroup = true;
+    }
     cloned.set({
       left: (cloned.left ?? 0) + 24,
       top: (cloned.top ?? 0) + 24,
@@ -521,7 +525,11 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     if (!cv || !target) return false;
     const area = printAreaRef.current;
     const areaRect = toCanvasRect(area);
-    const changed = constrainObjectToArtworkLimit(target, area, areaRect);
+    // Toplu seçim yalnızca taşıma aracıdır. Seçilen bağımsız baskıları tek bir
+    // 28×45 parça gibi küçültme; her nesnenin kendi limiti zaten korunuyor.
+    const changed = target.type === 'activeSelection'
+      ? constrainObjectToArea(target, areaRect)
+      : constrainObjectToArtworkLimit(target, area, areaRect);
     if (changed && hasLiveContext(cv)) {
       cv.renderAll();
     }

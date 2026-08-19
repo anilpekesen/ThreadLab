@@ -64,6 +64,7 @@ type Tab = 'image' | 'text' | 'layers' | 'templates' | 'saved' | null;
 type InteractionMode = 'selection' | 'navigation';
 type CanvasSelection = fabric.Object | fabric.ActiveSelection;
 type SourceBackedImage = fabric.Image & { sourceUrl?: string; backgroundRemoved?: boolean };
+type PrintGroup = fabric.Group & { printGroup?: boolean };
 
 interface ObjectState {
   type: 'text' | 'image' | 'curvedText';
@@ -136,6 +137,7 @@ interface SideMetrics {
 }
 
 interface PrintObjectPricing {
+  index: number;
   metrics: SideMetrics;
   band: PricingBand;
   surcharge: number;
@@ -468,19 +470,26 @@ function pricingItemsForObjects(
   bands: PricingBand[],
   totalQuantity: number,
 ): PrintObjectPricing[] {
-  const metrics = metricsFromObjects(objects, area);
-  if (!metrics.objectCount || metrics.widthCm <= 0 || metrics.heightCm <= 0) return [];
+  return objects.flatMap((object, index) => {
+    const rect = object.getBoundingRect(true, true);
+    if (!(rect.width > 0) || !(rect.height > 0)) return [];
 
-  const band = pricingBandForMetrics(bands, metrics);
-  const surchargeUnitAmount = Number(band.surcharge || 0);
-  const surcharge = surchargeToCents(surchargeUnitAmount);
-  return [{
-    metrics,
-    band,
-    surcharge,
-    surchargeUnitAmount,
-    subtotal: surcharge * totalQuantity,
-  }];
+    // Her üst seviye nesne bağımsız bir baskı parçasıdır. Müşteri nesneleri
+    // açıkça grupladığında Fabric bunları tek üst seviye Group olarak döndürür
+    // ve birleşik dış ölçü yalnızca bir kez fiyatlanır.
+    const metrics = metricsFromRect(rect, area, 1);
+    const band = pricingBandForMetrics(bands, metrics);
+    const surchargeUnitAmount = Number(band.surcharge || 0);
+    const surcharge = surchargeToCents(surchargeUnitAmount);
+    return [{
+      index,
+      metrics,
+      band,
+      surcharge,
+      surchargeUnitAmount,
+      subtotal: surcharge * totalQuantity,
+    }];
+  });
 }
 
 function pricingBandForMetrics(bands: PricingBand[], metrics: SideMetrics): PricingBand {
@@ -494,8 +503,18 @@ function pricingBandForMetrics(bands: PricingBand[], metrics: SideMetrics): Pric
 
 function summarizeSidePricing(sideLabel: string, pricing: SidePricing, emptyLabel: string, itemLabel: string) {
   if (!pricing.hasContent) return `${sideLabel}: ${emptyLabel}`;
-  if (pricing.metrics.objectCount > 1) return `${sideLabel}: ${pricing.metrics.objectCount} ${itemLabel} · ${formatMetricSize(pricing.metrics)} · ${pricing.band.label}`;
+  if (pricing.items.length > 1) return `${sideLabel}: ${pricing.items.length} ${itemLabel} · ${pricing.items.map((item) => item.band.label).join(' + ')}`;
   return `${sideLabel}: ${formatMetricSize(pricing.metrics)} · ${pricing.band.label}`;
+}
+
+function pricingBandSummary(items: PrintObjectPricing[]) {
+  const counts = new Map<string, number>();
+  items.forEach((item) => counts.set(item.band.label, (counts.get(item.band.label) ?? 0) + 1));
+  return [...counts.entries()].map(([label, count]) => count > 1 ? `${count} × ${label}` : label).join(' + ');
+}
+
+function pricingSizeSummary(items: PrintObjectPricing[]) {
+  return items.map((item, index) => `${index + 1}: ${formatMetricSize(item.metrics)}`).join(' · ');
 }
 
 function normalizeColorKey(value: string) {
@@ -574,6 +593,10 @@ function isActiveSelection(obj: fabric.Object | null | undefined): obj is fabric
 
 function isImageSelection(obj: fabric.Object | null | undefined): obj is fabric.Image {
   return Boolean(obj && obj.type === 'image');
+}
+
+function isPrintGroup(obj: fabric.Object | null | undefined): obj is PrintGroup {
+  return Boolean(obj && obj.type === 'group' && (obj as PrintGroup).printGroup);
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -2151,18 +2174,26 @@ export default function App() {
       if (pricingSummary.front.hasContent) {
         properties['_pl_front_size'] = formatMetricSize(pricingSummary.front.metrics);
         properties['_pl_front_print_price'] = formatMoney(pricingSummary.front.surcharge);
-        properties['_pl_front_price_band'] = pricingSummary.front.band.label;
+        properties['_pl_front_price_band'] = pricingBandSummary(pricingSummary.front.items);
+        properties['_pl_front_print_count'] = String(pricingSummary.front.items.length);
+        properties['_pl_front_print_breakdown'] = pricingSizeSummary(pricingSummary.front.items);
         properties[`_${t.propFrontSize}`] = formatMetricSize(pricingSummary.front.metrics);
         properties[t.propFrontPrintPrice] = formatMoney(pricingSummary.front.surcharge);
-        properties[`_${t.propFrontPriceBand}`] = pricingSummary.front.band.label;
+        properties[`_${t.propFrontPriceBand}`] = pricingBandSummary(pricingSummary.front.items);
+        properties[t.propFrontPrintCount] = String(pricingSummary.front.items.length);
+        properties[`_${t.propFrontPrintBreakdown}`] = pricingSizeSummary(pricingSummary.front.items);
       }
       if (pricingSummary.back.hasContent) {
         properties['_pl_back_size'] = formatMetricSize(pricingSummary.back.metrics);
         properties['_pl_back_print_price'] = formatMoney(pricingSummary.back.surcharge);
-        properties['_pl_back_price_band'] = pricingSummary.back.band.label;
+        properties['_pl_back_price_band'] = pricingBandSummary(pricingSummary.back.items);
+        properties['_pl_back_print_count'] = String(pricingSummary.back.items.length);
+        properties['_pl_back_print_breakdown'] = pricingSizeSummary(pricingSummary.back.items);
         properties[`_${t.propBackSize}`] = formatMetricSize(pricingSummary.back.metrics);
         properties[t.propBackPrintPrice] = formatMoney(pricingSummary.back.surcharge);
-        properties[`_${t.propBackPriceBand}`] = pricingSummary.back.band.label;
+        properties[`_${t.propBackPriceBand}`] = pricingBandSummary(pricingSummary.back.items);
+        properties[t.propBackPrintCount] = String(pricingSummary.back.items.length);
+        properties[`_${t.propBackPrintBreakdown}`] = pricingSizeSummary(pricingSummary.back.items);
       }
       if (pricingSummary.volumeDiscountPercentage > 0) {
         properties['_pl_bulk_discount'] = `%${pricingSummary.volumeDiscountPercentage}`;
@@ -2462,6 +2493,28 @@ export default function App() {
     cv.renderAll();
     setInteractionMode('selection');
     cv.selection = true;
+    handleObjectSelected(selection);
+  };
+
+  const groupSelectedObjects = () => {
+    const cv = getActiveCanvasHandle()?.getCanvas();
+    if (!cv || !isActiveSelection(selectedObj)) return;
+    const group = selectedObj.toGroup() as PrintGroup;
+    group.printGroup = true;
+    group.setCoords();
+    cv.setActiveObject(group);
+    cv.fire('object:modified', { target: group });
+    cv.requestRenderAll();
+    handleObjectSelected(group);
+  };
+
+  const ungroupSelectedObjects = () => {
+    const cv = getActiveCanvasHandle()?.getCanvas();
+    if (!cv || !isPrintGroup(selectedObj)) return;
+    const selection = selectedObj.toActiveSelection();
+    cv.setActiveObject(selection);
+    cv.fire('object:modified', { target: selection });
+    cv.requestRenderAll();
     handleObjectSelected(selection);
   };
 
@@ -3576,7 +3629,7 @@ export default function App() {
             , document.body
           )}
 
-          {selectedObj && (toolbarPos || mobileToolbar) && !activeTab && !showPreview && !(mobileToolbar && isActiveSelection(selectedObj)) && (
+          {selectedObj && (toolbarPos || mobileToolbar) && !activeTab && !showPreview && (
             <div
               className="pointer-events-none fixed z-[100] flex items-center justify-center"
               style={mobileToolbar
@@ -3899,18 +3952,19 @@ export default function App() {
                         <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">{t.toolbarCopy}</span>
                       </button>
                       <button
-                        onClick={toggleLayerOrder}
-                        disabled={isActiveSelection(selectedObj)}
-                        className={cn(
-                          'group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors',
-                          isActiveSelection(selectedObj) ? 'cursor-not-allowed opacity-35' : 'hover:bg-gray-50',
-                        )}
+                        onClick={isActiveSelection(selectedObj)
+                          ? groupSelectedObjects
+                          : isPrintGroup(selectedObj)
+                            ? ungroupSelectedObjects
+                            : toggleLayerOrder}
+                        className="group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors hover:bg-gray-50"
                       >
                         <Layers className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
                         <span className="text-[9px] font-bold uppercase text-gray-500 group-hover:text-blue-500">
                           {(() => {
                             const objects = getActiveCanvasHandle()?.getCanvas()?.getObjects() ?? [];
                             if (isActiveSelection(selectedObj)) return t.groupLabel;
+                            if (isPrintGroup(selectedObj)) return t.ungroupLabel;
                             return objects.indexOf(selectedObj) === objects.length - 1 ? t.toolbarBack : t.toolbarFront;
                           })()}
                         </span>
@@ -4574,15 +4628,39 @@ export default function App() {
                   <strong className="font-black text-gray-900">{formatMoney(displayBaseSubtotal)}</strong>
                 </div>
                 {pricingSummary.front.hasContent && (
-                  <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">{t.frontPrint} ({pricingSummary.front.metrics.objectCount} {pricingSummary.front.metrics.objectCount === 1 ? t.itemSingular : t.itemPlural})</span>
-                    <strong className="font-black text-gray-900">{formatMoney(displayFrontSubtotal)}</strong>
+                  <div className="border-t border-sky-100 pt-1.5">
+                    <div className="flex items-start justify-between gap-1 text-[10px]">
+                      <span className="font-semibold text-gray-600">{t.frontPrint} ({pricingSummary.front.items.length} {pricingSummary.front.items.length === 1 ? t.printPieceSingular : t.printPiecePlural})</span>
+                      <strong className="font-black text-gray-900">{formatMoney(displayFrontSubtotal)}</strong>
+                    </div>
+                    {pricingSummary.front.items.length > 1 && (
+                      <div className="mt-1 space-y-0.5 pl-2 text-[9px] text-gray-500">
+                        {pricingSummary.front.items.map((item) => (
+                          <div key={`front-price-${item.index}`} className="flex items-center justify-between gap-2">
+                            <span>{item.index + 1}. {formatMetricSize(item.metrics)} · {item.band.label}</span>
+                            <span className="font-semibold text-gray-700">{formatMoney(item.subtotal)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 {pricingSummary.back.hasContent && (
-                  <div className="flex items-start justify-between gap-1 text-[10px]">
-                    <span className="font-semibold text-gray-500">{t.backPrint} ({pricingSummary.back.metrics.objectCount} {pricingSummary.back.metrics.objectCount === 1 ? t.itemSingular : t.itemPlural})</span>
-                    <strong className="font-black text-gray-900">{formatMoney(displayBackSubtotal)}</strong>
+                  <div className="border-t border-sky-100 pt-1.5">
+                    <div className="flex items-start justify-between gap-1 text-[10px]">
+                      <span className="font-semibold text-gray-600">{t.backPrint} ({pricingSummary.back.items.length} {pricingSummary.back.items.length === 1 ? t.printPieceSingular : t.printPiecePlural})</span>
+                      <strong className="font-black text-gray-900">{formatMoney(displayBackSubtotal)}</strong>
+                    </div>
+                    {pricingSummary.back.items.length > 1 && (
+                      <div className="mt-1 space-y-0.5 pl-2 text-[9px] text-gray-500">
+                        {pricingSummary.back.items.map((item) => (
+                          <div key={`back-price-${item.index}`} className="flex items-center justify-between gap-2">
+                            <span>{item.index + 1}. {formatMetricSize(item.metrics)} · {item.band.label}</span>
+                            <span className="font-semibold text-gray-700">{formatMoney(item.subtotal)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 {pricingSummary.volumeDiscountPercentage > 0 && pricingSummary.printDiscountSubtotal > 0 && (

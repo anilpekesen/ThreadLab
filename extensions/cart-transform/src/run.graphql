@@ -22,9 +22,13 @@ query RunInput {
       frontSize: attribute(key: "_pl_front_size") { value }
       frontPrintPrice: attribute(key: "_pl_front_print_price") { value }
       frontPriceBand: attribute(key: "_pl_front_price_band") { value }
+      frontPrintCount: attribute(key: "_pl_front_print_count") { value }
+      frontPrintBreakdown: attribute(key: "_pl_front_print_breakdown") { value }
       backSize: attribute(key: "_pl_back_size") { value }
       backPrintPrice: attribute(key: "_pl_back_print_price") { value }
       backPriceBand: attribute(key: "_pl_back_price_band") { value }
+      backPrintCount: attribute(key: "_pl_back_print_count") { value }
+      backPrintBreakdown: attribute(key: "_pl_back_print_breakdown") { value }
       bulkDiscount: attribute(key: "_pl_bulk_discount") { value }
       printDiscount: attribute(key: "_pl_print_discount") { value }
       merchandise {

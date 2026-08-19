@@ -27,9 +27,13 @@ var LABELS = {
     frontSize: "_\xD6n \xF6l\xE7\xFC",
     frontPrintPrice: "\xD6n bask\u0131 fiyat\u0131",
     frontPriceBand: "_\xD6n fiyat band\u0131",
+    frontPrintCount: "\xD6n bask\u0131 par\xE7as\u0131",
+    frontPrintBreakdown: "_\xD6n bask\u0131 d\xF6k\xFCm\xFC",
     backSize: "_Arka \xF6l\xE7\xFC",
     backPrintPrice: "Arka bask\u0131 fiyat\u0131",
     backPriceBand: "_Arka fiyat band\u0131",
+    backPrintCount: "Arka bask\u0131 par\xE7as\u0131",
+    backPrintBreakdown: "_Arka bask\u0131 d\xF6k\xFCm\xFC",
     bulkDiscount: "Toplu al\u0131m indirimi",
     printDiscount: "Bask\u0131 indirimi"
   },
@@ -46,9 +50,13 @@ var LABELS = {
     frontSize: "_Front size",
     frontPrintPrice: "Front print price",
     frontPriceBand: "_Front price band",
+    frontPrintCount: "Front print pieces",
+    frontPrintBreakdown: "_Front print breakdown",
     backSize: "_Back size",
     backPrintPrice: "Back print price",
     backPriceBand: "_Back price band",
+    backPrintCount: "Back print pieces",
+    backPrintBreakdown: "_Back print breakdown",
     bulkDiscount: "Bulk discount",
     printDiscount: "Print discount"
   }
@@ -62,9 +70,13 @@ var FIELD_MAP = [
   ["frontSize", "frontSize"],
   ["frontPrintPrice", "frontPrintPrice"],
   ["frontPriceBand", "frontPriceBand"],
+  ["frontPrintCount", "frontPrintCount"],
+  ["frontPrintBreakdown", "frontPrintBreakdown"],
   ["backSize", "backSize"],
   ["backPrintPrice", "backPrintPrice"],
   ["backPriceBand", "backPriceBand"],
+  ["backPrintCount", "backPrintCount"],
+  ["backPrintBreakdown", "backPrintBreakdown"],
   ["bulkDiscount", "bulkDiscount"],
   ["printDiscount", "printDiscount"]
 ];
