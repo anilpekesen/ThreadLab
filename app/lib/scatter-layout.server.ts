@@ -7,6 +7,13 @@
  *
  * Yerleşim TOHUMLU üretilir. Rastgele olsaydı müşterinin gördüğü önizleme ile
  * basılan dosya farklı çıkardı; aynı tohum her zaman aynı yerleşimi verir.
+ *
+ * Dağıtım KATMANLI IZGARA ile yapılır. Önceki sürüm dart atma kullanıyordu:
+ * her parça için rastgele nokta denenip çakışanlar reddediliyor, deneme
+ * sınırına gelince asgari mesafe gevşetiliyordu. Sonuç, ilk parçaların alanı
+ * gelişigüzel kapması ve geç kalanların artan boşluklara tıkışmasıydı — bir
+ * kenar kümeleniyor, karşı kenar boş kalıyordu. Izgara her parçaya kendi
+ * hücresini verdiği için kaplama baştan dengeli çıkıyor.
  */
 
 export interface ScatterConfig {
@@ -25,6 +32,14 @@ export interface ScatterConfig {
   reserveCenter: { width: number; height: number } | null;
   /** Aynı tohum aynı yerleşimi üretir */
   seed: number;
+}
+
+/** Yerleşimin dışında tutulacak mutlak dikdörtgen (yazı bloğu vb.) */
+export interface ReserveRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
 }
 
 export interface ScatterItem {
@@ -63,15 +78,16 @@ function mulberry32(seed: number) {
 /**
  * Parçaları baskı alanına dağıtır.
  *
- * Dart atma yöntemi: her parça için rastgele nokta denenir, mevcut parçalara
- * ve rezerve alana çok yakınsa reddedilir. Deneme sınırına ulaşılırsa asgari
- * mesafe kademeli gevşetilir — böylece yoğun isteklerde bile sonuç üretilir,
- * sonsuz döngüye girilmez.
+ * Alan, parça sayısı kadar hücreye bölünür ve her parça kendi hücresine
+ * oturur; hücre içindeki kayma tohumlu rastgeleyle verilir. Böylece hem
+ * dağınık görünür hem de kaplama her kenarda eşit olur. Yazı alanına düşen
+ * hücreler baştan elenir, kalan hücre sayısı yetmezse ızgara sıklaştırılır.
  */
 export function computeScatterLayout(
   areaWidth: number,
   areaHeight: number,
   config: ScatterConfig,
+  reserveRect?: ReserveRect | null,
 ): ScatterItem[] {
   const rnd = mulberry32(config.seed);
   const items: ScatterItem[] = [];
@@ -79,6 +95,7 @@ export function computeScatterLayout(
   // Yüz ve süslemeler dönüşümlü sıralanır ki tek bir köşede kümelenmesinler
   const queue: Array<"face" | "decoration"> = [];
   const total = Math.max(0, config.faceCount) + Math.max(0, config.decorationCount);
+  if (total === 0) return items;
   let f = config.faceCount;
   let d = config.decorationCount;
   while (queue.length < total) {
@@ -86,52 +103,89 @@ export function computeScatterLayout(
     if (d > 0 && queue.length < total) { queue.push("decoration"); d--; }
   }
 
-  const reserve = config.reserveCenter
+  // Mutlak dikdörtgen verilmişse o kullanılır (yazının gerçek yeri); yoksa
+  // yapılandırmadaki oransal orta alana düşülür.
+  const reserve: ReserveRect | null = reserveRect ?? (config.reserveCenter
     ? {
         x0: areaWidth * (0.5 - config.reserveCenter.width / 2),
         x1: areaWidth * (0.5 + config.reserveCenter.width / 2),
         y0: areaHeight * (0.5 - config.reserveCenter.height / 2),
         y1: areaHeight * (0.5 + config.reserveCenter.height / 2),
       }
-    : null;
+    : null);
 
-  for (const kind of queue) {
+  const faceWidth = areaWidth * config.faceScale;
+
+  // Yazı alanına değmeyen yeterli hücre bulunana kadar ızgarayı sıklaştır
+  let cells: Array<{ cx: number; cy: number; w: number; h: number }> = [];
+  const aspect = areaWidth / Math.max(areaHeight, 1);
+  for (let extra = 0; extra < 12; extra++) {
+    const target = total + extra * 2;
+    const cols = Math.max(1, Math.round(Math.sqrt(target * aspect)));
+    const rows = Math.max(1, Math.ceil(target / cols));
+    const cellW = areaWidth / cols;
+    const cellH = areaHeight / rows;
+
+    cells = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cx = (c + 0.5) * cellW;
+        const cy = (r + 0.5) * cellH;
+        // Hücre MERKEZİ yazı bloğunun yarım parça genişliğindeki payına
+        // düşüyorsa kullanılmaz. Hücrenin tamamını sınamak (kenarı değse bile
+        // elemek) ortada gereğinden çok geniş bir boşluk bırakıyordu.
+        if (reserve) {
+          const pad = faceWidth * 0.5;
+          const inside = cx > reserve.x0 - pad && cx < reserve.x1 + pad
+            && cy > reserve.y0 - pad && cy < reserve.y1 + pad;
+          if (inside) continue;
+        }
+        cells.push({ cx, cy, w: cellW, h: cellH });
+      }
+    }
+    if (cells.length >= total) break;
+  }
+
+  if (!cells.length) return items;
+
+  // Hücreleri tohumlu karıştır: yüz/süsleme sırası alana yayılsın
+  for (let i = cells.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+
+  queue.forEach((kind, index) => {
+    const cell = cells[index];
+    if (!cell) return;   // hücre yetmediyse parçayı atla
+
     const baseScale = kind === "face" ? config.faceScale : config.decorationScale;
     const jitter = 1 + (rnd() * 2 - 1) * config.sizeJitter;
     const width = Math.max(8, areaWidth * baseScale * jitter);
     const radius = width / 2;
 
-    let placed: ScatterItem | null = null;
-    for (let attempt = 0; attempt < 220 && !placed; attempt++) {
-      // Deneme ilerledikçe asgari mesafeyi gevşet
-      const relax = 1 - Math.min(0.55, attempt / 220);
-      const x = radius + rnd() * (areaWidth - radius * 2);
-      const y = radius + rnd() * (areaHeight - radius * 2);
+    // Hücre parçadan büyükse kalan payda serbestçe kaydır; küçükse hücrede
+    // ortala — aksi halde komşu parçalar üst üste biner.
+    const slackX = Math.max(0, cell.w - width) / 2;
+    const slackY = Math.max(0, cell.h - width) / 2;
+    // Parça tam sınıra oturduğunda kesit kendi kenarında bittiği için baskıda
+    // kırpılmış görünüyor; küçük bir kenar payı bunu önlüyor.
+    const margin = Math.min(areaWidth, areaHeight) * 0.015;
+    const x = clamp(cell.cx + (rnd() * 2 - 1) * slackX, radius + margin, areaWidth - radius - margin);
+    const y = clamp(cell.cy + (rnd() * 2 - 1) * slackY, radius + margin, areaHeight - radius - margin);
 
-      if (reserve && x > reserve.x0 - radius && x < reserve.x1 + radius
-                  && y > reserve.y0 - radius && y < reserve.y1 + radius) {
-        continue;   // yazı alanına girme
-      }
-
-      let clash = false;
-      for (const other of items) {
-        const minDist = (radius + other.width / 2) * 0.92 * relax;
-        if (Math.hypot(x - other.x, y - other.y) < minDist) { clash = true; break; }
-      }
-      if (clash) continue;
-
-      placed = {
-        kind,
-        x,
-        y,
-        width,
-        angle: config.angleJitter ? (rnd() * 2 - 1) * config.angleJitter : 0,
-      };
-    }
-
-    // Yer bulunamadıysa parçayı atla — üst üste bindirmektense eksik bırak
-    if (placed) items.push(placed);
-  }
+    items.push({
+      kind,
+      x,
+      y,
+      width,
+      angle: config.angleJitter ? (rnd() * 2 - 1) * config.angleJitter : 0,
+    });
+  });
 
   return items;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (max < min) return (min + max) / 2;
+  return Math.min(max, Math.max(min, value));
 }

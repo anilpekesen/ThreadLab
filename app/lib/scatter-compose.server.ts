@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { computeScatterLayout, DEFAULT_SCATTER, type ScatterConfig } from "~/lib/scatter-layout.server";
+import { computeScatterLayout, DEFAULT_SCATTER, type ScatterConfig, type ReserveRect } from "~/lib/scatter-layout.server";
 import { extractHeadCutout, applySoftOvalMask } from "~/lib/face-detect.server";
 import { removeBackgroundFromBuffer } from "~/models/auto-bg-removal.server";
 import type { TextFieldDef } from "~/models/personalizer.server";
@@ -62,6 +62,46 @@ function buildTextOverlay(
   return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${lines}</svg>`);
 }
 
+/**
+ * Yazının kapladığı gerçek dikdörtgeni çıkarır.
+ *
+ * Rezerve alan eskiden tuvalin ortasında sabit oranlı bir kutuydu. Yazı
+ * alanları mutlak koordinatlı olduğu için tuval oranı değişince yazı kutunun
+ * dışına taşıyor ve üstüne parça biniyordu. Sınırı yazının kendisinden
+ * türetmek bu bağı kalıcı olarak kesiyor.
+ *
+ * Genişlik ölçüsü kaba: Georgia'da ortalama karakter ~0.52 em. Amaç piksel
+ * hassasiyeti değil, parçaları uzak tutmak.
+ */
+function textReserveRect(
+  fields: TextFieldDef[],
+  values: Record<string, string>,
+): ReserveRect | null {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+
+  for (const field of fields) {
+    const raw = (values[field.id] ?? "").trim();
+    if (!raw) continue;
+    const size = Number(field.font_size) || 0;
+    if (size <= 0) continue;
+
+    const width = raw.length * size * 0.52;
+    const anchorX = Number(field.x) || 0;
+    const left = field.align === "left" ? anchorX
+      : field.align === "right" ? anchorX - width
+      : anchorX - width / 2;
+
+    const baseline = Number(field.y) || 0;
+    x0 = Math.min(x0, left);
+    x1 = Math.max(x1, left + width);
+    y0 = Math.min(y0, baseline - size * 0.80);   // üst çıkıntı
+    y1 = Math.max(y1, baseline + size * 0.25);   // alt çıkıntı
+  }
+
+  if (!Number.isFinite(x0)) return null;
+  return { x0, y0, x1, y1 };
+}
+
 export async function composeScatterDesign(opts: ScatterComposeOptions): Promise<ScatterComposeResult> {
   const { photo, decoration, areaWidth, areaHeight } = opts;
   const config: ScatterConfig = { ...DEFAULT_SCATTER, ...(opts.config ?? {}) };
@@ -82,7 +122,8 @@ export async function composeScatterDesign(opts: ScatterComposeOptions): Promise
   const headPiece = await applySoftOvalMask(head.buffer).catch(() => head.buffer);
 
   // 3) Yerleşimi hesapla
-  const items = computeScatterLayout(areaWidth, areaHeight, config);
+  const reserve = textReserveRect(opts.textFields ?? [], opts.textValues ?? {});
+  const items = computeScatterLayout(areaWidth, areaHeight, config, reserve);
 
   // 4) Parçaları yerleştir
   const composites: sharp.OverlayOptions[] = [];
