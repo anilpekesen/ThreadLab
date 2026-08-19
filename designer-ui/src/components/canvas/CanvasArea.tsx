@@ -82,7 +82,7 @@ interface Props {
   formatObjectSize?: (
     rect: { width: number; height: number },
     natural?: { width: number; height: number },
-  ) => { text: string; quality?: import('@/utils/printQuality').PrintQuality; dpi?: number };
+  ) => { text: string; quality?: import('@/utils/printQuality').PrintQuality; dpi?: number; note?: string };
 }
 
 const HISTORY_LIMIT = 50;
@@ -465,7 +465,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const refreshSizeBadgeRef = useRef<() => void>(() => {});
   const [sizeBadge, setSizeBadge] = useState<{
     left: number; top: number; below: boolean; text: string;
-    quality?: import('@/utils/printQuality').PrintQuality; dpi?: number;
+    quality?: import('@/utils/printQuality').PrintQuality; dpi?: number; note?: string;
   } | null>(null);
 
   const { config, activeSide } = useDesignerStore();
@@ -527,6 +527,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       text: info.text,
       quality: info.quality,
       dpi: info.dpi,
+      note: info.note,
     });
   }, []);
 
@@ -1284,10 +1285,13 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
                 }}
               >
                 <span>{sizeBadge.text}</span>
-                {sizeBadge.quality && sizeBadge.quality !== 'good' && (
-                  <span className="flex items-center gap-1 border-l border-white/30 pl-1.5">
+                {sizeBadge.note && (
+                  <span
+                    className="flex items-center gap-1 border-l border-white/30 pl-1.5"
+                    title={`${Math.round(sizeBadge.dpi ?? 0)} DPI`}
+                  >
                     <AlertTriangle className="h-3 w-3" />
-                    {Math.round(sizeBadge.dpi ?? 0)} DPI
+                    {sizeBadge.note}
                   </span>
                 )}
               </div>

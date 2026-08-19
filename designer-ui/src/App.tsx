@@ -1120,6 +1120,9 @@ export default function App() {
   const [isCartLoading, setIsCartLoading] = useState(false);
   const [showSizeErrorModal, setShowSizeErrorModal] = useState(false);
   const [showMinQtyErrorModal, setShowMinQtyErrorModal] = useState(false);
+  /** Sepete eklerken düşük çözünürlük onayı; kullanıcı kabul edince atlanır */
+  const [lowQualityPrompt, setLowQualityPrompt] = useState<{ count: number; worstDpi: number } | null>(null);
+  const lowQualityAcceptedRef = useRef(false);
   const [cropModalState, setCropModalState] = useState<{ src: string; rect: CropRect } | null>(null);
   const minOrderQty = personalization.minOrderQuantity ?? 1;
   const [noSizeQuantity, setNoSizeQuantity] = useState(minOrderQty);
@@ -1934,6 +1937,16 @@ export default function App() {
   };
 
   const handleAddToCart = async () => {
+    // Çözünürlük uyarısı engelleyici değil — müşteri bilerek devam edebilir.
+    // Kabul bir kez alınır, her denemede tekrar sorulmaz.
+    if (!lowQualityAcceptedRef.current) {
+      const low = scanLowQuality();
+      if (low) {
+        setLowQualityPrompt(low);
+        return;
+      }
+    }
+
     // Şablonlu üründe boş kalpli tasarım basılmasın — müşteri fotoğrafını
     // eklemeden sepete geçerse hem iade hem destek yükü doğuyor.
     if (templateAwaitingPhoto) {
@@ -2653,6 +2666,39 @@ export default function App() {
     back: scaleAreaForSize(personalization.printAreas.back, sizeChart, previewSize),
   }), [personalization.printAreas, sizeChart, previewSize]);
 
+
+  /**
+   * Tuvaldeki görsellerin basılacak ölçüde kaç DPI'a denk geldiğine bakar.
+   * Rozet yalnızca nesne seçiliyken görünüyor; müşteri görseli ekleyip başka
+   * yere tıklarsa uyarıyı hiç görmeden sepete geçebiliyordu.
+   */
+  const scanLowQuality = useCallback(() => {
+    let count = 0;
+    let worstDpi = Infinity;
+    const sides = [
+      { ref: frontCanvasRef, area: activePrintAreas.front },
+      { ref: backCanvasRef, area: activePrintAreas.back },
+    ];
+    for (const { ref, area } of sides) {
+      const cv = ref.current?.getCanvas();
+      if (!cv) continue;
+      for (const obj of cv.getObjects()) {
+        if (obj.type !== 'image' || !obj.width || !obj.height) continue;
+        const bounds = obj.getBoundingRect(true, true);
+        const metrics = metricsFromRect(bounds, area, 1);
+        const { quality, dpi } = qualityForObject(
+          { width: obj.width, height: obj.height },
+          { width: metrics.widthCm * 10, height: metrics.heightCm * 10 },
+        );
+        if (quality === 'bad') {
+          count += 1;
+          worstDpi = Math.min(worstDpi, dpi);
+        }
+      }
+    }
+    return count ? { count, worstDpi } : null;
+  }, [activePrintAreas.front, activePrintAreas.back]);
+
   const frontMetrics = useMemo(
     () => metricsFromObjects(frontObjects, activePrintAreas.front),
     [frontObjects, activePrintAreas.front],
@@ -2906,9 +2952,17 @@ export default function App() {
         width: metrics.widthCm * 10,
         height: metrics.heightCm * 10,
       });
-      return { text, quality, dpi };
+      // Rozette çıplak "127 DPI" yazmak müşteriye bir şey anlatmıyor; sayı
+      // yerine sonucu söylüyoruz. Sayı yine de veriliyor, mağaza sahibi
+      // gerektiğinde bakabilsin.
+      const note = quality === 'bad'
+        ? (isTurkish ? 'çözünürlük düşük' : 'low resolution')
+        : quality === 'warn'
+          ? (isTurkish ? 'baskı biraz yumuşak' : 'print may soften')
+          : undefined;
+      return { text, quality, dpi, note };
     },
-    [],
+    [isTurkish],
   );
 
   const formatFrontObjectSize = useCallback(
@@ -4093,6 +4147,49 @@ export default function App() {
                 >
                   {t.btnOk}
                 </button>
+              </div>
+            </div>
+          )}
+
+          {lowQualityPrompt && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
+              <div className="flex w-full max-w-sm flex-col gap-4 rounded-2xl bg-white p-6 shadow-2xl">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-amber-100 text-xl">⚠️</span>
+                  <p className="text-sm font-bold leading-snug text-gray-900">
+                    {isTurkish ? 'Görsel çözünürlüğü düşük' : 'Low image resolution'}
+                  </p>
+                </div>
+                <p className="text-sm leading-relaxed text-gray-600">
+                  {isTurkish
+                    ? `Tasarımınızdaki ${lowQualityPrompt.count > 1 ? `${lowQualityPrompt.count} görsel` : 'bir görsel'}, seçtiğiniz baskı ölçüsü için fazla küçük. Baskıda bulanık ve pikselli çıkması bekleniyor.`
+                    : `${lowQualityPrompt.count > 1 ? `${lowQualityPrompt.count} images` : 'An image'} in your design ${lowQualityPrompt.count > 1 ? 'are' : 'is'} too small for the print size you chose. The print is expected to look blurry and pixelated.`}
+                </p>
+                <p className="text-xs leading-relaxed text-gray-500">
+                  {isTurkish
+                    ? 'Daha yüksek çözünürlüklü bir görsel yükleyebilir ya da görseli küçülterek netliği artırabilirsiniz.'
+                    : 'Upload a higher resolution image, or make the image smaller on the product to improve sharpness.'}
+                </p>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLowQualityPrompt(null)}
+                    className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+                  >
+                    {isTurkish ? 'Tasarıma dön' : 'Back to design'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      lowQualityAcceptedRef.current = true;
+                      setLowQualityPrompt(null);
+                      void handleAddToCart();
+                    }}
+                    className="w-full rounded-xl py-2 text-xs font-semibold text-gray-500 transition-colors hover:text-gray-700"
+                  >
+                    {isTurkish ? 'Yine de sepete ekle' : 'Add to cart anyway'}
+                  </button>
+                </div>
               </div>
             </div>
           )}
