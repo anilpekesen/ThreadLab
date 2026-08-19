@@ -120,6 +120,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           templateName: template.name,
           headDetected: result.headDetected,
           placed: result.placed,
+          quality: result.quality,
         },
         { headers: CORS },
       );

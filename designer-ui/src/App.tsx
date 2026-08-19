@@ -50,6 +50,7 @@ import type { Template } from '@/components/panels/TemplatesPanel';
 import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type PricingBand, type PrintAreaConfig, type SavedDesign, type Side, type SizeChart, type SurfaceMode, type TemplateDesign, type VolumeDiscountTier } from '@/types';
 import { generateId } from '@/utils/compress';
 import { scaleAreaForSize } from '@/utils/sizeScale';
+import { qualityForObject } from '@/utils/printQuality';
 import { evaluateRules, warnings, blockers, type RuleResult } from '@/utils/conditionalLogic';
 
 const ImagePanel = lazy(() => import('@/components/panels/ImagePanel'));
@@ -1629,7 +1630,10 @@ export default function App() {
   };
 
   /** Dağıtımlı şablonda fotoğraf + yazıları sunucuya gönderip sonucu alır */
-  const renderScatterDesign = async (file: File, textValues: Record<string, string>): Promise<string> => {
+  const renderScatterDesign = async (
+    file: File,
+    textValues: Record<string, string>,
+  ): Promise<{ url: string; quality?: { headSourcePx: number; placedPx: number; upscale: number } }> => {
     if (!config?.shop || !config?.productId) throw new Error('Ürün bilgisi yok');
     const fd = new FormData();
     fd.append('photo', file);
@@ -1638,12 +1642,16 @@ export default function App() {
     fd.append('textValues', JSON.stringify(textValues));
 
     const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
-    const data = await res.json() as { url?: string; error?: string };
+    const data = await res.json() as {
+      url?: string;
+      error?: string;
+      quality?: { headSourcePx: number; placedPx: number; upscale: number };
+    };
     if (!res.ok || !data.url) {
       throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
     }
     void uploadTemplateOriginal(file);   // ham fotoğraf baskı ekibi için saklanır
-    return data.url;
+    return { url: data.url, quality: data.quality };
   };
 
   const openTemplateModal = async () => {
@@ -2883,13 +2891,35 @@ export default function App() {
 
   // Nesne rozeti için ölçü metni. Fiyat bandını belirleyen metricsFromRect ile
   // aynı fonksiyon — müşterinin gördüğü cm ile ücretlendirilen cm hep aynı olsun.
+  const describeObject = useCallback(
+    (
+      area: import('@/types').PrintAreaConfig,
+      rect: { width: number; height: number },
+      natural?: { width: number; height: number },
+    ) => {
+      const metrics = metricsFromRect(rect, area, 1);
+      const text = formatMetricSize(metrics);
+      // Yalnızca görsellerde çözünürlük sınırı var; ölçüyü mm'ye çevirip
+      // kaynak pikselle karşılaştırıyoruz (cm -> mm için x10).
+      if (!natural) return { text };
+      const { quality, dpi } = qualityForObject(natural, {
+        width: metrics.widthCm * 10,
+        height: metrics.heightCm * 10,
+      });
+      return { text, quality, dpi };
+    },
+    [],
+  );
+
   const formatFrontObjectSize = useCallback(
-    (rect: { width: number; height: number }) => formatMetricSize(metricsFromRect(rect, activePrintAreas.front, 1)),
-    [activePrintAreas.front],
+    (rect: { width: number; height: number }, natural?: { width: number; height: number }) =>
+      describeObject(activePrintAreas.front, rect, natural),
+    [activePrintAreas.front, describeObject],
   );
   const formatBackObjectSize = useCallback(
-    (rect: { width: number; height: number }) => formatMetricSize(metricsFromRect(rect, activePrintAreas.back, 1)),
-    [activePrintAreas.back],
+    (rect: { width: number; height: number }, natural?: { width: number; height: number }) =>
+      describeObject(activePrintAreas.back, rect, natural),
+    [activePrintAreas.back, describeObject],
   );
 
   const previewSizeEntry = sizeChart?.entries.find((entry) => entry.size === previewSize) ?? null;

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { fabric } from 'fabric';
+import { AlertTriangle } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
 import type { PrintAreaConfig, Side } from '@/types';
 import { CurvedText, registerCurvedText } from '@/utils/curvedText';
@@ -73,7 +74,15 @@ interface Props {
    * ("10.4 x 15.2 cm"). Hesabı çağıran taraf yapar — fiyat bandıyla aynı
    * formül kullanılsın diye. Verilmezse rozet gösterilmez.
    */
-  formatObjectSize?: (rect: { width: number; height: number }) => string;
+  /**
+   * Seçili nesnenin rozet metnini ve baskı kalitesini üretir. Doğal piksel
+   * ölçüsü de verilir: görselin kaç DPI'a denk geldiği ancak kaynak
+   * çözünürlüğü ile basılacak fiziksel ölçü birlikte bilinirse hesaplanır.
+   */
+  formatObjectSize?: (
+    rect: { width: number; height: number },
+    natural?: { width: number; height: number },
+  ) => { text: string; quality?: import('@/utils/printQuality').PrintQuality; dpi?: number };
 }
 
 const HISTORY_LIMIT = 50;
@@ -454,7 +463,10 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
 
   const formatObjectSizeRef = useRef(formatObjectSize);
   const refreshSizeBadgeRef = useRef<() => void>(() => {});
-  const [sizeBadge, setSizeBadge] = useState<{ left: number; top: number; below: boolean; text: string } | null>(null);
+  const [sizeBadge, setSizeBadge] = useState<{
+    left: number; top: number; below: boolean; text: string;
+    quality?: import('@/utils/printQuality').PrintQuality; dpi?: number;
+  } | null>(null);
 
   const { config, activeSide } = useDesignerStore();
   const [bgLoaded, setBgLoaded] = useState(false);
@@ -501,12 +513,20 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
 
     // Nesne üste yapışıksa rozeti altına al ki canvas dışında kalmasın
     const below = bounds.top < BADGE_MARGIN;
+    // Yalnızca görselde çözünürlük kavramı var; yazı ve vektör her ölçüde net.
+    const natural = active.type === 'image' && active.width && active.height
+      ? { width: active.width, height: active.height }
+      : undefined;
+    const info = format({ width: bounds.width, height: bounds.height }, natural);
+
     setSizeBadge({
       // Yatayda da canvas içinde tut — kenardaki nesnelerde rozet kırpılmasın
       left: Math.min(Math.max(bounds.left + bounds.width / 2, BADGE_EDGE), PRINT_W - BADGE_EDGE),
       top: below ? bounds.top + bounds.height + BADGE_GAP : bounds.top - BADGE_GAP,
       below,
-      text: format({ width: bounds.width, height: bounds.height }),
+      text: info.text,
+      quality: info.quality,
+      dpi: info.dpi,
     });
   }, []);
 
@@ -731,6 +751,9 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       cv.add(img);
       cv.setActiveObject(img);
       onObjectSelectedRef.current(img);
+      // setActiveObject olay yaymıyor; rozet elle tazelenmezse yeni eklenen
+      // görselin çözünürlük uyarısı ancak kullanıcı ona tıklayınca çıkıyor.
+      refreshSizeBadgeRef.current();
       cv.renderAll();
     }, { crossOrigin: 'anonymous' });
   }, []);
@@ -1244,7 +1267,12 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
                 Zoom'u ters çeviriyoruz ki yazı her zoom seviyesinde okunur kalsın. */}
             {sizeBadge && (
               <div
-                className="pointer-events-none absolute z-30 select-none whitespace-nowrap rounded-md bg-gray-900/85 px-2 py-1 text-[11px] font-semibold leading-none text-white shadow-sm backdrop-blur-sm"
+                className={
+                  'pointer-events-none absolute z-30 flex select-none items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-semibold leading-none shadow-sm backdrop-blur-sm '
+                  + (sizeBadge.quality === 'bad' ? 'bg-red-600/90 text-white'
+                    : sizeBadge.quality === 'warn' ? 'bg-amber-500/90 text-gray-900'
+                    : 'bg-gray-900/85 text-white')
+                }
                 style={{
                   left: sizeBadge.left,
                   top: sizeBadge.top,
@@ -1255,7 +1283,13 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {sizeBadge.text}
+                <span>{sizeBadge.text}</span>
+                {sizeBadge.quality && sizeBadge.quality !== 'good' && (
+                  <span className="flex items-center gap-1 border-l border-white/30 pl-1.5">
+                    <AlertTriangle className="h-3 w-3" />
+                    {Math.round(sizeBadge.dpi ?? 0)} DPI
+                  </span>
+                )}
               </div>
             )}
           </div>

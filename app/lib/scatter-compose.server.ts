@@ -30,6 +30,20 @@ export interface ScatterComposeResult {
   /** Kafa Vision ile mi bulundu, yoksa tahmine mi düşüldü */
   headDetected: boolean;
   placed: { faces: number; decorations: number };
+  /**
+   * Baskı kalitesi göstergesi. Fotoğrafın toplam çözünürlüğü yanıltıcı:
+   * 5000 piksellik bir kalabalık fotoğrafında kafa 80 piksel olabilir.
+   * Ölçüt, kesilen kafanın kaynaktaki piksel eninin basılacağı boya
+   * yetip yetmediği.
+   */
+  quality: {
+    /** Kaynak fotoğraftaki kafa kesitinin piksel eni */
+    headSourcePx: number;
+    /** Tasarımda kafanın yerleştirildiği en büyük piksel eni */
+    placedPx: number;
+    /** 1'in üstü büyütme demek; 1.15 üstü gözle görülür yumuşama */
+    upscale: number;
+  };
 }
 
 function escapeXml(value: string) {
@@ -158,5 +172,19 @@ export async function composeScatterDesign(opts: ScatterComposeOptions): Promise
     create: { width: areaWidth, height: areaHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
   }).composite(composites).png().toBuffer();
 
-  return { buffer, headDetected: head.detected, placed: { faces, decorations } };
+  const placedPx = items
+    .filter((item) => item.kind === "face")
+    .reduce((max, item) => Math.max(max, item.width), 0);
+  const headSourcePx = head.box.width;
+
+  return {
+    buffer,
+    headDetected: head.detected,
+    placed: { faces, decorations },
+    quality: {
+      headSourcePx,
+      placedPx: Math.round(placedPx),
+      upscale: headSourcePx > 0 ? placedPx / headSourcePx : 0,
+    },
+  };
 }
