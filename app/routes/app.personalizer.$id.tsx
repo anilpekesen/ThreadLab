@@ -24,7 +24,7 @@ import {
   type TextFieldDef,
   type PersonalizerFrame,
 } from "~/models/personalizer.server";
-import { fetchShopifyProducts } from "~/models/product-config.server";
+import { fetchShopifyProducts, findConfigForStorefront } from "~/models/product-config.server";
 import { uploadToR2 } from "~/lib/r2.server";
 
 const MAX_UPLOAD = 20 * 1024 * 1024;
@@ -49,7 +49,7 @@ function productOptionLabel(product: { title: string; handle: string }) {
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate(request);
   const id = params.id ?? "";
-  if (id === "new") return json({ shop: session.shop, template: null, frames: [], productLinks: [], products: [], isNew: true });
+  if (id === "new") return json({ shop: session.shop, template: null, frames: [], productLinks: [], products: [], linkedAreaRatio: null, isNew: true });
   const template = await getPersonalizerTemplate(id, session.shop);
   if (!template) throw new Response("Şablon bulunamadı", { status: 404 });
   const frames = await listPersonalizerFrames(id);
@@ -67,7 +67,19 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       price: variant.price,
     })),
   }));
-  return json({ shop: session.shop, template, frames, productLinks, products, isNew: false });
+  // Dağıtım tuvalinin oranı, tasarımın oturacağı baskı kutusunun oranıyla
+  // eşleşmezse tasarım kutuya sığar ama kenarlarda boşluk kalır. Editörde
+  // uyarabilmek için bağlı ürünün ön baskı kutusunu da gönderiyoruz.
+  let linkedAreaRatio: number | null = null;
+  const linkedProductId = productLinks[0]?.product_id ?? "";
+  if (linkedProductId) {
+    const linkedConfig = await findConfigForStorefront(session.shop, linkedProductId, "").catch(() => null);
+    const areas = linkedConfig?.printAreas ?? [];
+    const front = areas.find((area: { side: string }) => area.side === "front") ?? areas[0];
+    if (front?.width > 0 && front?.height > 0) linkedAreaRatio = front.width / front.height;
+  }
+
+  return json({ shop: session.shop, template, frames, productLinks, products, linkedAreaRatio, isNew: false });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -834,7 +846,7 @@ function newTextField(): TextFieldDef {
 // ── Main Component ───────────────────────────────────────────────────────────
 
 function PersonalizerEditor() {
-  const { shop, template, frames, productLinks, products, isNew } = useLoaderData<typeof loader>();
+  const { shop, template, frames, productLinks, products, linkedAreaRatio, isNew } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ error?: string; ok?: boolean; redirectTo?: string }>();
   const linkFetcher = useFetcher<{ error?: string; ok?: boolean; linked?: boolean }>();
   const navigate = useNavigate();
@@ -884,6 +896,16 @@ function PersonalizerEditor() {
   const [faceScale, setFaceScale] = useState(String(Math.round((sc.faceScale ?? 0.16) * 100)));
   const [decorationScale, setDecorationScale] = useState(String(Math.round((sc.decorationScale ?? 0.1) * 100)));
   const [reserveText, setReserveText] = useState(sc.reserveCenter !== null);
+  const [canvasWidth, setCanvasWidth] = useState(String(sc.canvasWidth ?? 2400));
+  const [canvasHeight, setCanvasHeight] = useState(String(sc.canvasHeight ?? 1650));
+
+  const canvasRatio = (parseInt(canvasWidth, 10) || 0) / Math.max(parseInt(canvasHeight, 10) || 1, 1);
+  const canvasRatioLabel = canvasRatio > 0 ? `${canvasRatio.toFixed(2)} : 1` : "—";
+  // Baskı kutusu oranından %5'ten fazla sapma gözle görülür boşluk bırakır.
+  const canvasRatioWarning = Boolean(
+    linkedAreaRatio && canvasRatio > 0
+    && Math.abs(canvasRatio - linkedAreaRatio) / linkedAreaRatio > 0.05,
+  );
 
   const [holeSeed, setHoleSeed] = useState({
     x: template?.hole_seed_x ?? -1,
@@ -1045,6 +1067,22 @@ function PersonalizerEditor() {
                         onChange={setReserveText}
                         helpText="İşaretliyse parçalar ortadaki yazının üstüne binmez."
                       />
+                      <FormLayout.Group>
+                        <TextField label="Tuval genişliği (px)" type="number" value={canvasWidth}
+                          onChange={setCanvasWidth} autoComplete="off" />
+                        <TextField label="Tuval yüksekliği (px)" type="number" value={canvasHeight}
+                          onChange={setCanvasHeight} autoComplete="off" />
+                      </FormLayout.Group>
+                      <Banner tone={canvasRatioWarning ? "warning" : "info"}>
+                        <Text as="p">
+                          Tasarımın en/boy oranı: <strong>{canvasRatioLabel}</strong>.
+                          {canvasRatioWarning
+                            ? ` Bağlı ürünün baskı kutusu ${linkedAreaRatio?.toFixed(2)} : 1 oranında —`
+                              + " ikisi eşit değilse tasarım kutuya sığar ama kenarlarda boşluk kalır."
+                            : " Ürün ayarlarındaki baskı kutusu da bu oranda olmalı ki tasarım"
+                              + " kenarlara kadar dolsun."}
+                        </Text>
+                      </Banner>
                     </FormLayout>
 
                     <BlockStack gap="200">
@@ -1081,6 +1119,8 @@ function PersonalizerEditor() {
                       angleJitter: 0,
                       reserveCenter: reserveText ? { width: 0.42, height: 0.26 } : null,
                       seed: 1,
+                      canvasWidth: parseInt(canvasWidth, 10) || 2400,
+                      canvasHeight: parseInt(canvasHeight, 10) || 1650,
                     })} />
                   </BlockStack>
                 </Card>
