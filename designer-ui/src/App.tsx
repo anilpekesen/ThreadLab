@@ -4635,10 +4635,10 @@ export default function App() {
                     </div>
                     {pricingSummary.front.items.length > 1 && (
                       <div className="mt-1 space-y-0.5 pl-2 text-[9px] text-gray-500">
-                        {pricingSummary.front.items.map((item) => (
+                        {pricingSummary.front.items.map((item, displayIndex) => (
                           <div key={`front-price-${item.index}`} className="flex items-center justify-between gap-2">
-                            <span>{item.index + 1}. {formatMetricSize(item.metrics)} · {item.band.label}</span>
-                            <span className="font-semibold text-gray-700">{formatMoney(item.subtotal)}</span>
+                            <span>{displayIndex + 1}. {formatMetricSize(item.metrics)} · {item.band.label}</span>
+                            <span className="font-semibold text-gray-700">{formatMoney(totalQuantity > 0 ? item.subtotal : item.surcharge)}</span>
                           </div>
                         ))}
                       </div>
@@ -4653,10 +4653,10 @@ export default function App() {
                     </div>
                     {pricingSummary.back.items.length > 1 && (
                       <div className="mt-1 space-y-0.5 pl-2 text-[9px] text-gray-500">
-                        {pricingSummary.back.items.map((item) => (
+                        {pricingSummary.back.items.map((item, displayIndex) => (
                           <div key={`back-price-${item.index}`} className="flex items-center justify-between gap-2">
-                            <span>{item.index + 1}. {formatMetricSize(item.metrics)} · {item.band.label}</span>
-                            <span className="font-semibold text-gray-700">{formatMoney(item.subtotal)}</span>
+                            <span>{displayIndex + 1}. {formatMetricSize(item.metrics)} · {item.band.label}</span>
+                            <span className="font-semibold text-gray-700">{formatMoney(totalQuantity > 0 ? item.subtotal : item.surcharge)}</span>
                           </div>
                         ))}
                       </div>
