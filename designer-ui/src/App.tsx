@@ -615,6 +615,66 @@ function normalizeCropRect(rect: CropRect): CropRect {
   return { x, y, width, height };
 }
 
+/**
+ * Görselin saydam olmayan içeriğinin sınırlarını oransal olarak bulur.
+ *
+ * Arka planı kaldırılmış görseller kırpılmadan saklanıyor (kırpmak, kayıtlı
+ * tasarımlardaki konum ve ölçeği bozardı). Sonuçta konu, saydam bir çerçevenin
+ * ortasında duruyor; kırpma penceresi tüm kareyi seçili açınca kullanıcı
+ * kenarlarda boşluk görüyor. Bu ölçüm pencereyi içeriğe oturtmak için.
+ *
+ * Alfa taraması küçültülmüş bir kopyada yapılır — 400 piksele indirmek
+ * milyonlarca piksellik taramayı gereksiz kılıyor, hassasiyet yeterli.
+ */
+async function contentRectOf(src: string): Promise<CropRect> {
+  const full: CropRect = { x: 0, y: 0, width: 1, height: 1 };
+  return await new Promise<CropRect>((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, 400 / Math.max(img.width, img.height, 1));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) { resolve(full); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        const { data } = ctx.getImageData(0, 0, w, h);
+
+        let minX = w, minY = h, maxX = -1, maxY = -1;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            if (data[(y * w + x) * 4 + 3] > 8) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX < 0) { resolve(full); return; }
+
+        // Kenarda bir piksellik pay: küçültme sırasında kaybolan yarı saydam
+        // kenarları geri almak için.
+        const pad = 1;
+        resolve(normalizeCropRect({
+          x: Math.max(0, minX - pad) / w,
+          y: Math.max(0, minY - pad) / h,
+          width: Math.min(w, maxX + 1 + pad) / w - Math.max(0, minX - pad) / w,
+          height: Math.min(h, maxY + 1 + pad) / h - Math.max(0, minY - pad) / h,
+        }));
+      } catch {
+        resolve(full);   // farklı kaynaklı görselde canvas okunamaz
+      }
+    };
+    img.onerror = () => resolve(full);
+    img.src = src;
+  });
+}
+
 async function cropImageDataUrl(src: string, rect: CropRect): Promise<string> {
   return await new Promise<string>((resolve, reject) => {
     const img = new Image();
@@ -2368,9 +2428,10 @@ export default function App() {
     window.setTimeout(() => scrollDesignerToTop('auto'), 120);
     cropTargetRef.current = selectedImage;
     const src = selectedImage.toDataURL({ format: 'png', multiplier: 2 });
-    setCropModalState({
-      src,
-      rect: { x: 0, y: 0, width: 1, height: 1 },
+    // Seçim kutusu içeriğe oturur; kullanıcı isterse kenarlara doğru genişletir.
+    void contentRectOf(src).then((rect) => {
+      if (cropTargetRef.current !== selectedImage) return;   // pencere kapandıysa
+      setCropModalState({ src, rect });
     });
   }, [getSelectedImageObject, scrollDesignerToTop]);
 
