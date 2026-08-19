@@ -92,16 +92,8 @@ export function computeScatterLayout(
   const rnd = mulberry32(config.seed);
   const items: ScatterItem[] = [];
 
-  // Yüz ve süslemeler dönüşümlü sıralanır ki tek bir köşede kümelenmesinler
-  const queue: Array<"face" | "decoration"> = [];
   const total = Math.max(0, config.faceCount) + Math.max(0, config.decorationCount);
   if (total === 0) return items;
-  let f = config.faceCount;
-  let d = config.decorationCount;
-  while (queue.length < total) {
-    if (f > 0) { queue.push("face"); f--; }
-    if (d > 0 && queue.length < total) { queue.push("decoration"); d--; }
-  }
 
   // Mutlak dikdörtgen verilmişse o kullanılır (yazının gerçek yeri); yoksa
   // yapılandırmadaki oransal orta alana düşülür.
@@ -117,7 +109,7 @@ export function computeScatterLayout(
   const faceWidth = areaWidth * config.faceScale;
 
   // Yazı alanına değmeyen yeterli hücre bulunana kadar ızgarayı sıklaştır
-  let cells: Array<{ cx: number; cy: number; w: number; h: number }> = [];
+  let cells: Array<{ cx: number; cy: number; w: number; h: number; parity: 0 | 1 }> = [];
   const aspect = areaWidth / Math.max(areaHeight, 1);
   for (let extra = 0; extra < 12; extra++) {
     const target = total + extra * 2;
@@ -135,32 +127,66 @@ export function computeScatterLayout(
         // düşüyorsa kullanılmaz. Hücrenin tamamını sınamak (kenarı değse bile
         // elemek) ortada gereğinden çok geniş bir boşluk bırakıyordu.
         if (reserve) {
-          const pad = faceWidth * 0.5;
+          const pad = faceWidth * 0.2;
           const inside = cx > reserve.x0 - pad && cx < reserve.x1 + pad
             && cy > reserve.y0 - pad && cy < reserve.y1 + pad;
           if (inside) continue;
         }
-        cells.push({ cx, cy, w: cellW, h: cellH });
+        cells.push({ cx, cy, w: cellW, h: cellH, parity: ((r + c) % 2) as 0 | 1 });
       }
     }
-    if (cells.length >= total) break;
+    // Her iki parite sınıfı da kendi payını karşılamalı; toplam yeterli olsa
+    // bile tek sınıf açık kalırsa süslemeler yüz hücrelerine taşar ve satranç
+    // deseni bozulur.
+    const evenCount = cells.filter((cell) => cell.parity === 0).length;
+    const oddCount = cells.length - evenCount;
+    if (evenCount >= config.faceCount && oddCount >= config.decorationCount) break;
   }
 
   if (!cells.length) return items;
 
-  // Hücreleri tohumlu karıştır: yüz/süsleme sırası alana yayılsın
-  for (let i = cells.length - 1; i > 0; i--) {
-    const j = Math.floor(rnd() * (i + 1));
-    [cells[i], cells[j]] = [cells[j], cells[i]];
-  }
+  const shuffle = <T,>(list: T[]) => {
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
+  };
 
-  queue.forEach((kind, index) => {
-    const cell = cells[index];
-    if (!cell) return;   // hücre yetmediyse parçayı atla
+  // Yüzler ve süslemeler ızgaranın iki farklı parite sınıfına dağıtılır —
+  // satranç tahtası gibi. Önceki sürümde her iki tür de aynı havuzdan hücre
+  // çekiyordu; tür dağılımı tamamen şansa kaldığı için kalpler bir kenarda,
+  // kafalar karşı kenarda toplanabiliyordu. Parite ayrımı her süslemenin
+  // yüzlerin arasına düşmesini garanti eder.
+  const even = shuffle(cells.filter((cell) => cell.parity === 0));
+  const odd = shuffle(cells.filter((cell) => cell.parity === 1));
+
+  // Bir sınıf yetmezse diğerinin artanından tamamlanır
+  const faceCells = even.splice(0, config.faceCount);
+  const decorCells = odd.splice(0, config.decorationCount);
+  while (faceCells.length < config.faceCount && odd.length) faceCells.push(odd.shift()!);
+  while (decorCells.length < config.decorationCount && even.length) decorCells.push(even.shift()!);
+
+  // Ayarlanan ölçek alana sığmıyorsa TÜM parçalar aynı katsayıyla küçültülür.
+  // Parça sayısı, parça boyu ve yazı boşluğu birlikte alandan büyük olabiliyor;
+  // ölçeği olduğu gibi uygulamak parçaları üst üste bindiriyordu. Katsayının
+  // ortak olması kafa/süsleme boy farkını korur — yalnızca kafayı kısmak
+  // ikisini eşit boya getirip referanstaki görünümü bozuyordu. Hücreden %15
+  // taşmaya izin var; referans tasarımda da parçalar birbirine değiyor.
+  const cellLimit = Math.min(cells[0].w, cells[0].h) * 1.15;
+  const fitFactor = Math.min(1, cellLimit / Math.max(faceWidth, 1));
+
+  const assigned: Array<{ kind: "face" | "decoration"; cell: typeof cells[number] }> = [
+    ...faceCells.map((cell) => ({ kind: "face" as const, cell })),
+    ...decorCells.map((cell) => ({ kind: "decoration" as const, cell })),
+  ];
+
+  assigned.forEach(({ kind, cell }) => {
+    if (!cell) return;
 
     const baseScale = kind === "face" ? config.faceScale : config.decorationScale;
     const jitter = 1 + (rnd() * 2 - 1) * config.sizeJitter;
-    const width = Math.max(8, areaWidth * baseScale * jitter);
+    const width = Math.max(8, areaWidth * baseScale * fitFactor * jitter);
     const radius = width / 2;
 
     // Hücre parçadan büyükse kalan payda serbestçe kaydır; küçükse hücrede
@@ -170,8 +196,23 @@ export function computeScatterLayout(
     // Parça tam sınıra oturduğunda kesit kendi kenarında bittiği için baskıda
     // kırpılmış görünüyor; küçük bir kenar payı bunu önlüyor.
     const margin = Math.min(areaWidth, areaHeight) * 0.015;
-    const x = clamp(cell.cx + (rnd() * 2 - 1) * slackX, radius + margin, areaWidth - radius - margin);
-    const y = clamp(cell.cy + (rnd() * 2 - 1) * slackY, radius + margin, areaHeight - radius - margin);
+    let x = clamp(cell.cx + (rnd() * 2 - 1) * slackX, radius + margin, areaWidth - radius - margin);
+    let y = clamp(cell.cy + (rnd() * 2 - 1) * slackY, radius + margin, areaHeight - radius - margin);
+
+    // Hücre yazıdan uzak olsa bile parça hücre içinde yazıya doğru kayabiliyor.
+    // Hücre merkezini elemek bu yüzden yetmiyordu; kalan değme burada, parçayı
+    // en kısa yönde dışarı iterek kapatılıyor.
+    if (reserve) {
+      // Yalnızca gerçekten yazıya giren parça itilir. Yazının çevresine ek
+      // nefes payı bırakmak denendi ve geri tepti: itilen parçalar komşuların
+      // üstüne düşüyordu. Sınır tahmini zaten ölçülenden geniş (kalın Georgia
+      // 0.598 em/karakter, formül 0.63 kullanıyor), bu pay yeterli.
+      const pushed = pushOutOfReserve(
+        x, y, radius, reserve, areaWidth, areaHeight, margin,
+      );
+      x = pushed.x;
+      y = pushed.y;
+    }
 
     items.push({
       kind,
@@ -183,6 +224,36 @@ export function computeScatterLayout(
   });
 
   return items;
+}
+
+/**
+ * Yazı dikdörtgenine değen parçayı en yakın kenardan dışarı iter.
+ * Alan sınırlarını aşacak yönler elenir; hiçbiri sığmazsa parça yerinde kalır.
+ */
+function pushOutOfReserve(
+  x: number,
+  y: number,
+  radius: number,
+  reserve: ReserveRect,
+  areaWidth: number,
+  areaHeight: number,
+  margin: number,
+): { x: number; y: number } {
+  const clear = x + radius <= reserve.x0 || x - radius >= reserve.x1
+    || y + radius <= reserve.y0 || y - radius >= reserve.y1;
+  if (clear) return { x, y };
+
+  const lo = radius + margin;
+  const options = [
+    { x: reserve.x0 - radius, y },
+    { x: reserve.x1 + radius, y },
+    { x, y: reserve.y0 - radius },
+    { x, y: reserve.y1 + radius },
+  ]
+    .filter((p) => p.x >= lo && p.x <= areaWidth - lo && p.y >= lo && p.y <= areaHeight - lo)
+    .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
+
+  return options[0] ?? { x, y };
 }
 
 function clamp(value: number, min: number, max: number): number {

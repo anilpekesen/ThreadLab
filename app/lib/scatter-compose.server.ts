@@ -70,8 +70,9 @@ function buildTextOverlay(
  * dışına taşıyor ve üstüne parça biniyordu. Sınırı yazının kendisinden
  * türetmek bu bağı kalıcı olarak kesiyor.
  *
- * Genişlik ölçüsü kaba: Georgia'da ortalama karakter ~0.52 em. Amaç piksel
- * hassasiyeti değil, parçaları uzak tutmak.
+ * Genişlik ölçüsü kaba ama ölçülmüş: üretilen çıktıda kalın Georgia karakter
+ * başına ~0.63 em, normalde ~0.52 em yer kaplıyor. Kalın için düşük katsayı
+ * kullanmak sınırı dar bırakıp süslemeyi yazının son harfine değdiriyordu.
  */
 function textReserveRect(
   fields: TextFieldDef[],
@@ -85,7 +86,8 @@ function textReserveRect(
     const size = Number(field.font_size) || 0;
     if (size <= 0) continue;
 
-    const width = raw.length * size * 0.52;
+    const emPerChar = field.bold ? 0.63 : 0.52;
+    const width = raw.length * size * emPerChar;
     const anchorX = Number(field.x) || 0;
     const left = field.align === "left" ? anchorX
       : field.align === "right" ? anchorX - width
