@@ -9,9 +9,25 @@ const SHEET_PRESETS: Record<string, { width: number; height: number | null; pxPe
   "a4l":    { width: 3508, height: 2480, pxPerMm: 300 / 25.4 },
   "a3":     { width: 3508, height: 4961, pxPerMm: 300 / 25.4 },
   "a3l":    { width: 4961, height: 3508, pxPerMm: 300 / 25.4 },
-  "dtf60":  { width: 3543, height: null, pxPerMm: 150 / 25.4 },
-  "dtf100": { width: 5906, height: null, pxPerMm: 150 / 25.4 },
+  // DTF ruloları 300 DPI: 60 cm -> 7087 px, 100 cm -> 11811 px.
+  // Önceden 150 DPI'daydılar; tek tek indirilen üretim dosyaları 300 DPI
+  // olduğu için rulo çıktısı yarı çözünürlük kalıyordu.
+  "dtf60":  { width: 7087, height: null, pxPerMm: 300 / 25.4 },
+  "dtf100": { width: 11811, height: null, pxPerMm: 300 / 25.4 },
 };
+
+/**
+ * Tek bir sayfanın üst piksel sınırı.
+ *
+ * Yükseklik sipariş sayısıyla sınırsız büyüyor. 300 DPI'da piksel sayısı
+ * 150 DPI'ya göre dört katına çıktığı için sınırsız bırakmak worker'ı
+ * belleğe boğuyor — aynı worker canlı mağazaya da hizmet verdiğinden
+ * çökmesi sipariş kaybettirir. Sınırı aşan istek hata döner, kullanıcı
+ * partiyi böler.
+ */
+const MAX_SHEET_PIXELS = 300_000_000;
+
+class SheetTooLargeError extends Error {}
 
 const CANVAS_LOGICAL_W = 960;
 const CANVAS_LOGICAL_H = 1160;
@@ -123,6 +139,15 @@ async function buildGangSheet(
   }
 
   const totalHeight = fixedHeight ?? curY + rowH + margin;
+
+  const pixels = sheetWidth * Math.max(totalHeight, 100);
+  if (pixels > MAX_SHEET_PIXELS) {
+    const cm = Math.round((totalHeight / (300 / 25.4)) / 10);
+    throw new SheetTooLargeError(
+      `Bu seçim ${cm} cm uzunluğunda bir sayfa üretiyor ve tek seferde işlenemiyor. `
+      + `Siparişleri iki gruba bölüp ayrı ayrı indirin.`,
+    );
+  }
 
   const compositeOps: sharp.OverlayOptions[] = await Promise.all(
     placed.map(async (p) => {
@@ -266,10 +291,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return new Response("no valid print images found", { status: 404 });
   }
 
-  const [frontPng, backPng] = await Promise.all([
-    frontItems.length > 0 ? buildGangSheet(frontItems, sheetWidth, sheetHeight, margin) : null,
-    backItems.length > 0  ? buildGangSheet(backItems,  sheetWidth, sheetHeight, margin) : null,
-  ]);
+  let frontPng: Buffer | null;
+  let backPng: Buffer | null;
+  try {
+    [frontPng, backPng] = await Promise.all([
+      frontItems.length > 0 ? buildGangSheet(frontItems, sheetWidth, sheetHeight, margin) : null,
+      backItems.length > 0  ? buildGangSheet(backItems,  sheetWidth, sheetHeight, margin) : null,
+    ]);
+  } catch (err) {
+    if (err instanceof SheetTooLargeError) {
+      return new Response(err.message, { status: 413, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    }
+    throw err;
+  }
 
   let finalPng: Buffer;
   if (frontPng && backPng) {
@@ -279,6 +313,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const fH = frontMeta.height ?? 0;
     const bH = backMeta.height  ?? 0;
     const totalH = fH + margin + bH;
+    // Ön ve arka ayrı ayrı sınırın altında kalsa bile birleşimi aşabilir.
+    if (sheetWidth * totalH > MAX_SHEET_PIXELS) {
+      return new Response(
+        "Ön ve arka baskılar birlikte tek sayfaya sığmıyor. Siparişleri bölüp ayrı ayrı indirin.",
+        { status: 413, headers: { "Content-Type": "text/plain; charset=utf-8" } },
+      );
+    }
     finalPng = await sharp({
       create: { width: sheetWidth, height: totalH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
     })

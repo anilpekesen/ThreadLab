@@ -15,8 +15,8 @@ import { getShopSubscription } from "~/models/billing.server";
 import { PLANS, planKeyFromName } from "~/lib/billing.server";
 
 const SHEET_PRESETS = [
-  { label: "DTF Rulo 60cm (150dpi — 3543px)", value: "dtf60" },
-  { label: "DTF Rulo 100cm (150dpi — 5906px)", value: "dtf100" },
+  { label: "DTF Rulo 60cm (300dpi — 7087px)", value: "dtf60" },
+  { label: "DTF Rulo 100cm (300dpi — 11811px)", value: "dtf100" },
   { label: "A3 Dikey (300dpi — 3508×4961px)", value: "a3" },
   { label: "A3 Yatay (300dpi — 4961×3508px)", value: "a3l" },
   { label: "A4 Dikey (300dpi — 2480×3508px)", value: "a4" },
@@ -24,8 +24,8 @@ const SHEET_PRESETS = [
 ];
 
 const PRESET_DIMS: Record<string, { w: number; h: number | null }> = {
-  dtf60:  { w: 3543, h: null },
-  dtf100: { w: 5906, h: null },
+  dtf60:  { w: 7087, h: null },
+  dtf100: { w: 11811, h: null },
   a3:     { w: 3508, h: 4961 },
   a3l:    { w: 4961, h: 3508 },
   a4:     { w: 2480, h: 3508 },
