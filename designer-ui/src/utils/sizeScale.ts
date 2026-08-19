@@ -9,18 +9,25 @@ export interface AreaRect {
 }
 
 /**
- * Baskı alanını seçilen bedene göre yeniden boyutlandırır.
+ * Yerleşim alanının FİZİKSEL ölçüsünü seçilen bedene göre ayarlar.
  *
- * Mockup görseli sabit kalır (tişört her zaman aynı büyüklükte görünür), baskı
- * alanı ölçeklenir. Referans beden, mağaza sahibinin editörde çizdiği kutuya
- * karşılık gelir; daha büyük bedende aynı fiziksel baskı gövdenin daha küçük
- * bir oranını kaplayacağı için kutu küçülür.
+ * Mavi kutu mockup üzerinde sabit kalır: gövdenin kullanılabilir yüzeyini
+ * temsil eder ve mockup her bedende aynı büyüklükte görünür. Değişen, o
+ * kutunun kaç santime denk geldiğidir — 2XL gövdesi S'den geniş olduğu için
+ * aynı kutu daha çok santim demektir.
  *
- * Ölçek izotropiktir (genişlik bazlı) — tasarımın en/boy oranı bozulmasın diye.
- * Gövde boyu yalnızca dikey konumu (yaka altı offseti) oranlamakta kullanılır.
+ * Maksimum tasarım ölçüsü (realWidthMm) dokunulmadan geçer; o baskı makinesinin
+ * sınırı, bedene bağlı değil. Sonuç olarak aynı 28 cm'lik baskı, 2XL'de
+ * gövdenin daha küçük bir oranını kaplar ve tasarımcıda da öyle görünür.
  *
- * Yerleşim ve maksimum tasarımın fiziksel ölçüleri dokunulmadan geçer.
- * Beden değişimi yalnızca bunların mockup üzerindeki piksel karşılığını etkiler.
+ * Önceki sürüm bunun tersini yapıyordu: kutuyu büyük bedende küçültüyor, mm'yi
+ * sabit tutuyordu. Bu, "yerleşim alanı" kavramını bozuyordu — mağaza sahibi
+ * gövdenin tamamını kapsayacak şekilde çizdiği kutunun 2XL'de içeri
+ * kaçtığını görüyordu.
+ *
+ * Girilen mm değeri REFERANS bedene aittir; diğer bedenler gövde eni oranıyla
+ * türetilir. Böylece mağaza sahibinin kalibrasyonu korunur — kutunun gövdenin
+ * tamamını kaplaması gerekmez.
  */
 export function scaleAreaForSize(
   area: PrintAreaConfig,
@@ -34,44 +41,41 @@ export function scaleAreaForSize(
   if (!reference || !target) return area;
   if (!(reference.widthCm > 0) || !(target.widthCm > 0)) return area;
 
-  const scale = reference.widthCm / target.widthCm;
-  const offsetScale = reference.heightCm > 0 && target.heightCm > 0
-    ? reference.heightCm / target.heightCm
-    : scale;
-  if (scale === 1 && offsetScale === 1) return area;
+  const widthRatio = target.widthCm / reference.widthCm;
+  const heightRatio = reference.heightCm > 0 && target.heightCm > 0
+    ? target.heightCm / reference.heightCm
+    : widthRatio;
+  if (widthRatio === 1 && heightRatio === 1) return area;
 
-  const width = Math.max(1, area.width * scale);
-  const height = Math.max(1, area.height * scale);
-  const centerX = area.x + area.width / 2;
-  const left = centerX - width / 2;
-  const top = area.mockupY + (area.y - area.mockupY) * offsetScale;
-
-  // Mockup gövdesinin dışına taşmasın
-  const maxTop = area.mockupY + Math.max(0, area.mockupHeight - height);
+  const placementWidthMm = (area.placementWidthMm || area.realWidthMm) * widthRatio;
+  const placementHeightMm = (area.placementHeightMm || area.realHeightMm) * heightRatio;
 
   return {
     ...area,
-    x: left,
-    y: Math.min(Math.max(top, area.mockupY), maxTop),
-    width,
-    height,
+    placementWidthMm,
+    placementHeightMm,
+    // Baskı makinesinin sınırı bedene bağlı değil; yerleşim alanını aşamaz.
+    realWidthMm: Math.min(area.realWidthMm, placementWidthMm),
+    realHeightMm: Math.min(area.realHeightMm, placementHeightMm),
   };
 }
 
 /**
  * Beden değiştiğinde tasarımı eski baskı alanından yenisine taşır.
  *
- * Objelerin alan içindeki göreli konumu ve boyutu korunur — yani tasarımın
- * fiziksel cm ölçüsü ve fiyat bandı değişmez, sadece ekrandaki büyüklüğü
- * tişörtün bedenine uyar.
+ * Objelerin alan içindeki göreli konumu korunur. Boyut ölçeği dışarıdan
+ * verilebilir: beden değişiminde kutu sabit kaldığı için piksel oranı 1'dir,
+ * ama tasarımın fiziksel cm ölçüsünün sabit kalması için nesneler yerleşim
+ * alanının mm oranıyla ters yönde ölçeklenmelidir.
  */
 export function remapObjectsBetweenAreas(
   canvas: fabric.Canvas,
   from: AreaRect,
   to: AreaRect,
+  objectScale?: number,
 ): boolean {
   if (from.width <= 0 || from.height <= 0 || to.width <= 0 || to.height <= 0) return false;
-  const ratio = to.width / from.width;
+  const ratio = objectScale ?? (to.width / from.width);
   const objects = canvas.getObjects();
   if (objects.length === 0) return false;
   if (Math.abs(ratio - 1) < 0.0001 && Math.abs(to.left - from.left) < 0.01 && Math.abs(to.top - from.top) < 0.01) {

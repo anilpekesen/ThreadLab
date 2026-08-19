@@ -456,7 +456,10 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   const historyRef = useRef<string[]>([]);
   const historyIdxRef = useRef(-1);
   const isRestoringRef = useRef(false);
-  const prevAreaRectRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
+  const prevAreaRef = useRef<{
+    rect: { left: number; top: number; width: number; height: number };
+    placementWidthMm: number;
+  } | null>(null);
   const printAreaRef = useRef(printArea);
   const onObjectSelectedRef = useRef(onObjectSelected);
   const onDesignChangeRef = useRef(onDesignChange);
@@ -1165,12 +1168,21 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     const cv = canvasRef.current;
     if (!cv) return;
     const nextRect = toCanvasRect(printArea);
-    // Baskı alanı bedene göre yeniden ölçeklendiyse tasarımı yeni alana taşı —
-    // alan içindeki göreli konumu ve cm ölçüsü korunur. İlk render'da önceki
-    // alan olmadığı için remap yapılmaz.
-    const prevRect = prevAreaRectRef.current;
-    if (prevRect) remapObjectsBetweenAreas(cv, prevRect, nextRect);
-    prevAreaRectRef.current = nextRect;
+    const nextPlacementMm = printArea.placementWidthMm || printArea.realWidthMm || 0;
+
+    // Beden değişiminde kutu artık sabit kalıyor; değişen o kutunun kaç santime
+    // denk geldiği. Tasarımın fiziksel ölçüsü sabit kalsın diye nesneler mm
+    // oranıyla TERS yönde ölçeklenir: alan 30 cm'den 35 cm'ye çıkınca aynı
+    // 20 cm'lik tasarım kutunun daha küçük bir oranını kaplamalı.
+    // İlk render'da önceki alan olmadığı için remap yapılmaz.
+    const prev = prevAreaRef.current;
+    if (prev) {
+      const scale = prev.placementWidthMm > 0 && nextPlacementMm > 0
+        ? prev.placementWidthMm / nextPlacementMm
+        : undefined;
+      remapObjectsBetweenAreas(cv, prev.rect, nextRect, scale);
+    }
+    prevAreaRef.current = { rect: nextRect, placementWidthMm: nextPlacementMm };
 
     const changed = constrainCanvasObjects(cv, printArea, nextRect);
     if (changed) {
