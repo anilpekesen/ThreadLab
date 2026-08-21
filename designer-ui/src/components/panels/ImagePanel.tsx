@@ -8,7 +8,7 @@ import { useDesignerI18n } from '../../i18n';
 const CONSENT_KEY = 'printlab_image_rights_accepted';
 
 interface Props {
-  onAddImage: (url: string, opts?: { backgroundRemoved?: boolean }) => void;
+  onAddImage: (url: string, opts?: { backgroundRemoved?: boolean; autoTrim?: boolean }) => void;
   onRemoveBg: (url: string) => Promise<string>;
   canRemoveBg: boolean;
   activeSource: 'upload' | 'qr' | 'ai';
@@ -93,7 +93,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
     if (fileRef.current) fileRef.current.value = '';
     if (!firstUrl) return;
     if (canRemoveBg) setPendingUrl(firstUrl);
-    else onAddImage(firstUrl);
+    else onAddImage(firstUrl, { autoTrim: true });
   }, [addUploadedImage, onAddImage, canRemoveBg, uploadOriginalImage]);
 
   const handleAddFromUrl = useCallback(async () => {
@@ -108,7 +108,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
       setImageUrl('');
       setShowUrlInput(false);
       if (canRemoveBg) setPendingUrl(data.url);
-      else onAddImage(data.url);
+      else onAddImage(data.url, { autoTrim: true });
     } catch { setUrlError(tr ? 'Bağlantı hatası, tekrar deneyin' : 'Connection error, please retry'); }
     finally { setUrlLoading(false); }
   }, [imageUrl, canRemoveBg, onAddImage]);
@@ -234,7 +234,9 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                     const url = pendingUrl; setPendingUrl(null);
                     const result = await onRemoveBg(url);
                     if (result) addUploadedImage({ id: generateId(), dataUrl: result, serverUrl: result, name: tr ? 'Temizlenmiş' : 'Cleaned', addedAt: Date.now(), backgroundRemoved: true });
-                    onAddImage(result || url, result ? { backgroundRemoved: true } : undefined);
+                    onAddImage(result || url, result
+                      ? { backgroundRemoved: true, autoTrim: true }
+                      : { autoTrim: true });
                   }}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
@@ -242,7 +244,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                 </button>
                 <button
                   disabled={isBgRemoving}
-                  onClick={() => { const url = pendingUrl; setPendingUrl(null); onAddImage(url); }}
+                  onClick={() => { const url = pendingUrl; setPendingUrl(null); onAddImage(url, { autoTrim: true }); }}
                   className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                 >
                   {t.keepOriginal}
@@ -269,7 +271,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                   <div key={img.id} className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
                     <button
                       type="button"
-                      onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)}
+                      onClick={() => onAddImage(img.serverUrl ?? img.dataUrl, { backgroundRemoved: img.backgroundRemoved, autoTrim: true })}
                       className="block aspect-square w-full cursor-pointer md:cursor-default"
                       aria-label={`${img.name} ${tr ? 'tasarıma ekle' : 'add to design'}`}
                     >
@@ -277,11 +279,11 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                     </button>
                     {/* Hover overlay — desktop */}
                     <div className="absolute inset-0 hidden flex-col items-center justify-center gap-1.5 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 md:flex">
-                      <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)} className="w-[80%] rounded-lg bg-white py-1.5 text-xs font-bold text-gray-900 hover:bg-gray-50">
+                      <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl, { backgroundRemoved: img.backgroundRemoved, autoTrim: true })} className="w-[80%] rounded-lg bg-white py-1.5 text-xs font-bold text-gray-900 hover:bg-gray-50">
                         {tr ? 'Ekle' : 'Add'}
                       </button>
                       {canRemoveBg && (
-                        <button disabled={isBgRemoving || img.backgroundRemoved} onClick={async () => { const r = await onRemoveBg(img.serverUrl ?? img.dataUrl); if (r) { addUploadedImage({ id: generateId(), dataUrl: r, serverUrl: r, name: `${img.name} ✦`, addedAt: Date.now(), backgroundRemoved: true }); onAddImage(r, { backgroundRemoved: true }); } }} className="w-[80%] rounded-lg bg-white/20 py-1.5 text-xs font-semibold text-white hover:bg-white/30 disabled:opacity-40">
+                        <button disabled={isBgRemoving || img.backgroundRemoved} onClick={async () => { const r = await onRemoveBg(img.serverUrl ?? img.dataUrl); if (r) { addUploadedImage({ id: generateId(), dataUrl: r, serverUrl: r, name: `${img.name} ✦`, addedAt: Date.now(), backgroundRemoved: true }); onAddImage(r, { backgroundRemoved: true, autoTrim: true }); } }} className="w-[80%] rounded-lg bg-white/20 py-1.5 text-xs font-semibold text-white hover:bg-white/30 disabled:opacity-40">
                           {img.backgroundRemoved ? (tr ? 'BG Silindi' : 'BG Removed') : (tr ? 'BG Kaldır' : 'Remove BG')}
                         </button>
                       )}
@@ -293,11 +295,11 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                     <div className="space-y-1.5 p-2 md:hidden">
                       <p className="truncate px-1 text-[11px] font-medium text-gray-600">{img.name}</p>
                       <div className="flex gap-1">
-                      <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl)} className="flex-1 rounded-lg bg-gray-900 py-1.5 text-[11px] font-semibold text-white">
+                      <button onClick={() => onAddImage(img.serverUrl ?? img.dataUrl, { backgroundRemoved: img.backgroundRemoved, autoTrim: true })} className="flex-1 rounded-lg bg-gray-900 py-1.5 text-[11px] font-semibold text-white">
                         {tr ? 'Ekle' : 'Add'}
                       </button>
                       {canRemoveBg && (
-                        <button disabled={isBgRemoving || img.backgroundRemoved} title={img.backgroundRemoved ? (tr ? 'Arka plan zaten kaldırılmış' : 'Background already removed') : undefined} onClick={async () => { const r = await onRemoveBg(img.serverUrl ?? img.dataUrl); if (r) { addUploadedImage({ id: generateId(), dataUrl: r, serverUrl: r, name: `${img.name} ✦`, addedAt: Date.now(), backgroundRemoved: true }); onAddImage(r, { backgroundRemoved: true }); } }} className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-600 disabled:opacity-40">
+                        <button disabled={isBgRemoving || img.backgroundRemoved} title={img.backgroundRemoved ? (tr ? 'Arka plan zaten kaldırılmış' : 'Background already removed') : undefined} onClick={async () => { const r = await onRemoveBg(img.serverUrl ?? img.dataUrl); if (r) { addUploadedImage({ id: generateId(), dataUrl: r, serverUrl: r, name: `${img.name} ✦`, addedAt: Date.now(), backgroundRemoved: true }); onAddImage(r, { backgroundRemoved: true, autoTrim: true }); } }} className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-600 disabled:opacity-40">
                           <Sparkles className="h-3.5 w-3.5" />
                         </button>
                       )}

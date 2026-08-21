@@ -25,8 +25,22 @@ const controlIcons = {
   resize: createControlImage(RESIZE_ICON),
 };
 
+interface AutoTrimRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  sourceWidth: number;
+  sourceHeight: number;
+}
+
+export interface ImageAddOptions {
+  backgroundRemoved?: boolean;
+  autoTrim?: boolean;
+}
+
 export interface CanvasAreaHandle {
-  addImageFromUrl: (url: string, opts?: { backgroundRemoved?: boolean }) => void;
+  addImageFromUrl: (url: string, opts?: ImageAddOptions) => void;
   addSVGClipart: (url: string) => void;
   addText: (text: string, opts?: Partial<fabric.ITextOptions>) => void;
   addCurvedText: (text: string, opts?: Partial<import('@/utils/curvedText').CurvedTextOptions>) => void;
@@ -34,6 +48,7 @@ export interface CanvasAreaHandle {
   convertSelectedToFlat: () => void;
   cloneSelected: () => void;
   deleteSelected: () => void;
+  restoreSelectedAutoTrim: () => void;
   clearAllObjects: () => void;
   undo: () => void;
   redo: () => void;
@@ -77,9 +92,13 @@ interface Props {
 }
 
 const HISTORY_LIMIT = 50;
-const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl', 'backgroundRemoved', 'printGroup'];
+const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl', 'backgroundRemoved', 'autoTrimRect', 'printGroup'];
 
-type SourceBackedImage = fabric.Image & { sourceUrl?: string; backgroundRemoved?: boolean };
+type SourceBackedImage = fabric.Image & {
+  sourceUrl?: string;
+  backgroundRemoved?: boolean;
+  autoTrimRect?: AutoTrimRect;
+};
 type SerializablePrintGroup = fabric.Group & { printGroup?: boolean };
 
 function isImageObject(obj: fabric.Object | null | undefined): obj is fabric.Image {
@@ -90,6 +109,112 @@ function createControlImage(src: string) {
   const img = new Image();
   img.src = src;
   return img;
+}
+
+/**
+ * Yalnızca yüksek güvenli dış boşlukları bulur. Şeffaf kenarlar doğrudan
+ * boşluktur. Opak görsellerde ise ancak dört köşe de aynı, çok açık nötr
+ * renkteyse beyaz fon kabul edilir; fotoğrafın gökyüzü/duvarı kırpılmaz.
+ * Tarama küçük kopyada yapılır, bulunan koordinatlar kaynak piksele çevrilir.
+ */
+function detectSafeAutoTrim(img: fabric.Image): AutoTrimRect | null {
+  const element = img.getElement() as HTMLImageElement;
+  const sourceWidth = element.naturalWidth || element.width || img.width || 0;
+  const sourceHeight = element.naturalHeight || element.height || img.height || 0;
+  if (!(sourceWidth > 0) || !(sourceHeight > 0)) return null;
+
+  const sampleScale = Math.min(1, 420 / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * sampleScale));
+  const height = Math.max(1, Math.round(sourceHeight * sampleScale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+
+  try {
+    ctx.drawImage(element, 0, 0, width, height);
+    const pixels = ctx.getImageData(0, 0, width, height).data;
+    const pixelAt = (x: number, y: number) => {
+      const offset = (y * width + x) * 4;
+      return [pixels[offset], pixels[offset + 1], pixels[offset + 2], pixels[offset + 3]] as const;
+    };
+
+    const border: Array<readonly [number, number, number, number]> = [];
+    for (let x = 0; x < width; x++) {
+      border.push(pixelAt(x, 0), pixelAt(x, height - 1));
+    }
+    for (let y = 1; y < height - 1; y++) {
+      border.push(pixelAt(0, y), pixelAt(width - 1, y));
+    }
+
+    const transparentBorderRatio = border.filter((p) => p[3] <= 16).length / Math.max(border.length, 1);
+    const useAlpha = transparentBorderRatio >= 0.05;
+    let background: [number, number, number] | null = null;
+
+    if (!useAlpha) {
+      const corners = [pixelAt(0, 0), pixelAt(width - 1, 0), pixelAt(0, height - 1), pixelAt(width - 1, height - 1)];
+      const mean = [0, 1, 2].map((channel) => corners.reduce((sum, p) => sum + p[channel], 0) / corners.length) as [number, number, number];
+      const distance = (p: readonly number[]) => Math.hypot(p[0] - mean[0], p[1] - mean[1], p[2] - mean[2]);
+      const neutralSpread = Math.max(...mean) - Math.min(...mean);
+      const cornersAgree = corners.every((p) => p[3] >= 250 && distance(p) <= 12);
+      const isLightNeutral = Math.min(...mean) >= 238 && neutralSpread <= 10;
+      const matchingBorderRatio = border.filter((p) => p[3] >= 250 && distance(p) <= 18).length / Math.max(border.length, 1);
+      if (!cornersAgree || !isLightNeutral || matchingBorderRatio < 0.96) return null;
+      background = mean;
+    }
+
+    const isContent = (x: number, y: number) => {
+      const p = pixelAt(x, y);
+      if (useAlpha) return p[3] > 16;
+      if (!background || p[3] <= 16) return false;
+      return Math.hypot(p[0] - background[0], p[1] - background[1], p[2] - background[2]) > 22;
+    };
+
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (!isContent(x, y)) continue;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+    if (maxX < minX || maxY < minY) return null;
+
+    // Konuya yapışma: kısa kenarın %2'si kadar güvenli alan bırak.
+    const padding = Math.max(1, Math.round(Math.min(width, height) * 0.02));
+    minX = Math.max(0, minX - padding);
+    minY = Math.max(0, minY - padding);
+    maxX = Math.min(width - 1, maxX + padding);
+    maxY = Math.min(height - 1, maxY + padding);
+
+    const retainedWidth = maxX - minX + 1;
+    const retainedHeight = maxY - minY + 1;
+    const savedAreaRatio = 1 - (retainedWidth * retainedHeight) / Math.max(width * height, 1);
+    if (savedAreaRatio < 0.06) return null;
+
+    const scaleX = sourceWidth / width;
+    const scaleY = sourceHeight / height;
+    const x = Math.max(0, Math.floor(minX * scaleX));
+    const y = Math.max(0, Math.floor(minY * scaleY));
+    const right = Math.min(sourceWidth, Math.ceil((maxX + 1) * scaleX));
+    const bottom = Math.min(sourceHeight, Math.ceil((maxY + 1) * scaleY));
+    return {
+      x,
+      y,
+      width: Math.max(1, right - x),
+      height: Math.max(1, bottom - y),
+      sourceWidth,
+      sourceHeight,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function renderControlIcon(
@@ -129,6 +254,7 @@ function cloneFabricObject(target: fabric.Object) {
     const sourceUrl = (target as SourceBackedImage).sourceUrl;
     if (sourceUrl) (cloned as SourceBackedImage).sourceUrl = sourceUrl;
     (cloned as SourceBackedImage).backgroundRemoved = (target as SourceBackedImage).backgroundRemoved;
+    (cloned as SourceBackedImage).autoTrimRect = (target as SourceBackedImage).autoTrimRect;
     if ((target as SerializablePrintGroup).printGroup) {
       (cloned as SerializablePrintGroup).printGroup = true;
     }
@@ -710,12 +836,22 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     loadBackgroundImage(side === 'front' ? config.frontImage : config.backImage);
   }, [config, side, loadBackgroundImage]);
 
-  const addImageFromUrl = useCallback((url: string, opts?: { backgroundRemoved?: boolean }) => {
+  const addImageFromUrl = useCallback((url: string, opts?: ImageAddOptions) => {
     const cv = canvasRef.current;
     if (!cv) return;
     const loadUrl = proxyCrossOriginUrl(url);
     fabric.Image.fromURL(loadUrl, (img) => {
       if (canvasRef.current !== cv || !hasLiveContext(cv)) return;
+      const autoTrimRect = opts?.autoTrim ? detectSafeAutoTrim(img) : null;
+      if (autoTrimRect) {
+        img.set({
+          cropX: autoTrimRect.x,
+          cropY: autoTrimRect.y,
+          width: autoTrimRect.width,
+          height: autoTrimRect.height,
+        } as Partial<fabric.Image>);
+        (img as SourceBackedImage).autoTrimRect = autoTrimRect;
+      }
       const areaRect = toCanvasRect(printAreaRef.current);
       const maximum = maxArtworkCanvasSize(printAreaRef.current, areaRect);
       const maxW = maximum.width;
@@ -738,11 +874,36 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       cv.add(img);
       cv.setActiveObject(img);
       onObjectSelectedRef.current(img);
-      // setActiveObject olay yaymıyor; rozet elle tazelenmezse yeni eklenen
-      // görselin çözünürlük uyarısı ancak kullanıcı ona tıklayınca çıkıyor.
+      // setActiveObject olay yaymıyor; ölçü rozeti yeni görsel eklenir eklenmez
+      // görünsün diye elle tazelenir.
       refreshSizeBadgeRef.current();
       cv.renderAll();
     }, { crossOrigin: 'anonymous' });
+  }, []);
+
+  const restoreSelectedAutoTrim = useCallback(() => {
+    const cv = canvasRef.current;
+    const active = cv?.getActiveObject();
+    if (!cv || !isImageObject(active)) return;
+    const image = active as SourceBackedImage;
+    const trim = image.autoTrimRect;
+    if (!trim) return;
+
+    const center = image.getCenterPoint();
+    image.set({
+      cropX: 0,
+      cropY: 0,
+      width: trim.sourceWidth,
+      height: trim.sourceHeight,
+      left: center.x,
+      top: center.y,
+      originX: 'center',
+      originY: 'center',
+    } as Partial<fabric.Image>);
+    delete image.autoTrimRect;
+    image.setCoords();
+    cv.fire('object:modified', { target: image });
+    cv.renderAll();
   }, []);
 
   const addSVGClipart = useCallback((url: string) => {
@@ -1131,6 +1292,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     convertSelectedToFlat,
     cloneSelected,
     deleteSelected,
+    restoreSelectedAutoTrim,
     clearAllObjects,
     undo,
     redo,
@@ -1145,7 +1307,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     saveDesign,
     getCanvas: () => canvasRef.current,
     canvas: canvasRef.current,
-  }), [addImageFromUrl, addSVGClipart, addText, addCurvedText, convertSelectedToCurved, convertSelectedToFlat, cloneSelected, deleteSelected, clearAllObjects, undo, redo, exportPng, exportPrintFile, exportPreviewForArea, isBackgroundReady, isBackgroundFailed, reloadBackground, loadDesign, saveDesign]);
+  }), [addImageFromUrl, addSVGClipart, addText, addCurvedText, convertSelectedToCurved, convertSelectedToFlat, cloneSelected, deleteSelected, restoreSelectedAutoTrim, clearAllObjects, undo, redo, exportPng, exportPrintFile, exportPreviewForArea, isBackgroundReady, isBackgroundFailed, reloadBackground, loadDesign, saveDesign]);
 
   useEffect(() => {
     const cv = canvasRef.current;

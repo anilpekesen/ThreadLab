@@ -45,7 +45,7 @@ import {
 } from 'lucide-react';
 import { useDesignerI18n } from './i18n';
 import { useDesignerStore } from '@/store/designerStore';
-import CanvasArea, { type CanvasAreaHandle } from '@/components/canvas/CanvasArea';
+import CanvasArea, { type CanvasAreaHandle, type ImageAddOptions } from '@/components/canvas/CanvasArea';
 import type { Template } from '@/components/panels/TemplatesPanel';
 import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type PricingBand, type PrintAreaConfig, type SavedDesign, type Side, type SizeChart, type SurfaceMode, type TemplateDesign, type VolumeDiscountTier } from '@/types';
 import { generateId, shrinkImageFile } from '@/utils/compress';
@@ -64,7 +64,11 @@ type Tab = 'image' | 'text' | 'layers' | 'templates' | 'saved' | null;
 
 type InteractionMode = 'selection' | 'navigation';
 type CanvasSelection = fabric.Object | fabric.ActiveSelection;
-type SourceBackedImage = fabric.Image & { sourceUrl?: string; backgroundRemoved?: boolean };
+type SourceBackedImage = fabric.Image & {
+  sourceUrl?: string;
+  backgroundRemoved?: boolean;
+  autoTrimRect?: object;
+};
 type PrintGroup = fabric.Group & { printGroup?: boolean };
 
 interface ObjectState {
@@ -1889,7 +1893,7 @@ export default function App() {
   const handleAddImage = async (
     url: string,
     template?: import('@/types').ShopTemplate,
-    opts?: { backgroundRemoved?: boolean },
+    opts?: ImageAddOptions,
   ) => {
     let finalUrl = url;
     // Data URL (base64) ise önce sunucuya yükle — canvas'ta base64 tutmak
@@ -2407,6 +2411,11 @@ export default function App() {
     syncLayers();
   };
 
+  const restoreSelectedAutoTrim = () => {
+    getActiveCanvasHandle()?.restoreSelectedAutoTrim();
+    syncLayers();
+  };
+
   const getSelectedImageObject = useCallback(() => {
     const cv = getActiveCanvasHandle()?.getCanvas();
     const active = cv?.getActiveObject() ?? null;
@@ -2453,6 +2462,7 @@ export default function App() {
             scaleY: (scaledHeight / nextH) * signY,
           } as Partial<fabric.Image>);
           (selectedImage as SourceBackedImage).sourceUrl = url;
+          delete (selectedImage as SourceBackedImage).autoTrimRect;
           resolve();
         };
         imgEl.onerror = () => reject(new Error(`Image failed to load: ${proxiedUrl}`));
@@ -4170,7 +4180,19 @@ export default function App() {
                       </button>
                     </div>
                     {!isActiveSelection(selectedObj) && isImageSelection(selectedObj) && (
-                      <div className="border-t border-gray-100 px-2 pb-2 pt-1.5">
+                      <div className={cn(
+                        'grid gap-1.5 border-t border-gray-100 px-2 pb-2 pt-1.5',
+                        (selectedObj as SourceBackedImage).autoTrimRect ? 'grid-cols-2' : 'grid-cols-1',
+                      )}>
+                        {(selectedObj as SourceBackedImage).autoTrimRect && (
+                          <button
+                            onClick={restoreSelectedAutoTrim}
+                            className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 py-2 text-[11px] font-semibold text-gray-600 transition-colors hover:bg-gray-100"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            {isTurkish ? 'Orijinali göster' : 'Show original'}
+                          </button>
+                        )}
                         <button
                           onClick={openCropForSelectedImage}
                           className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-50 py-2 text-[11px] font-semibold text-gray-600 transition-colors hover:bg-gray-100"
