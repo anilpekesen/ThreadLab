@@ -9,9 +9,12 @@ import {
   getPersonalizerTemplateByProduct,
   applyCustomerChoices,
   normalizeCustomerOptions,
+  normalizeSide,
   type ScatterTemplateConfig,
   type CustomerChoices,
 } from "~/models/personalizer.server";
+import { normalizeAiConfig } from "~/lib/ai-styles";
+import { composeAiDesign, AiProviderError } from "~/lib/ai-compose.server";
 import { composeScatterDesign } from "~/lib/scatter-compose.server";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings } from "~/models/shop-settings.server";
@@ -60,6 +63,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const shop = String(form.get("shop") ?? "").trim();
     const productId = String(form.get("productId") ?? "").trim();
+    const side = normalizeSide(form.get("side"));
     const photo = form.get("photo");
 
     if (!shop || !productId) {
@@ -69,9 +73,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ error: "Fotoğraf yüklenmedi" }, { status: 400, headers: CORS });
     }
 
-    const template = await getPersonalizerTemplateByProduct(shop, productId);
+    const template = await getPersonalizerTemplateByProduct(shop, productId, side);
     if (!template) {
-      return json({ error: "Bu ürüne bağlı şablon yok" }, { status: 404, headers: CORS });
+      return json({ error: "Bu ürünün bu yüzüne bağlı şablon yok" }, { status: 404, headers: CORS });
     }
 
     // ── Dağıtımlı şablon ────────────────────────────────────────────────
@@ -141,6 +145,74 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         },
         { headers: CORS },
       );
+    }
+
+    // ── AI şablonu ──────────────────────────────────────────────────────
+    if (template.layout_mode === "ai") {
+      const photoBuf = Buffer.from(await photo.arrayBuffer());
+
+      let textValues: Record<string, string> = {};
+      try { textValues = JSON.parse(String(form.get("textValues") ?? "{}")); } catch { /* yoksay */ }
+
+      const options = normalizeCustomerOptions(template.customer_options);
+      // Müşterinin seçtiği stil ancak şablonun açtığı listede varsa geçerli;
+      // yoksa şablonun kendi stiline düşülür. Model asla istemciden gelmez.
+      const requested = String(form.get("style") ?? "").trim();
+      const styleId = options.aiStyles.includes(requested) ? requested : template.ai_style;
+
+      const aiConfig = normalizeAiConfig(template.ai_config);
+      const [globalSettings, shopSettings] = await Promise.all([
+        getGlobalSettings(), getShopSettings(shop),
+      ]);
+      const wavespeedKey = (process.env.WAVESPEED_API_KEY
+        || shopSettings.wavespeedApiKey || globalSettings.wavespeedApiKey)?.trim();
+
+      // WaveSpeed görseli adresten okuyor; Cloudflare'de gerekmez ama ham
+      // fotoğrafı saklamak baskı ekibi için zaten faydalı.
+      const photoUrl = await uploadToR2(photoBuf, "png", "uploads/ai-input");
+
+      try {
+        const result = await composeAiDesign({
+          photo: photoBuf,
+          photoUrl,
+          config: aiConfig,
+          styleId,
+          textFields: template.text_fields ?? [],
+          textValues,
+          wavespeedKey,
+        });
+
+        const url = await uploadToR2(result.buffer, "png", "uploads/template-design");
+        console.log(
+          `[template-compose] ai ${template.name} (${side}): ${styleId} / ${result.usedModel}, ` +
+          `uretilen ${result.generatedPx}px -> ${url}`,
+        );
+        return json(
+          {
+            url,
+            width: aiConfig.canvasWidth,
+            height: aiConfig.canvasHeight,
+            templateName: template.name,
+            style: styleId,
+            quality: {
+              headSourcePx: result.generatedPx,
+              placedPx: result.placedPx,
+              upscale: result.generatedPx > 0 ? result.placedPx / result.generatedPx : 0,
+            },
+          },
+          { headers: CORS },
+        );
+      } catch (err) {
+        // Sağlayıcı fotoğrafı reddettiyse müşteriye ne yapacağını söyle;
+        // teknik metni gösterme.
+        if (err instanceof AiProviderError && err.rejected) {
+          return json(
+            { error: "Bu fotoğraf işlenemedi. Yüzün net göründüğü başka bir fotoğraf deneyin." },
+            { status: 422, headers: CORS },
+          );
+        }
+        throw err;
+      }
     }
 
     if (!template.template_url) {

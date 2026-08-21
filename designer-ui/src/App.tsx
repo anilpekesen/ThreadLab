@@ -56,6 +56,7 @@ import { evaluateRules, warnings, blockers, type RuleResult } from '@/utils/cond
 const ImagePanel = lazy(() => import('@/components/panels/ImagePanel'));
 const TemplatePhotoModal = lazy(() => import('@/components/modals/TemplatePhotoModal'));
 const TemplateScatterModal = lazy(() => import('@/components/modals/TemplateScatterModal'));
+const TemplateAiModal = lazy(() => import('@/components/modals/TemplateAiModal'));
 const TextPanel = lazy(() => import('@/components/panels/TextPanel'));
 const TemplatesPanel = lazy(() => import('@/components/panels/TemplatesPanel'));
 const SavedPanel = lazy(() => import('@/components/panels/SavedPanel'));
@@ -1141,6 +1142,8 @@ export default function App() {
   const [templateBusy, setTemplateBusy] = useState(false);
   const [templateError, setTemplateError] = useState('');
   const [templateAssets, setTemplateAssets] = useState<Record<string, unknown> | null>(null);
+  /** templateAssets hangi yüz için çekildi — yüz değişince yeniden çekilir */
+  const [templateAssetsSide, setTemplateAssetsSide] = useState<'front' | 'back' | null>(null);
   const [templatePhotoFile, setTemplatePhotoFile] = useState<File | null>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   /** Müşterinin şablon için yüklediği HAM fotoğrafların sunucu adresleri.
@@ -1703,6 +1706,7 @@ export default function App() {
     fd.append('photo', file);
     fd.append('shop', config.shop);
     fd.append('productId', String(config.productId).split('/').pop() ?? '');
+    fd.append('side', activeSide);
     fd.append('textValues', JSON.stringify(textValues));
     fd.append('choices', JSON.stringify(choices));
 
@@ -1719,26 +1723,57 @@ export default function App() {
     return { url: data.url, quality: data.quality };
   };
 
+  /** AI şablonunda fotoğraf + stil + yazıları gönderip üretilen tasarımı alır */
+  const renderAiDesign = async (
+    file: File,
+    styleId: string,
+    textValues: Record<string, string>,
+  ): Promise<{ url: string; quality?: { headSourcePx: number; placedPx: number; upscale: number } }> => {
+    if (!config?.shop || !config?.productId) throw new Error('Ürün bilgisi yok');
+    const fd = new FormData();
+    fd.append('photo', file);
+    fd.append('shop', config.shop);
+    fd.append('productId', String(config.productId).split('/').pop() ?? '');
+    fd.append('side', activeSide);
+    fd.append('style', styleId);
+    fd.append('textValues', JSON.stringify(textValues));
+
+    const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
+    const data = await res.json() as {
+      url?: string;
+      error?: string;
+      quality?: { headSourcePx: number; placedPx: number; upscale: number };
+    };
+    if (!res.ok || !data.url) {
+      throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
+    }
+    void uploadTemplateOriginal(file);
+    return { url: data.url, quality: data.quality };
+  };
+
   const openTemplateModal = async () => {
     if (!config?.shop || !config?.productId) return;
     setTemplateError('');
     setTemplateModalOpen(true);
-    if (templateAssets) return;
+    // Şablon yüz başına farklı olabilir — önbellek yüz değişince geçersiz
+    if (templateAssets && templateAssetsSide === activeSide) return;
 
     setTemplateBusy(true);
     try {
       const params = new URLSearchParams({
         shop: config.shop,
         productId: String(config.productId).split('/').pop() ?? '',
+        side: activeSide,
       });
       const res = await fetch(`/apps/tshirt-designer/template-assets?${params}`);
       const data = await res.json();
-      if (!res.ok || (!data?.maskDataUrl && data?.layoutMode !== 'scatter')) {
+      if (!res.ok || (!data?.maskDataUrl && data?.layoutMode !== 'scatter' && data?.layoutMode !== 'ai')) {
         setTemplateError(data?.error || (isTurkish ? 'Şablon yüklenemedi' : 'Could not load the template'));
         setTemplateModalOpen(false);
         return;
       }
       setTemplateAssets(data);
+      setTemplateAssetsSide(activeSide);
     } catch (err) {
       setTemplateError(String(err));
       setTemplateModalOpen(false);
@@ -4311,7 +4346,26 @@ export default function App() {
 
           {templateModalOpen && templateAssets && (
             <Suspense fallback={null}>
-              {templateAssets.layoutMode === 'scatter' ? (
+              {templateAssets.layoutMode === 'ai' ? (
+                <TemplateAiModal
+                  assets={templateAssets as unknown as import('@/components/modals/TemplateAiModal').AiAssets}
+                  isTurkish={isTurkish}
+                  termsUrl={personalization.termsUrl}
+                  onRender={renderAiDesign}
+                  onCancel={() => setTemplateModalOpen(false)}
+                  onConfirm={async (url) => {
+                    setTemplateModalOpen(false);
+                    setTemplateBusy(true);
+                    try {
+                      await handleAddImage(url);
+                      setTemplateAwaitingPhoto(false);
+                      setActiveTab(null);
+                    } finally {
+                      setTemplateBusy(false);
+                    }
+                  }}
+                />
+              ) : templateAssets.layoutMode === 'scatter' ? (
                 <TemplateScatterModal
                   assets={templateAssets as unknown as import('@/components/modals/TemplateScatterModal').ScatterAssets}
                   isTurkish={isTurkish}

@@ -1,5 +1,6 @@
 import { query } from "~/lib/db.server";
 import { randomBytes } from "node:crypto";
+import { AI_STYLES, normalizeAiConfig, type AiTemplateConfig } from "~/lib/ai-styles";
 
 export interface TextFieldDef {
   id: string;
@@ -12,6 +13,14 @@ export interface TextFieldDef {
   bold: boolean;
   max_length: number;
   align: "left" | "center" | "right";
+}
+
+/** Şablonun müşteri fotoğrafını tasarıma çevirme yöntemi */
+export type TemplateLayoutMode = "mask" | "scatter" | "ai";
+
+export function normalizeLayoutMode(raw: unknown): TemplateLayoutMode {
+  const v = String(raw ?? "");
+  return v === "scatter" || v === "ai" ? v : "mask";
 }
 
 /** Dağıtımlı şablonun ayarları */
@@ -45,12 +54,19 @@ export interface CustomerOptionsConfig {
   photoSize: boolean;
   /** Dizilim: aynı ayarlarla farklı bir yerleşim tohumu dener */
   shuffle: boolean;
+  /**
+   * AI şablonunda müşteriye açılan stil listesi. Boş dizi = müşteri stil
+   * seçemez, şablonun kendi `ai_style` değeri kullanılır. Model seçimi asla
+   * müşteriye açılmaz — maliyeti öngörülemez hale getirir.
+   */
+  aiStyles: string[];
 }
 
 export const DEFAULT_CUSTOMER_OPTIONS: CustomerOptionsConfig = {
   density: false,
   photoSize: false,
   shuffle: false,
+  aiStyles: [],
 };
 
 export type DensityChoice = "low" | "medium" | "high";
@@ -75,6 +91,11 @@ export function normalizeCustomerOptions(raw: unknown): CustomerOptionsConfig {
     density: o.density === true,
     photoSize: o.photoSize === true,
     shuffle: o.shuffle === true,
+    // Yalnızca tanınan stil kimlikleri kalır; şablona elle yazılmış bir değer
+    // müşteri penceresine düşmesin
+    aiStyles: Array.isArray(o.aiStyles)
+      ? o.aiStyles.map(String).filter((s) => s in AI_STYLES)
+      : [],
   };
 }
 
@@ -141,13 +162,19 @@ export interface PersonalizerTemplate {
   /** Fotoğrafın gireceği boşluğa tıklanan nokta; -1 ise şeffaf delik aranır */
   hole_seed_x: number;
   hole_seed_y: number;
-  /** 'mask' = boşluğa maskele, 'scatter' = kafa kesitini dağıt */
-  layout_mode: "mask" | "scatter";
+  /**
+   * 'mask'    = fotoğrafı tasarımın boşluğuna maskele
+   * 'scatter' = kafa kesitini baskı alanına dağıt
+   * 'ai'      = fotoğrafı AI ile stilize et, üstüne yazıları bas
+   */
+  layout_mode: TemplateLayoutMode;
   scatter_config: ScatterTemplateConfig | Record<string, never>;
   /** Dağıtımda kullanılacak süsleme görseli (kalp vb.) */
   decoration_url: string;
   /** Müşteriye hangi ayarların açılacağı */
   customer_options: CustomerOptionsConfig | Record<string, never>;
+  /** AI şablonunun sağlayıcı/model ayarları; diğer tiplerde kullanılmaz */
+  ai_config: AiTemplateConfig | Record<string, never>;
   active: boolean;
   sort_order: number;
   created_at: string;
@@ -200,10 +227,11 @@ export interface CreatePersonalizerTemplateInput {
   ai_style?: string;
   hole_seed_x?: number;
   hole_seed_y?: number;
-  layout_mode?: "mask" | "scatter";
+  layout_mode?: TemplateLayoutMode;
   scatter_config?: ScatterTemplateConfig;
   decoration_url?: string;
   customer_options?: CustomerOptionsConfig;
+  ai_config?: AiTemplateConfig;
   sort_order?: number;
 }
 
@@ -215,8 +243,8 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
         photo_x, photo_y, photo_width, photo_height,
         mockup_x, mockup_y, mockup_width, mockup_height,
         text_fields, ai_style, hole_seed_x, hole_seed_y,
-        layout_mode, scatter_config, decoration_url, customer_options, sort_order)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+        layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
      RETURNING *`,
     [
       id, input.shop, input.name, input.description ?? "",
@@ -234,6 +262,7 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
       JSON.stringify(input.scatter_config ?? {}),
       input.decoration_url ?? "",
       JSON.stringify(input.customer_options ?? DEFAULT_CUSTOMER_OPTIONS),
+      JSON.stringify(normalizeAiConfig(input.ai_config)),
       input.sort_order ?? 0,
     ],
   );
@@ -243,10 +272,11 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
 export interface UpdatePersonalizerTemplateInput {
   hole_seed_x?: number;
   hole_seed_y?: number;
-  layout_mode?: "mask" | "scatter";
+  layout_mode?: TemplateLayoutMode;
   scatter_config?: ScatterTemplateConfig;
   decoration_url?: string;
   customer_options?: CustomerOptionsConfig;
+  ai_config?: AiTemplateConfig;
   name?: string;
   description?: string;
   template_url?: string;
@@ -277,7 +307,8 @@ export async function updatePersonalizerTemplate(
   for (const [k, v] of Object.entries(input)) {
     if (v === undefined) continue;
     sets.push(`${k} = $${i++}`);
-    const isJsonColumn = k === "text_fields" || k === "scatter_config" || k === "customer_options";
+    const isJsonColumn = k === "text_fields" || k === "scatter_config"
+      || k === "customer_options" || k === "ai_config";
     vals.push(isJsonColumn ? JSON.stringify(v) : v);
   }
   if (sets.length === 0) return getPersonalizerTemplate(id, shop);
@@ -396,9 +427,18 @@ export async function deletePersonalizerFrame(id: string, templateId: string): P
 
 // ── Product links ───────────────────────────────────────────────────────────
 
+/** Ürünün hangi yüzü — tasarımcıdaki front/back sekmeleriyle aynı */
+export type TemplateSide = "front" | "back";
+
+export function normalizeSide(raw: unknown): TemplateSide {
+  return String(raw ?? "").toLowerCase() === "back" ? "back" : "front";
+}
+
 export interface PersonalizerProductLink {
   shop: string;
   product_id: string;
+  /** Bir ürünün ön ve arka yüzü ayrı şablonlara bağlanabilir */
+  side: TemplateSide;
   template_id: string;
   product_title: string;
   product_handle: string;
@@ -410,6 +450,7 @@ export interface PersonalizerProductLink {
 export async function linkPersonalizerProduct(input: {
   shop: string;
   product_id: string;
+  side?: TemplateSide;
   template_id: string;
   product_title?: string;
   product_handle?: string;
@@ -417,9 +458,9 @@ export async function linkPersonalizerProduct(input: {
 }): Promise<PersonalizerProductLink> {
   const res = await query<PersonalizerProductLink>(
     `INSERT INTO personalizer_product_links
-       (shop, product_id, template_id, product_title, product_handle, variant_id)
-     VALUES ($1,$2,$3,$4,$5,$6)
-     ON CONFLICT (shop, product_id)
+       (shop, product_id, side, template_id, product_title, product_handle, variant_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT (shop, product_id, side)
      DO UPDATE SET
        template_id = EXCLUDED.template_id,
        product_title = EXCLUDED.product_title,
@@ -430,6 +471,7 @@ export async function linkPersonalizerProduct(input: {
     [
       input.shop,
       input.product_id,
+      normalizeSide(input.side),
       input.template_id,
       input.product_title ?? "",
       input.product_handle ?? "",
@@ -447,14 +489,33 @@ export async function listPersonalizerProductLinks(templateId: string): Promise<
   return res.rows;
 }
 
-export async function getPersonalizerTemplateByProduct(shop: string, productId: string): Promise<PersonalizerTemplate | null> {
+export async function getPersonalizerTemplateByProduct(
+  shop: string,
+  productId: string,
+  side: TemplateSide = "front",
+): Promise<PersonalizerTemplate | null> {
   const res = await query<PersonalizerTemplate>(
     `SELECT pt.*
        FROM personalizer_product_links ppl
        JOIN personalizer_templates pt ON pt.id = ppl.template_id
-      WHERE ppl.shop = $1 AND ppl.product_id = $2 AND pt.active = TRUE
+      WHERE ppl.shop = $1 AND ppl.product_id = $2 AND ppl.side = $3 AND pt.active = TRUE
       LIMIT 1`,
-    [shop, productId],
+    [shop, productId, normalizeSide(side)],
   );
   return res.rows[0] ?? null;
+}
+
+/** Ürünün hangi yüzlerinde şablon var — tasarımcı sekmeleri buna göre çizilir */
+export async function listTemplateSidesForProduct(
+  shop: string,
+  productId: string,
+): Promise<TemplateSide[]> {
+  const res = await query<{ side: TemplateSide }>(
+    `SELECT ppl.side
+       FROM personalizer_product_links ppl
+       JOIN personalizer_templates pt ON pt.id = ppl.template_id
+      WHERE ppl.shop = $1 AND ppl.product_id = $2 AND pt.active = TRUE`,
+    [shop, productId],
+  );
+  return res.rows.map((r) => normalizeSide(r.side));
 }

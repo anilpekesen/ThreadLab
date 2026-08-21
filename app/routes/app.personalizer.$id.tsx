@@ -22,10 +22,13 @@ import {
   linkPersonalizerProduct,
   listPersonalizerProductLinks,
   normalizeCustomerOptions,
+  normalizeLayoutMode,
+  normalizeSide,
   type TextFieldDef,
   type PersonalizerFrame,
 } from "~/models/personalizer.server";
 import { fetchShopifyProducts, findConfigForStorefront } from "~/models/product-config.server";
+import { AI_STYLES, AI_PROVIDERS, normalizeAiConfig, type AiProvider } from "~/lib/ai-styles";
 import { uploadToR2 } from "~/lib/r2.server";
 
 const MAX_UPLOAD = 20 * 1024 * 1024;
@@ -103,7 +106,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const ai_style    = String(form.get("ai_style") ?? "caricature");
     const hole_seed_x = parseInt(String(form.get("hole_seed_x") ?? "-1"), 10);
     const hole_seed_y = parseInt(String(form.get("hole_seed_y") ?? "-1"), 10);
-    const layout_mode = String(form.get("layout_mode") ?? "mask") === "scatter" ? "scatter" as const : "mask" as const;
+    const layout_mode = normalizeLayoutMode(form.get("layout_mode"));
+
+    const ai_config = normalizeAiConfig((() => {
+      try { return JSON.parse(String(form.get("ai_config") ?? "{}")); }
+      catch { return {}; }
+    })());
 
     let scatter_config: import("~/models/personalizer.server").ScatterTemplateConfig | undefined;
     try {
@@ -143,11 +151,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // template_url opsiyonel — sadece çerçeve bazlı kullanımda boş olabilir
 
     if (id === "new") {
-      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, sort_order });
+      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order });
       // json döndür, client tarafı navigate etsin (Shopify embedded app redirect güvenilmez)
       return json({ redirectTo: `/app/personalizer/${created.id}` });
     } else {
-      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, sort_order });
+      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order });
       return json({ ok: true });
     }
   }
@@ -228,6 +236,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
     const productId = normalizeShopifyNumericId(String(form.get("product_id") ?? ""));
     const variantId = normalizeShopifyNumericId(String(form.get("variant_id") ?? ""));
+    const linkSide = normalizeSide(form.get("side"));
     const productTitle = String(form.get("product_title") ?? "").trim();
     const productHandle = String(form.get("product_handle") ?? "").trim();
     if (!productId) return json({ error: "Shopify ürün ID gerekli" }, { status: 400 });
@@ -235,6 +244,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     await linkPersonalizerProduct({
       shop,
       product_id: productId,
+      side: linkSide,
       template_id: id,
       product_title: productTitle,
       product_handle: productHandle,
@@ -896,7 +906,7 @@ function PersonalizerEditor() {
     w: template?.photo_width ?? 1600,
     h: template?.photo_height ?? 1600,
   });
-  const [layoutMode, setLayoutMode] = useState<"mask" | "scatter">(template?.layout_mode ?? "mask");
+  const [layoutMode, setLayoutMode] = useState<"mask" | "scatter" | "ai">(template?.layout_mode ?? "mask");
   const [decorationUrl, setDecorationUrl] = useState(template?.decoration_url ?? "");
   const sc = (template?.scatter_config ?? {}) as Partial<import("~/models/personalizer.server").ScatterTemplateConfig>;
   const [faceCount, setFaceCount] = useState(String(sc.faceCount ?? 13));
@@ -911,6 +921,49 @@ function PersonalizerEditor() {
   const [optDensity, setOptDensity] = useState(co.density === true);
   const [optPhotoSize, setOptPhotoSize] = useState(co.photoSize === true);
   const [optShuffle, setOptShuffle] = useState(co.shuffle === true);
+  const [optAiStyles, setOptAiStyles] = useState<string[]>(
+    Array.isArray(co.aiStyles) ? co.aiStyles.filter((s) => s in AI_STYLES) : [],
+  );
+
+  const ac = normalizeAiConfig(template?.ai_config);
+  const [aiProvider, setAiProvider] = useState<AiProvider>(ac.provider);
+  const [aiModel, setAiModel] = useState(ac.model);
+  const [aiCanvasW, setAiCanvasW] = useState(String(ac.canvasWidth));
+  const [aiCanvasH, setAiCanvasH] = useState(String(ac.canvasHeight));
+  const [aiRemoveBg, setAiRemoveBg] = useState(ac.removeBackground);
+  const aiModelOptions = AI_PROVIDERS[aiProvider].models.map((m) => ({ label: m.label, value: m.id }));
+  const aiModelNote = AI_PROVIDERS[aiProvider].models.find((m) => m.id === aiModel)?.note ?? "";
+
+  /** Sağlayıcı değişince model o sağlayıcının listesine düşmeli */
+  const changeProvider = (next: string) => {
+    const p = next === "cloudflare" ? "cloudflare" : "wavespeed";
+    setAiProvider(p);
+    setAiModel(AI_PROVIDERS[p].models[0].id);
+  };
+
+  const toggleAiStyle = (id: string) => {
+    setOptAiStyles((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
+  };
+
+  /** Ürün bağlarken hangi yüz — ön ve arka ayrı şablonlara bağlanabilir */
+  const [linkSide, setLinkSide] = useState<"front" | "back">("front");
+
+  /**
+   * AI şablonunda yerleştirme editörüne gösterilecek boş tuval.
+   *
+   * Editör bir görsel bekliyor; AI şablonunun tasarım dosyası olmadığı için
+   * yapılandırılan tuval oranında beyaz bir SVG üretilir. Alt şerit, üretimde
+   * görselin bırakacağı yazı alanını gösterir (bkz. ai-compose.server.ts).
+   */
+  const editorCanvasUrl = layoutMode === "ai"
+    ? `data:image/svg+xml;utf8,${encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${parseInt(aiCanvasW, 10) || 2400}" height="${parseInt(aiCanvasH, 10) || 3000}">`
+        + `<rect width="100%" height="100%" fill="#ffffff"/>`
+        + `<rect y="0" width="100%" height="78%" fill="#f1f5f9"/>`
+        + `<rect y="78%" width="100%" height="22%" fill="#ffffff" stroke="#cbd5e1" stroke-dasharray="12"/>`
+        + `</svg>`,
+      )}`
+    : "";
 
   const canvasRatio = (parseInt(canvasWidth, 10) || 0) / Math.max(parseInt(canvasHeight, 10) || 1, 1);
   const canvasRatioLabel = canvasRatio > 0 ? `${canvasRatio.toFixed(2)} : 1` : "—";
@@ -1022,6 +1075,14 @@ function PersonalizerEditor() {
             <input type="hidden" name="photo_y" value={photoRect.y} readOnly />
             <input type="hidden" name="photo_width" value={photoRect.w} readOnly />
             <input type="hidden" name="photo_height" value={photoRect.h} readOnly />
+            {/* Müşteriye açılan ayarlar her şablon tipinde gönderilmeli — AI
+                şablonunda stil listesi burada, dağıtımlıda yoğunluk/boyut. */}
+            <input type="hidden" name="customer_options" readOnly value={JSON.stringify({
+              density: optDensity,
+              photoSize: optPhotoSize,
+              shuffle: optShuffle,
+              aiStyles: optAiStyles,
+            })} />
 
             <BlockStack gap="500">
               {/* Temel bilgiler */}
@@ -1037,18 +1098,100 @@ function PersonalizerEditor() {
                       options={[
                         { label: "Maskeli — fotoğraf tasarımın boşluğuna girer (kalpli tişört)", value: "mask" },
                         { label: "Dağıtımlı — kafa kesiti çoğaltılıp yayılır (Hepsi Benim boxer)", value: "scatter" },
+                        { label: "AI — fotoğraf yapay zekâ ile stilize edilir, üstüne yazı basılır", value: "ai" },
                       ]}
                       value={layoutMode}
-                      onChange={(v) => setLayoutMode(v as "mask" | "scatter")}
+                      onChange={(v) => setLayoutMode(v as "mask" | "scatter" | "ai")}
                       helpText={layoutMode === "scatter"
                         ? "Tasarım görseli yüklemezsiniz; sistem üretir. Aşağıdaki sayıları ve süsleme görselini ayarlayın."
                         : "Tasarımı yükleyip fotoğrafın gireceği boşluğu işaretlersiniz."}
                     />
-                    <Select label="AI Dönüşüm Stili" name="ai_style" options={AI_STYLE_OPTIONS} value={aiStyle} onChange={setAiStyle} />
+                    {layoutMode !== "ai" && (
+                      <Select label="AI Dönüşüm Stili" name="ai_style" options={AI_STYLE_OPTIONS}
+                        value={aiStyle} onChange={setAiStyle} />
+                    )}
                     <TextField label="Sıralama" name="sort_order" type="number" value={sortOrder} onChange={setSortOrder} autoComplete="off" />
                   </FormLayout>
                 </BlockStack>
               </Card>
+
+              {layoutMode === "ai" && (
+                <Card>
+                  <BlockStack gap="400">
+                    <Text as="h2" variant="headingMd">AI Ayarları</Text>
+                    <Banner tone="info">
+                      <Text as="p">
+                        Müşteri fotoğrafını yükler, seçilen stille yapay zekâ görseli üretir,
+                        isim/hikaye yazıları gerçek fontla üstüne basılır. Tasarım dosyası
+                        yüklemenize gerek yok. <strong>Model seçimi müşteriye açılmaz</strong> —
+                        maliyeti öngörülemez hale getirir.
+                      </Text>
+                    </Banner>
+
+                    <FormLayout>
+                      <FormLayout.Group>
+                        <Select
+                          label="Sağlayıcı"
+                          options={Object.entries(AI_PROVIDERS).map(([k, v]) => ({ label: v.label, value: k }))}
+                          value={aiProvider}
+                          onChange={changeProvider}
+                        />
+                        <Select label="Model" options={aiModelOptions} value={aiModel} onChange={setAiModel} />
+                      </FormLayout.Group>
+                      {aiModelNote && (
+                        <Banner tone="warning">
+                          <Text as="p" variant="bodySm">{aiModelNote}</Text>
+                        </Banner>
+                      )}
+                      <FormLayout.Group>
+                        <TextField label="Tuval genişliği (px)" type="number" value={aiCanvasW}
+                          onChange={setAiCanvasW} autoComplete="off" />
+                        <TextField label="Tuval yüksekliği (px)" type="number" value={aiCanvasH}
+                          onChange={setAiCanvasH} autoComplete="off" />
+                      </FormLayout.Group>
+                      <Checkbox
+                        label="Üretilen görselin arka planını sil"
+                        checked={aiRemoveBg}
+                        onChange={setAiRemoveBg}
+                        helpText="Baskıda saydam zemin gerekiyorsa açık bırakın."
+                      />
+                      <Select
+                        label="Varsayılan Stil"
+                        name="ai_style"
+                        options={Object.entries(AI_STYLES).map(([k, v]) => ({ label: v.label, value: k }))}
+                        value={aiStyle}
+                        onChange={setAiStyle}
+                        helpText="Müşteri stil seçemiyorsa ya da geçersiz bir stil gönderirse bu kullanılır."
+                      />
+                    </FormLayout>
+
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">Müşteriye Açılan Stiller</Text>
+                      <Text as="p" tone="subdued" variant="bodySm">
+                        İşaretlediğiniz stiller müşteri penceresinde seçenek olarak çıkar.
+                        Hiçbirini işaretlemezseniz müşteri stil görmez, yukarıdaki varsayılan
+                        stil kullanılır.
+                      </Text>
+                      {Object.entries(AI_STYLES).map(([id, def]) => (
+                        <Checkbox
+                          key={id}
+                          label={def.label}
+                          checked={optAiStyles.includes(id)}
+                          onChange={() => toggleAiStyle(id)}
+                        />
+                      ))}
+                    </BlockStack>
+
+                    <input type="hidden" name="ai_config" readOnly value={JSON.stringify({
+                      provider: aiProvider,
+                      model: aiModel,
+                      canvasWidth: parseInt(aiCanvasW, 10) || 2400,
+                      canvasHeight: parseInt(aiCanvasH, 10) || 3000,
+                      removeBackground: aiRemoveBg,
+                    })} />
+                  </BlockStack>
+                </Card>
+              )}
 
               {layoutMode === "scatter" && (
                 <Card>
@@ -1149,12 +1292,6 @@ function PersonalizerEditor() {
                       />
                     </BlockStack>
 
-                    <input type="hidden" name="customer_options" readOnly value={JSON.stringify({
-                      density: optDensity,
-                      photoSize: optPhotoSize,
-                      shuffle: optShuffle,
-                    })} />
-
                     <input type="hidden" name="existing_decoration_url" value={decorationUrl} readOnly />
                     <input type="hidden" name="scatter_config" readOnly value={JSON.stringify({
                       faceCount: parseInt(faceCount, 10) || 0,
@@ -1197,12 +1334,21 @@ function PersonalizerEditor() {
               </Card>
 
               {/* Koordinat editörü */}
-              {templatePreview && (
+              {(templatePreview || editorCanvasUrl) && (
                 <Card>
                   <BlockStack gap="400">
-                    <Text as="h2" variant="headingMd">Fotoğraf Koordinat Editörü</Text>
+                    <Text as="h2" variant="headingMd">
+                      {layoutMode === "ai" ? "Yazı Yerleşim Editörü" : "Fotoğraf Koordinat Editörü"}
+                    </Text>
+                    {layoutMode === "ai" && (
+                      <Text as="p" tone="subdued" variant="bodySm">
+                        AI şablonunda hazır tasarım dosyası yok; yazıları üretilen görselin
+                        üstüne yerleştirmek için boş tuval gösteriliyor. Görsel üstte, yazılar
+                        için alt %22'lik şerit boş bırakılıyor.
+                      </Text>
+                    )}
                     <TemplatePhotoEditor
-                      imageUrl={templatePreview}
+                      imageUrl={templatePreview || editorCanvasUrl}
                       photoRect={photoRect}
                       onPhotoRect={setPhotoRect}
                       textFields={textFields}
@@ -1312,6 +1458,17 @@ function PersonalizerEditor() {
                         helpText="Son güncellenen 50 aktif Shopify ürünü listelenir."
                       />
                       <Select
+                        label="Ürünün Hangi Yüzü"
+                        name="side"
+                        options={[
+                          { label: "Ön yüz", value: "front" },
+                          { label: "Arka yüz", value: "back" },
+                        ]}
+                        value={linkSide}
+                        onChange={(v) => setLinkSide(v === "back" ? "back" : "front")}
+                        helpText="Aynı ürünün ön ve arka yüzü ayrı şablonlara bağlanabilir. Müşteri istediği yüzü kişiselleştirir, ikisi de zorunlu değil."
+                      />
+                      <Select
                         label="Varsayılan Varyant"
                         name="variant_id"
                         options={variantOptions.length ? variantOptions : [{ label: "Varyant yok", value: "" }]}
@@ -1343,11 +1500,16 @@ function PersonalizerEditor() {
                   <BlockStack gap="200">
                     <Text as="h3" variant="headingSm">Bağlı Ürünler</Text>
                     {productLinks.map((link) => (
-                      <Box key={`${link.shop}-${link.product_id}`} background="bg-surface-secondary" padding="300" borderRadius="200">
+                      <Box key={`${link.shop}-${link.product_id}-${link.side}`} background="bg-surface-secondary" padding="300" borderRadius="200">
                         <BlockStack gap="100">
-                          <Text as="p" variant="bodyMd" fontWeight="semibold">
-                            {link.product_title || link.product_handle || link.product_id}
-                          </Text>
+                          <InlineStack gap="200" blockAlign="center">
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">
+                              {link.product_title || link.product_handle || link.product_id}
+                            </Text>
+                            <Badge tone={link.side === "back" ? "attention" : "info"}>
+                              {link.side === "back" ? "Arka yüz" : "Ön yüz"}
+                            </Badge>
+                          </InlineStack>
                           <Text as="p" tone="subdued" variant="bodySm">
                             {`Product ID: ${link.product_id}${link.variant_id ? ` — Variant ID: ${link.variant_id}` : ""}`}
                           </Text>

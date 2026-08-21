@@ -615,6 +615,10 @@ async function _runMigrationsLocked() {
   // gibi tek bir sabit sonuç üretir.
   await query(`ALTER TABLE personalizer_templates
     ADD COLUMN IF NOT EXISTS customer_options JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  // AI şablonu ('ai' layout_mode) ayarları: sağlayıcı, model ve müşteriye
+  // açılan stil listesi. Diğer tiplerde kullanılmaz.
+  await query(`ALTER TABLE personalizer_templates
+    ADD COLUMN IF NOT EXISTS ai_config JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await query(`
     CREATE TABLE IF NOT EXISTS cliparts (
       id          TEXT PRIMARY KEY,
@@ -699,6 +703,29 @@ async function _runMigrationsLocked() {
       updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (shop, product_id)
     )
+  `);
+  // Bir ürünün ön ve arka yüzü ayrı şablonlara bağlanabilir. Müşteri istediği
+  // yüzü kişiselleştirir; ikisi de zorunlu değil.
+  await query(`ALTER TABLE personalizer_product_links
+    ADD COLUMN IF NOT EXISTS side TEXT NOT NULL DEFAULT 'front'`);
+  // Birincil anahtarı (shop, product_id) → (shop, product_id, side) yap.
+  // Yalnızca anahtar hâlâ iki kolonluyken çalışır, tekrar çalıştırılabilir.
+  await query(`
+    DO $$
+    DECLARE pk_name TEXT;
+    BEGIN
+      SELECT c.conname INTO pk_name
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+       WHERE t.relname = 'personalizer_product_links'
+         AND c.contype = 'p'
+         AND array_length(c.conkey, 1) = 2;
+      IF pk_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE personalizer_product_links DROP CONSTRAINT %I', pk_name);
+        ALTER TABLE personalizer_product_links
+          ADD CONSTRAINT personalizer_product_links_pkey PRIMARY KEY (shop, product_id, side);
+      END IF;
+    END $$;
   `);
   await query(`
     CREATE INDEX IF NOT EXISTS personalizer_product_links_template

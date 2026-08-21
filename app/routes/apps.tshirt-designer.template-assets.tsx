@@ -1,6 +1,12 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import sharp from "sharp";
-import { getPersonalizerTemplateByProduct, normalizeCustomerOptions } from "~/models/personalizer.server";
+import {
+  getPersonalizerTemplateByProduct,
+  listTemplateSidesForProduct,
+  normalizeCustomerOptions,
+  normalizeSide,
+} from "~/models/personalizer.server";
+import { AI_STYLES, normalizeAiConfig } from "~/lib/ai-styles";
 import { scanTemplateHoles, scanHoleFromPoint } from "~/lib/template-hole.server";
 
 const CORS = {
@@ -25,13 +31,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop") ?? "";
   const productId = (url.searchParams.get("productId") ?? "").split("/").pop() ?? "";
+  // Yüz belirtilmezse ön yüz — eski istemciler side göndermiyor
+  const side = normalizeSide(url.searchParams.get("side"));
   if (!shop || !productId) {
     return json({ error: "shop ve productId gerekli" }, { status: 400, headers: CORS });
   }
 
-  const template = await getPersonalizerTemplateByProduct(shop, productId).catch(() => null);
+  const [template, availableSides] = await Promise.all([
+    getPersonalizerTemplateByProduct(shop, productId, side).catch(() => null),
+    listTemplateSidesForProduct(shop, productId).catch(() => [] as ReturnType<typeof normalizeSide>[]),
+  ]);
   if (!template) {
-    return json({ error: "Bu ürüne bağlı şablon yok" }, { status: 404, headers: CORS });
+    return json(
+      { error: "Bu ürünün bu yüzüne bağlı şablon yok", availableSides },
+      { status: 404, headers: CORS },
+    );
   }
 
   // Dağıtımlı şablonda tasarım dosyası yok: müşteriye yalnızca tip, metin
@@ -41,6 +55,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       {
         templateId: template.id,
         templateName: template.name,
+        side,
+        availableSides,
         layoutMode: "scatter" as const,
         decorationUrl: template.decoration_url || null,
         textFields: (template.text_fields ?? []).map((f) => ({
@@ -53,6 +69,40 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         // çizer. Kapalı bir ayarın gönderilmesi sunucuda zaten yok sayılır,
         // burada gizlemek arayüzü sade tutmak için.
         customerOptions: normalizeCustomerOptions(template.customer_options),
+      },
+      { headers: { ...CORS, "Cache-Control": "public, max-age=300" } },
+    );
+  }
+
+  // AI şablonunda da tasarım dosyası yok: görsel üretim anında oluşuyor.
+  // Müşteriye stil seçenekleri ve metin alanları gerekir.
+  if (template.layout_mode === "ai") {
+    const options = normalizeCustomerOptions(template.customer_options);
+    const aiConfig = normalizeAiConfig(template.ai_config);
+    // Şablonun kendi stili her zaman listede olmalı; admin hiç stil açmadıysa
+    // müşteri seçim görmez ama üretim yine de çalışır.
+    const styleIds = options.aiStyles.length ? options.aiStyles : [];
+    return json(
+      {
+        templateId: template.id,
+        templateName: template.name,
+        side,
+        availableSides,
+        layoutMode: "ai" as const,
+        // Model ve sağlayıcı istemciye GÖNDERİLMEZ — müşteri seçemez, sunucu
+        // şablondan okur. Yalnızca beklenen süre gösterilir.
+        expectedSeconds: aiConfig.provider === "cloudflare" ? 5 : 20,
+        styles: styleIds.map((id) => ({
+          id,
+          label: AI_STYLES[id].label,
+          labelEn: AI_STYLES[id].labelEn,
+        })),
+        textFields: (template.text_fields ?? []).map((f) => ({
+          id: f.id,
+          label: f.label,
+          placeholder: f.placeholder,
+          maxLength: f.max_length,
+        })),
       },
       { headers: { ...CORS, "Cache-Control": "public, max-age=300" } },
     );
@@ -103,6 +153,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     {
       templateId: template.id,
       templateName: template.name,
+      side,
+      availableSides,
       layoutMode: "mask" as const,
       templateUrl: template.template_url,
       width: scan.width,
