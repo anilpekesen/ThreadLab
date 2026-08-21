@@ -65,10 +65,6 @@ export default function TemplateScatterModal({
   const [file, setFile] = useState<File | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState('');
-  /** Yükleme anındaki kaba kontrol; kesin ölçüm sunucudan gelir */
-  const [pickWarning, setPickWarning] = useState('');
-  /** Sunucunun kestiği kafanın basılacak boya yetip yetmediği */
-  const [quality, setQuality] = useState<{ headSourcePx: number; placedPx: number; upscale: number } | null>(null);
   const [density, setDensity] = useState<DensityChoice>('medium');
   const [photoSize, setPhotoSize] = useState<PhotoSizeChoice>('medium');
   /** 0 = şablonun kendi dizilimi; her "başka dizilim" bir sonrakine geçer */
@@ -91,9 +87,6 @@ export default function TemplateScatterModal({
         consent: 'Bu görselin kullanım ve baskı hakkına sahibim ya da gerekli izinleri aldım.',
         consentNote: 'Telif ihlali bildiriminde sipariş durdurulabilir.', terms: 'Koşullar',
         needConsent: 'Devam etmek için yukarıdaki onayı verin', chosen: 'Seçilen fotoğraf',
-        lowPhoto: 'Bu fotoğrafın çözünürlüğü düşük — baskıda bulanık çıkabilir. Mümkünse daha net bir fotoğraf yükleyin.',
-        lowHeadBad: 'Fotoğraftaki yüz baskı için fazla küçük. Baskı belirgin şekilde bulanık çıkacak — yüzün daha büyük göründüğü bir fotoğraf yükleyin.',
-        lowHeadWarn: 'Fotoğraftaki yüz sınırda kalıyor. Baskıda hafif yumuşama olabilir; daha yakından çekilmiş bir fotoğraf daha iyi sonuç verir.',
         settings: 'Ayarlar', densityLabel: 'Yoğunluk', sizeLabel: 'Boyut',
         low: 'Seyrek', medium: 'Normal', high: 'Yoğun',
         small: 'Küçük', mid: 'Orta', large: 'Büyük',
@@ -106,9 +99,6 @@ export default function TemplateScatterModal({
         consent: 'I own or have permission to use and print this image.',
         consentNote: 'Orders may be stopped if a copyright claim is filed.', terms: 'Terms',
         needConsent: 'Accept the notice above to continue', chosen: 'Selected photo',
-        lowPhoto: 'This photo is low resolution — it may look blurry when printed. Upload a sharper photo if you can.',
-        lowHeadBad: 'The face in this photo is too small to print well. The print will look clearly blurry — upload a photo where the face appears larger.',
-        lowHeadWarn: 'The face in this photo is borderline. The print may soften slightly; a closer photo gives a better result.',
         settings: 'Settings', densityLabel: 'Density', sizeLabel: 'Size',
         low: 'Sparse', medium: 'Normal', high: 'Dense',
         small: 'Small', mid: 'Medium', large: 'Large',
@@ -132,7 +122,6 @@ export default function TemplateScatterModal({
     try {
       const result = await onRender(file, values, buildChoices(nextVariant));
       setPreview(result.url);
-      setQuality(result.quality ?? null);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -148,29 +137,6 @@ export default function TemplateScatterModal({
     void render(next);
   };
 
-  /**
-   * Yükleme anında kaba bir eleme. Fotoğrafın toplam çözünürlüğü yüzün ne kadar
-   * yer kapladığını söylemez — kesin ölçüm tasarım üretildikten sonra sunucudan
-   * gelir. Buradaki amaç 5 saniyelik işlemi baştan boşa harcatmamak.
-   */
-  const inspectPick = (picked: File) => {
-    const url = URL.createObjectURL(picked);
-    const img = new Image();
-    img.onload = () => {
-      setPickWarning(Math.min(img.naturalWidth, img.naturalHeight) < 600 ? t.lowPhoto : '');
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = () => URL.revokeObjectURL(url);
-    img.src = url;
-  };
-
-  // Kesilen kafa basılacağı boydan küçükse büyütülüyor demektir; %15 üstü
-  // büyütme gözle görülür yumuşama yapıyor.
-  const headNotice = !quality ? null
-    : quality.upscale > 1.6 ? { text: t.lowHeadBad, bad: true }
-    : quality.upscale > 1.15 ? { text: t.lowHeadWarn, bad: false }
-    : null;
-
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-3" role="dialog" aria-modal="true">
       <div className="flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -184,13 +150,6 @@ export default function TemplateScatterModal({
             <div className="flex flex-col gap-3">
               <img src={preview} alt={assets.templateName}
                 className="mx-auto max-h-[46vh] w-auto rounded-xl border border-gray-100 bg-[repeating-conic-gradient(#f4f4f4_0%_25%,transparent_0%_50%)] bg-[length:14px_14px] object-contain" />
-              {headNotice && (
-                <p className={`rounded-lg px-3 py-2 text-[11px] font-medium leading-snug ${
-                  headNotice.bad ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'
-                }`}>
-                  {headNotice.text}
-                </p>
-              )}
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -211,17 +170,11 @@ export default function TemplateScatterModal({
               <p className="text-xs text-gray-500">{t.hint}</p>
 
               <input ref={fileRef} type="file" accept="image/*" className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFile(f); setPreview(''); setQuality(null); inspectPick(f); } e.target.value = ''; }} />
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFile(f); setPreview(''); } e.target.value = ''; }} />
               <button type="button" disabled={!consent} onClick={() => fileRef.current?.click()}
                 className="w-full rounded-xl border-2 border-dashed border-gray-300 px-4 py-4 text-sm font-semibold text-gray-600 transition-colors hover:border-gray-400 disabled:opacity-40">
                 {!consent ? t.needConsent : file ? `${t.chosen}: ${file.name.slice(0, 28)}` : t.pick}
               </button>
-
-              {pickWarning && (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-medium leading-snug text-amber-800">
-                  {pickWarning}
-                </p>
-              )}
 
               {fields.map((f) => (
                 <label key={f.id} className="flex flex-col gap-1">

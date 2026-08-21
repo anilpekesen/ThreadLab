@@ -59,8 +59,6 @@ export default function TemplateAiModal({
   const styles = assets.styles ?? [];
   const [styleId, setStyleId] = useState(styles[0]?.id ?? '');
   const [preview, setPreview] = useState('');
-  const [pickWarning, setPickWarning] = useState('');
-  const [quality, setQuality] = useState<{ headSourcePx: number; placedPx: number; upscale: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [consent, setConsent] = useState(() => {
@@ -80,9 +78,7 @@ export default function TemplateAiModal({
         consent: 'Bu görselin kullanım ve baskı hakkına sahibim ya da gerekli izinleri aldım.',
         consentNote: 'Telif ihlali bildiriminde sipariş durdurulabilir.', terms: 'Koşullar',
         needConsent: 'Devam etmek için yukarıdaki onayı verin', chosen: 'Seçilen fotoğraf',
-        sideFront: 'Ön yüz', sideBack: 'Arka yüz',
-        lowPhoto: 'Bu fotoğrafın çözünürlüğü düşük — sonuç bulanık çıkabilir. Mümkünse daha net bir fotoğraf yükleyin.',
-        lowResult: 'Üretilen görsel baskı boyutuna göre küçük kaldı; baskıda hafif yumuşama olabilir.' }
+        sideFront: 'Ön yüz', sideBack: 'Arka yüz' }
     : { title: 'Create your design', pick: 'Choose Photo', change: 'Change photo',
         make: 'Create Design', again: 'Create Again', ok: 'Use This', cancel: 'Cancel',
         busy: `AI is working… (about ${seconds} seconds)`,
@@ -91,9 +87,7 @@ export default function TemplateAiModal({
         consent: 'I own or have permission to use and print this image.',
         consentNote: 'Orders may be stopped if a copyright claim is filed.', terms: 'Terms',
         needConsent: 'Accept the notice above to continue', chosen: 'Selected photo',
-        sideFront: 'Front', sideBack: 'Back',
-        lowPhoto: 'This photo is low resolution — the result may look blurry. Upload a sharper photo if you can.',
-        lowResult: 'The generated image is small for the print size; the print may soften slightly.' };
+        sideFront: 'Front', sideBack: 'Back' };
 
   const render = async () => {
     if (!file) return;
@@ -102,26 +96,12 @@ export default function TemplateAiModal({
     try {
       const result = await onRender(file, styleId, values);
       setPreview(result.url);
-      setQuality(result.quality ?? null);
     } catch (err) {
       setError(String(err));
     } finally {
       setBusy(false);
     }
   };
-
-  const inspectPick = (picked: File) => {
-    const url = URL.createObjectURL(picked);
-    const img = new Image();
-    img.onload = () => {
-      setPickWarning(Math.min(img.naturalWidth, img.naturalHeight) < 600 ? t.lowPhoto : '');
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = () => URL.revokeObjectURL(url);
-    img.src = url;
-  };
-
-  const resultNotice = quality && quality.upscale > 1.15 ? t.lowResult : '';
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-3" role="dialog" aria-modal="true">
@@ -141,11 +121,6 @@ export default function TemplateAiModal({
             <div className="flex flex-col gap-3">
               <img src={preview} alt={assets.templateName}
                 className="mx-auto max-h-[46vh] w-auto rounded-xl border border-gray-100 bg-[repeating-conic-gradient(#f4f4f4_0%_25%,transparent_0%_50%)] bg-[length:14px_14px] object-contain" />
-              {resultNotice && (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-medium leading-snug text-amber-800">
-                  {resultNotice}
-                </p>
-              )}
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -166,17 +141,11 @@ export default function TemplateAiModal({
               <p className="text-xs text-gray-500">{t.hint}</p>
 
               <input ref={fileRef} type="file" accept="image/*" className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFile(f); setPreview(''); setQuality(null); inspectPick(f); } e.target.value = ''; }} />
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFile(f); setPreview(''); } e.target.value = ''; }} />
               <button type="button" disabled={!consent} onClick={() => fileRef.current?.click()}
                 className="w-full rounded-xl border-2 border-dashed border-gray-300 px-4 py-4 text-sm font-semibold text-gray-600 transition-colors hover:border-gray-400 disabled:opacity-40">
                 {!consent ? t.needConsent : file ? `${t.chosen}: ${file.name.slice(0, 28)}` : t.pick}
               </button>
-
-              {pickWarning && (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-medium leading-snug text-amber-800">
-                  {pickWarning}
-                </p>
-              )}
 
               {styles.length > 0 && (
                 <div className="flex flex-col gap-1.5">
