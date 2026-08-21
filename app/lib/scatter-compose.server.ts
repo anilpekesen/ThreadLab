@@ -56,6 +56,10 @@ function escapeXml(value: string) {
     .replace(/'/g, "&apos;");
 }
 
+function fieldText(field: TextFieldDef, values: Record<string, string>): string {
+  return (values[field.id] ?? "").trim() || (field.default_value ?? "").trim();
+}
+
 function buildTextOverlay(
   fields: TextFieldDef[],
   values: Record<string, string>,
@@ -64,7 +68,7 @@ function buildTextOverlay(
 ): Buffer | null {
   const lines = fields
     .map((f) => {
-      const raw = (values[f.id] ?? "").trim();
+      const raw = fieldText(f, values);
       if (!raw) return "";
       const anchor = f.align === "left" ? "start" : f.align === "right" ? "end" : "middle";
       return `<text x="${f.x}" y="${f.y}" font-family="Georgia, serif" font-size="${f.font_size}"` +
@@ -96,7 +100,7 @@ function textReserveRect(
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
 
   for (const field of fields) {
-    const raw = (values[field.id] ?? "").trim();
+    const raw = fieldText(field, values);
     if (!raw) continue;
     const size = Number(field.font_size) || 0;
     if (size <= 0) continue;

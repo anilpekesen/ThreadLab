@@ -95,7 +95,7 @@ function buildTextOverlay(
   const parts: string[] = [];
 
   for (const f of fields) {
-    const raw = (values[f.id] ?? "").trim();
+    const raw = (values[f.id] ?? "").trim() || (f.default_value ?? "").trim();
     if (!raw) continue;
     const size = Number(f.font_size) || 0;
     if (size <= 0) continue;
@@ -205,7 +205,9 @@ export async function composeAiDesign(opts: AiComposeOptions): Promise<AiCompose
 
   // Üretilen görsel tuvalin içine oranını koruyarak yerleştirilir; yazı için
   // altta yer bırakılır ki metin alanları görselin üstüne binmesin.
-  const hasText = (opts.textFields ?? []).some((f) => (opts.textValues?.[f.id] ?? "").trim());
+  const hasText = (opts.textFields ?? []).some((f) => (
+    (opts.textValues?.[f.id] ?? "").trim() || (f.default_value ?? "").trim()
+  ));
   const artHeight = Math.round(config.canvasHeight * (hasText ? 0.78 : 1));
   const art = await sharp(generated)
     .resize(config.canvasWidth, artHeight, { fit: "inside", background: { r: 0, g: 0, b: 0, alpha: 0 } })

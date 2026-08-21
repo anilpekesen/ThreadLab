@@ -244,10 +244,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     activeTextFields.forEach(function(f) {
       var div = document.createElement('div');
       div.className = 'field-row';
+      var initialValue = f.default_value || '';
       div.innerHTML =
         '<label class="label" for="tf_' + f.id + '">' + escHtml(f.label) + '</label>' +
-        '<input type="text" id="tf_' + f.id + '" placeholder="' + escHtml(f.placeholder || '') + '" maxlength="' + (f.max_length || 40) + '" oninput="updateCharCount(this,' + (f.max_length || 40) + ')">' +
-        '<div class="char-count" id="cc_' + f.id + '">0 / ' + (f.max_length || 40) + '</div>';
+        '<input type="text" id="tf_' + f.id + '" value="' + escHtml(initialValue) + '" placeholder="' + escHtml(f.placeholder || '') + '" maxlength="' + (f.max_length || 40) + '" oninput="updateCharCount(this,' + (f.max_length || 40) + ')">' +
+        '<div class="char-count" id="cc_' + f.id + '">' + initialValue.length + ' / ' + (f.max_length || 40) + '</div>';
       container.appendChild(div);
     });
   }

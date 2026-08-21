@@ -4,6 +4,7 @@ export interface ScatterTextField {
   id: string;
   label: string;
   placeholder: string;
+  defaultValue?: string;
   maxLength: number;
 }
 
@@ -63,7 +64,9 @@ export default function TemplateScatterModal({
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(
+    (assets.textFields ?? []).map((field) => [field.id, field.defaultValue ?? '']),
+  ));
   const [preview, setPreview] = useState('');
   const [density, setDensity] = useState<DensityChoice>('medium');
   const [photoSize, setPhotoSize] = useState<PhotoSizeChoice>('medium');

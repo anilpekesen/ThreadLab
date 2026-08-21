@@ -893,6 +893,7 @@ function newTextField(): TextFieldDef {
     id: Math.random().toString(36).slice(2, 10),
     label: "İsim",
     placeholder: "Adınızı girin",
+    default_value: "",
     x: 1240,
     y: 3200,
     font_size: 120,
@@ -1423,6 +1424,7 @@ function PersonalizerEditor() {
                             <TextField label="Placeholder" value={f.placeholder} onChange={(v) => updateTextField(idx, "placeholder", v)} autoComplete="off" />
                           </FormLayout.Group>
                           <TextField label="Maksimum karakter" type="number" value={String(f.max_length)} onChange={(v) => updateTextField(idx, "max_length", parseInt(v, 10) || 30)} autoComplete="off" />
+                          <TextField label="Varsayılan metin (opsiyonel)" value={f.default_value ?? ""} onChange={(v) => updateTextField(idx, "default_value", v)} autoComplete="off" helpText="Müşteri değiştirmezse bu metin basılır." />
                         </FormLayout>
                         <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 10 }} open>
                           <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#303030" }}>

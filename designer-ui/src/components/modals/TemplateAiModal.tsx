@@ -4,6 +4,7 @@ export interface AiTextField {
   id: string;
   label: string;
   placeholder: string;
+  defaultValue?: string;
   maxLength: number;
 }
 
@@ -55,7 +56,9 @@ export default function TemplateAiModal({
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(
+    (assets.textFields ?? []).map((field) => [field.id, field.defaultValue ?? '']),
+  ));
   const styles = assets.styles ?? [];
   const [styleId, setStyleId] = useState(styles[0]?.id ?? '');
   const [preview, setPreview] = useState('');

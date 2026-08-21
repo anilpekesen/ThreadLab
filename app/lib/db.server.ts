@@ -686,6 +686,59 @@ async function _runMigrationsLocked() {
     ALTER TABLE personalizer_frames
       ADD COLUMN IF NOT EXISTS text_fields JSONB NOT NULL DEFAULT '[]'
   `);
+  // 21 Ağustos 2026 şablon veri onarımları. Koşullar eski değerlerle sınırlı:
+  // mağaza sahibi daha sonra alanları değiştirirse uygulama açılışında ezilmez.
+  await query(`
+    UPDATE personalizer_frames
+       SET name = 'Kırmızı kalp'
+     WHERE id = '9848c39c1bd25f0cf1df49a2'
+       AND template_id = '8e2ce0e4b4011025c5dc8acc'
+       AND name = '1d5a4daa 6c4c 483a 8b2d c4e4fb958088'
+  `);
+  await query(`
+    UPDATE personalizer_frames pf
+       SET text_fields = (
+         SELECT COALESCE(jsonb_agg(
+           CASE
+             WHEN field->>'id' = '1lnd575q'
+              AND COALESCE((field->>'y')::integer, 0) > 685
+             THEN field || jsonb_build_object('x', 400, 'y', 625, 'font_size', 40)
+             ELSE field
+           END
+         ), '[]'::jsonb)
+         FROM jsonb_array_elements(pf.text_fields) AS field
+       )
+     WHERE pf.id = '9848c39c1bd25f0cf1df49a2'
+       AND pf.template_id = '8e2ce0e4b4011025c5dc8acc'
+  `);
+  await query(`
+    UPDATE personalizer_templates
+       SET description = 'Fotoğrafınızı yükleyin ve isminizi ekleyin.'
+     WHERE id = '8e2ce0e4b4011025c5dc8acc'
+       AND description = 'I Love My Boyfriend'
+  `);
+  await query(`
+    UPDATE personalizer_templates pt
+       SET text_fields = (
+         SELECT COALESCE(jsonb_agg(
+           CASE
+             WHEN field->>'id' = 't1' AND NOT (field ? 'default_value')
+             THEN field || jsonb_build_object('label', 'Birinci satır', 'default_value', 'Hepsi')
+             WHEN field->>'id' = 't2' AND NOT (field ? 'default_value')
+             THEN field || jsonb_build_object('label', 'İkinci satır', 'default_value', 'Benim')
+             ELSE field
+           END
+         ), '[]'::jsonb)
+         FROM jsonb_array_elements(pt.text_fields) AS field
+       )
+     WHERE pt.id = 'sc177f44a7f4b0c7db819515'
+  `);
+  await query(`
+    UPDATE personalizer_templates
+       SET description = 'Fotoğrafınızı yükleyin, yüzünüz eğlenceli bir baskı desenine dönüşsün.'
+     WHERE id = 'sc177f44a7f4b0c7db819515'
+       AND description = 'Müşterinin yüzü kesilip baskı alanına dağıtılır.'
+  `);
   await query(`
     CREATE INDEX IF NOT EXISTS personalizer_frames_template
       ON personalizer_frames (template_id, sort_order)

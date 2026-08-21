@@ -6,6 +6,8 @@ export interface TextFieldDef {
   id: string;
   label: string;
   placeholder: string;
+  /** Müşteri değiştirmezse baskıda kullanılacak başlangıç değeri */
+  default_value?: string;
   x: number;
   y: number;
   font_size: number;

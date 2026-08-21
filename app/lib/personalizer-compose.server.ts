@@ -41,7 +41,7 @@ function makeTextSvgOverlay(
 ): Buffer {
   const lines = fields
     .map((f) => {
-      const text = (values[f.id] ?? "").trim();
+      const text = (values[f.id] ?? "").trim() || (f.default_value ?? "").trim();
       if (!text) return "";
       const escaped = text
         .replace(/&/g, "&amp;")

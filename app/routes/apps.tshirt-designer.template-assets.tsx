@@ -63,6 +63,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           id: f.id,
           label: f.label,
           placeholder: f.placeholder,
+          defaultValue: f.default_value ?? "",
           maxLength: f.max_length,
         })),
         // Yalnızca açık olan ayarlar gönderilir; pencere bunlara göre kontrol
@@ -101,6 +102,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           id: f.id,
           label: f.label,
           placeholder: f.placeholder,
+          defaultValue: f.default_value ?? "",
           maxLength: f.max_length,
         })),
       },
