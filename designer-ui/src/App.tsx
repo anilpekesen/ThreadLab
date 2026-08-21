@@ -2479,13 +2479,17 @@ export default function App() {
     const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv || !selectedObj || selectedObj.type !== 'curvedText') return;
     const c = selectedObj as unknown as import('@/utils/curvedText').CurvedText;
-    if (props.color !== undefined) c.fill = props.color;
-    if (props.isBold !== undefined) c.fontWeight = props.isBold ? 'bold' : 'normal';
-    if (props.isItalic !== undefined) c.fontStyle = props.isItalic ? 'italic' : 'normal';
-    if (props.fontFamily !== undefined) c.fontFamily = props.fontFamily;
-    if (props.fontSize !== undefined) { c.fontSize = props.fontSize; c._refreshBounds(); selectedObj.setCoords(); }
-    if (props.radius !== undefined) { c.radius = props.radius; c._refreshBounds(); selectedObj.setCoords(); }
-    if (props.isReverse !== undefined) c.reverse = props.isReverse;
+    // applyProps re-measures the arc and refreshes the bounding box, so the box
+    // follows font/weight/spacing changes too — not just size and radius.
+    c.applyProps({
+      ...(props.color !== undefined ? { fill: props.color } : {}),
+      ...(props.isBold !== undefined ? { fontWeight: props.isBold ? 'bold' : 'normal' } : {}),
+      ...(props.isItalic !== undefined ? { fontStyle: props.isItalic ? 'italic' : 'normal' } : {}),
+      ...(props.fontFamily !== undefined ? { fontFamily: props.fontFamily } : {}),
+      ...(props.fontSize !== undefined ? { fontSize: props.fontSize } : {}),
+      ...(props.radius !== undefined ? { radius: props.radius } : {}),
+      ...(props.isReverse !== undefined ? { reverse: props.isReverse } : {}),
+    });
     setObjState((prev) => (prev ? { ...prev, ...props } : null));
     cv.fire('object:modified', { target: selectedObj });
     cv.renderAll();

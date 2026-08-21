@@ -3,7 +3,7 @@ import { fabric } from 'fabric';
 import { GOOGLE_FONTS, FILTER_PRESETS } from '@/types';
 import type { FilterPreset } from '@/types';
 import { applyFilterPreset, applyAdjustments } from '@/utils/filters';
-import type { CurvedText } from '@/utils/curvedText';
+import type { CurvedText, CurvedTextOptions } from '@/utils/curvedText';
 
 interface Props {
   selectedObject: fabric.Object | null;
@@ -36,12 +36,10 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
 
   const setCurvedProp = useCallback((prop: string, value: unknown) => {
     if (!selectedObject) return;
-    (selectedObject as unknown as Record<string, unknown>)[prop] = value;
-    // Refresh bounding box whenever text, radius or fontSize changes
-    if (prop === 'radius' || prop === 'fontSize' || prop === 'text') {
-      (selectedObject as unknown as CurvedText)._refreshBounds();
-      selectedObject.setCoords();
-    }
+    // applyProps re-measures the arc, so the bounding box follows every change
+    // (font family and character spacing change the width just as much as the
+    // radius does) and the object is marked dirty for the next render.
+    (selectedObject as unknown as CurvedText).applyProps({ [prop]: value } as Partial<CurvedTextOptions>);
     selectedObject.canvas?.requestRenderAll();
     onChanged();
   }, [selectedObject, onChanged]);
