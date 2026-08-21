@@ -53,6 +53,35 @@ function escapeXml(s: string): string {
 }
 
 /**
+ * Yalnızca hikâye/not amaçlı alanlar görselin duygusunu etkiler. İsim ve diğer
+ * baskı metinleri modele gönderilmez; aşağıdaki SVG katmanında gerçek fontla
+ * basılır. Alan kimlikleri eski ve yeni şablonlarda farklı olabildiğinden hem
+ * id hem etiket, aksanlardan arındırılmış kelimeler halinde değerlendirilir.
+ */
+export function extractAiStoryContext(
+  fields: TextFieldDef[],
+  values: Record<string, string>,
+): string {
+  const storyWords = new Set(["story", "hikaye", "memory", "ani", "message", "mesaj", "note", "not"]);
+  const stories: string[] = [];
+
+  for (const field of fields) {
+    const words = `${field.id} ${field.label}`
+      .normalize("NFKD")
+      .toLocaleLowerCase("tr-TR")
+      .replace(/ı/g, "i")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .split(/\s+/);
+    if (!words.some((word) => storyWords.has(word))) continue;
+    const value = String(values[field.id] ?? "").trim();
+    if (value) stories.push(value);
+  }
+
+  return stories.join(". ");
+}
+
+/**
  * Metin katmanı. Uzun "hikaye" alanları tek satıra sığmadığı için kaba bir
  * sarma yapılır: Georgia'da karakter başına ~0.52 em (kalında ~0.63) yer
  * kaplıyor, satır yüksekliği 1.25 em.
@@ -145,11 +174,14 @@ export async function composeAiDesign(opts: AiComposeOptions): Promise<AiCompose
   // yüzde birleştirebiliyor ya da olmayan kişi ekleyebiliyor. Vision anahtarı
   // yoksa 0 döner ve prompt sayısız (ama yine kimlik koruyan) hâle düşer.
   const faceCount = await countFaces(opts.photo).catch(() => 0);
-  const prompt = buildAiPrompt(styleId, faceCount);
+  const storyContext = extractAiStoryContext(opts.textFields ?? [], opts.textValues ?? {});
+  const prompt = buildAiPrompt(styleId, faceCount, storyContext);
 
   const cacheKey = createHash("sha256")
     .update(opts.photo)
-    .update(`|${config.provider}|${config.model}|${styleId}|${config.canvasWidth}x${config.canvasHeight}|n${faceCount}`)
+    .update(`|${config.provider}|${config.model}|${styleId}|${config.canvasWidth}x${config.canvasHeight}|n${faceCount}|`)
+    // Prompt değişince (hikâye veya stil kuralları dahil) eski görsel dönmesin.
+    .update(prompt)
     .digest("hex");
 
   let generated = readGenCache(cacheKey);

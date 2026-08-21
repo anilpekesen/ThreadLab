@@ -1166,7 +1166,7 @@ function PersonalizerEditor() {
                         options={Object.entries(AI_STYLES).map(([k, v]) => ({ label: v.label, value: k }))}
                         value={aiStyle}
                         onChange={setAiStyle}
-                        helpText="Müşteriye başka stil açmazsanız tüm siparişlerde bu stil kullanılır."
+                        helpText={AI_STYLES[aiStyle]?.description ?? "Müşteriye başka stil açmazsanız tüm siparişlerde bu stil kullanılır."}
                       />
                       <Checkbox
                         label="Baskı dosyasını şeffaf arka planla hazırla"
