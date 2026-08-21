@@ -1184,7 +1184,6 @@ export default function App() {
   const [draggedLayerIndex, setDraggedLayerIndex] = useState<number | null>(null);
   const [personalization, setPersonalization] = useState<PersonalizationConfig>(defaultPersonalization);
   /** Ürüne hazır şablon bağlıysa tasarımcı sadeleşir: sadece fotoğraf */
-  const isTemplateProduct = Boolean(personalization.templateDesign);
   const [canvasRevisions, setCanvasRevisions] = useState({ front: 0, back: 0 });
   const [shopTemplates, setShopTemplates] = useState<import('@/types').ShopTemplate[]>([]);
   const [globalCliparts, setGlobalCliparts] = useState<import('@/components/panels/TemplatesPanel').GlobalClipart[]>([]);
@@ -3348,9 +3347,13 @@ export default function App() {
           className="relative flex min-h-0 flex-1 flex-col overflow-clip layout:overflow-hidden bg-[#F9FAFB]"
           style={isMobileLayout && interactionMode === 'selection' ? { touchAction: 'none' } : undefined}
         >
-          {/* Şablonlu üründe müşterinin tek işi fotoğraf vermek; yazı, ek görsel
-              ve katman araçları gizlenir — şablonun bozulma ihtimali kalmaz. */}
-          <div className={cn('relative z-40 w-full border-b border-gray-100 bg-white', isTemplateProduct ? 'hidden' : 'flex')}>
+          {/* Şablonlu üründe de normal araçlar açık kalır.
+              Önceden bu çubuk gizleniyordu ("müşterinin tek işi fotoğraf
+              vermek") ama şablon yalnızca ön yüze bağlıysa müşteri arka yüze
+              hiçbir şey ekleyemiyordu. Şablon artık bir seçenek: isteyen
+              şablonu kullanır, isteyen kendi görselini ve yazısını koyar,
+              isteyen ikisini birden yapar. */}
+          <div className="relative z-40 flex w-full border-b border-gray-100 bg-white">
             {MAIN_TABS.map(({ id, label, Icon }) => (
               <button
                 key={id}
