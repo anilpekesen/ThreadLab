@@ -50,6 +50,35 @@ function productOptionLabel(product: { title: string; handle: string }) {
   return product.handle ? `${product.title} (${product.handle})` : product.title;
 }
 
+function defaultAiTextFields(width: number, height: number): TextFieldDef[] {
+  return [
+    {
+      id: "name",
+      label: "İsim",
+      placeholder: "Örn: ELİF",
+      x: Math.round(width / 2),
+      y: Math.round(height * 0.84),
+      font_size: 180,
+      color: "#111111",
+      bold: true,
+      max_length: 20,
+      align: "center",
+    },
+    {
+      id: "story",
+      label: "Hikâye / Not",
+      placeholder: "Kısa bir cümle yazın",
+      x: Math.round(width / 2),
+      y: Math.round(height * 0.91),
+      font_size: 78,
+      color: "#444444",
+      bold: false,
+      max_length: 160,
+      align: "center",
+    },
+  ];
+}
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate(request);
   const id = params.id ?? "";
@@ -236,20 +265,22 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
     const productId = normalizeShopifyNumericId(String(form.get("product_id") ?? ""));
     const variantId = normalizeShopifyNumericId(String(form.get("variant_id") ?? ""));
-    const linkSide = normalizeSide(form.get("side"));
     const productTitle = String(form.get("product_title") ?? "").trim();
     const productHandle = String(form.get("product_handle") ?? "").trim();
     if (!productId) return json({ error: "Shopify ürün ID gerekli" }, { status: 400 });
 
-    await linkPersonalizerProduct({
+    const sides = template.layout_mode === "ai"
+      ? (["front", "back"] as const)
+      : ([normalizeSide(form.get("side"))] as const);
+    await Promise.all(sides.map((side) => linkPersonalizerProduct({
       shop,
       product_id: productId,
-      side: linkSide,
+      side,
       template_id: id,
       product_title: productTitle,
       product_handle: productHandle,
       variant_id: variantId,
-    });
+    })));
     return json({ ok: true, linked: true });
   }
 
@@ -881,7 +912,10 @@ function PersonalizerEditor() {
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const availableProducts = products.filter((product): product is NonNullable<typeof product> => product !== null);
-  const firstLinkedProduct = productLinks[0];
+  const availableProductLinks = productLinks.filter(
+    (link): link is NonNullable<typeof link> => link !== null,
+  );
+  const firstLinkedProduct = availableProductLinks[0];
   const initialProductId = firstLinkedProduct?.product_id || availableProducts[0]?.id || "";
   const initialProduct = availableProducts.find((product) => product.id === initialProductId) || availableProducts[0];
   const initialVariantId = firstLinkedProduct?.variant_id || initialProduct?.variants[0]?.id || "";
@@ -957,25 +991,8 @@ function PersonalizerEditor() {
     setOptAiStyles((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
   };
 
-  /** Ürün bağlarken hangi yüz — ön ve arka ayrı şablonlara bağlanabilir */
+  /** AI dışı şablonlarda ürün bağlarken kullanılacak yüz. */
   const [linkSide, setLinkSide] = useState<"front" | "back">("front");
-
-  /**
-   * AI şablonunda yerleştirme editörüne gösterilecek boş tuval.
-   *
-   * Editör bir görsel bekliyor; AI şablonunun tasarım dosyası olmadığı için
-   * yapılandırılan tuval oranında beyaz bir SVG üretilir. Alt şerit, üretimde
-   * görselin bırakacağı yazı alanını gösterir (bkz. ai-compose.server.ts).
-   */
-  const editorCanvasUrl = layoutMode === "ai"
-    ? `data:image/svg+xml;utf8,${encodeURIComponent(
-        `<svg xmlns="http://www.w3.org/2000/svg" width="${parseInt(aiCanvasW, 10) || 2400}" height="${parseInt(aiCanvasH, 10) || 3000}">`
-        + `<rect width="100%" height="100%" fill="#ffffff"/>`
-        + `<rect y="0" width="100%" height="78%" fill="#f1f5f9"/>`
-        + `<rect y="78%" width="100%" height="22%" fill="#ffffff" stroke="#cbd5e1" stroke-dasharray="12"/>`
-        + `</svg>`,
-      )}`
-    : "";
 
   const canvasRatio = (parseInt(canvasWidth, 10) || 0) / Math.max(parseInt(canvasHeight, 10) || 1, 1);
   const canvasRatioLabel = canvasRatio > 0 ? `${canvasRatio.toFixed(2)} : 1` : "—";
@@ -998,23 +1015,6 @@ function PersonalizerEditor() {
   const saveSuccess = fetcher.data?.ok === true;
 
   function addTextField() { setTextFields((p) => [...p, newTextField()]); }
-  function addAiTextField(kind: "name" | "story") {
-    const width = parseInt(aiCanvasW, 10) || 2400;
-    const height = parseInt(aiCanvasH, 10) || 3000;
-    const isName = kind === "name";
-    setTextFields((current) => [...current, {
-      id: `${kind}_${Math.random().toString(36).slice(2, 8)}`,
-      label: isName ? "İsim" : "Hikâye / Not",
-      placeholder: isName ? "Örn: ELİF" : "Kısa bir cümle yazın",
-      x: Math.round(width / 2),
-      y: Math.round(height * (isName ? 0.84 : 0.91)),
-      font_size: isName ? 180 : 78,
-      color: isName ? "#111111" : "#444444",
-      bold: isName,
-      max_length: isName ? 20 : 160,
-      align: "center",
-    }]);
-  }
   function removeTextField(idx: number) { setTextFields((p) => p.filter((_, i) => i !== idx)); }
   function updateTextField<K extends keyof TextFieldDef>(idx: number, key: K, val: TextFieldDef[K]) {
     setTextFields((p) => p.map((f, i) => i === idx ? { ...f, [key]: val } : f));
@@ -1031,7 +1031,10 @@ function PersonalizerEditor() {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    fd.set("text_fields", JSON.stringify(textFields));
+    const fieldsToSave = layoutMode === "ai" && textFields.length === 0
+      ? defaultAiTextFields(parseInt(aiCanvasW, 10) || 2400, parseInt(aiCanvasH, 10) || 3000)
+      : textFields;
+    fd.set("text_fields", JSON.stringify(fieldsToSave));
     fd.set("hole_seed_x", String(holeSeed.x));
     fd.set("hole_seed_y", String(holeSeed.y));
     fd.set("photo_x", String(photoRect.x));
@@ -1047,8 +1050,8 @@ function PersonalizerEditor() {
   const embedUrl = template
     ? `${appUrl}/embed/personalizer?templateId=${template.id}&variantId=VARIANT_ID&shop=SHOP&locale=tr`
     : "";
-  const productEmbedUrl = productLinks[0]
-    ? `${appUrl}/embed/personalizer?productId=${productLinks[0].product_id}&variantId=${productLinks[0].variant_id || "VARIANT_ID"}&shop=${shop}&locale=tr`
+  const productEmbedUrl = availableProductLinks[0]
+    ? `${appUrl}/embed/personalizer?productId=${availableProductLinks[0].product_id}&variantId=${availableProductLinks[0].variant_id || "VARIANT_ID"}&shop=${shop}&locale=tr`
     : "";
   const productOptions = availableProducts.map((product) => ({
     label: productOptionLabel(product),
@@ -1060,6 +1063,12 @@ function PersonalizerEditor() {
       : `${variant.title}${variant.price ? ` - ${variant.price}` : ""}`,
     value: variant.id,
   }));
+  const linkedProductGroups = Object.values(availableProductLinks.reduce<
+    Record<string, Array<(typeof availableProductLinks)[number]>>
+  >((groups, link) => {
+    (groups[link.product_id] ??= []).push(link);
+    return groups;
+  }, {}));
 
   return (
     <Page
@@ -1067,7 +1076,7 @@ function PersonalizerEditor() {
       backAction={{ content: "Şablonlar", onAction: () => navigate("/app/personalizer") }}
     >
       <Layout>
-        {isNew && (
+        {isNew && layoutMode !== "ai" && (
           <Layout.Section>
             <Banner tone="warning">
               <BlockStack gap="100">
@@ -1376,54 +1385,30 @@ function PersonalizerEditor() {
               </Card>}
 
               {/* Koordinat editörü */}
-              {(templatePreview || editorCanvasUrl) && (
+              {layoutMode !== "ai" && templatePreview && (
                 <Card>
                   <BlockStack gap="400">
-                    <Text as="h2" variant="headingMd">
-                      {layoutMode === "ai" ? "Baskı Yerleşimi" : "Fotoğraf Koordinat Editörü"}
-                    </Text>
-                    {layoutMode === "ai" && (
-                      <Text as="p" tone="subdued" variant="bodySm">
-                        Üretilen görsel üst alana yerleşir. Bir metni seçin, ardından baskıda
-                        görünmesini istediğiniz noktaya tıklayın.
-                      </Text>
-                    )}
+                    <Text as="h2" variant="headingMd">Fotoğraf Koordinat Editörü</Text>
                     <TemplatePhotoEditor
-                      imageUrl={layoutMode === "ai" ? editorCanvasUrl : templatePreview}
+                      imageUrl={templatePreview}
                       photoRect={photoRect}
                       onPhotoRect={setPhotoRect}
                       textFields={textFields}
                       onTextPos={handleTextPos}
                       holeSeed={holeSeed}
                       onHoleSeed={(x, y) => setHoleSeed({ x, y })}
-                      textOnly={layoutMode === "ai"}
                     />
                   </BlockStack>
                 </Card>
               )}
 
               {/* Metin alanları */}
-              <Card>
+              {layoutMode !== "ai" && <Card>
                 <BlockStack gap="400">
                   <InlineStack align="space-between" blockAlign="center">
-                    <BlockStack gap="100">
-                      <Text as="h2" variant="headingMd">
-                        {layoutMode === "ai" ? "Müşteriden Alınacak Metinler" : "Metin Alanları"}
-                      </Text>
-                      {layoutMode === "ai" && (
-                        <Text as="p" tone="subdued" variant="bodySm">
-                          Buradaki alanlar fotoğraf yükleme adımında müşteriye gösterilir.
-                        </Text>
-                      )}
-                    </BlockStack>
-                    {layoutMode !== "ai" && <Button onClick={addTextField} size="slim">+ Alan Ekle</Button>}
+                    <Text as="h2" variant="headingMd">Metin Alanları</Text>
+                    <Button onClick={addTextField} size="slim">+ Alan Ekle</Button>
                   </InlineStack>
-                  {layoutMode === "ai" && (
-                    <InlineStack gap="200" wrap>
-                      <Button onClick={() => addAiTextField("name")} size="slim">İsim alanı ekle</Button>
-                      <Button onClick={() => addAiTextField("story")} size="slim">Hikâye alanı ekle</Button>
-                    </InlineStack>
-                  )}
                   {textFields.length === 0 && <Text as="p" tone="subdued">Henüz metin alanı eklenmedi.</Text>}
                   {textFields.map((f, idx) => (
                     <Box key={f.id} background="bg-surface-secondary" padding="400" borderRadius="200">
@@ -1439,7 +1424,7 @@ function PersonalizerEditor() {
                           </FormLayout.Group>
                           <TextField label="Maksimum karakter" type="number" value={String(f.max_length)} onChange={(v) => updateTextField(idx, "max_length", parseInt(v, 10) || 30)} autoComplete="off" />
                         </FormLayout>
-                        <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 10 }} open={layoutMode !== "ai"}>
+                        <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 10 }} open>
                           <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#303030" }}>
                             Yazı görünümü ve konumu
                           </summary>
@@ -1467,7 +1452,7 @@ function PersonalizerEditor() {
                     </Box>
                   ))}
                 </BlockStack>
-              </Card>
+              </Card>}
 
               <InlineStack gap="300" align="end">
                 <Button onClick={() => navigate("/app/personalizer")}>İptal</Button>
@@ -1498,12 +1483,20 @@ function PersonalizerEditor() {
                 <BlockStack gap="100">
                   <Text as="h2" variant="headingMd">Shopify Ürün Eşleştirme</Text>
                   <Text as="p" tone="subdued" variant="bodySm">
-                    Bu şablonu Shopify ürün ID ile bağlayın. Böylece ürün sayfası iframe içinde templateId taşımadan productId ile bu personalizer'ı açabilir.
+                    {layoutMode === "ai"
+                      ? "Ürünü ve varsayılan varyantı seçin. AI şablonu ön ve arka yüze birlikte bağlanır."
+                      : "Bu şablonu Shopify ürününe bağlayın."}
                   </Text>
                 </BlockStack>
 
                 {linkFetcher.data?.error && <Banner tone="critical">{linkFetcher.data.error}</Banner>}
-                {linkFetcher.data?.linked && <Banner tone="success">Ürün bu şablona bağlandı.</Banner>}
+                {linkFetcher.data?.linked && (
+                  <Banner tone="success">
+                    {layoutMode === "ai"
+                      ? "Ürün bu AI şablonuna ön ve arka yüz için bağlandı."
+                      : "Ürün bu şablona bağlandı."}
+                  </Banner>
+                )}
 
                 {availableProducts.length === 0 ? (
                   <Banner tone="warning">
@@ -1523,17 +1516,19 @@ function PersonalizerEditor() {
                         onChange={(value) => setSelectedProductId(value)}
                         helpText="Son güncellenen 50 aktif Shopify ürünü listelenir."
                       />
-                      <Select
-                        label="Ürünün Hangi Yüzü"
-                        name="side"
-                        options={[
-                          { label: "Ön yüz", value: "front" },
-                          { label: "Arka yüz", value: "back" },
-                        ]}
-                        value={linkSide}
-                        onChange={(v) => setLinkSide(v === "back" ? "back" : "front")}
-                        helpText="Aynı ürünün ön ve arka yüzü ayrı şablonlara bağlanabilir. Müşteri istediği yüzü kişiselleştirir, ikisi de zorunlu değil."
-                      />
+                      {layoutMode !== "ai" && (
+                        <Select
+                          label="Ürünün Hangi Yüzü"
+                          name="side"
+                          options={[
+                            { label: "Ön yüz", value: "front" },
+                            { label: "Arka yüz", value: "back" },
+                          ]}
+                          value={linkSide}
+                          onChange={(v) => setLinkSide(v === "back" ? "back" : "front")}
+                          helpText="Aynı ürünün ön ve arka yüzü ayrı şablonlara bağlanabilir."
+                        />
+                      )}
                       <Select
                         label="Varsayılan Varyant"
                         name="variant_id"
@@ -1556,32 +1551,37 @@ function PersonalizerEditor() {
                         </Box>
                       )}
                       <Button submit variant="primary" loading={linkFetcher.state !== "idle"} disabled={!selectedProductId || !selectedVariantId}>
-                        Seçili Ürüne Bağla
+                        {layoutMode === "ai" ? "Ürünü iki yüze bağla" : "Seçili ürüne bağla"}
                       </Button>
                     </FormLayout>
                   </linkFetcher.Form>
                 )}
 
-                {productLinks.length > 0 && (
+                {linkedProductGroups.length > 0 && (
                   <BlockStack gap="200">
                     <Text as="h3" variant="headingSm">Bağlı Ürünler</Text>
-                    {productLinks.map((link) => (
-                      <Box key={`${link.shop}-${link.product_id}-${link.side}`} background="bg-surface-secondary" padding="300" borderRadius="200">
+                    {linkedProductGroups.map((links) => {
+                      const link = links[0];
+                      const hasFront = links.some((item) => item.side === "front");
+                      const hasBack = links.some((item) => item.side === "back");
+                      const sideLabel = hasFront && hasBack ? "Ön ve arka yüz" : hasBack ? "Arka yüz" : "Ön yüz";
+                      const variantIds = [...new Set(links.map((item) => item.variant_id).filter(Boolean))];
+                      return (
+                      <Box key={`${link.shop}-${link.product_id}`} background="bg-surface-secondary" padding="300" borderRadius="200">
                         <BlockStack gap="100">
                           <InlineStack gap="200" blockAlign="center">
                             <Text as="p" variant="bodyMd" fontWeight="semibold">
                               {link.product_title || link.product_handle || link.product_id}
                             </Text>
-                            <Badge tone={link.side === "back" ? "attention" : "info"}>
-                              {link.side === "back" ? "Arka yüz" : "Ön yüz"}
-                            </Badge>
+                            <Badge tone={hasFront && hasBack ? "success" : hasBack ? "attention" : "info"}>{sideLabel}</Badge>
                           </InlineStack>
                           <Text as="p" tone="subdued" variant="bodySm">
-                            {`Product ID: ${link.product_id}${link.variant_id ? ` — Variant ID: ${link.variant_id}` : ""}`}
+                            {`Product ID: ${link.product_id}${variantIds.length ? `, Variant ID: ${variantIds.join(", ")}` : ""}`}
                           </Text>
                         </BlockStack>
                       </Box>
-                    ))}
+                      );
+                    })}
                   </BlockStack>
                 )}
 
