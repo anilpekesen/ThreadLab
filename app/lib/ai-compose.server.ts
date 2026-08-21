@@ -2,7 +2,8 @@ import sharp from "sharp";
 import { createHash } from "node:crypto";
 import { generateStyledPhoto, AiProviderError } from "~/lib/ai-provider.server";
 import { removeBackgroundFromBuffer } from "~/models/auto-bg-removal.server";
-import { aiStylePrompt, type AiTemplateConfig } from "~/lib/ai-styles";
+import { buildAiPrompt, type AiTemplateConfig } from "~/lib/ai-styles";
+import { countFaces } from "~/lib/face-detect.server";
 import type { TextFieldDef } from "~/models/personalizer.server";
 
 /**
@@ -32,6 +33,8 @@ export interface AiComposeOptions {
 
 export interface AiComposeResult {
   buffer: Buffer;
+  /** Fotoğrafta bulunan yüz sayısı; 0 = tespit edilemedi */
+  faceCount: number;
   /** Kullanılan sağlayıcı/model — sipariş kaydına yazılır */
   usedModel: string;
   /** AI çıktısının ham piksel eni; kalite uyarısı bunu kullanır */
@@ -137,11 +140,16 @@ function writeGenCache(key: string, image: Buffer): void {
 
 export async function composeAiDesign(opts: AiComposeOptions): Promise<AiComposeResult> {
   const { config, styleId } = opts;
-  const prompt = aiStylePrompt(styleId);
+
+  // Kişi sayısı prompt'a yazılır. Söylemezsek model iki kişiyi tek uydurma
+  // yüzde birleştirebiliyor ya da olmayan kişi ekleyebiliyor. Vision anahtarı
+  // yoksa 0 döner ve prompt sayısız (ama yine kimlik koruyan) hâle düşer.
+  const faceCount = await countFaces(opts.photo).catch(() => 0);
+  const prompt = buildAiPrompt(styleId, faceCount);
 
   const cacheKey = createHash("sha256")
     .update(opts.photo)
-    .update(`|${config.provider}|${config.model}|${styleId}|${config.canvasWidth}x${config.canvasHeight}`)
+    .update(`|${config.provider}|${config.model}|${styleId}|${config.canvasWidth}x${config.canvasHeight}|n${faceCount}`)
     .digest("hex");
 
   let generated = readGenCache(cacheKey);
@@ -193,6 +201,7 @@ export async function composeAiDesign(opts: AiComposeOptions): Promise<AiCompose
 
   return {
     buffer,
+    faceCount,
     usedModel: `${config.provider}/${config.model}`,
     generatedPx,
     placedPx: artMeta.width ?? 0,

@@ -79,6 +79,51 @@ function polyToBox(vertices: VisionVertex[] | undefined) {
  * seçilir — ürün "tek kişi" varsayıyor, kalabalık fotoğraflarda en öndeki
  * kişiyi almak en makul davranış.
  */
+/**
+ * Fotoğraftaki yüz sayısı.
+ *
+ * AI şablonunda prompt'a yazılır. Sayıyı söylemeden model kişi ekliyor ya da
+ * iki kişiyi tek bir uydurma yüzde birleştiriyor; ölçümde iki kişilik bir
+ * girdiden üç kişi de tek kişi de çıkabiliyordu.
+ *
+ * Anahtar yoksa ya da tespit başarısızsa 0 döner — çağıran taraf sayıyı
+ * prompt'a hiç yazmaz, akış yine çalışır.
+ */
+export async function countFaces(imageBuffer: Buffer): Promise<number> {
+  const apiKey = (process.env.GOOGLE_VISION_API_KEY || process.env.VISION_API_KEY)?.trim();
+  if (!apiKey) return 0;
+
+  try {
+    const meta = await sharp(imageBuffer).metadata();
+    const srcW = meta.width ?? 0;
+    const srcH = meta.height ?? 0;
+    if (!srcW || !srcH) return 0;
+
+    const maxSide = 1600;
+    const scale = Math.min(1, maxSide / Math.max(srcW, srcH));
+    const sent = scale < 1
+      ? await sharp(imageBuffer).resize(Math.round(srcW * scale), Math.round(srcH * scale))
+          .flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer()
+      : await sharp(imageBuffer).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer();
+
+    const res = await visionPost(apiKey, {
+      requests: [{
+        image: { content: sent.toString("base64") },
+        // Kalabalık fotoğrafta da sayıyı doğru verebilmek için üst sınır geniş
+        features: [{ type: "FACE_DETECTION", maxResults: 12 }],
+      }],
+    });
+    if (res.status !== 200) return 0;
+    const body = JSON.parse(res.body) as { responses?: Array<{ faceAnnotations?: VisionFace[] }> };
+    const faces = body.responses?.[0]?.faceAnnotations ?? [];
+    // Arka planda kalan çok küçük/emin olunmayan yüzleri sayma
+    return faces.filter((f) => (f.detectionConfidence ?? 1) >= 0.5).length;
+  } catch (err) {
+    console.error("[face-detect] yuz sayimi basarisiz:", err);
+    return 0;
+  }
+}
+
 export async function detectHead(imageBuffer: Buffer): Promise<HeadBox | null> {
   // Sunucuda VISION_API_KEY, bazı kurulumlarda GOOGLE_VISION_API_KEY
   const apiKey = (process.env.GOOGLE_VISION_API_KEY || process.env.VISION_API_KEY)?.trim();

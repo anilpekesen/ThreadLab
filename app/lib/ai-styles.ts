@@ -14,49 +14,87 @@ export interface AiStyleDef {
   /** Türkçe etiket — müşteri penceresinde görünür */
   label: string;
   labelEn: string;
-  /** Modele gönderilen İngilizce yönerge; müşteri metni buraya asla girmez */
-  prompt: string;
+  /**
+   * Yalnızca ÇİZİM STİLİNİ anlatan yönerge. Kimin çizileceğini söylemez —
+   * onu buildAiPrompt'taki ortak "konu" cümlesi belirler. Müşteri metni
+   * buraya asla girmez.
+   */
+  style: string;
 }
 
 export const AI_STYLES: Record<string, AiStyleDef> = {
   caricature: {
     label: "Karikatür",
     labelEn: "Caricature",
-    prompt:
-      "Transform this person into a cartoon caricature illustration. Exaggerate facial features in a fun way. Vibrant colors, clean bold outlines, comic book style, white background. Keep the person's likeness recognizable.",
+    style:
+      "Redraw them as a clean cartoon illustration for apparel printing: bold clean outlines, "
+      + "flat vibrant colours, simple shading, plain solid white background, no scenery.",
   },
   watercolor: {
     label: "Suluboya",
     labelEn: "Watercolor",
-    prompt:
-      "Transform this portrait into a beautiful watercolor painting style. Soft blended colors, artistic brush strokes, slightly abstract, painterly texture, white background. Keep the person recognizable.",
+    style:
+      "Redraw them as a watercolour painting: soft blended washes, visible brush strokes, "
+      + "gentle colour bleeds, plain white background, no scenery.",
   },
   sketch: {
     label: "Karakalem",
     labelEn: "Pencil sketch",
-    prompt:
-      "Transform this portrait into a detailed pencil sketch illustration. Hatching, cross-hatching shading, clean lines, strong contrast, black and white on a plain white background, professional artistic sketch style.",
+    style:
+      "Redraw them as a detailed pencil sketch: hatching and cross-hatching shading, clean confident lines, "
+      + "strong contrast, black and white on a plain solid white background.",
   },
   pop_art: {
     label: "Pop Art",
     labelEn: "Pop art",
-    prompt:
-      "Transform this portrait into a bold pop art illustration. Ben-Day dots, flat bright colors, bold black outlines, Andy Warhol comic book style, high contrast, white background.",
+    style:
+      "Redraw them as a bold pop art illustration: Ben-Day dots, flat bright colours, heavy black outlines, "
+      + "high contrast, plain solid white background.",
   },
   line_art: {
     label: "Tek Çizgi",
     labelEn: "Line art",
-    prompt:
-      "Transform this portrait into a minimal single-weight line art illustration. Clean continuous black lines on a plain white background, no shading, no gradients, high contrast, suitable for apparel printing.",
+    style:
+      "Redraw them as a minimal single-weight black line art illustration: clean continuous black lines "
+      + "on a plain solid white background, no shading, no gradients, high contrast.",
   },
 };
+
+/**
+ * Konu cümlesi — çizim stilinden bağımsız, kimin çizileceğini söyler.
+ *
+ * Eski promptlar "Transform THIS PERSON... exaggerate facial features" diyordu.
+ * Ölçümde iki kişilik bir fotoğraftan tek bir uydurma kişi çıkıyordu: tekil
+ * hitap modele birleştirme izni veriyor, "abart" talimatı da benzerliği
+ * bozuyordu. Kişi sayısını açıkça söylemek ve kimliği kalem kalem saymak
+ * ikisini de düzeltti (21 Ağustos 2026 ölçümü, gerçek çift fotoğrafı).
+ */
+export function buildAiSubject(faceCount: number): string {
+  if (faceCount >= 2) {
+    return `This photo contains exactly ${faceCount} people. `
+      + `Your output must contain exactly ${faceCount} people — the same ${faceCount} people, once each. `
+      + "Do not remove anyone, do not add anyone, do not duplicate anyone, do not merge two people into one. "
+      + "Keep their relative positions and poses as in the photo. "
+      + "Preserve each person's identity precisely: face shape, eye colour, eyebrows, nose, mouth, "
+      + "hairstyle and hair colour, facial hair, skin tone and glasses if present, "
+      + "so each person stays clearly recognisable. ";
+  }
+  // Sayı bilinmiyorsa (Vision anahtarı yok/hata) tekil ama kimliği koruyan hâl
+  return "Keep every person who appears in the photo, once each, in the same pose. "
+    + "Preserve their identity precisely: face shape, eye colour, eyebrows, nose, mouth, "
+    + "hairstyle and hair colour, facial hair, skin tone and glasses if present, "
+    + "so they stay clearly recognisable. ";
+}
 
 export function isKnownAiStyle(id: string): boolean {
   return id in AI_STYLES;
 }
 
-export function aiStylePrompt(id: string): string {
-  return (AI_STYLES[id] ?? AI_STYLES.caricature).prompt;
+/** Konu + stil + ortak kurallardan modele gidecek son prompt */
+export function buildAiPrompt(styleId: string, faceCount: number): string {
+  const style = (AI_STYLES[styleId] ?? AI_STYLES.caricature).style;
+  return buildAiSubject(faceCount) + style
+    + " Do not add any text, lettering or watermark.";
 }
 
 // ── Sağlayıcılar ────────────────────────────────────────────────────────────

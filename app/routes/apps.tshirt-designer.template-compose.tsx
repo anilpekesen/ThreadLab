@@ -176,8 +176,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         || shopSettings.wavespeedApiKey || globalSettings.wavespeedApiKey)?.trim();
 
       // WaveSpeed görseli adresten okuyor; Cloudflare'de gerekmez ama ham
-      // fotoğrafı saklamak baskı ekibi için zaten faydalı.
-      const photoUrl = await uploadToR2(photoBuf, "png", "uploads/ai-input");
+      // fotoğrafı saklamak baskı ekibi için zaten faydalı. Uzantı gerçek
+      // türle eşleşmeli: istemci artık JPEG gönderiyor, "png" demek dosyayı
+      // yanlış Content-Type ile yayınlıyordu.
+      const photoExt = photo.type === "image/jpeg" ? "jpg"
+        : photo.type === "image/webp" ? "webp"
+        : "png";
+      const photoUrl = await uploadToR2(photoBuf, photoExt, "uploads/ai-input");
 
       try {
         const result = await composeAiDesign({
@@ -193,7 +198,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const url = await uploadToR2(result.buffer, "png", "uploads/template-design");
         console.log(
           `[template-compose] ai ${template.name} (${side}): ${styleId} / ${result.usedModel}, ` +
-          `uretilen ${result.generatedPx}px -> ${url}`,
+          `${result.faceCount} yuz, uretilen ${result.generatedPx}px -> ${url}`,
         );
         return json(
           {
