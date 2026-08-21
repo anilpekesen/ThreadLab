@@ -381,6 +381,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     product?: { surfaceMode?: SurfaceMode };
     variantMockups?: Record<string, { front?: string; back?: string }>;
     templateDesign?: TemplateDesign | null;
+    templateSides?: Array<'front' | 'back'>;
   } | null;
   const base = defaultPersonalization();
   const surfaceMode = source?.settings?.surfaceMode || source?.product?.surfaceMode || base.surfaceMode;
@@ -406,6 +407,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     variantMockups: source?.variantMockups ?? {},
     sizeChart: normalizeSizeChart(source?.settings?.sizeChart),
     templateDesign: source?.templateDesign ?? null,
+    templateSides: source?.templateSides ?? [],
     termsUrl: String(source?.settings?.termsUrl || ''),
     minOrderQuantity: Math.max(1, Math.floor(Number(source?.settings?.minOrderQuantity || 1))),
   };
@@ -1152,6 +1154,14 @@ export default function App() {
   const [templateOriginalUrls, setTemplateOriginalUrls] = useState<string[]>([]);
   /** Şablon tişörte kondu ama müşteri henüz fotoğraf eklemedi */
   const [templateAwaitingPhoto, setTemplateAwaitingPhoto] = useState(false);
+  /**
+   * Müşterinin şablonu doldurduğu yüzler.
+   *
+   * Ön ve arka ayrı şablonlara bağlanabiliyor ve ikisi de zorunlu değil:
+   * yalnızca önünü kişiselleştiren müşteri sepete geçebilmeli. Sepet engeli
+   * bu yüzden "hiçbir yüz doldurulmadı" durumuna bakar, "her yüz" değil.
+   */
+  const [templateFilledSides, setTemplateFilledSides] = useState<Array<'front' | 'back'>>([]);
   const templateSeededRef = useRef(false);
   const [selectedObj, setSelectedObj] = useState<CanvasSelection | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
@@ -1799,7 +1809,9 @@ export default function App() {
 
       const url = await dataUrlToServerUrl(dataUrl, 'template-design');
       await handleAddImage(url || dataUrl);
-      setTemplateAwaitingPhoto(false);
+      // Yalnızca bayrağı indirmek yetmez: çağrı görünürlüğü artık doldurulmuş
+      // yüzlerden türetiliyor, bu yüz işaretlenmezse çağrı hemen geri gelir.
+      setTemplateFilledSides((prev) => (prev.includes(activeSide) ? prev : [...prev, activeSide]));
       setTemplateModalOpen(false);
       setActiveTab(null);
     } catch (err) {
@@ -1825,7 +1837,6 @@ export default function App() {
     // şablonun hazır tasarım görseli yok — tasarım fotoğraftan üretiliyor —
     // bu yüzden yer tutucu koymadan sadece çağrıyı gösteriyoruz. Eskiden
     // previewUrl boş olunca effect erken dönüyor ve buton hiç çıkmıyordu.
-    setTemplateAwaitingPhoto(true);
     if (!tpl.previewUrl) return;
 
     handle.addImageFromUrl(`/api/img-proxy?url=${encodeURIComponent(tpl.previewUrl)}`);
@@ -1844,6 +1855,16 @@ export default function App() {
     }, 150);
     return () => window.clearInterval(mark);
   }, [personalization.templateDesign]);
+
+  /**
+   * "Fotoğrafını ekle" çağrısı yalnızca aktif yüzde şablon varsa ve o yüz
+   * henüz doldurulmadıysa görünür. Müşteri sekme değiştirdiğinde çağrı da
+   * o yüzün durumuna göre yeniden çizilir.
+   */
+  useEffect(() => {
+    const sides = personalization.templateSides ?? [];
+    setTemplateAwaitingPhoto(sides.includes(activeSide) && !templateFilledSides.includes(activeSide));
+  }, [activeSide, personalization.templateSides, templateFilledSides]);
 
   const handleAddImage = async (
     url: string,
@@ -2046,7 +2067,9 @@ export default function App() {
 
     // Şablonlu üründe boş kalpli tasarım basılmasın — müşteri fotoğrafını
     // eklemeden sepete geçerse hem iade hem destek yükü doğuyor.
-    if (templateAwaitingPhoto) {
+    // Şablonlu üründe müşteri hiçbir yüzü doldurmadıysa engelle. Yalnızca
+    // önünü kişiselleştirip arkayı boş bırakmak geçerli bir sipariş.
+    if ((personalization.templateSides ?? []).length > 0 && templateFilledSides.length === 0) {
       showToast(
         isTurkish
           ? 'Önce fotoğrafınızı ekleyin — tasarımın içi boş görünüyor.'
@@ -4358,7 +4381,7 @@ export default function App() {
                     setTemplateBusy(true);
                     try {
                       await handleAddImage(url);
-                      setTemplateAwaitingPhoto(false);
+                      setTemplateFilledSides((prev) => (prev.includes(activeSide) ? prev : [...prev, activeSide]));
                       setActiveTab(null);
                     } finally {
                       setTemplateBusy(false);
@@ -4377,7 +4400,7 @@ export default function App() {
                     setTemplateBusy(true);
                     try {
                       await handleAddImage(url);
-                      setTemplateAwaitingPhoto(false);
+                      setTemplateFilledSides((prev) => (prev.includes(activeSide) ? prev : [...prev, activeSide]));
                       setActiveTab(null);
                     } finally {
                       setTemplateBusy(false);

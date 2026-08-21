@@ -71,9 +71,9 @@ export interface TemplateDesign {
   id: string;
   name: string;
   description?: string;
-  /** Yalnızca maskeli şablonda dolu; dağıtımlı şablonda boştur. */
+  /** Yalnızca maskeli şablonda dolu; dağıtımlı ve AI şablonunda boştur. */
   previewUrl: string;
-  layoutMode?: 'mask' | 'scatter';
+  layoutMode?: 'mask' | 'scatter' | 'ai';
 }
 
 export interface SizeChartEntry {
@@ -111,6 +111,8 @@ export interface PersonalizationConfig {
   conditionalRules?: ConditionalRule[];
   sizeChart?: SizeChart;
   templateDesign?: TemplateDesign | null;
+  /** Ürünün hangi yüzlerinde şablon var; müşteri hepsini doldurmak zorunda değil */
+  templateSides?: Array<'front' | 'back'>;
   termsUrl?: string;
   minOrderQuantity?: number;
 }

@@ -2,7 +2,10 @@ import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { findConfigForStorefront, toStorefrontSettings } from "~/models/product-config.server";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings } from "~/models/shop-settings.server";
-import { getPersonalizerTemplateByProduct } from "~/models/personalizer.server";
+import {
+  getPersonalizerTemplateByProduct,
+  listTemplateSidesForProduct,
+} from "~/models/personalizer.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -37,18 +40,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Ürüne şablon bağlıysa tasarımcı "fotoğrafını yükle" panelini gösterir;
   // fotoğraf sunucuda şablonun boşluğuna maskelenip tek görsel olarak döner.
   const numericProductId = String(config.productId).split("/").pop() ?? "";
-  const linkedTemplate = await getPersonalizerTemplateByProduct(shop, numericProductId).catch(() => null);
+  // Ürünün ön ve arka yüzü ayrı şablonlara bağlı olabilir; müşteri hangisini
+  // isterse onu kişiselleştirir. templateDesign yer tutucu için ön yüzü
+  // anlatır, templateSides ise "Fotoğrafını ekle" çağrısının hangi sekmelerde
+  // çıkacağını belirler.
+  const [linkedTemplate, templateSides] = await Promise.all([
+    getPersonalizerTemplateByProduct(shop, numericProductId, "front").catch(() => null),
+    listTemplateSidesForProduct(shop, numericProductId).catch(() => []),
+  ]);
 
   return json({
+    templateSides,
     templateDesign: linkedTemplate
       ? {
           id: linkedTemplate.id,
           name: linkedTemplate.name,
           description: linkedTemplate.description,
           previewUrl: linkedTemplate.template_url,
-          // Dağıtımlı şablonun hazır tasarım görseli yoktur; tasarımcı
+          // Dağıtımlı ve AI şablonunun hazır tasarım görseli yoktur; tasarımcı
           // yer tutucu koymadan doğrudan "fotoğrafını ekle" çağrısını gösterir.
-          layoutMode: linkedTemplate.layout_mode === "scatter" ? "scatter" : "mask",
+          layoutMode: linkedTemplate.layout_mode,
         }
       : null,
     product: {
