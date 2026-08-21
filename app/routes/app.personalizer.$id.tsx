@@ -290,6 +290,7 @@ function TemplatePhotoEditor({
   onTextPos,
   holeSeed,
   onHoleSeed,
+  textOnly = false,
 }: {
   imageUrl: string;
   photoRect: Rect;
@@ -298,6 +299,7 @@ function TemplatePhotoEditor({
   onTextPos: (idx: number, x: number, y: number) => void;
   holeSeed: { x: number; y: number };
   onHoleSeed: (x: number, y: number) => void;
+  textOnly?: boolean;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [holeInfo, setHoleInfo] = useState<HoleDetectResult | null>(null);
@@ -306,7 +308,9 @@ function TemplatePhotoEditor({
   const [naturalH, setNaturalH] = useState(1);
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [mode, setMode] = useState<EditorMode>({ type: "photo" });
+  const [mode, setMode] = useState<EditorMode>(() => (
+    textOnly && textFields.length ? { type: "text", idx: 0 } : { type: "photo" }
+  ));
 
   function getCoords(e: React.MouseEvent) {
     const img = imgRef.current!;
@@ -319,6 +323,7 @@ function TemplatePhotoEditor({
 
   function onMouseDown(e: React.MouseEvent) {
     e.preventDefault();
+    if (textOnly && mode.type !== "text") return;
     if (mode.type === "hole") {
       const c = getCoords(e);
       onHoleSeed(c.x, c.y);
@@ -363,12 +368,16 @@ function TemplatePhotoEditor({
   return (
     <BlockStack gap="300">
       <InlineStack gap="200" wrap>
-        <Button size="slim" variant={isPhotoMode ? "primary" : "secondary"} onClick={() => setMode({ type: "photo" })}>
-          📷 Fotoğraf alanı çiz
-        </Button>
-        <Button size="slim" variant={mode.type === "hole" ? "primary" : "secondary"} onClick={() => setMode({ type: "hole" })}>
-          🎯 Resmin gireceği boşluk
-        </Button>
+        {!textOnly && (
+          <>
+            <Button size="slim" variant={isPhotoMode ? "primary" : "secondary"} onClick={() => setMode({ type: "photo" })}>
+              📷 Fotoğraf alanı çiz
+            </Button>
+            <Button size="slim" variant={mode.type === "hole" ? "primary" : "secondary"} onClick={() => setMode({ type: "hole" })}>
+              🎯 Resmin gireceği boşluk
+            </Button>
+          </>
+        )}
         {textFields.map((f, idx) => (
           <Button key={f.id} size="slim"
             variant={mode.type === "text" && mode.idx === idx ? "primary" : "secondary"}
@@ -379,14 +388,16 @@ function TemplatePhotoEditor({
         ))}
       </InlineStack>
       <Text as="p" tone="subdued" variant="bodySm">
-        {mode.type === "hole"
+        {textOnly && textFields.length === 0
+          ? "Önce Müşteriden Alınacak Metinler bölümünden bir alan ekleyin."
+          : mode.type === "hole"
           ? "Tasarımda fotoğrafın görüneceği BOŞ alana tıklayın. Şeklini sistem kendisi bulur; dikdörtgen çizmenize gerek yok."
           : isPhotoMode
             ? "Karikatürün yerleştirileceği alana tıklayıp sürükleyin."
             : `"${textFields[(mode as { type: "text"; idx: number }).idx]?.label}" metninin konumuna tıklayın.`}
       </Text>
       <div
-        style={{ position: "relative", display: "inline-block", cursor: isPhotoMode ? "crosshair" : "cell", userSelect: "none" }}
+        style={{ position: "relative", display: "inline-block", cursor: !textOnly && isPhotoMode ? "crosshair" : "cell", userSelect: "none" }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -400,21 +411,21 @@ function TemplatePhotoEditor({
           onLoad={(e) => { setNaturalW(e.currentTarget.naturalWidth || 1); setNaturalH(e.currentTarget.naturalHeight || 1); }}
           draggable={false}
         />
-        {photoRect.w > 0 && photoRect.h > 0 && (
+        {!textOnly && photoRect.w > 0 && photoRect.h > 0 && (
           <div style={{ position: "absolute", left: photoRect.x * sx, top: photoRect.y * sy, width: photoRect.w * sx, height: photoRect.h * sy, border: "2px solid #6366f1", background: "rgba(99,102,241,0.15)", pointerEvents: "none", boxSizing: "border-box" }}>
             <span style={{ position: "absolute", top: 2, left: 4, fontSize: 11, fontWeight: 700, color: "#4f46e5", background: "rgba(255,255,255,.85)", padding: "0 4px", borderRadius: 3 }}>
               📷 {photoRect.w}×{photoRect.h}
             </span>
           </div>
         )}
-        {holeInfo?.found && holeInfo.maskPreview && (
+        {!textOnly && holeInfo?.found && holeInfo.maskPreview && (
           <img
             src={holeInfo.maskPreview}
             alt="Bulunan alan"
             style={{ position: "absolute", left: 0, top: 0, width: dispW, height: dispH, pointerEvents: "none", zIndex: 5 }}
           />
         )}
-        {holeSeed.x >= 0 && holeSeed.y >= 0 && (
+        {!textOnly && holeSeed.x >= 0 && holeSeed.y >= 0 && (
           <div style={{ position: "absolute", left: holeSeed.x * sx, top: holeSeed.y * sy, transform: "translate(-50%,-50%)", pointerEvents: "none", zIndex: 11 }}>
             <div style={{ width: 14, height: 14, borderRadius: "50%", background: "#6366f1", border: "2px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.4)" }} />
           </div>
@@ -431,7 +442,7 @@ function TemplatePhotoEditor({
           );
         })}
       </div>
-      {mode.type === "hole" && (
+      {!textOnly && mode.type === "hole" && (
         <Box background="bg-surface-secondary" padding="300" borderRadius="200">
           <BlockStack gap="200">
             {holeBusy && <Text as="p" variant="bodySm">Alan taranıyor…</Text>}
@@ -453,8 +464,8 @@ function TemplatePhotoEditor({
         </Box>
       )}
       <Box background="bg-surface-secondary" padding="200" borderRadius="200">
-        <Text as="p" variant="bodySm">{`📷 X=${photoRect.x} Y=${photoRect.y} — ${photoRect.w}×${photoRect.h} px`}</Text>
-        {holeSeed.x >= 0 && <Text as="p" variant="bodySm">{`🎯 Boşluk noktası: X=${holeSeed.x} Y=${holeSeed.y}`}</Text>}
+        {!textOnly && <Text as="p" variant="bodySm">{`📷 X=${photoRect.x} Y=${photoRect.y} — ${photoRect.w}×${photoRect.h} px`}</Text>}
+        {!textOnly && holeSeed.x >= 0 && <Text as="p" variant="bodySm">{`🎯 Boşluk noktası: X=${holeSeed.x} Y=${holeSeed.y}`}</Text>}
         {textFields.map((f, idx) => (
           <Text key={f.id} as="p" variant="bodySm">{`T${idx + 1} ${f.label}: X=${f.x} Y=${f.y}`}</Text>
         ))}
@@ -869,13 +880,14 @@ function PersonalizerEditor() {
   const linkFetcher = useFetcher<{ error?: string; ok?: boolean; linked?: boolean }>();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
+  const availableProducts = products.filter((product): product is NonNullable<typeof product> => product !== null);
   const firstLinkedProduct = productLinks[0];
-  const initialProductId = firstLinkedProduct?.product_id || products[0]?.id || "";
-  const initialProduct = products.find((product) => product.id === initialProductId) || products[0];
+  const initialProductId = firstLinkedProduct?.product_id || availableProducts[0]?.id || "";
+  const initialProduct = availableProducts.find((product) => product.id === initialProductId) || availableProducts[0];
   const initialVariantId = firstLinkedProduct?.variant_id || initialProduct?.variants[0]?.id || "";
   const [selectedProductId, setSelectedProductId] = useState(initialProductId);
   const [selectedVariantId, setSelectedVariantId] = useState(initialVariantId);
-  const selectedProduct = products.find((product) => product.id === selectedProductId) || products[0];
+  const selectedProduct = availableProducts.find((product) => product.id === selectedProductId) || availableProducts[0];
 
   // Yeni şablon oluşturulduktan sonra client-side navigate
   useEffect(() => {
@@ -986,6 +998,23 @@ function PersonalizerEditor() {
   const saveSuccess = fetcher.data?.ok === true;
 
   function addTextField() { setTextFields((p) => [...p, newTextField()]); }
+  function addAiTextField(kind: "name" | "story") {
+    const width = parseInt(aiCanvasW, 10) || 2400;
+    const height = parseInt(aiCanvasH, 10) || 3000;
+    const isName = kind === "name";
+    setTextFields((current) => [...current, {
+      id: `${kind}_${Math.random().toString(36).slice(2, 8)}`,
+      label: isName ? "İsim" : "Hikâye / Not",
+      placeholder: isName ? "Örn: ELİF" : "Kısa bir cümle yazın",
+      x: Math.round(width / 2),
+      y: Math.round(height * (isName ? 0.84 : 0.91)),
+      font_size: isName ? 180 : 78,
+      color: isName ? "#111111" : "#444444",
+      bold: isName,
+      max_length: isName ? 20 : 160,
+      align: "center",
+    }]);
+  }
   function removeTextField(idx: number) { setTextFields((p) => p.filter((_, i) => i !== idx)); }
   function updateTextField<K extends keyof TextFieldDef>(idx: number, key: K, val: TextFieldDef[K]) {
     setTextFields((p) => p.map((f, i) => i === idx ? { ...f, [key]: val } : f));
@@ -1021,7 +1050,7 @@ function PersonalizerEditor() {
   const productEmbedUrl = productLinks[0]
     ? `${appUrl}/embed/personalizer?productId=${productLinks[0].product_id}&variantId=${productLinks[0].variant_id || "VARIANT_ID"}&shop=${shop}&locale=tr`
     : "";
-  const productOptions = products.map((product) => ({
+  const productOptions = availableProducts.map((product) => ({
     label: productOptionLabel(product),
     value: product.id,
   }));
@@ -1102,9 +1131,11 @@ function PersonalizerEditor() {
                       ]}
                       value={layoutMode}
                       onChange={(v) => setLayoutMode(v as "mask" | "scatter" | "ai")}
-                      helpText={layoutMode === "scatter"
-                        ? "Tasarım görseli yüklemezsiniz; sistem üretir. Aşağıdaki sayıları ve süsleme görselini ayarlayın."
-                        : "Tasarımı yükleyip fotoğrafın gireceği boşluğu işaretlersiniz."}
+                      helpText={layoutMode === "ai"
+                        ? "Müşteri fotoğraf, isim ve hikâye girer; görsel ve baskı dosyası otomatik üretilir. Arka plan veya çerçeve yüklemeniz gerekmez."
+                        : layoutMode === "scatter"
+                          ? "Tasarım görseli yüklemezsiniz; sistem üretir. Aşağıdaki sayıları ve süsleme görselini ayarlayın."
+                          : "Tasarımı yükleyip fotoğrafın gireceği boşluğu işaretlersiniz."}
                     />
                     {layoutMode !== "ai" && (
                       <Select label="AI Dönüşüm Stili" name="ai_style" options={AI_STYLE_OPTIONS}
@@ -1118,69 +1149,80 @@ function PersonalizerEditor() {
               {layoutMode === "ai" && (
                 <Card>
                   <BlockStack gap="400">
-                    <Text as="h2" variant="headingMd">AI Ayarları</Text>
-                    <Banner tone="info">
-                      <Text as="p">
-                        Müşteri fotoğrafını yükler, seçilen stille yapay zekâ görseli üretir,
-                        isim/hikaye yazıları gerçek fontla üstüne basılır. Tasarım dosyası
-                        yüklemenize gerek yok. <strong>Model seçimi müşteriye açılmaz</strong> —
-                        maliyeti öngörülemez hale getirir.
-                      </Text>
-                    </Banner>
+                    <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+                      <BlockStack gap="100">
+                        <Text as="h2" variant="headingMd">AI Üretim Akışı</Text>
+                        <Text as="p" tone="subdued" variant="bodySm">
+                          Müşteri fotoğrafını ve metinleri girer; sistem görseli ve baskı dosyasını hazırlar.
+                        </Text>
+                      </BlockStack>
+                      <Badge tone="success">Fotoğraf → Metin → Önizleme</Badge>
+                    </InlineStack>
 
                     <FormLayout>
-                      <FormLayout.Group>
-                        <Select
-                          label="Sağlayıcı"
-                          options={Object.entries(AI_PROVIDERS).map(([k, v]) => ({ label: v.label, value: k }))}
-                          value={aiProvider}
-                          onChange={changeProvider}
-                        />
-                        <Select label="Model" options={aiModelOptions} value={aiModel} onChange={setAiModel} />
-                      </FormLayout.Group>
-                      {aiModelNote && (
-                        <Banner tone="warning">
-                          <Text as="p" variant="bodySm">{aiModelNote}</Text>
-                        </Banner>
-                      )}
-                      <FormLayout.Group>
-                        <TextField label="Tuval genişliği (px)" type="number" value={aiCanvasW}
-                          onChange={setAiCanvasW} autoComplete="off" />
-                        <TextField label="Tuval yüksekliği (px)" type="number" value={aiCanvasH}
-                          onChange={setAiCanvasH} autoComplete="off" />
-                      </FormLayout.Group>
-                      <Checkbox
-                        label="Üretilen görselin arka planını sil"
-                        checked={aiRemoveBg}
-                        onChange={setAiRemoveBg}
-                        helpText="Baskıda saydam zemin gerekiyorsa açık bırakın."
-                      />
                       <Select
-                        label="Varsayılan Stil"
+                        label="Görsel Stili"
                         name="ai_style"
                         options={Object.entries(AI_STYLES).map(([k, v]) => ({ label: v.label, value: k }))}
                         value={aiStyle}
                         onChange={setAiStyle}
-                        helpText="Müşteri stil seçemiyorsa ya da geçersiz bir stil gönderirse bu kullanılır."
+                        helpText="Müşteriye başka stil açmazsanız tüm siparişlerde bu stil kullanılır."
+                      />
+                      <Checkbox
+                        label="Baskı dosyasını şeffaf arka planla hazırla"
+                        checked={aiRemoveBg}
+                        onChange={setAiRemoveBg}
+                        helpText="Tişört baskısı için önerilir. Üretilen görselin düz zemini kaldırılır."
                       />
                     </FormLayout>
 
                     <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm">Müşteriye Açılan Stiller</Text>
+                      <Text as="h3" variant="headingSm">Müşterinin Seçebileceği Stiller</Text>
                       <Text as="p" tone="subdued" variant="bodySm">
-                        İşaretlediğiniz stiller müşteri penceresinde seçenek olarak çıkar.
-                        Hiçbirini işaretlemezseniz müşteri stil görmez, yukarıdaki varsayılan
-                        stil kullanılır.
+                        Çoğu ürün için tek stil daha tutarlı sonuç verir. Birden fazla görünüm
+                        satıyorsanız müşteriye açmak istediklerinizi işaretleyin.
                       </Text>
-                      {Object.entries(AI_STYLES).map(([id, def]) => (
-                        <Checkbox
-                          key={id}
-                          label={def.label}
-                          checked={optAiStyles.includes(id)}
-                          onChange={() => toggleAiStyle(id)}
-                        />
-                      ))}
+                      <InlineStack gap="300" wrap>
+                        {Object.entries(AI_STYLES).map(([id, def]) => (
+                          <Checkbox
+                            key={id}
+                            label={def.label}
+                            checked={optAiStyles.includes(id)}
+                            onChange={() => toggleAiStyle(id)}
+                          />
+                        ))}
+                      </InlineStack>
                     </BlockStack>
+
+                    <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 12 }}>
+                      <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#303030" }}>
+                        Gelişmiş üretim ayarları
+                      </summary>
+                      <div style={{ marginTop: 16 }}>
+                        <FormLayout>
+                          <FormLayout.Group>
+                            <Select
+                              label="AI Sağlayıcısı"
+                              options={Object.entries(AI_PROVIDERS).map(([k, v]) => ({ label: v.label, value: k }))}
+                              value={aiProvider}
+                              onChange={changeProvider}
+                            />
+                            <Select label="Model" options={aiModelOptions} value={aiModel} onChange={setAiModel} />
+                          </FormLayout.Group>
+                          {aiModelNote && (
+                            <Banner tone="warning">
+                              <Text as="p" variant="bodySm">{aiModelNote}</Text>
+                            </Banner>
+                          )}
+                          <FormLayout.Group>
+                            <TextField label="Baskı genişliği (px)" type="number" value={aiCanvasW}
+                              onChange={setAiCanvasW} autoComplete="off" />
+                            <TextField label="Baskı yüksekliği (px)" type="number" value={aiCanvasH}
+                              onChange={setAiCanvasH} autoComplete="off" />
+                          </FormLayout.Group>
+                        </FormLayout>
+                      </div>
+                    </details>
 
                     <input type="hidden" name="ai_config" readOnly value={JSON.stringify({
                       provider: aiProvider,
@@ -1310,7 +1352,7 @@ function PersonalizerEditor() {
               )}
 
               {/* Şablon görseli */}
-              <Card>
+              {layoutMode !== "ai" && <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">Arka Plan Tasarımı (Opsiyonel)</Text>
                   <Banner tone="info">
@@ -1331,30 +1373,30 @@ function PersonalizerEditor() {
                   )}
                   <input type="file" name="template_image" accept="image/png,image/jpeg,image/webp" onChange={handleTemplateFileChange} />
                 </BlockStack>
-              </Card>
+              </Card>}
 
               {/* Koordinat editörü */}
               {(templatePreview || editorCanvasUrl) && (
                 <Card>
                   <BlockStack gap="400">
                     <Text as="h2" variant="headingMd">
-                      {layoutMode === "ai" ? "Yazı Yerleşim Editörü" : "Fotoğraf Koordinat Editörü"}
+                      {layoutMode === "ai" ? "Baskı Yerleşimi" : "Fotoğraf Koordinat Editörü"}
                     </Text>
                     {layoutMode === "ai" && (
                       <Text as="p" tone="subdued" variant="bodySm">
-                        AI şablonunda hazır tasarım dosyası yok; yazıları üretilen görselin
-                        üstüne yerleştirmek için boş tuval gösteriliyor. Görsel üstte, yazılar
-                        için alt %22'lik şerit boş bırakılıyor.
+                        Üretilen görsel üst alana yerleşir. Bir metni seçin, ardından baskıda
+                        görünmesini istediğiniz noktaya tıklayın.
                       </Text>
                     )}
                     <TemplatePhotoEditor
-                      imageUrl={templatePreview || editorCanvasUrl}
+                      imageUrl={layoutMode === "ai" ? editorCanvasUrl : templatePreview}
                       photoRect={photoRect}
                       onPhotoRect={setPhotoRect}
                       textFields={textFields}
                       onTextPos={handleTextPos}
                       holeSeed={holeSeed}
                       onHoleSeed={(x, y) => setHoleSeed({ x, y })}
+                      textOnly={layoutMode === "ai"}
                     />
                   </BlockStack>
                 </Card>
@@ -1364,9 +1406,24 @@ function PersonalizerEditor() {
               <Card>
                 <BlockStack gap="400">
                   <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingMd">Metin Alanları</Text>
-                    <Button onClick={addTextField} size="slim">+ Alan Ekle</Button>
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">
+                        {layoutMode === "ai" ? "Müşteriden Alınacak Metinler" : "Metin Alanları"}
+                      </Text>
+                      {layoutMode === "ai" && (
+                        <Text as="p" tone="subdued" variant="bodySm">
+                          Buradaki alanlar fotoğraf yükleme adımında müşteriye gösterilir.
+                        </Text>
+                      )}
+                    </BlockStack>
+                    {layoutMode !== "ai" && <Button onClick={addTextField} size="slim">+ Alan Ekle</Button>}
                   </InlineStack>
+                  {layoutMode === "ai" && (
+                    <InlineStack gap="200" wrap>
+                      <Button onClick={() => addAiTextField("name")} size="slim">İsim alanı ekle</Button>
+                      <Button onClick={() => addAiTextField("story")} size="slim">Hikâye alanı ekle</Button>
+                    </InlineStack>
+                  )}
                   {textFields.length === 0 && <Text as="p" tone="subdued">Henüz metin alanı eklenmedi.</Text>}
                   {textFields.map((f, idx) => (
                     <Box key={f.id} background="bg-surface-secondary" padding="400" borderRadius="200">
@@ -1380,25 +1437,32 @@ function PersonalizerEditor() {
                             <TextField label="Etiket" value={f.label} onChange={(v) => updateTextField(idx, "label", v)} autoComplete="off" />
                             <TextField label="Placeholder" value={f.placeholder} onChange={(v) => updateTextField(idx, "placeholder", v)} autoComplete="off" />
                           </FormLayout.Group>
-                          <FormLayout.Group>
-                            <TextField label="X (px)" type="number" value={String(f.x)} onChange={(v) => updateTextField(idx, "x", parseInt(v, 10) || 0)} autoComplete="off" helpText="Editörde T butonu ile ayarlanır" />
-                            <TextField label="Y (px)" type="number" value={String(f.y)} onChange={(v) => updateTextField(idx, "y", parseInt(v, 10) || 0)} autoComplete="off" helpText="Editörde T butonu ile ayarlanır" />
-                          </FormLayout.Group>
-                          <FormLayout.Group>
-                            <TextField label="Font Büyüklüğü (px)" type="number" value={String(f.font_size)} onChange={(v) => updateTextField(idx, "font_size", parseInt(v, 10) || 60)} autoComplete="off" />
-                            <TextField label="Renk (hex)" value={f.color} onChange={(v) => updateTextField(idx, "color", v)} autoComplete="off" placeholder="#000000" />
-                          </FormLayout.Group>
-                          <FormLayout.Group>
-                            <TextField label="Maks. Karakter" type="number" value={String(f.max_length)} onChange={(v) => updateTextField(idx, "max_length", parseInt(v, 10) || 30)} autoComplete="off" />
-                            <Select
-                              label="Hizalama"
-                              options={[{ label: "Sol", value: "left" }, { label: "Orta", value: "center" }, { label: "Sağ", value: "right" }]}
-                              value={f.align}
-                              onChange={(v) => updateTextField(idx, "align", v as TextFieldDef["align"])}
-                            />
-                          </FormLayout.Group>
-                          <Checkbox label="Kalın (Bold)" checked={f.bold} onChange={(v) => updateTextField(idx, "bold", v)} />
+                          <TextField label="Maksimum karakter" type="number" value={String(f.max_length)} onChange={(v) => updateTextField(idx, "max_length", parseInt(v, 10) || 30)} autoComplete="off" />
                         </FormLayout>
+                        <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 10 }} open={layoutMode !== "ai"}>
+                          <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#303030" }}>
+                            Yazı görünümü ve konumu
+                          </summary>
+                          <div style={{ marginTop: 14 }}>
+                            <FormLayout>
+                              <FormLayout.Group>
+                                <TextField label="X (px)" type="number" value={String(f.x)} onChange={(v) => updateTextField(idx, "x", parseInt(v, 10) || 0)} autoComplete="off" helpText="Yerleşim editöründen de ayarlanır" />
+                                <TextField label="Y (px)" type="number" value={String(f.y)} onChange={(v) => updateTextField(idx, "y", parseInt(v, 10) || 0)} autoComplete="off" helpText="Yerleşim editöründen de ayarlanır" />
+                              </FormLayout.Group>
+                              <FormLayout.Group>
+                                <TextField label="Font büyüklüğü (px)" type="number" value={String(f.font_size)} onChange={(v) => updateTextField(idx, "font_size", parseInt(v, 10) || 60)} autoComplete="off" />
+                                <TextField label="Renk (hex)" value={f.color} onChange={(v) => updateTextField(idx, "color", v)} autoComplete="off" placeholder="#000000" />
+                              </FormLayout.Group>
+                              <Select
+                                label="Hizalama"
+                                options={[{ label: "Sol", value: "left" }, { label: "Orta", value: "center" }, { label: "Sağ", value: "right" }]}
+                                value={f.align}
+                                onChange={(v) => updateTextField(idx, "align", v as TextFieldDef["align"])}
+                              />
+                              <Checkbox label="Kalın yazı" checked={f.bold} onChange={(v) => updateTextField(idx, "bold", v)} />
+                            </FormLayout>
+                          </div>
+                        </details>
                       </BlockStack>
                     </Box>
                   ))}
@@ -1408,7 +1472,9 @@ function PersonalizerEditor() {
               <InlineStack gap="300" align="end">
                 <Button onClick={() => navigate("/app/personalizer")}>İptal</Button>
                 <Button submit variant="primary" loading={isLoading}>
-                  {isNew ? "Şablonu Oluştur ve Çerçeve Ekle →" : "Değişiklikleri Kaydet"}
+                  {isNew
+                    ? layoutMode === "ai" ? "AI Şablonunu Oluştur" : "Şablonu Oluştur ve Çerçeve Ekle →"
+                    : "Değişiklikleri Kaydet"}
                 </Button>
               </InlineStack>
             </BlockStack>
@@ -1416,7 +1482,7 @@ function PersonalizerEditor() {
         </Layout.Section>
 
         {/* ── Frames section (only after template saved) ── */}
-        {!isNew && template && (
+        {!isNew && template && layoutMode !== "ai" && (
           <Layout.Section>
             <Card>
               <FramesSection templateId={template.id} frames={frames} />
@@ -1439,7 +1505,7 @@ function PersonalizerEditor() {
                 {linkFetcher.data?.error && <Banner tone="critical">{linkFetcher.data.error}</Banner>}
                 {linkFetcher.data?.linked && <Banner tone="success">Ürün bu şablona bağlandı.</Banner>}
 
-                {products.length === 0 ? (
+                {availableProducts.length === 0 ? (
                   <Banner tone="warning">
                     Aktif Shopify ürünü bulunamadı. Önce Shopify tarafında ürünü aktif hale getirin.
                   </Banner>
