@@ -48,7 +48,7 @@ import { useDesignerStore } from '@/store/designerStore';
 import CanvasArea, { type CanvasAreaHandle } from '@/components/canvas/CanvasArea';
 import type { Template } from '@/components/panels/TemplatesPanel';
 import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type PricingBand, type PrintAreaConfig, type SavedDesign, type Side, type SizeChart, type SurfaceMode, type TemplateDesign, type VolumeDiscountTier } from '@/types';
-import { generateId } from '@/utils/compress';
+import { generateId, shrinkImageFile } from '@/utils/compress';
 import { scaleAreaForSize } from '@/utils/sizeScale';
 import { qualityForObject } from '@/utils/printQuality';
 import { evaluateRules, warnings, blockers, type RuleResult } from '@/utils/conditionalLogic';
@@ -1712,8 +1712,11 @@ export default function App() {
     choices: import('@/components/modals/TemplateScatterModal').ScatterChoices = {},
   ): Promise<{ url: string; quality?: { headSourcePx: number; placedPx: number; upscale: number } }> => {
     if (!config?.shop || !config?.productId) throw new Error('Ürün bilgisi yok');
+    // Ham telefon fotoğrafı sunucunun sınırını aşabiliyor; üretim zaten bu
+    // çözünürlüğü kullanmıyor. Orijinal ayrıca olduğu gibi saklanıyor.
+    const sendFile = await shrinkImageFile(file);
     const fd = new FormData();
-    fd.append('photo', file);
+    fd.append('photo', sendFile);
     fd.append('shop', config.shop);
     fd.append('productId', String(config.productId).split('/').pop() ?? '');
     fd.append('side', activeSide);
@@ -1740,8 +1743,9 @@ export default function App() {
     textValues: Record<string, string>,
   ): Promise<{ url: string; quality?: { headSourcePx: number; placedPx: number; upscale: number } }> => {
     if (!config?.shop || !config?.productId) throw new Error('Ürün bilgisi yok');
+    const sendFile = await shrinkImageFile(file);
     const fd = new FormData();
-    fd.append('photo', file);
+    fd.append('photo', sendFile);
     fd.append('shop', config.shop);
     fd.append('productId', String(config.productId).split('/').pop() ?? '');
     fd.append('side', activeSide);

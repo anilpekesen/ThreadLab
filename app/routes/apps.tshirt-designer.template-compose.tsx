@@ -25,6 +25,14 @@ import {
   punchHoleInTemplate,
 } from "~/lib/template-hole.server";
 
+/**
+ * Yükleme sınırı. İstemci fotoğrafı 3000 piksele küçültüp gönderiyor
+ * (shrinkImageFile), bu yüzden normalde birkaç MB gelir. Buradaki pay,
+ * küçültmenin çalışmadığı durumlar için: tarayıcı HEIC çözemediğinde ya da
+ * eski bir bundle önbellekte kaldığında istek yine de geçmeli.
+ */
+const MAX_PHOTO_BYTES = 30 * 1024 * 1024;
+
 /** Şablonun bildirdiği tuval ölçüsünü makul sınırlara çeker. */
 function clampCanvas(value: unknown, fallback: number): number {
   const n = Number(value);
@@ -58,7 +66,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const form = await unstable_parseMultipartFormData(
       request,
-      unstable_createMemoryUploadHandler({ maxPartSize: 15 * 1024 * 1024 }),
+      unstable_createMemoryUploadHandler({ maxPartSize: MAX_PHOTO_BYTES }),
     );
 
     const shop = String(form.get("shop") ?? "").trim();
@@ -264,6 +272,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   } catch (err) {
     console.error("[template-compose]", err);
+    // Boyut aşımında müşteriye ham hata metni değil ne yapacağı söylenmeli
+    if (/exceeded upload size|maxPartSize/i.test(String(err))) {
+      return json(
+        { error: "Fotoğraf çok büyük. Daha küçük bir fotoğraf seçin ya da telefonunuzdan yeniden çekip deneyin." },
+        { status: 413, headers: CORS },
+      );
+    }
     return json({ error: `Tasarım oluşturulamadı: ${String(err)}` }, { status: 500, headers: CORS });
   }
 };
