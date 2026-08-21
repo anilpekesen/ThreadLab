@@ -611,6 +611,10 @@ async function _runMigrationsLocked() {
     ADD COLUMN IF NOT EXISTS layout_mode TEXT NOT NULL DEFAULT 'mask',
     ADD COLUMN IF NOT EXISTS scatter_config JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS decoration_url TEXT NOT NULL DEFAULT ''`);
+  // Müşteriye açılan ayarlar. Boş nesne = hiçbiri açık değil; şablon eskisi
+  // gibi tek bir sabit sonuç üretir.
+  await query(`ALTER TABLE personalizer_templates
+    ADD COLUMN IF NOT EXISTS customer_options JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await query(`
     CREATE TABLE IF NOT EXISTS cliparts (
       id          TEXT PRIMARY KEY,

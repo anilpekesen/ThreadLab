@@ -5,7 +5,13 @@ import {
 } from "@remix-run/node";
 import sharp from "sharp";
 import { uploadToR2 } from "~/lib/r2.server";
-import { getPersonalizerTemplateByProduct, type ScatterTemplateConfig } from "~/models/personalizer.server";
+import {
+  getPersonalizerTemplateByProduct,
+  applyCustomerChoices,
+  normalizeCustomerOptions,
+  type ScatterTemplateConfig,
+  type CustomerChoices,
+} from "~/models/personalizer.server";
 import { composeScatterDesign } from "~/lib/scatter-compose.server";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings } from "~/models/shop-settings.server";
@@ -79,9 +85,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // bakılmaz: dağıtımlı şablon hazır bir tasarım üretir, tasarımcı onu
       // baskı alanına oranını koruyarak yerleştirir. Alan tanımını zorunlu
       // kılmak, ayarı eksik/hatalı ürünlerde çıktıyı bozuyordu.
-      const scatterCfg = (template.scatter_config ?? {}) as Partial<ScatterTemplateConfig>;
-      const areaWidth = clampCanvas(scatterCfg.canvasWidth, 2400);
-      const areaHeight = clampCanvas(scatterCfg.canvasHeight, 1650);
+      const baseCfg = (template.scatter_config ?? {}) as Partial<ScatterTemplateConfig>;
+      const areaWidth = clampCanvas(baseCfg.canvasWidth, 2400);
+      const areaHeight = clampCanvas(baseCfg.canvasHeight, 1650);
+
+      // Müşterinin pencerede yaptığı seçimler. İstemciden ham yerleşim değeri
+      // kabul edilmez: seçimler şablonun açtığı ayarlar süzgecinden geçip
+      // çarpana çevrilir, kapalı olanlar sessizce düşer.
+      let choices: CustomerChoices = {};
+      try { choices = JSON.parse(String(form.get("choices") ?? "{}")); } catch { /* yoksay */ }
+      const scatterCfg = applyCustomerChoices(
+        baseCfg,
+        normalizeCustomerOptions(template.customer_options),
+        choices,
+      );
 
       const [globalSettings, shopSettings] = await Promise.all([
         getGlobalSettings(), getShopSettings(shop),
@@ -100,7 +117,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         decoration,
         areaWidth,
         areaHeight,
-        config: template.scatter_config as never,
+        config: scatterCfg as never,
         textFields: template.text_fields ?? [],
         textValues,
         wavespeedKey,

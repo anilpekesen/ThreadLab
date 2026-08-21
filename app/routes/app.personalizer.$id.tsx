@@ -21,6 +21,7 @@ import {
   deletePersonalizerFrame,
   linkPersonalizerProduct,
   listPersonalizerProductLinks,
+  normalizeCustomerOptions,
   type TextFieldDef,
   type PersonalizerFrame,
 } from "~/models/personalizer.server";
@@ -110,6 +111,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       if (raw) scatter_config = JSON.parse(raw);
     } catch { /* bozuk JSON — varsayilanla devam */ }
 
+    const customer_options = normalizeCustomerOptions(
+      (() => {
+        try { return JSON.parse(String(form.get("customer_options") ?? "{}")); }
+        catch { return {}; }
+      })(),
+    );
+
     // Süsleme görseli: yeni dosya varsa yükle, yoksa mevcut adresi koru
     let decoration_url = String(form.get("existing_decoration_url") ?? "");
     const decorationFile = form.get("decoration_image");
@@ -135,11 +143,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // template_url opsiyonel — sadece çerçeve bazlı kullanımda boş olabilir
 
     if (id === "new") {
-      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, sort_order });
+      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, sort_order });
       // json döndür, client tarafı navigate etsin (Shopify embedded app redirect güvenilmez)
       return json({ redirectTo: `/app/personalizer/${created.id}` });
     } else {
-      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, sort_order });
+      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, sort_order });
       return json({ ok: true });
     }
   }
@@ -899,6 +907,11 @@ function PersonalizerEditor() {
   const [canvasWidth, setCanvasWidth] = useState(String(sc.canvasWidth ?? 2400));
   const [canvasHeight, setCanvasHeight] = useState(String(sc.canvasHeight ?? 1650));
 
+  const co = (template?.customer_options ?? {}) as Partial<import("~/models/personalizer.server").CustomerOptionsConfig>;
+  const [optDensity, setOptDensity] = useState(co.density === true);
+  const [optPhotoSize, setOptPhotoSize] = useState(co.photoSize === true);
+  const [optShuffle, setOptShuffle] = useState(co.shuffle === true);
+
   const canvasRatio = (parseInt(canvasWidth, 10) || 0) / Math.max(parseInt(canvasHeight, 10) || 1, 1);
   const canvasRatioLabel = canvasRatio > 0 ? `${canvasRatio.toFixed(2)} : 1` : "—";
   // Baskı kutusu oranından %5'ten fazla sapma gözle görülür boşluk bırakır.
@@ -1108,6 +1121,39 @@ function PersonalizerEditor() {
                         Dosya seçip aşağıdan <strong>Kaydet</strong> deyin.
                       </Text>
                     </BlockStack>
+
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">Müşteriye Açılan Ayarlar</Text>
+                      <Text as="p" tone="subdued" variant="bodySm">
+                        İşaretlediğiniz ayarlar müşterinin tasarım penceresinde görünür.
+                        Müşteri yukarıdaki sayıları değiştiremez — yalnızca üç kademeli
+                        bir seçim yapar, sistem onu sizin değerlerinizin üstüne uygular.
+                      </Text>
+                      <Checkbox
+                        label="Yoğunluk seçimi"
+                        checked={optDensity}
+                        onChange={setOptDensity}
+                        helpText="Seyrek / Normal / Yoğun — parça sayısını %60 ile %150 arasında değiştirir."
+                      />
+                      <Checkbox
+                        label="Boyut seçimi"
+                        checked={optPhotoSize}
+                        onChange={setOptPhotoSize}
+                        helpText="Küçük / Orta / Büyük — kafa ve süslemeyi birlikte %80 ile %125 arasında ölçekler."
+                      />
+                      <Checkbox
+                        label="Farklı dizilim deneme"
+                        checked={optShuffle}
+                        onChange={setOptShuffle}
+                        helpText="Müşteri aynı ayarlarla en fazla 5 farklı yerleşim deneyebilir."
+                      />
+                    </BlockStack>
+
+                    <input type="hidden" name="customer_options" readOnly value={JSON.stringify({
+                      density: optDensity,
+                      photoSize: optPhotoSize,
+                      shuffle: optShuffle,
+                    })} />
 
                     <input type="hidden" name="existing_decoration_url" value={decorationUrl} readOnly />
                     <input type="hidden" name="scatter_config" readOnly value={JSON.stringify({

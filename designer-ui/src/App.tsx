@@ -1692,10 +1692,11 @@ export default function App() {
     }
   };
 
-  /** Dağıtımlı şablonda fotoğraf + yazıları sunucuya gönderip sonucu alır */
+  /** Dağıtımlı şablonda fotoğraf + yazı + müşteri ayarlarını gönderip sonucu alır */
   const renderScatterDesign = async (
     file: File,
     textValues: Record<string, string>,
+    choices: import('@/components/modals/TemplateScatterModal').ScatterChoices = {},
   ): Promise<{ url: string; quality?: { headSourcePx: number; placedPx: number; upscale: number } }> => {
     if (!config?.shop || !config?.productId) throw new Error('Ürün bilgisi yok');
     const fd = new FormData();
@@ -1703,6 +1704,7 @@ export default function App() {
     fd.append('shop', config.shop);
     fd.append('productId', String(config.productId).split('/').pop() ?? '');
     fd.append('textValues', JSON.stringify(textValues));
+    fd.append('choices', JSON.stringify(choices));
 
     const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
     const data = await res.json() as {

@@ -7,25 +7,46 @@ export interface ScatterTextField {
   maxLength: number;
 }
 
+/** Şablonun müşteriye açtığı ayarlar; hepsi kapalı olabilir */
+export interface ScatterCustomerOptions {
+  density: boolean;
+  photoSize: boolean;
+  shuffle: boolean;
+}
+
+export type DensityChoice = 'low' | 'medium' | 'high';
+export type PhotoSizeChoice = 'small' | 'medium' | 'large';
+
+export interface ScatterChoices {
+  density?: DensityChoice;
+  photoSize?: PhotoSizeChoice;
+  variant?: number;
+}
+
 export interface ScatterAssets {
   templateName: string;
   layoutMode: 'scatter';
   decorationUrl?: string | null;
   textFields?: ScatterTextField[];
+  customerOptions?: ScatterCustomerOptions;
 }
 
 interface Props {
   assets: ScatterAssets;
   isTurkish: boolean;
   termsUrl?: string;
-  /** Fotoğraf + yazıları sunucuya gönderip hazır tasarımın adresini alır */
+  /** Fotoğraf + yazı + ayarları sunucuya gönderip hazır tasarımın adresini alır */
   onRender: (
     file: File,
     textValues: Record<string, string>,
+    choices: ScatterChoices,
   ) => Promise<{ url: string; quality?: { headSourcePx: number; placedPx: number; upscale: number } }>;
   onCancel: () => void;
   onConfirm: (url: string) => void;
 }
+
+/** En fazla 5 farklı dizilim — sunucu da aynı sınırı uygular */
+const MAX_VARIANT = 5;
 
 const CONSENT_KEY = 'printlab_image_rights_accepted';
 const DEFAULT_TERMS_URL = 'https://app.printlabapp.com/terms-of-service';
@@ -48,6 +69,10 @@ export default function TemplateScatterModal({
   const [pickWarning, setPickWarning] = useState('');
   /** Sunucunun kestiği kafanın basılacak boya yetip yetmediği */
   const [quality, setQuality] = useState<{ headSourcePx: number; placedPx: number; upscale: number } | null>(null);
+  const [density, setDensity] = useState<DensityChoice>('medium');
+  const [photoSize, setPhotoSize] = useState<PhotoSizeChoice>('medium');
+  /** 0 = şablonun kendi dizilimi; her "başka dizilim" bir sonrakine geçer */
+  const [variant, setVariant] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [consent, setConsent] = useState(() => {
@@ -56,6 +81,8 @@ export default function TemplateScatterModal({
   });
 
   const fields = assets.textFields ?? [];
+  const options = assets.customerOptions;
+  const hasOptions = Boolean(options && (options.density || options.photoSize || options.shuffle));
   const t = isTurkish
     ? { title: 'Tasarımını oluştur', pick: 'Fotoğraf Seç', change: 'Fotoğrafı değiştir',
         make: 'Tasarımı Oluştur', again: 'Yeniden Oluştur', ok: 'Bunu Kullan', cancel: 'Vazgeç',
@@ -66,7 +93,12 @@ export default function TemplateScatterModal({
         needConsent: 'Devam etmek için yukarıdaki onayı verin', chosen: 'Seçilen fotoğraf',
         lowPhoto: 'Bu fotoğrafın çözünürlüğü düşük — baskıda bulanık çıkabilir. Mümkünse daha net bir fotoğraf yükleyin.',
         lowHeadBad: 'Fotoğraftaki yüz baskı için fazla küçük. Baskı belirgin şekilde bulanık çıkacak — yüzün daha büyük göründüğü bir fotoğraf yükleyin.',
-        lowHeadWarn: 'Fotoğraftaki yüz sınırda kalıyor. Baskıda hafif yumuşama olabilir; daha yakından çekilmiş bir fotoğraf daha iyi sonuç verir.' }
+        lowHeadWarn: 'Fotoğraftaki yüz sınırda kalıyor. Baskıda hafif yumuşama olabilir; daha yakından çekilmiş bir fotoğraf daha iyi sonuç verir.',
+        settings: 'Ayarlar', densityLabel: 'Yoğunluk', sizeLabel: 'Boyut',
+        low: 'Seyrek', medium: 'Normal', high: 'Yoğun',
+        small: 'Küçük', mid: 'Orta', large: 'Büyük',
+        shuffleLabel: 'Başka dizilim dene',
+        shuffleUsed: 'Dizilim hakkınız doldu' }
     : { title: 'Create your design', pick: 'Choose Photo', change: 'Change photo',
         make: 'Create Design', again: 'Create Again', ok: 'Use This', cancel: 'Cancel',
         busy: 'Preparing… (about 5 seconds)',
@@ -76,14 +108,29 @@ export default function TemplateScatterModal({
         needConsent: 'Accept the notice above to continue', chosen: 'Selected photo',
         lowPhoto: 'This photo is low resolution — it may look blurry when printed. Upload a sharper photo if you can.',
         lowHeadBad: 'The face in this photo is too small to print well. The print will look clearly blurry — upload a photo where the face appears larger.',
-        lowHeadWarn: 'The face in this photo is borderline. The print may soften slightly; a closer photo gives a better result.' };
+        lowHeadWarn: 'The face in this photo is borderline. The print may soften slightly; a closer photo gives a better result.',
+        settings: 'Settings', densityLabel: 'Density', sizeLabel: 'Size',
+        low: 'Sparse', medium: 'Normal', high: 'Dense',
+        small: 'Small', mid: 'Medium', large: 'Large',
+        shuffleLabel: 'Try another layout',
+        shuffleUsed: 'No layout tries left' };
 
-  const render = async () => {
+  /**
+   * Seçimlerden yalnızca şablonun açtıklarını gönderir. Sunucu da aynı
+   * süzgeci uyguluyor; buradaki eleme isteği gereksiz büyütmemek için.
+   */
+  const buildChoices = (nextVariant = variant): ScatterChoices => ({
+    ...(options?.density ? { density } : {}),
+    ...(options?.photoSize ? { photoSize } : {}),
+    ...(options?.shuffle ? { variant: nextVariant } : {}),
+  });
+
+  const render = async (nextVariant = variant) => {
     if (!file) return;
     setBusy(true);
     setError('');
     try {
-      const result = await onRender(file, values);
+      const result = await onRender(file, values, buildChoices(nextVariant));
       setPreview(result.url);
       setQuality(result.quality ?? null);
     } catch (err) {
@@ -91,6 +138,14 @@ export default function TemplateScatterModal({
     } finally {
       setBusy(false);
     }
+  };
+
+  /** Aynı ayarlarla bir sonraki yerleşim tohumunu dener */
+  const shuffleLayout = () => {
+    const next = variant + 1;
+    if (next > MAX_VARIANT) return;
+    setVariant(next);
+    void render(next);
   };
 
   /**
@@ -186,6 +241,36 @@ export default function TemplateScatterModal({
                   />
                 </label>
               ))}
+
+              {hasOptions && (
+                <div className="flex flex-col gap-2 rounded-xl bg-gray-50 p-3">
+                  <p className="text-xs font-bold text-gray-600">{t.settings}</p>
+                  {options?.density && (
+                    <Segmented
+                      label={t.densityLabel}
+                      value={density}
+                      onChange={setDensity}
+                      items={[
+                        { value: 'low', label: t.low },
+                        { value: 'medium', label: t.medium },
+                        { value: 'high', label: t.high },
+                      ]}
+                    />
+                  )}
+                  {options?.photoSize && (
+                    <Segmented
+                      label={t.sizeLabel}
+                      value={photoSize}
+                      onChange={setPhotoSize}
+                      items={[
+                        { value: 'small', label: t.small },
+                        { value: 'medium', label: t.mid },
+                        { value: 'large', label: t.large },
+                      ]}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -206,7 +291,14 @@ export default function TemplateScatterModal({
           </button>
           {preview ? (
             <>
-              <button type="button" onClick={render} disabled={busy}
+              {options?.shuffle && (
+                <button type="button" onClick={shuffleLayout} disabled={busy || variant >= MAX_VARIANT}
+                  title={variant >= MAX_VARIANT ? t.shuffleUsed : undefined}
+                  className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 disabled:opacity-40">
+                  {t.shuffleLabel}
+                </button>
+              )}
+              <button type="button" onClick={() => render()} disabled={busy}
                 className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 disabled:opacity-40">
                 {t.again}
               </button>
@@ -216,12 +308,43 @@ export default function TemplateScatterModal({
               </button>
             </>
           ) : (
-            <button type="button" onClick={render} disabled={!file || !consent || busy}
+            <button type="button" onClick={() => render()} disabled={!file || !consent || busy}
               className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white disabled:opacity-40">
               {busy ? t.busy : t.make}
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Üç kademeli seçim şeridi — müşteri ham sayı girmez */
+function Segmented<T extends string>({
+  label, value, onChange, items,
+}: {
+  label: string;
+  value: T;
+  onChange: (next: T) => void;
+  items: Array<{ value: T; label: string }>;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px] font-semibold text-gray-500">{label}</span>
+      <div className="flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+        {items.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => onChange(item.value)}
+            aria-pressed={value === item.value}
+            className={`px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+              value === item.value ? 'bg-rose-600 text-white' : 'text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
     </div>
   );

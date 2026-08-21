@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { createHash } from "node:crypto";
 import { computeScatterLayout, DEFAULT_SCATTER, type ScatterConfig, type ReserveRect } from "~/lib/scatter-layout.server";
 import { extractHeadCutout, applySoftOvalMask } from "~/lib/face-detect.server";
 import { removeBackgroundFromBuffer } from "~/models/auto-bg-removal.server";
@@ -118,24 +119,79 @@ function textReserveRect(
   return { x0, y0, x1, y1 };
 }
 
+/**
+ * Kesilmiş kafa önbelleği.
+ *
+ * Müşteri yoğunluk/boyut/dizilim ayarlarıyla oynadığında aynı fotoğraf için
+ * arka plan kaldırma (dış servis) ve yüz tespiti (Vision) yeniden çalışmamalı —
+ * ayarların değiştirdiği tek şey yerleşim. Süreç içinde tutulur: pm2 iki worker
+ * çalıştırdığı için isabet garanti değil, ama tekrar üretim maliyeti belirgin
+ * düşer. Kalıcı önbellek gerekirse kesit R2'ye fotoğraf özetiyle yazılabilir.
+ */
+interface HeadCacheEntry {
+  piece: Buffer;
+  detected: boolean;
+  /** Kaynak fotoğraftaki kafa kesitinin piksel eni — kalite uyarısı bunu kullanır */
+  sourceWidth: number;
+  at: number;
+}
+
+const HEAD_CACHE_MAX = 40;
+const HEAD_CACHE_TTL_MS = 30 * 60_000;
+const headCache = new Map<string, HeadCacheEntry>();
+
+function readHeadCache(key: string): HeadCacheEntry | null {
+  const hit = headCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > HEAD_CACHE_TTL_MS) {
+    headCache.delete(key);
+    return null;
+  }
+  // Map ekleme sırasını koruduğu için, dokunulanı sona almak LRU verir
+  headCache.delete(key);
+  headCache.set(key, hit);
+  return hit;
+}
+
+function writeHeadCache(key: string, entry: HeadCacheEntry): void {
+  headCache.set(key, entry);
+  while (headCache.size > HEAD_CACHE_MAX) {
+    const oldest = headCache.keys().next().value;
+    if (oldest === undefined) break;
+    headCache.delete(oldest);
+  }
+}
+
 export async function composeScatterDesign(opts: ScatterComposeOptions): Promise<ScatterComposeResult> {
   const { photo, decoration, areaWidth, areaHeight } = opts;
   const config: ScatterConfig = { ...DEFAULT_SCATTER, ...(opts.config ?? {}) };
 
-  // 1) Arka planı kaldır — kafa kesimi saydam zemin üzerinde çalışır
-  let subject = photo;
-  if (opts.wavespeedKey) {
-    subject = await removeBackgroundFromBuffer(opts.wavespeedKey, photo, "scatter-photo")
-      .catch((err) => {
-        console.error("[scatter] arka plan kaldirilamadi, ham foto kullaniliyor:", err);
-        return photo;
-      });
+  // 1-2) Kafa kesitini hazırla (önbellekli). Bu iki adım dış servis çağırır;
+  //      3-5 tamamen yerel. Müşteri ayarlarla oynadığında yalnızca yerelin
+  //      tekrar çalışması gerekir.
+  const cacheKey = createHash("sha256").update(photo).digest("hex");
+  let cached = readHeadCache(cacheKey);
+
+  if (!cached) {
+    // Arka planı kaldır — kafa kesimi saydam zemin üzerinde çalışır
+    let subject = photo;
+    if (opts.wavespeedKey) {
+      subject = await removeBackgroundFromBuffer(opts.wavespeedKey, photo, "scatter-photo")
+        .catch((err) => {
+          console.error("[scatter] arka plan kaldirilamadi, ham foto kullaniliyor:", err);
+          return photo;
+        });
+    }
+
+    // Kafayı kes ve oval maskele — kare kesitte kalan omuz/kazak artıkları
+    // koyu üründe görünür dikdörtgen oluşturuyor
+    const head = await extractHeadCutout(subject);
+    const piece = await applySoftOvalMask(head.buffer).catch(() => head.buffer);
+    cached = { piece, detected: head.detected, sourceWidth: head.box.width, at: Date.now() };
+    writeHeadCache(cacheKey, cached);
   }
 
-  // 2) Kafayı kes ve oval maskele — kare kesitte kalan omuz/kazak artıkları
-  //    koyu üründe görünür dikdörtgen oluşturuyor
-  const head = await extractHeadCutout(subject);
-  const headPiece = await applySoftOvalMask(head.buffer).catch(() => head.buffer);
+  const headPiece = cached.piece;
 
   // 3) Yerleşimi hesapla
   const reserve = textReserveRect(opts.textFields ?? [], opts.textValues ?? {});
@@ -175,11 +231,11 @@ export async function composeScatterDesign(opts: ScatterComposeOptions): Promise
   const placedPx = items
     .filter((item) => item.kind === "face")
     .reduce((max, item) => Math.max(max, item.width), 0);
-  const headSourcePx = head.box.width;
+  const headSourcePx = cached.sourceWidth;
 
   return {
     buffer,
-    headDetected: head.detected,
+    headDetected: cached.detected,
     placed: { faces, decorations },
     quality: {
       headSourcePx,

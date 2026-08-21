@@ -1,6 +1,6 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import sharp from "sharp";
-import { getPersonalizerTemplateByProduct } from "~/models/personalizer.server";
+import { getPersonalizerTemplateByProduct, normalizeCustomerOptions } from "~/models/personalizer.server";
 import { scanTemplateHoles, scanHoleFromPoint } from "~/lib/template-hole.server";
 
 const CORS = {
@@ -49,6 +49,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           placeholder: f.placeholder,
           maxLength: f.max_length,
         })),
+        // Yalnızca açık olan ayarlar gönderilir; pencere bunlara göre kontrol
+        // çizer. Kapalı bir ayarın gönderilmesi sunucuda zaten yok sayılır,
+        // burada gizlemek arayüzü sade tutmak için.
+        customerOptions: normalizeCustomerOptions(template.customer_options),
       },
       { headers: { ...CORS, "Cache-Control": "public, max-age=300" } },
     );
