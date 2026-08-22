@@ -107,6 +107,8 @@ export interface PersonalizationConfig {
   volumeDiscounts: VolumeDiscountTier[];
   surchargeVariantId: string;
   removeBgAvailable: boolean;
+  /** Baskı alanı kesikli çerçevesi müşteriye gösterilsin mi */
+  showPrintAreaGuide?: boolean;
   variantMockups?: Record<string, { front?: string; back?: string }>;
   conditionalRules?: ConditionalRule[];
   sizeChart?: SizeChart;

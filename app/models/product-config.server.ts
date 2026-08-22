@@ -64,6 +64,14 @@ export interface ProductConfig {
   allowedTypes: string[];
   minResolution: number;
   removeBg: boolean;
+  /**
+   * Tasarımcıda baskı alanını gösteren kesikli mavi çerçeve.
+   *
+   * Varsayılan açık: müşteri tasarımının nereye basılacağını görür. Kapatmak
+   * yalnızca çizgiyi gizler — nesneler yine alan içinde tutulur ve baskı
+   * dosyası aynı alandan kırpılır.
+   */
+  showPrintAreaGuide: boolean;
   printFormat: string;
   printDpi: number;
   requireApproval: boolean;
@@ -413,6 +421,7 @@ export function buildDefaultConfig(product: Pick<ShopifyProductSummary, "title" 
     allowedTypes: ["PNG", "JPG"],
     minResolution: 1000,
     removeBg: false,
+    showPrintAreaGuide: true,
     printFormat: "PNG",
     printDpi: 300,
     requireApproval: true,
@@ -447,6 +456,7 @@ export function normalizeProductConfig(
       : fallback.allowedTypes,
     minResolution: Number(input?.minResolution || fallback.minResolution),
     removeBg: input?.removeBg ?? fallback.removeBg,
+    showPrintAreaGuide: input?.showPrintAreaGuide ?? fallback.showPrintAreaGuide,
     printFormat: String(input?.printFormat || fallback.printFormat),
     printDpi: Number(input?.printDpi || fallback.printDpi),
     requireApproval: input?.requireApproval ?? fallback.requireApproval,

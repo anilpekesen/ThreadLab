@@ -80,6 +80,12 @@ interface Props {
   side: Side;
   zoom: number;
   printArea: PrintAreaConfig;
+  /**
+   * Baskı alanını gösteren kesikli çerçeve çizilsin mi. Kapalıyken yalnızca
+   * çizgi gizlenir; nesneler yine alan içinde tutulur, baskı dosyası aynı
+   * alandan kırpılır.
+   */
+  showPrintAreaGuide?: boolean;
   allowPageScroll?: boolean;
   onObjectSelected: (obj: fabric.Object | null) => void;
   onDesignChange: (side: Side) => void;
@@ -567,7 +573,7 @@ function unproxyJsonUrls(json: string): string {
     (_, encoded) => `"src":"${decodeURIComponent(encoded)}"`);
 }
 
-const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea, allowPageScroll = false, onObjectSelected, onDesignChange, formatObjectSize }, ref) => {
+const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea, showPrintAreaGuide = true, allowPageScroll = false, onObjectSelected, onDesignChange, formatObjectSize }, ref) => {
   const hostEl = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
   const historyRef = useRef<string[]>([]);
@@ -1380,16 +1386,18 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
             className="relative overflow-hidden rounded-[24px] bg-white"
             style={{ width: PRINT_W, height: PRINT_H }}
           >
-            <div
-              className="pointer-events-none absolute z-10 rounded-[14px] border-2 border-dashed"
-              style={{
-                left: areaRect.left,
-                top: areaRect.top,
-                width: areaRect.width,
-                height: areaRect.height,
-                borderColor: 'rgba(14, 165, 233, 0.22)',
-              }}
-            />
+            {showPrintAreaGuide && (
+              <div
+                className="pointer-events-none absolute z-10 rounded-[14px] border-2 border-dashed"
+                style={{
+                  left: areaRect.left,
+                  top: areaRect.top,
+                  width: areaRect.width,
+                  height: areaRect.height,
+                  borderColor: 'rgba(14, 165, 233, 0.22)',
+                }}
+              />
+            )}
             <div
               className="pointer-events-none absolute left-0 right-0 top-0 z-20 md:hidden"
               style={{ height: areaRect.top, touchAction: 'pan-y' }}

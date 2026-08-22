@@ -221,6 +221,7 @@ function defaultPersonalization(): PersonalizationConfig {
     volumeDiscounts: [],
     surchargeVariantId: '',
     removeBgAvailable: false,
+    showPrintAreaGuide: true,
     variantMockups: {},
     termsUrl: '',
     minOrderQuantity: 1,
@@ -376,6 +377,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
       volumeDiscounts?: VolumeDiscountTier[];
       surchargeVariantId?: string;
       removeBgAvailable?: boolean;
+      showPrintAreaGuide?: boolean;
       termsUrl?: string;
       minOrderQuantity?: number;
       sizeChart?: SizeChart;
@@ -407,6 +409,8 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     volumeDiscounts: [],
     surchargeVariantId: String(source?.settings?.surchargeVariantId || ''),
     removeBgAvailable: Boolean(source?.settings?.removeBgAvailable),
+    // Ayar yoksa çerçeve gösterilir — mevcut ürünlerin davranışı değişmesin
+    showPrintAreaGuide: source?.settings?.showPrintAreaGuide !== false,
     variantMockups: source?.variantMockups ?? {},
     sizeChart: normalizeSizeChart(source?.settings?.sizeChart),
     templateDesign: source?.templateDesign ?? null,
@@ -3403,6 +3407,7 @@ export default function App() {
                     side="front"
                     zoom={zoom}
                     printArea={activePrintAreas.front}
+                    showPrintAreaGuide={personalization.showPrintAreaGuide}
                     allowPageScroll={isMobileLayout && interactionMode === 'navigation'}
                     onObjectSelected={handleObjectSelected}
                     onDesignChange={handleDesignChange}
@@ -3416,6 +3421,7 @@ export default function App() {
                       side="back"
                       zoom={zoom}
                       printArea={activePrintAreas.back}
+                    showPrintAreaGuide={personalization.showPrintAreaGuide}
                       allowPageScroll={isMobileLayout && interactionMode === 'navigation'}
                       onObjectSelected={handleObjectSelected}
                       onDesignChange={handleDesignChange}
