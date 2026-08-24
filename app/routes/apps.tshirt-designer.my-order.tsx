@@ -53,6 +53,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Kayıtlı dosya bozuksa ve tarafta çizilebilir görsel varsa, baskı dosyasını
   // tasarımdan yeniden üretme linkini sun (bkz. api.print-file).
+  const forwardedProto = (request.headers.get("x-forwarded-proto") ?? "").split(",")[0].trim()
+    || url.protocol.replace(":", "");
   const buildRebuild = (
     objects: DesignObject[],
     side: "front" | "back",
@@ -64,8 +66,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (shop) params.set("shop", shop);
     return {
       // Mutlak adres: sayfa Shopify proxy'si üzerinden açıldığında kök-göreli
-      // yol mağaza alan adına düşer ve 404 verir
-      url: `${url.origin}/api/print-file?${params.toString()}`,
+      // yol mağaza alan adına düşer ve 404 verir. Protokolü ters vekilden al —
+      // nginx arkasında url.origin "http" kalıyor ve https sayfada karışık
+      // içerik olarak engelleniyor.
+      url: `${forwardedProto}://${url.host}/api/print-file?${params.toString()}`,
       hasText: objects.some((o) => o.type !== "image"),
     };
   };
