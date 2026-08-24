@@ -221,7 +221,7 @@ function defaultPersonalization(): PersonalizationConfig {
     volumeDiscounts: [],
     surchargeVariantId: '',
     removeBgAvailable: false,
-    showPrintAreaGuide: true,
+    showPrintAreaGuide: false,
     variantMockups: {},
     termsUrl: '',
     minOrderQuantity: 1,
@@ -410,7 +410,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     surchargeVariantId: String(source?.settings?.surchargeVariantId || ''),
     removeBgAvailable: Boolean(source?.settings?.removeBgAvailable),
     // Ayar yoksa çerçeve gösterilir — mevcut ürünlerin davranışı değişmesin
-    showPrintAreaGuide: source?.settings?.showPrintAreaGuide !== false,
+    showPrintAreaGuide: source?.settings?.showPrintAreaGuide === true,
     variantMockups: source?.variantMockups ?? {},
     sizeChart: normalizeSizeChart(source?.settings?.sizeChart),
     templateDesign: source?.templateDesign ?? null,

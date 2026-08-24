@@ -745,7 +745,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     allowedTypes: ["PNG", "JPG"],
     minResolution: 1000,
     removeBg: false,
-    showPrintAreaGuide: true,
+    showPrintAreaGuide: false,
     printFormat: "PNG",
     printDpi: 300,
     requireApproval: true,
@@ -792,7 +792,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       backPrintWidthCm: Number(((backArea?.realWidthMm || frontArea?.realWidthMm || 0) / 10)),
       backPrintHeightCm: Number(((backArea?.realHeightMm || frontArea?.realHeightMm || 0) / 10)),
       removeBg: true,
-      showPrintAreaGuide: String(form.get("showPrintAreaGuide") ?? "1") !== "0",
+      showPrintAreaGuide: String(form.get("showPrintAreaGuide") ?? "0") !== "0",
 
       pricingBands: {
         front: frontBands.bands,
@@ -848,7 +848,7 @@ export default function ProductSettingsRoute() {
   const [surchargeVariantId, setSurchargeVariantId] = useState(config.surchargeVariantId || "");
   const [minOrderQuantity, setMinOrderQuantity] = useState(String(config.minOrderQuantity ?? 1));
   // Ayar yoksa çerçeve gösterilir — mevcut ürünlerin davranışı değişmesin
-  const [showPrintAreaGuide, setShowPrintAreaGuide] = useState(config.showPrintAreaGuide !== false);
+  const [showPrintAreaGuide, setShowPrintAreaGuide] = useState(config.showPrintAreaGuide === true);
   const [frontBands, setFrontBands] = useState<BandState[]>(toBandState(config, "front"));
   const [backBands, setBackBands] = useState<BandState[]>(toBandState(config, "back"));
   const [frontArea, setFrontArea] = useState<AreaState>(toAreaState(printAreas, "front"));
@@ -1065,7 +1065,7 @@ export default function ProductSettingsRoute() {
                     label="Baskı alanı çerçevesini müşteriye göster"
                     checked={showPrintAreaGuide}
                     onChange={setShowPrintAreaGuide}
-                    helpText="Tasarımcıda baskı alanını gösteren kesikli mavi çerçeve. Kapatırsanız yalnızca çizgi gizlenir — tasarım yine alan içinde tutulur ve baskı dosyası aynı alandan kırpılır."
+                    helpText="Tasarımcıda baskı alanını gösteren kesikli mavi çerçeve. Varsayılan olarak kapalıdır. Açmak yalnızca çizgiyi gösterir — tasarım her hâlükârda alan içinde tutulur ve baskı dosyası aynı alandan kırpılır."
                   />
                   <input type="hidden" name="showPrintAreaGuide" value={showPrintAreaGuide ? "1" : "0"} />
 

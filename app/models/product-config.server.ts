@@ -67,9 +67,11 @@ export interface ProductConfig {
   /**
    * Tasarımcıda baskı alanını gösteren kesikli mavi çerçeve.
    *
-   * Varsayılan açık: müşteri tasarımının nereye basılacağını görür. Kapatmak
-   * yalnızca çizgiyi gizler — nesneler yine alan içinde tutulur ve baskı
-   * dosyası aynı alandan kırpılır.
+   * Varsayılan kapalı: tasarımcı temiz görünsün diye çizgi gösterilmiyor.
+   * Alan kısıtını müşteriye göstermek istenen ürünlerde ayardan açılır.
+   *
+   * Bu ayar yalnızca ÇİZGİYİ etkiler — nesneler her hâlükârda alan içinde
+   * tutulur ve baskı dosyası aynı alandan kırpılır.
    */
   showPrintAreaGuide: boolean;
   printFormat: string;
@@ -421,7 +423,7 @@ export function buildDefaultConfig(product: Pick<ShopifyProductSummary, "title" 
     allowedTypes: ["PNG", "JPG"],
     minResolution: 1000,
     removeBg: false,
-    showPrintAreaGuide: true,
+    showPrintAreaGuide: false,
     printFormat: "PNG",
     printDpi: 300,
     requireApproval: true,

@@ -573,7 +573,7 @@ function unproxyJsonUrls(json: string): string {
     (_, encoded) => `"src":"${decodeURIComponent(encoded)}"`);
 }
 
-const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea, showPrintAreaGuide = true, allowPageScroll = false, onObjectSelected, onDesignChange, formatObjectSize }, ref) => {
+const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea, showPrintAreaGuide = false, allowPageScroll = false, onObjectSelected, onDesignChange, formatObjectSize }, ref) => {
   const hostEl = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
   const historyRef = useRef<string[]>([]);
