@@ -51,7 +51,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     backPrintUrl: backPrintOk ? design.backPrintUrl : undefined,
   };
 
-  const html = renderPage(verifiedDesign, frontObjects, backObjects, copy, sizeVariants);
+  // Kayıtlı dosya bozuksa ve tarafta çizilebilir görsel varsa, baskı dosyasını
+  // tasarımdan yeniden üretme linkini sun (bkz. api.print-file).
+  const buildRebuild = (
+    objects: DesignObject[],
+    side: "front" | "back",
+    printOk: boolean,
+  ): RebuildOption | undefined => {
+    if (printOk) return undefined;
+    if (!objects.some((o) => o.type === "image")) return undefined;
+    const params = new URLSearchParams({ token, side });
+    if (shop) params.set("shop", shop);
+    return {
+      // Mutlak adres: sayfa Shopify proxy'si üzerinden açıldığında kök-göreli
+      // yol mağaza alan adına düşer ve 404 verir
+      url: `${url.origin}/api/print-file?${params.toString()}`,
+      hasText: objects.some((o) => o.type !== "image"),
+    };
+  };
+
+  const html = renderPage(verifiedDesign, frontObjects, backObjects, copy, sizeVariants, {
+    front: buildRebuild(frontObjects, "front", frontPrintOk),
+    back: buildRebuild(backObjects, "back", backPrintOk),
+  });
   return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
@@ -86,6 +108,13 @@ function myOrderCopy(lang: MyOrderLang) {
     printUnavailable: tr
       ? "Yüksek kaliteli baskı dosyası bu tasarım için oluşturulamadı. Destek ekibiyle iletişime geçin."
       : "The high-quality print file could not be generated for this design. Please contact support.",
+    downloadRebuilt: tr ? "Baskı Dosyasını Oluştur (Yüksek Kalite)" : "Rebuild Print File (High Quality)",
+    rebuiltNotice: tr
+      ? "Bu tasarımın baskı dosyası sipariş anında eksik kaydedilmiş. Yukarıdaki buton dosyayı tasarımdan yeniden üretir."
+      : "The print file was saved incompletely at order time. The button above rebuilds it from the design.",
+    rebuiltTextWarning: tr
+      ? "Uyarı: Bu yüzde metin var ve yeniden üretilen dosyaya metin dahil edilmiyor — yazı tipi birebir eşleşmeyeceği için yanlış basılmasın diye atlanıyor."
+      : "Note: this side contains text, which is left out of the rebuilt file — the font cannot be matched exactly, so it is skipped rather than printed incorrectly.",
     errorInvalidTitle: tr ? "Geçersiz link" : "Invalid link",
     errorInvalidMessage: tr ? "Tasarım token'ı eksik." : "Design token is missing.",
     errorNotFoundTitle: tr ? "Tasarım bulunamadı" : "Design not found",
@@ -109,6 +138,13 @@ interface Design {
   backPrintUrl?: string;
 }
 
+/** Kayıtlı baskı dosyası bozuksa tasarımdan yeniden üretme seçeneği. */
+interface RebuildOption {
+  url: string;
+  /** Bu yüzde metin var mı — yeniden üretilen dosyaya dahil edilmiyor. */
+  hasText: boolean;
+}
+
 interface SizeVariant {
   label: string;
   quantity: number;
@@ -122,6 +158,7 @@ function renderPage(
   backObjs: DesignObject[],
   copy: ReturnType<typeof myOrderCopy>,
   sizeVariants: SizeVariant[] = [],
+  rebuild: { front?: RebuildOption; back?: RebuildOption } = {},
 ) {
   const hasFront = design.frontPreviewUrl || frontObjs.length > 0;
   const hasBack = design.backPreviewUrl || backObjs.length > 0;
@@ -181,11 +218,11 @@ function renderPage(
     <div class="grid">
       ${perSize
         ? sizeVariants.map((variant) => [
-            hasFront ? renderSide(`${copy.front}${variant.label ? ` \u2014 ${esc(variant.label)}` : ""}`, variant.frontPreviewUrl || design.frontPreviewUrl, design.frontPrintUrl, copy) : "",
-            hasBack ? renderSide(`${copy.back}${variant.label ? ` \u2014 ${esc(variant.label)}` : ""}`, variant.backPreviewUrl || design.backPreviewUrl, design.backPrintUrl, copy) : "",
+            hasFront ? renderSide(`${copy.front}${variant.label ? ` \u2014 ${esc(variant.label)}` : ""}`, variant.frontPreviewUrl || design.frontPreviewUrl, design.frontPrintUrl, copy, rebuild.front) : "",
+            hasBack ? renderSide(`${copy.back}${variant.label ? ` \u2014 ${esc(variant.label)}` : ""}`, variant.backPreviewUrl || design.backPreviewUrl, design.backPrintUrl, copy, rebuild.back) : "",
           ].join("")).join("")
-        : `${hasFront ? renderSide(copy.front, sizeVariants[0]?.frontPreviewUrl || design.frontPreviewUrl, design.frontPrintUrl, copy) : ""}
-           ${hasBack ? renderSide(copy.back, sizeVariants[0]?.backPreviewUrl || design.backPreviewUrl, design.backPrintUrl, copy) : ""}`}
+        : `${hasFront ? renderSide(copy.front, sizeVariants[0]?.frontPreviewUrl || design.frontPreviewUrl, design.frontPrintUrl, copy, rebuild.front) : ""}
+           ${hasBack ? renderSide(copy.back, sizeVariants[0]?.backPreviewUrl || design.backPreviewUrl, design.backPrintUrl, copy, rebuild.back) : ""}`}
       ${!hasFront && !hasBack ? `<div class="card full-card"><div class="card-body"><div class="no-preview">${copy.noData}</div></div></div>` : ""}
     </div>
   </div>
@@ -193,7 +230,17 @@ function renderPage(
 </html>`;
 }
 
-function renderSide(title: string, previewUrl: string | undefined, printUrl: string | undefined, copy: ReturnType<typeof myOrderCopy>) {
+function renderSide(
+  title: string,
+  previewUrl: string | undefined,
+  printUrl: string | undefined,
+  copy: ReturnType<typeof myOrderCopy>,
+  rebuild?: RebuildOption,
+) {
+  const hasPrint = isDownloadableUrl(printUrl);
+  // Kayıtlı dosya bozuksa tasarımdan yeniden üretme yolunu sun
+  const canRebuild = !hasPrint && Boolean(rebuild?.url);
+
   return `
     <div class="card">
       <div class="card-header"><h2>${title}</h2></div>
@@ -202,10 +249,12 @@ function renderSide(title: string, previewUrl: string | undefined, printUrl: str
           ? `<img class="preview-img" src="${esc(previewUrl)}" alt="${esc(title)} ${copy.previewAltSuffix}" />`
           : `<div class="no-preview">${copy.noPreview}</div>`}
         <div class="btn-group">
-          ${isDownloadableUrl(printUrl) ? `<a class="btn btn-primary" href="${esc(printUrl!)}" download target="_blank">⬇ ${copy.downloadPrint}</a>` : ""}
+          ${hasPrint ? `<a class="btn btn-primary" href="${esc(printUrl!)}" download target="_blank">⬇ ${copy.downloadPrint}</a>` : ""}
+          ${canRebuild ? `<a class="btn btn-primary" href="${esc(rebuild!.url)}" download target="_blank">⬇ ${copy.downloadRebuilt}</a>` : ""}
           ${isDownloadableUrl(previewUrl) ? `<a class="btn btn-secondary" href="${esc(previewUrl!)}" download target="_blank">⬇ ${copy.downloadPreview}</a>` : ""}
         </div>
-        ${!isDownloadableUrl(printUrl) ? `<p class="notice">${copy.printUnavailable}</p>` : ""}
+        ${canRebuild ? `<p class="notice">${copy.rebuiltNotice}${rebuild!.hasText ? ` ${copy.rebuiltTextWarning}` : ""}</p>` : ""}
+        ${!hasPrint && !canRebuild ? `<p class="notice">${copy.printUnavailable}</p>` : ""}
       </div>
     </div>`;
 }
