@@ -2186,6 +2186,7 @@ export default function App() {
       if (!frontBgReady || !backBgReady) {
         // Yanlış arka planla önizleme üretmektense akışı durdur (eskiden
         // previewIssue bayrağıyla devam ediliyordu ve hatalı görsel oluşuyordu)
+        setIsCartLoading(false);
         showToast(isTurkish
           ? 'Ürün görseli yüklenemedi. Önizlemenin hatalı oluşmaması için sepete ekleme durduruldu — lütfen tekrar deneyin.'
           : 'The product mockup could not be loaded. Add to cart was stopped to prevent a broken preview — please try again.', 'error');
@@ -2203,6 +2204,17 @@ export default function App() {
       const backPrintDataUrl = backHas
         ? (backCanvasRef.current?.exportPrintFile(activePrintAreas.back, 300) ?? '')
         : '';
+
+      // exportPrintFile bozuk çıktıda boş string döner (canvas limiti aşılmış olabilir).
+      // Eskiden "data:," olduğu gibi yüklenip sipariş boş baskı dosyasıyla geçiyordu —
+      // artık akışı burada durduruyoruz.
+      if ((frontHas && !frontPrintDataUrl) || (backHas && !backPrintDataUrl)) {
+        setIsCartLoading(false);
+        showToast(isTurkish
+          ? 'Baskı dosyası oluşturulamadı. Sepete ekleme durduruldu — lütfen tekrar deneyin veya tasarımı biraz küçültün.'
+          : 'The print file could not be generated. Add to cart was stopped — please try again or make the design slightly smaller.', 'error');
+        return;
+      }
       const designSourceCache = new Map<string, Promise<string>>();
       const frontDesignJson = frontCanvasRef.current?.saveDesign() ?? '';
       const backDesignJson = backCanvasRef.current?.saveDesign() ?? '';

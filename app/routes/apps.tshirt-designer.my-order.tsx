@@ -38,7 +38,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       backPreviewUrl: row.backPreviewUrl || undefined,
     }));
 
-  const html = renderPage(design, frontObjects, backObjects, copy, sizeVariants);
+  // Baskı dosyaları müşterinin tarayıcısında üretiliyor ve canvas limiti aşıldığında
+  // sessizce 1x1 boş PNG olarak kaydedilebiliyor. URL geçerli görünse bile içeriği
+  // doğrula — yoksa müşteri "yüksek kalite" diye boş dosya indiriyor.
+  const [frontPrintOk, backPrintOk] = await Promise.all([
+    isUsablePrintFile(design.frontPrintUrl),
+    isUsablePrintFile(design.backPrintUrl),
+  ]);
+  const verifiedDesign: Design = {
+    ...design,
+    frontPrintUrl: frontPrintOk ? design.frontPrintUrl : undefined,
+    backPrintUrl: backPrintOk ? design.backPrintUrl : undefined,
+  };
+
+  const html = renderPage(verifiedDesign, frontObjects, backObjects, copy, sizeVariants);
   return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
@@ -70,6 +83,9 @@ function myOrderCopy(lang: MyOrderLang) {
     previewAltSuffix: tr ? "önizlemesi" : "preview",
     downloadPrint: tr ? "Baskı Dosyasını İndir (Yüksek Kalite)" : "Download Print File (High Quality)",
     downloadPreview: tr ? "Önizlemeyi İndir" : "Download Preview",
+    printUnavailable: tr
+      ? "Yüksek kaliteli baskı dosyası bu tasarım için oluşturulamadı. Destek ekibiyle iletişime geçin."
+      : "The high-quality print file could not be generated for this design. Please contact support.",
     errorInvalidTitle: tr ? "Geçersiz link" : "Invalid link",
     errorInvalidMessage: tr ? "Tasarım token'ı eksik." : "Design token is missing.",
     errorNotFoundTitle: tr ? "Tasarım bulunamadı" : "Design not found",
@@ -153,6 +169,7 @@ function renderPage(
     .download-link { font-size: 12px; color: #2563eb; text-decoration: none; margin-top: 6px; display: inline-block; }
     .download-link:hover { text-decoration: underline; }
     .full-card { grid-column: 1 / -1; }
+    .notice { font-size: 13px; color: #92400e; background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; margin-top: 12px; line-height: 1.45; }
   </style>
 </head>
 <body>
@@ -185,11 +202,52 @@ function renderSide(title: string, previewUrl: string | undefined, printUrl: str
           ? `<img class="preview-img" src="${esc(previewUrl)}" alt="${esc(title)} ${copy.previewAltSuffix}" />`
           : `<div class="no-preview">${copy.noPreview}</div>`}
         <div class="btn-group">
-          ${printUrl ? `<a class="btn btn-primary" href="${esc(printUrl)}" download target="_blank">⬇ ${copy.downloadPrint}</a>` : ""}
-          ${previewUrl ? `<a class="btn btn-secondary" href="${esc(previewUrl)}" download target="_blank">⬇ ${copy.downloadPreview}</a>` : ""}
+          ${isDownloadableUrl(printUrl) ? `<a class="btn btn-primary" href="${esc(printUrl!)}" download target="_blank">⬇ ${copy.downloadPrint}</a>` : ""}
+          ${isDownloadableUrl(previewUrl) ? `<a class="btn btn-secondary" href="${esc(previewUrl!)}" download target="_blank">⬇ ${copy.downloadPreview}</a>` : ""}
         </div>
+        ${!isDownloadableUrl(printUrl) ? `<p class="notice">${copy.printUnavailable}</p>` : ""}
       </div>
     </div>`;
+}
+
+/** Bu boyutun altındaki bir baskı dosyası gerçek bir tasarım olamaz. */
+const MIN_PRINT_DIMENSION_PX = 64;
+
+/**
+ * PNG başlığındaki IHDR'yi okuyup baskı dosyasının gerçekten dolu olduğunu doğrular.
+ *
+ * Sadece ilk 33 baytı Range ile çekiyoruz — birkaç MB'lık dosyayı indirmeye gerek yok.
+ * Ağ hatasında dosyayı geçerli sayıyoruz: geçici bir aksaklık yüzünden çalışan
+ * indirme linkini gizlemek, bozuk linki göstermekten daha kötü.
+ */
+async function isUsablePrintFile(url: string | undefined): Promise<boolean> {
+  if (!isDownloadableUrl(url)) return false;
+  try {
+    const res = await fetch(url, {
+      headers: { Range: "bytes=0-32" },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return false;
+    const head = Buffer.from(await res.arrayBuffer());
+    // PNG değilse (JPEG/PDF vb.) boyut okuyamayız — olduğu gibi kabul et
+    if (head.length < 24 || head.subarray(12, 16).toString("latin1") !== "IHDR") return true;
+    const width = head.readUInt32BE(16);
+    const height = head.readUInt32BE(20);
+    return width >= MIN_PRINT_DIMENSION_PX && height >= MIN_PRINT_DIMENSION_PX;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Baskı/önizleme URL'i gerçekten indirilebilir mi?
+ *
+ * Bozuk export'lar veritabanına boş data URI ("data:,") olarak yazılabiliyor.
+ * Bu değer truthy olduğu için indirme butonu görünüyor ama tıklayınca boş
+ * sayfa/hata veriyordu — sadece http(s) adreslerini kabul et.
+ */
+function isDownloadableUrl(url: string | undefined): url is string {
+  return typeof url === "string" && /^https?:\/\//i.test(url);
 }
 
 function esc(s: string) {

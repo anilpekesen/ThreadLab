@@ -98,6 +98,28 @@ interface Props {
 }
 
 const HISTORY_LIMIT = 50;
+
+/**
+ * Tek bir canvas export'unda üretilebilecek en fazla piksel.
+ *
+ * Mobil Safari 16.777.216 piksellik (2^24) canvas tavanına sahip; aşılınca canvas
+ * boş kalıyor ve toDataURL sessizce "data:," ya da 1x1 PNG döndürüyor. Tavanın
+ * hemen altında kalarak bunu engelliyoruz.
+ */
+const MAX_EXPORT_PIXELS = 16_000_000;
+
+/**
+ * toDataURL çıktısı gerçek bir görsel mi?
+ *
+ * Canvas tahsisi başarısız olduğunda tarayıcılar hata fırlatmıyor: boş bir
+ * "data:," ya da birkaç yüz baytlık 1x1 PNG dönüyor. Bunları erken yakala ki
+ * bozuk dosya sunucuya yüklenip siparişe iliştirilmesin.
+ */
+const MIN_EXPORT_DATA_URL_LENGTH = 2048;
+
+function isUsableDataUrl(dataUrl: string): boolean {
+  return dataUrl.startsWith('data:image/') && dataUrl.length >= MIN_EXPORT_DATA_URL_LENGTH;
+}
 const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl', 'backgroundRemoved', 'autoTrimRect', 'printGroup'];
 
 type SourceBackedImage = fabric.Image & {
@@ -1141,7 +1163,15 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     const targetW = Math.round(((area.placementWidthMm || area.realWidthMm) / 25.4) * dpi);
     const targetH = Math.round(((area.placementHeightMm || area.realHeightMm) / 25.4) * dpi);
     // Multiplier: print area canvas px → hedef px
-    const multiplier = targetW / Math.max(area.width, 1);
+    const rawMultiplier = targetW / Math.max(area.width, 1);
+
+    // 37x50 cm @ 300 DPI ~28 megapiksel eder; mobil Safari'nin canvas tavanı
+    // (16.7 MP) aşılınca canvas sessizce boşalıyor ve toDataURL "data:," veya
+    // 1x1 PNG döndürüyordu — sipariş boş baskı dosyasıyla geçiyordu.
+    // Bütçeye sığdır: biraz düşük DPI, boş dosyadan iyidir.
+    const areaPixels = Math.max(area.width, 1) * Math.max(area.height, 1);
+    const maxMultiplier = Math.sqrt(MAX_EXPORT_PIXELS / areaPixels);
+    const multiplier = Math.min(rawMultiplier, maxMultiplier);
 
     // Arka planı kaldır (sadece tasarım)
     const bg = cv.backgroundImage as fabric.Image | undefined;
@@ -1168,7 +1198,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     // Kullanılmadı — sadece TS'i mutlu etmek için
     void targetH;
 
-    return dataUrl;
+    return isUsableDataUrl(dataUrl) ? dataUrl : '';
   }, []);
 
   const exportPreviewForArea = useCallback(async (
