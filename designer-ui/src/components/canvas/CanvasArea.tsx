@@ -1163,15 +1163,20 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     const targetW = Math.round(((area.placementWidthMm || area.realWidthMm) / 25.4) * dpi);
     const targetH = Math.round(((area.placementHeightMm || area.realHeightMm) / 25.4) * dpi);
     // Multiplier: print area canvas px → hedef px
-    const rawMultiplier = targetW / Math.max(area.width, 1);
+    const fullMultiplier = targetW / Math.max(area.width, 1);
 
-    // 37x50 cm @ 300 DPI ~28 megapiksel eder; mobil Safari'nin canvas tavanı
-    // (16.7 MP) aşılınca canvas sessizce boşalıyor ve toDataURL "data:," veya
-    // 1x1 PNG döndürüyordu — sipariş boş baskı dosyasıyla geçiyordu.
-    // Bütçeye sığdır: biraz düşük DPI, boş dosyadan iyidir.
+    // 37x50 cm @ 300 DPI ~28 megapiksel eder. Masaüstü tarayıcılar bunu sorunsuz
+    // üretiyor, mobil Safari ise 16.7 MP tavanında canvas'ı sessizce boşaltıyor:
+    // toDataURL hata fırlatmak yerine "data:," ya da 1x1 PNG döndürüyor.
+    //
+    // Önce tam çözünürlüğü dene — çalışan cihazlarda DPI'dan ödün vermeyelim.
+    // Sadece başarısız olursa bütçeye sığan daha düşük DPI ile tekrar dene:
+    // biraz düşük çözünürlük, boş baskı dosyasından iyidir.
     const areaPixels = Math.max(area.width, 1) * Math.max(area.height, 1);
-    const maxMultiplier = Math.sqrt(MAX_EXPORT_PIXELS / areaPixels);
-    const multiplier = Math.min(rawMultiplier, maxMultiplier);
+    const cappedMultiplier = Math.sqrt(MAX_EXPORT_PIXELS / areaPixels);
+    const attempts = cappedMultiplier < fullMultiplier
+      ? [fullMultiplier, cappedMultiplier]
+      : [fullMultiplier];
 
     // Arka planı kaldır (sadece tasarım)
     const bg = cv.backgroundImage as fabric.Image | undefined;
@@ -1180,15 +1185,24 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       cv.renderAll();
     }
 
-    // Print area'ya clip + DPI'ya göre scale
-    const dataUrl = cv.toDataURL({
-      format: 'png',
-      left: area.x,
-      top: area.y,
-      width: area.width,
-      height: area.height,
-      multiplier,
-    }) ?? '';
+    let dataUrl = '';
+    for (const multiplier of attempts) {
+      try {
+        // Print area'ya clip + DPI'ya göre scale
+        dataUrl = cv.toDataURL({
+          format: 'png',
+          left: area.x,
+          top: area.y,
+          width: area.width,
+          height: area.height,
+          multiplier,
+        }) ?? '';
+      } catch {
+        dataUrl = '';
+      }
+      if (isUsableDataUrl(dataUrl)) break;
+      dataUrl = '';
+    }
 
     if (bg) {
       cv.backgroundImage = bg;
@@ -1198,7 +1212,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     // Kullanılmadı — sadece TS'i mutlu etmek için
     void targetH;
 
-    return isUsableDataUrl(dataUrl) ? dataUrl : '';
+    return dataUrl;
   }, []);
 
   const exportPreviewForArea = useCallback(async (
