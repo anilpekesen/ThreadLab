@@ -133,6 +133,36 @@ export async function scanTemplateHoles(templateBuffer: Buffer): Promise<HoleSca
  * Fotoğrafı verilen deliğin şekline kesip, şablon boyutunda saydam bir katman
  * olarak döndürür. Fotoğraf deliğe "cover" ile ortalanır.
  */
+/**
+ * Bir deliğin şeklini alfa maskesi olarak çıkarır.
+ *
+ * Sonuç, deliğin sınırlayıcı kutusu kadar bir PNG: deliğin İÇİ opak, dışı
+ * şeffaf. Slotun `mask_url` alanına bu dosya yazılıyor ve baskı sırasında
+ * müşteri fotoğrafı bu şeklin dışında kalan kısımlarından kesiliyor.
+ *
+ * Kutu değil gerçek şekil kullanılıyor: "LOVE" yazısının harfleri ya da bir
+ * kalp, dikdörtgen bir kırpma ile doğru görünmez.
+ */
+export async function extractHoleMask(scan: HoleScan, hole: TemplateHole): Promise<Buffer> {
+  const mask = Buffer.alloc(hole.width * hole.height * 4);
+
+  for (let y = 0; y < hole.height; y++) {
+    for (let x = 0; x < hole.width; x++) {
+      const gi = (hole.y + y) * scan.width + (hole.x + x);
+      if (scan.labels[gi] !== hole.id) continue;
+      const di = (y * hole.width + x) * 4;
+      mask[di] = 255;
+      mask[di + 1] = 255;
+      mask[di + 2] = 255;
+      mask[di + 3] = 255;
+    }
+  }
+
+  return sharp(mask, { raw: { width: hole.width, height: hole.height, channels: 4 } })
+    .png()
+    .toBuffer();
+}
+
 export async function buildMaskedPhotoLayer(
   photoBuffer: Buffer,
   scan: HoleScan,
