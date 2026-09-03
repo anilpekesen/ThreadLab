@@ -9,6 +9,7 @@ const tr = {
   "nav.printQueue": "Baskı Kuyruğu",
   "nav.cliparts": "Klipartlar",
   "nav.personalizer": "Kişiselleştirici",
+  "nav.printProducts": "Baskı ebatları",
 
   // Plan header
   "planHeader.plan": "Plan:",

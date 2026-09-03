@@ -94,6 +94,7 @@ function AppInner() {
     { label: t("nav.templates"), url: "/app/templates", end: false, show: true },
     { label: t("nav.cliparts"), url: "/app/cliparts", end: false, show: true },
     { label: t("nav.personalizer"), url: "/app/personalizer", end: false, show: true },
+    { label: t("nav.printProducts"), url: "/app/print-products", end: false, show: true },
     { label: t("nav.billing"), url: "/app/billing", end: false, show: true },
     { label: t("nav.credits"), url: "/app/credits", end: false, show: true },
     { label: t("nav.settings"), url: "/app/settings", end: false, show: true },

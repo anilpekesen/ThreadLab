@@ -10,6 +10,7 @@ import {
   listPersonalizerTemplates,
   deletePersonalizerTemplate,
   updatePersonalizerTemplate,
+  duplicatePersonalizerTemplate,
   type PersonalizerTemplate,
 } from "~/models/personalizer.server";
 
@@ -35,6 +36,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ ok: true });
   }
 
+  // Aynı yerleşimi farklı dekor ve yazılarla satmak yaygın ("Sevgiliye 8'li" →
+  // "Babaya 8'li"). Kopya taslak olarak açılır, kaynağı bozmaz.
+  if (intent === "duplicate") {
+    const copy = await duplicatePersonalizerTemplate(id, session.shop);
+    if (!copy) return json({ error: "Şablon kopyalanamadı" }, { status: 404 });
+    return json({ ok: true, duplicatedId: copy.id });
+  }
+
   return json({ error: "Bilinmeyen işlem" }, { status: 400 });
 };
 
@@ -54,6 +63,10 @@ export default function PersonalizerIndex() {
   const appUrl = typeof window !== "undefined"
     ? window.location.origin
     : "https://app.printlabapp.com";
+
+  function handleDuplicate(t: PersonalizerTemplate) {
+    fetcher.submit({ intent: "duplicate", id: t.id }, { method: "POST" });
+  }
 
   function handleDelete(t: PersonalizerTemplate) {
     if (!confirm(`"${t.name}" şablonunu silmek istediğinizden emin misiniz?`)) return;
@@ -137,6 +150,9 @@ export default function PersonalizerIndex() {
                         </Button>
                         <Button onClick={() => navigate(`/app/personalizer/${t.id}`)} size="slim">
                           Düzenle
+                        </Button>
+                        <Button onClick={() => handleDuplicate(t)} size="slim">
+                          Kopyala
                         </Button>
                         <Button onClick={() => handleDelete(t)} size="slim" tone="critical">
                           Sil
