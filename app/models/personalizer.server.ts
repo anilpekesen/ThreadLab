@@ -1,6 +1,7 @@
 import { query } from "~/lib/db.server";
 import { randomBytes } from "node:crypto";
 import { AI_STYLES, normalizeAiConfig, type AiTemplateConfig } from "~/lib/ai-styles";
+import { normalizeSlots, type GridConfig, type Slot } from "~/lib/slots";
 
 export interface TextFieldDef {
   id: string;
@@ -177,6 +178,27 @@ export interface PersonalizerTemplate {
   customer_options: CustomerOptionsConfig | Record<string, never>;
   /** AI şablonunun sağlayıcı/model ayarları; diğer tiplerde kullanılmaz */
   ai_config: AiTemplateConfig | Record<string, never>;
+  /**
+   * Müşterinin dolduracağı alanlar, normalize (0–1) koordinatta.
+   *
+   * Boş dizi, şablonun henüz göç etmemiş tek fotoğraflı bir kayıt olduğunu
+   * gösterir; o durumda okuma anında photo_x/photo_y/photo_width/photo_height
+   * değerlerinden türetilir (bkz. slotsFromLegacyTemplate).
+   */
+  slots: Slot[];
+  /** Slotlar ızgara üreticisiyle kurulduysa üretim parametreleri; elle
+   *  düzenlenen şablonlarda boş kalır */
+  grid_config: GridConfig | Record<string, never>;
+  /** Hangi baskı ürününe (ebat, dpi, taşma) ait olduğu */
+  print_product_id: string;
+  /** Fotoğrafların ÜSTÜNE binen dekoratif katman */
+  overlay_url: string;
+  /** Yöneticinin beklediği fotoğraf alanı sayısı; kaydetme denetiminde
+   *  kullanılır, 0 = kontrol etme */
+  expected_slots: number;
+  /** Her kaydetmede artar; sipariş hangi sürümle basıldığını bunun üzerinden
+   *  saklar ve eski baskı aynen yeniden üretilebilir */
+  version: number;
   active: boolean;
   sort_order: number;
   created_at: string;
@@ -185,6 +207,18 @@ export interface PersonalizerTemplate {
 
 type Row = PersonalizerTemplate;
 
+/** JSONB kolonlarından gelen ham değerleri güvenli tiplere çevirir */
+function mapTemplateRow(row: Row): PersonalizerTemplate {
+  return {
+    ...row,
+    slots: normalizeSlots(row.slots),
+    print_product_id: String(row.print_product_id ?? ""),
+    overlay_url: String(row.overlay_url ?? ""),
+    expected_slots: Number(row.expected_slots ?? 0),
+    version: Number(row.version ?? 1),
+  };
+}
+
 export async function listPersonalizerTemplates(shop: string, activeOnly = false): Promise<PersonalizerTemplate[]> {
   const res = await query<Row>(
     `SELECT * FROM personalizer_templates
@@ -192,7 +226,7 @@ export async function listPersonalizerTemplates(shop: string, activeOnly = false
      ORDER BY sort_order ASC, created_at DESC`,
     [shop],
   );
-  return res.rows;
+  return res.rows.map(mapTemplateRow);
 }
 
 export async function getPersonalizerTemplate(id: string, shop: string): Promise<PersonalizerTemplate | null> {
@@ -200,7 +234,7 @@ export async function getPersonalizerTemplate(id: string, shop: string): Promise
     `SELECT * FROM personalizer_templates WHERE id = $1 AND shop = $2`,
     [id, shop],
   );
-  return res.rows[0] ?? null;
+  return res.rows[0] ? mapTemplateRow(res.rows[0]) : null;
 }
 
 export async function getPersonalizerTemplatePublic(id: string): Promise<PersonalizerTemplate | null> {
@@ -208,7 +242,7 @@ export async function getPersonalizerTemplatePublic(id: string): Promise<Persona
     `SELECT * FROM personalizer_templates WHERE id = $1 AND active = TRUE`,
     [id],
   );
-  return res.rows[0] ?? null;
+  return res.rows[0] ? mapTemplateRow(res.rows[0]) : null;
 }
 
 export interface CreatePersonalizerTemplateInput {
@@ -234,6 +268,11 @@ export interface CreatePersonalizerTemplateInput {
   decoration_url?: string;
   customer_options?: CustomerOptionsConfig;
   ai_config?: AiTemplateConfig;
+  slots?: Slot[];
+  grid_config?: GridConfig;
+  print_product_id?: string;
+  overlay_url?: string;
+  expected_slots?: number;
   sort_order?: number;
 }
 
@@ -245,8 +284,10 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
         photo_x, photo_y, photo_width, photo_height,
         mockup_x, mockup_y, mockup_width, mockup_height,
         text_fields, ai_style, hole_seed_x, hole_seed_y,
-        layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+        layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order,
+        slots, grid_config, print_product_id, overlay_url, expected_slots)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,
+             $25,$26,$27,$28,$29)
      RETURNING *`,
     [
       id, input.shop, input.name, input.description ?? "",
@@ -266,9 +307,16 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
       JSON.stringify(input.customer_options ?? DEFAULT_CUSTOMER_OPTIONS),
       JSON.stringify(normalizeAiConfig(input.ai_config)),
       input.sort_order ?? 0,
+      JSON.stringify(input.slots ?? []),
+      JSON.stringify(input.grid_config ?? {}),
+      input.print_product_id ?? "",
+      input.overlay_url ?? "",
+      input.expected_slots ?? 0,
     ],
   );
-  return res.rows[0];
+  const created = mapTemplateRow(res.rows[0]);
+  await snapshotTemplate(created);
+  return created;
 }
 
 export interface UpdatePersonalizerTemplateInput {
@@ -293,6 +341,11 @@ export interface UpdatePersonalizerTemplateInput {
   mockup_height?: number;
   text_fields?: TextFieldDef[];
   ai_style?: string;
+  slots?: Slot[];
+  grid_config?: GridConfig;
+  print_product_id?: string;
+  overlay_url?: string;
+  expected_slots?: number;
   active?: boolean;
   sort_order?: number;
 }
@@ -310,7 +363,8 @@ export async function updatePersonalizerTemplate(
     if (v === undefined) continue;
     sets.push(`${k} = $${i++}`);
     const isJsonColumn = k === "text_fields" || k === "scatter_config"
-      || k === "customer_options" || k === "ai_config";
+      || k === "customer_options" || k === "ai_config"
+      || k === "slots" || k === "grid_config";
     vals.push(isJsonColumn ? JSON.stringify(v) : v);
   }
   if (sets.length === 0) return getPersonalizerTemplate(id, shop);
@@ -318,11 +372,116 @@ export async function updatePersonalizerTemplate(
   sets.push(`updated_at = now()`);
   vals.push(id, shop);
 
+  // Sürüm, BASKIYI ETKİLEYEN bir değişiklikte artar. Yerleşim ya da tasarım
+  // değişirse o şablonla basılmış eski siparişlerin yeniden üretimi bozulur;
+  // sürüm olmadan hangi hâlin basıldığı bilinemez.
+  //
+  // Yayına alma/çıkarma ve sıralama baskıyı değiştirmez. Bunları da saysaydık
+  // listede bir düğmeye basmak yeni sürüm üretir, sürüm geçmişi anlamsız
+  // gürültüyle dolardı.
+  const contentChanged = Object.keys(input).some(
+    (k) => input[k as keyof UpdatePersonalizerTemplateInput] !== undefined
+      && !VERSION_NEUTRAL_FIELDS.has(k),
+  );
+  if (contentChanged) sets.push("version = version + 1");
+
   const res = await query<Row>(
     `UPDATE personalizer_templates SET ${sets.join(", ")} WHERE id = $${i} AND shop = $${i + 1} RETURNING *`,
     vals,
   );
-  return res.rows[0] ?? null;
+  const updated = res.rows[0] ? mapTemplateRow(res.rows[0]) : null;
+  if (updated && contentChanged) await snapshotTemplate(updated);
+  return updated;
+}
+
+/** Baskı çıktısını değiştirmeyen alanlar; bunlar sürüm artırmaz */
+const VERSION_NEUTRAL_FIELDS = new Set(["active", "sort_order"]);
+
+/**
+ * Şablonun o anki hâlini sürüm tablosuna yazar.
+ *
+ * Hata durumunda kaydetme işlemi düşürülmüyor: anlık görüntü alınamadı diye
+ * mağaza sahibinin çalışması kaybolmamalı. Eksik sürüm, o sürümle basılmış
+ * siparişin yeniden üretilememesi demek — kayda geçiyor.
+ */
+export async function snapshotTemplate(template: PersonalizerTemplate): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO personalizer_template_versions (template_id, version, snapshot)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (template_id, version) DO NOTHING`,
+      [template.id, template.version, JSON.stringify(template)],
+    );
+  } catch (err) {
+    console.error(`[personalizer] ${template.id} v${template.version} anlık görüntüsü alınamadı:`, err);
+  }
+}
+
+/** Belirli bir sürümün kayıtlı hâli; eski siparişi yeniden basmak için */
+export async function getTemplateVersion(
+  templateId: string,
+  version: number,
+): Promise<PersonalizerTemplate | null> {
+  const res = await query<{ snapshot: PersonalizerTemplate }>(
+    `SELECT snapshot FROM personalizer_template_versions
+      WHERE template_id = $1 AND version = $2`,
+    [templateId, version],
+  );
+  const snap = res.rows[0]?.snapshot;
+  return snap ? { ...snap, slots: normalizeSlots(snap.slots) } : null;
+}
+
+/**
+ * Şablonu kopyalar.
+ *
+ * "Sevgiliye 8 fotoğraflı" ile "Babaya 8 fotoğraflı" aynı yerleşimi, farklı
+ * dekor ve yazıları kullanıyor. Klonlama bu tür ürünleri dakikalara indiriyor;
+ * paylaşılan yerleşim soyutlaması yerine kopya tercih edildi çünkü kopya
+ * üstünde oynamak kaynağı bozmuyor.
+ *
+ * Kopya taslak olarak açılıyor: yanlışlıkla eksik bir şablon canlıya çıkmasın.
+ */
+export async function duplicatePersonalizerTemplate(
+  id: string,
+  shop: string,
+  newName?: string,
+): Promise<PersonalizerTemplate | null> {
+  const source = await getPersonalizerTemplate(id, shop);
+  if (!source) return null;
+
+  const created = await createPersonalizerTemplate({
+    shop,
+    name: newName?.trim() || `${source.name} (kopya)`,
+    description: source.description,
+    template_url: source.template_url,
+    mockup_url: source.mockup_url,
+    photo_x: source.photo_x,
+    photo_y: source.photo_y,
+    photo_width: source.photo_width,
+    photo_height: source.photo_height,
+    mockup_x: source.mockup_x,
+    mockup_y: source.mockup_y,
+    mockup_width: source.mockup_width,
+    mockup_height: source.mockup_height,
+    text_fields: source.text_fields,
+    ai_style: source.ai_style,
+    hole_seed_x: source.hole_seed_x,
+    hole_seed_y: source.hole_seed_y,
+    layout_mode: source.layout_mode,
+    scatter_config: source.scatter_config as ScatterTemplateConfig,
+    decoration_url: source.decoration_url,
+    customer_options: source.customer_options as CustomerOptionsConfig,
+    ai_config: source.ai_config as AiTemplateConfig,
+    slots: source.slots,
+    grid_config: source.grid_config as GridConfig,
+    print_product_id: source.print_product_id,
+    overlay_url: source.overlay_url,
+    expected_slots: source.expected_slots,
+    sort_order: source.sort_order + 1,
+  });
+
+  // Kopya doğrudan yayına girmesin
+  return updatePersonalizerTemplate(created.id, shop, { active: false });
 }
 
 export async function deletePersonalizerTemplate(id: string, shop: string): Promise<boolean> {

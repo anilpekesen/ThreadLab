@@ -30,6 +30,11 @@ import {
 import { fetchShopifyProducts, findConfigForStorefront } from "~/models/product-config.server";
 import { AI_STYLES, AI_PROVIDERS, normalizeAiConfig, type AiProvider } from "~/lib/ai-styles";
 import { uploadToR2 } from "~/lib/r2.server";
+import { listPrintProducts } from "~/models/print-product.server";
+import { setProductTemplateMetafield } from "~/lib/personalizer-metafield.server";
+import { printCanvas, aspectLabel, type PrintProduct } from "~/lib/print-spec";
+import { normalizeSlots, normalizeGridConfig, type GridConfig, type Slot } from "~/lib/slots";
+import { SlotBoard } from "~/components/SlotBoard";
 
 const MAX_UPLOAD = 20 * 1024 * 1024;
 const AI_STYLE_OPTIONS = [
@@ -82,7 +87,10 @@ function defaultAiTextFields(width: number, height: number): TextFieldDef[] {
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate(request);
   const id = params.id ?? "";
-  if (id === "new") return json({ shop: session.shop, template: null, frames: [], productLinks: [], products: [], linkedAreaRatio: null, isNew: true });
+  if (id === "new") {
+    const printProducts = await listPrintProducts(session.shop, true);
+    return json({ shop: session.shop, template: null, frames: [], productLinks: [], products: [], linkedAreaRatio: null, printProducts, isNew: true });
+  }
   const template = await getPersonalizerTemplate(id, session.shop);
   if (!template) throw new Response("Şablon bulunamadı", { status: 404 });
   const frames = await listPersonalizerFrames(id);
@@ -112,7 +120,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (front?.width > 0 && front?.height > 0) linkedAreaRatio = front.width / front.height;
   }
 
-  return json({ shop: session.shop, template, frames, productLinks, products, linkedAreaRatio, isNew: false });
+  const printProducts = await listPrintProducts(session.shop, true);
+
+  return json({ shop: session.shop, template, frames, productLinks, products, linkedAreaRatio, printProducts, isNew: false });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -163,7 +173,33 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const ext = decorationFile.type === "image/webp" ? "webp" : "png";
       decoration_url = await uploadToR2(buf, ext, "personalizer-decoration");
     }
+    // Fotoğrafların ÜSTÜNDE duran katman. Şeffaf delikli tasarımlarda aynı dosya
+    // hem alan kaynağı hem üst katman olur: fotoğraf deliğin arkasından görünür,
+    // çerçeve ve süslemeler fotoğrafın üstünde kalır.
+    let overlay_url = String(form.get("existing_overlay_url") ?? "");
+    const overlayFile = form.get("overlay_image");
+    if (overlayFile instanceof File && overlayFile.size > 0) {
+      const buf = Buffer.from(await overlayFile.arrayBuffer());
+      const ext = overlayFile.type === "image/webp" ? "webp" : "png";
+      overlay_url = await uploadToR2(buf, ext, "personalizer-overlay");
+    }
+
     const sort_order  = parseInt(String(form.get("sort_order") ?? "0"), 10);
+
+    // Çoklu fotoğraf alanları. İstemciden gelen dizi normalize ediliyor:
+    // tanınmayan alanlar ve geometrisi bozuk kayıtlar sessizce eleniyor ki
+    // eski ya da kurcalanmış bir istemci render motoruna bozuk slot sokamasın.
+    const slots = normalizeSlots((() => {
+      try { return JSON.parse(String(form.get("slots") ?? "[]")); }
+      catch { return []; }
+    })());
+    let grid_config: GridConfig | undefined;
+    try {
+      const raw = String(form.get("grid_config") ?? "");
+      if (raw) grid_config = JSON.parse(raw);
+    } catch { /* bozuk JSON — ızgara parametreleri kaydedilmez, slotlar durur */ }
+    const print_product_id = String(form.get("print_product_id") ?? "").trim();
+    const expected_slots = Math.max(0, parseInt(String(form.get("expected_slots") ?? "0"), 10) || 0);
 
     if (!name) return json({ error: "İsim gerekli" }, { status: 400 });
 
@@ -180,11 +216,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // template_url opsiyonel — sadece çerçeve bazlı kullanımda boş olabilir
 
     if (id === "new") {
-      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order });
+      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url });
       // json döndür, client tarafı navigate etsin (Shopify embedded app redirect güvenilmez)
       return json({ redirectTo: `/app/personalizer/${created.id}` });
     } else {
-      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order });
+      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url });
       return json({ ok: true });
     }
   }
@@ -281,7 +317,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       product_handle: productHandle,
       variant_id: variantId,
     })));
-    return json({ ok: true, linked: true });
+
+    // Tema snippet'i şablonu ürün metafield'ından okuyor. Bu yazılmazsa
+    // uygulamadaki bağlantı mağaza tarafında hiçbir şey yapmaz: kişiselleştirme
+    // kutusu ürün sayfasında görünmez ve sebebi anlaşılmaz.
+    //
+    // Yazma başarısız olursa bağlantı geri alınmıyor: kayıt uygulamada duruyor,
+    // mağaza sahibine metafield'ı elle girmesi gerektiği söyleniyor.
+    const meta = await setProductTemplateMetafield(shop, productId, id);
+    return json({
+      ok: true,
+      linked: true,
+      metafieldOk: meta.ok,
+      metafieldError: meta.ok ? undefined : meta.error,
+    });
   }
 
   return json({ error: "Bilinmeyen işlem" }, { status: 400 });
@@ -907,9 +956,12 @@ function newTextField(): TextFieldDef {
 // ── Main Component ───────────────────────────────────────────────────────────
 
 function PersonalizerEditor() {
-  const { shop, template, frames, productLinks, products, linkedAreaRatio, isNew } = useLoaderData<typeof loader>();
+  const { shop, template, frames, productLinks, products, linkedAreaRatio, printProducts, isNew } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ error?: string; ok?: boolean; redirectTo?: string }>();
-  const linkFetcher = useFetcher<{ error?: string; ok?: boolean; linked?: boolean }>();
+  const linkFetcher = useFetcher<{
+    error?: string; ok?: boolean; linked?: boolean;
+    metafieldOk?: boolean; metafieldError?: string;
+  }>();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const availableProducts = products.filter((product): product is NonNullable<typeof product> => product !== null);
@@ -954,6 +1006,30 @@ function PersonalizerEditor() {
     h: template?.photo_height ?? 1600,
   });
   const [layoutMode, setLayoutMode] = useState<"mask" | "scatter" | "ai">(template?.layout_mode ?? "mask");
+
+  // ── Çoklu fotoğraf alanları ────────────────────────────────────────────
+  const [slots, setSlots] = useState<Slot[]>(() => normalizeSlots(template?.slots ?? []));
+  const [gridConfig, setGridConfig] = useState<GridConfig>(
+    () => normalizeGridConfig(template?.grid_config),
+  );
+  const [printProductId, setPrintProductId] = useState(template?.print_product_id ?? "");
+  const [overlayPreview, setOverlayPreview] = useState(template?.overlay_url ?? "");
+  const [expectedSlots, setExpectedSlots] = useState(template?.expected_slots ?? 0);
+
+  // Deneme çıktısı — şablonu örnek fotoğraflarla basıp gösterir.
+  // Ayrı bir fetcher: kaydetme akışına karışmamalı, kaydedilmiş şablon üstünde
+  // çalışıyor.
+  const testFetcher = useFetcher<{
+    url?: string;
+    error?: string;
+    photoCount?: number;
+    version?: number;
+    issues?: Array<{ level: string; message: string }>;
+  }>();
+
+  const activePrintProduct: PrintProduct | null =
+    (printProducts as PrintProduct[]).find((p) => p.id === printProductId) ?? null;
+  const slotCanvas = activePrintProduct ? printCanvas(activePrintProduct) : null;
   const [decorationUrl, setDecorationUrl] = useState(template?.decoration_url ?? "");
   const sc = (template?.scatter_config ?? {}) as Partial<import("~/models/personalizer.server").ScatterTemplateConfig>;
   const [faceCount, setFaceCount] = useState(String(sc.faceCount ?? 13));
@@ -1042,6 +1118,10 @@ function PersonalizerEditor() {
     fd.set("photo_y", String(photoRect.y));
     fd.set("photo_width", String(photoRect.w));
     fd.set("photo_height", String(photoRect.h));
+    fd.set("slots", JSON.stringify(slots));
+    fd.set("grid_config", JSON.stringify(gridConfig));
+    fd.set("print_product_id", printProductId);
+    fd.set("expected_slots", String(expectedSlots));
     fetcher.submit(fd, { method: "POST", encType: "multipart/form-data" });
   }
 
@@ -1403,6 +1483,133 @@ function PersonalizerEditor() {
                 </Card>
               )}
 
+              {/* Baskı ebadı ve çoklu fotoğraf alanları */}
+              {layoutMode !== "ai" && (
+                <Card>
+                  <BlockStack gap="400">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">Baskı ebadı</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Fotoğraf alanları oran olarak saklanır; aynı şablon, aynı en-boy oranındaki
+                        her ebatta çalışır.
+                      </Text>
+                    </BlockStack>
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">Üst katman (opsiyonel)</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Fotoğrafların <b>üstünde</b> duracak tasarım. Şeffaf delikli şablonlarda
+                        tasarımın kendisini buraya da yükleyin: fotoğraf deliğin arkasından görünür,
+                        çerçeve ve yazılar fotoğrafın üstünde kalır. Izgara şablonlarında gerekmez.
+                      </Text>
+                      {overlayPreview && (
+                        <img src={overlayPreview} alt="Üst katman"
+                          style={{ maxWidth: 160, maxHeight: 160, objectFit: "contain", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+                      )}
+                      <input type="hidden" name="existing_overlay_url" value={template?.overlay_url ?? ""} readOnly />
+                      <input type="file" name="overlay_image" accept="image/png,image/webp"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) setOverlayPreview(URL.createObjectURL(f));
+                        }} />
+                    </BlockStack>
+
+                    {printProducts.length === 0 ? (
+                      <Banner tone="warning" title="Henüz baskı ebadı tanımlı değil">
+                        <p>
+                          Çoklu fotoğraf alanı kullanmak için önce <b>Baskı ebatları</b> sayfasından
+                          en az bir ebat ekleyin.
+                        </p>
+                      </Banner>
+                    ) : (
+                      <Select
+                        label="Ebat"
+                        options={[
+                          { label: "Seçilmedi", value: "" },
+                          ...(printProducts as PrintProduct[]).map((p) => ({
+                            label: `${p.name} — ${p.width_mm}×${p.height_mm} mm (${aspectLabel(p.width_mm / p.height_mm)})`,
+                            value: p.id,
+                          })),
+                        ]}
+                        value={printProductId}
+                        onChange={setPrintProductId}
+                      />
+                    )}
+                  </BlockStack>
+                </Card>
+              )}
+
+              {layoutMode !== "ai" && slotCanvas && (
+                <SlotBoard
+                  slots={slots}
+                  onChange={setSlots}
+                  canvas={slotCanvas}
+                  templateUrl={templatePreview || undefined}
+                  expectedSlots={expectedSlots}
+                  onExpectedSlotsChange={setExpectedSlots}
+                  gridConfig={gridConfig}
+                  onGridConfigChange={setGridConfig}
+                  dpi={activePrintProduct?.dpi ?? 300}
+                />
+              )}
+
+              {/* Deneme çıktısı */}
+              {layoutMode !== "ai" && slotCanvas && !isNew && (
+                <Card>
+                  <BlockStack gap="400">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">Deneme çıktısı</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Şablonu örnek fotoğraflarla basar. Slot sırasını, kırpmayı, metin taşmasını
+                        ve font sorunlarını canlıya çıkmadan önce burada görün — şablonu ilk kez
+                        müşteri denememeli.
+                      </Text>
+                    </BlockStack>
+
+                    <InlineStack gap="200" blockAlign="center">
+                      <Button
+                        onClick={() =>
+                          testFetcher.submit(
+                            { templateId: template?.id ?? "" },
+                            { method: "POST", action: "/api/personalizer/test-render", encType: "application/json" },
+                          )
+                        }
+                        loading={testFetcher.state !== "idle"}
+                      >
+                        Deneme çıktısı al
+                      </Button>
+                      <Text as="span" variant="bodySm" tone="subdued">
+                        Kaydedilmiş hâli kullanır — önce değişiklikleri kaydedin.
+                      </Text>
+                    </InlineStack>
+
+                    {testFetcher.data?.error && (
+                      <Banner tone="critical"><p>{testFetcher.data.error}</p></Banner>
+                    )}
+
+                    {testFetcher.data?.issues && testFetcher.data.issues.length > 0 && (
+                      <Banner tone={testFetcher.data.issues.some((i) => i.level === "error") ? "critical" : "warning"}>
+                        <ul style={{ margin: 0, paddingLeft: 18 }}>
+                          {testFetcher.data.issues.map((i, n) => <li key={n}>{i.message}</li>)}
+                        </ul>
+                      </Banner>
+                    )}
+
+                    {testFetcher.data?.url && (
+                      <BlockStack gap="200">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {testFetcher.data.photoCount} örnek fotoğraf · şablon sürümü v{testFetcher.data.version}
+                        </Text>
+                        <img
+                          src={testFetcher.data.url}
+                          alt="Deneme çıktısı"
+                          style={{ maxWidth: "100%", borderRadius: 8, border: "1px solid #e5e7eb" }}
+                        />
+                      </BlockStack>
+                    )}
+                  </BlockStack>
+                </Card>
+              )}
+
               {/* Metin alanları */}
               {layoutMode !== "ai" && <Card>
                 <BlockStack gap="400">
@@ -1492,6 +1699,26 @@ function PersonalizerEditor() {
                 </BlockStack>
 
                 {linkFetcher.data?.error && <Banner tone="critical">{linkFetcher.data.error}</Banner>}
+                {linkFetcher.data?.linked && linkFetcher.data.metafieldOk && (
+                  <Banner tone="success">
+                    <p>
+                      Ürün bağlandı ve Shopify'daki <code>personalizer.template_id</code> alanı
+                      yazıldı. Ürün sayfasında kişiselleştirme kutusu görünmeye başlayacak.
+                    </p>
+                  </Banner>
+                )}
+                {linkFetcher.data?.linked && linkFetcher.data.metafieldOk === false && (
+                  <Banner tone="warning" title="Bağlantı kaydedildi ama Shopify'a yazılamadı">
+                    <p>
+                      {linkFetcher.data.metafieldError}
+                    </p>
+                    <p style={{ marginTop: 8 }}>
+                      Ürün sayfasında kutunun görünmesi için Shopify yöneticisinde ürünün{" "}
+                      <code>personalizer.template_id</code> metafield'ına{" "}
+                      <code>{template?.id}</code> değerini elle girin.
+                    </p>
+                  </Banner>
+                )}
                 {linkFetcher.data?.linked && (
                   <Banner tone="success">
                     {layoutMode === "ai"

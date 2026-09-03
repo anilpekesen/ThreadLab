@@ -9,6 +9,7 @@ const en = {
   "nav.printQueue": "Print Queue",
   "nav.cliparts": "Cliparts",
   "nav.personalizer": "Personalizer",
+  "nav.printProducts": "Print sizes",
 
   // Plan header
   "planHeader.plan": "Plan:",

@@ -805,4 +805,66 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS customer_saved_designs_lookup
       ON customer_saved_designs (shop, customer_id, created_at DESC)
   `);
+
+  // ── Baskı ürünleri ────────────────────────────────────────────────────────
+  // Bir tasarımın fiziksel karşılığı: ebat, çözünürlük, taşma payı, sarma türü.
+  // Şablondan ayrı tutuluyor çünkü aynı yerleşim birden fazla ebatta satılıyor;
+  // ebat şablona gömülü olsaydı her ebat için şablon kopyalamak gerekirdi.
+  await query(`
+    CREATE TABLE IF NOT EXISTS print_products (
+      id         TEXT PRIMARY KEY,
+      shop       TEXT NOT NULL,
+      name       TEXT NOT NULL DEFAULT '',
+      width_mm   DOUBLE PRECISION NOT NULL DEFAULT 200,
+      height_mm  DOUBLE PRECISION NOT NULL DEFAULT 200,
+      dpi        INTEGER NOT NULL DEFAULT 300,
+      bleed_mm   DOUBLE PRECISION NOT NULL DEFAULT 3,
+      safe_mm    DOUBLE PRECISION NOT NULL DEFAULT 5,
+      wrap       TEXT NOT NULL DEFAULT 'flat',
+      mockup_url TEXT NOT NULL DEFAULT '',
+      active     BOOLEAN NOT NULL DEFAULT TRUE,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS print_products_shop_sort
+      ON print_products (shop, sort_order, active)
+  `);
+
+  // ── Çoklu slot ────────────────────────────────────────────────────────────
+  // Şablon artık tek fotoğraf alanı yerine N alan taşıyabiliyor. Eski
+  // photo_x/photo_y/photo_width/photo_height kolonları YERİNDE BIRAKILDI:
+  // slots boşsa okuma anında onlardan tek slotluk bir dizi türetiliyor
+  // (bkz. slotsFromLegacyTemplate). Böylece mevcut şablonlar veri taşımadan
+  // yeni motora giriyor ve bir aksilikte eski yol hâlâ çalışıyor.
+  await query(`
+    ALTER TABLE personalizer_templates
+      ADD COLUMN IF NOT EXISTS slots            JSONB NOT NULL DEFAULT '[]',
+      ADD COLUMN IF NOT EXISTS grid_config      JSONB NOT NULL DEFAULT '{}',
+      ADD COLUMN IF NOT EXISTS print_product_id TEXT  NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS overlay_url      TEXT  NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS expected_slots   INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS version          INTEGER NOT NULL DEFAULT 1
+  `);
+
+  // ── Şablon sürümleri ──────────────────────────────────────────────────────
+  // Yayındaki bir şablon değiştirilirse eski siparişlerin baskı dosyası artık
+  // yeniden üretilemez: müşteri A tasarımını onaylamışken B basılır. Her kayıtta
+  // o anki hâlin tam kopyası saklanıyor; sipariş hangi sürümle üretildiğini
+  // tuttuğu sürece aylar sonra bile aynı dosya çıkar.
+  await query(`
+    CREATE TABLE IF NOT EXISTS personalizer_template_versions (
+      template_id TEXT NOT NULL REFERENCES personalizer_templates(id) ON DELETE CASCADE,
+      version     INTEGER NOT NULL,
+      snapshot    JSONB NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (template_id, version)
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS personalizer_template_versions_recent
+      ON personalizer_template_versions (template_id, version DESC)
+  `);
 }
