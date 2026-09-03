@@ -117,6 +117,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       overlayUrl: template.overlay_url || undefined,
       outputFormat: isRender ? "png" : "jpeg",
       quality: 88,
+      // Baskıda eksik fotoğraf hata; önizlemede tolere edilir
+      strict: isRender,
     });
 
     const url = await uploadToR2(
@@ -167,7 +169,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   } catch (err) {
     console.error("[slot-preview] kompozit hatası:", err);
-    return json({ error: msg.failed }, { status: 500, headers: CORS });
+    // Baskıda hangi alanın düştüğü müşteriye söylenmeli: fotoğrafı değiştirip
+    // tekrar deneyebilsin. Genel bir "hata oluştu" onu çaresiz bırakır.
+    const detail = isRender && err instanceof Error ? err.message : "";
+    return json(
+      { error: detail || msg.failed },
+      { status: 500, headers: CORS },
+    );
   }
 };
 

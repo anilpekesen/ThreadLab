@@ -50,6 +50,15 @@ export interface ComposeSlotsOptions {
   overlayUrl?: string;
   outputFormat?: "png" | "jpeg";
   quality?: number;
+  /**
+   * Baskı çıktısında true verilir: bir fotoğraf indirilemezse hata fırlatılır.
+   *
+   * Önizlemede tek bir görselin düşmesi tolere edilebilir, müşteri eksiği görüp
+   * düzeltir. Baskıda edilemez — canlı testte dört fotoğrafın dördü de 404
+   * verdi ve sistem bomboş bir baskı dosyasını başarıyla üretilmiş saydı.
+   * Müşteri parasını ödemiş, üretime boş dosya gidiyor olurdu.
+   */
+  strict?: boolean;
 }
 
 const FETCH_TIMEOUT = 30_000;
@@ -273,8 +282,12 @@ export async function composeSlotDesign(opts: ComposeSlotsOptions): Promise<Buff
       layer = await applySlotShape(layer, slot, box.width, box.height, W);
       composites.push({ input: layer, left: box.x, top: box.y });
     } catch (err) {
-      // Tek bir fotoğrafın indirilememesi tüm siparişi düşürmemeli; o alan boş
-      // kalır, kalan alanlar basılır ve hata kayda geçer.
+      if (opts.strict) {
+        // Baskıda eksik alan sessizce geçilemez
+        throw new Error(`"${slot.label || slot.id}" alanının fotoğrafı yüklenemedi: ${String(err)}`);
+      }
+      // Önizlemede tek bir fotoğrafın düşmesi akışı durdurmamalı; o alan boş
+      // kalır, kalan alanlar çizilir ve hata kayda geçer.
       console.error(`[slot-compose] "${slot.id}" alanı atlandı:`, err);
     }
   }
