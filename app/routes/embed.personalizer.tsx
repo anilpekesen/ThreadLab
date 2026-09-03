@@ -1,5 +1,6 @@
 import { type LoaderFunctionArgs } from "@remix-run/node";
 import { getPersonalizerTemplateByProduct, getPersonalizerTemplatePublic, listPersonalizerFrames } from "~/models/personalizer.server";
+import { buildSlotResponse } from "~/lib/slot-embed.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -71,6 +72,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!template) {
     return new Response(t.notFound, { status: 404 });
   }
+
+  // Şablon çoklu slot taşıyorsa kolaj arayüzüne geçilir.
+  //
+  // Adres tek tutuluyor: mağaza sahibinin tema koduna daha önce yapıştırdığı
+  // snippet aynen çalışmaya devam etsin, yeni ürün tipi için ikinci bir kurulum
+  // adımı gerekmesin. Slotu olmayan şablonlarda `null` döner ve aşağıdaki eski
+  // akış aynen sürer.
+  const slotResponse = await buildSlotResponse(template, { variantId, shop, locale: normalizedLocale });
+  if (slotResponse) return slotResponse;
 
   const resolvedTemplateId = template.id;
   const frames = await listPersonalizerFrames(resolvedTemplateId);
