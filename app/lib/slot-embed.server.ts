@@ -424,6 +424,14 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   }
   .board img.ov { z-index: 3; }
 
+  /* display:none bir dosya girdisini Safari bazı sürümlerde hiç açmıyor;
+     görünmez ama yerleşimde duran bir kutu güvenli. */
+  .gizli-dosya {
+    position: absolute; width: 1px; height: 1px;
+    opacity: 0; pointer-events: none; overflow: hidden;
+    clip-path: inset(50%); border: 0; padding: 0; margin: -1px;
+  }
+
   .slot {
     position: absolute; overflow: hidden; z-index: 2; cursor: pointer;
     background: var(--surface);
@@ -613,7 +621,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
 <div class="dropveil" id="dropveil">${escapeHtml(t.dropHere)}</div>
 
-<input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp" multiple hidden>
+<input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp" multiple class="gizli-dosya">
 
 <dialog class="crop" id="cropDlg">
   <div class="crop-body">
@@ -762,6 +770,14 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       el.setAttribute('tabindex', '0');
       el.setAttribute('aria-label', s.label || 'Fotoğraf alanı');
       el.addEventListener('pointerdown', function (e) { beginDrag(e, { kind: 'slot', id: s.id }); });
+      // Boş alana tıklamak/dokunmak dosya seçtirir. Dolu alanla ilgilenmiyor:
+      // onu pointerup zaten kırpma penceresine götürüyor, buradan da açsak
+      // pencere iki kez tetiklenirdi.
+      el.addEventListener('click', function () {
+        if (fills[s.id]) return;
+        replaceTarget = s.id;
+        fileInput.click();
+      });
       el.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         e.preventDefault();
@@ -893,11 +909,12 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
   function beginDrag(e, src) {
     if (e.button != null && e.button !== 0) return;
-    if (!sourceFill(src)) {
-      // Boş alana dokunmak dosya seçtirir
-      if (src.kind === 'slot') { replaceTarget = src.id; fileInput.click(); }
-      return;
-    }
+    // Boş alanda sürükleyecek bir şey yok. Dosya seçici BURADA açılmıyor:
+    // iOS Safari dosya penceresini yalnızca click/touchend içinden açtırıyor,
+    // pointerdown'dan çağrıldığında sessizce yutuyordu — telefonda alanın
+    // ortasındaki + işaretine basmak hiçbir şey yapmıyordu. Açma işi aşağıdaki
+    // click dinleyicisinde.
+    if (!sourceFill(src)) return;
     drag = {
       src: src, x: e.clientX, y: e.clientY, active: false, cancelled: false,
       touch: e.pointerType === 'touch', ghost: null, over: null, timer: 0,
