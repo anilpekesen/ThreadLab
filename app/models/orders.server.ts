@@ -27,6 +27,8 @@ export interface Order {
   /** Line-item bazlı arka yüz önizlemesi (beden başına farklı olabilir) */
   backPreviewUrl?: string;
   productionFileUrl: string;
+  /** Set ürünlerinde üretime giden bütün dosyalar; tek dosyalı ürünlerde boş */
+  productionFiles: string[];
   productionStatus: string;
   missingSurcharge?: boolean;
   createdAt: string;
@@ -58,6 +60,8 @@ type DbRow = {
   preview_url: string;
   back_preview_url?: string | null;
   production_file_url: string;
+  /** Set ürünlerinde üretime giden bütün dosyalar; tek dosyalı ürünlerde boş */
+  production_files: string[];
   production_status: string;
   missing_surcharge: boolean;
   created_at: Date;
@@ -89,6 +93,7 @@ function rowToOrder(row: DbRow): Order {
     previewUrl: row.preview_url,
     backPreviewUrl: row.back_preview_url || undefined,
     productionFileUrl: row.production_file_url,
+    productionFiles: Array.isArray(row.production_files) ? row.production_files : [],
     productionStatus: row.production_status,
     missingSurcharge: row.missing_surcharge,
     createdAt: row.created_at.toISOString(),
@@ -108,7 +113,7 @@ const ORDER_SELECT = `
   SELECT o.id, o.shop, o.shopify_order_id, o.order_number, o.customer_name, o.customer_email,
     o.product_id, o.product_name, o.variant_id, o.variant_title, o.quantity,
     o.design_token, o.preview_url, o.back_preview_url,
-    o.production_file_url, o.production_status, o.missing_surcharge, o.created_at, o.updated_at,
+    o.production_file_url, o.production_files, o.production_status, o.missing_surcharge, o.created_at, o.updated_at,
     o.drive_folder_id, o.drive_uploaded_at, o.color_mismatch,
     d.front_preview_url AS design_front_preview_url,
     d.back_preview_url  AS design_back_preview_url,

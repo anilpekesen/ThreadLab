@@ -247,10 +247,28 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
       getAttr(item.properties, "_front_preview_url") ??
       getAttr(item.attributes, "_front_preview_url") ??
       (allowOrderLevelDesignUrls ? orderFrontPreviewUrl : "");
+    // Kişiselleştirici baskı dosyasını "_print_file" adıyla yazıyor; eski
+    // tasarımcı akışı "_front_print_url" kullanıyor. İkisini de kabul ediyoruz,
+    // yoksa yeni ürünlerin siparişleri baskı dosyasız düşüyor.
     const frontPrintUrl =
       getAttr(item.properties, "_front_print_url") ??
       getAttr(item.attributes, "_front_print_url") ??
+      getAttr(item.properties, "_print_file") ??
+      getAttr(item.attributes, "_print_file") ??
       (allowOrderLevelDesignUrls ? orderFrontPrintUrl : "");
+
+    // Set ürünlerinde üretime birden fazla dosya gidiyor. Virgülle ayrılmış
+    // liste sipariş satırında; tek dosyalı ürünlerde bu alan boş kalıyor ve
+    // production_file_url tek başına yeterli oluyor.
+    const printFilesRaw =
+      getAttr(item.properties, "_print_files") ??
+      getAttr(item.attributes, "_print_files") ??
+      "";
+    const productionFiles = printFilesRaw
+      .split(",")
+      .map((u) => u.trim())
+      .filter(Boolean);
+    if (productionFiles.length === 0 && frontPrintUrl) productionFiles.push(frontPrintUrl);
 
     const qty = item.quantity ?? 1;
     const unitPrice = Number(item.price_set?.shop_money?.amount ?? item.price ?? 0);
@@ -271,10 +289,10 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
       `INSERT INTO orders
          (id, shop, shopify_order_id, order_number, product_id, product_name,
           variant_id, variant_title, line_item_id, quantity, design_token, preview_url,
-          production_file_url, customer_name, customer_email,
+          production_file_url, production_files, customer_name, customer_email,
           production_status, missing_surcharge, created_at,
           line_total_price, currency_code, color_mismatch)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'pending',FALSE,$16,$17,$18,$19)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending',FALSE,$17,$18,$19,$20)
        ON CONFLICT DO NOTHING`,
       [
         id,
@@ -290,6 +308,7 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
         token,
         frontPreviewUrl,
         frontPrintUrl,
+        JSON.stringify(productionFiles),
         customerName,
         customerEmail,
         payload.created_at ? new Date(payload.created_at) : new Date(),
