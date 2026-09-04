@@ -111,6 +111,10 @@ export function inspectFont(buffer: Buffer): { family: string; style: string; gl
       return "";
     };
 
+    // Ayrıştırma yetmiyor: font metni gerçekten çizebilmeli. Çizemeyen bir
+    // fontu kabul etsek hata ancak sipariş anında ortaya çıkardı.
+    if (!canRender(font)) return null;
+
     return {
       family: pick("fontFamily") || "Adsız",
       style: pick("fontSubfamily") || "Regular",
@@ -122,9 +126,32 @@ export function inspectFont(buffer: Buffer): { family: string; style: string; gl
   }
 }
 
-/** Fontun bu puntoda ürettiği gerçek metin genişliği */
+/**
+ * Fontun bu puntoda ürettiği gerçek metin genişliği.
+ *
+ * Ölçüm de çizim de fontun biçimlendirme tablolarını çalıştırıyor ve
+ * opentype.js bazı tabloları desteklemiyor ("substitutionType 62 ... not yet
+ * supported"). Bu, ayrıştırması sorunsuz geçen bir fontta bile OLABİLİR;
+ * yakalanmazsa siparişin baskı üretimi tamamen düşüyor.
+ */
 export function measure(font: opentypeNs.Font, text: string, fontSize: number): number {
-  return font.getAdvanceWidth(text, fontSize);
+  try {
+    return font.getAdvanceWidth(text, fontSize);
+  } catch (err) {
+    console.error("[text-render] metin ölçülemedi:", err);
+    return 0;
+  }
+}
+
+/** Font verilen metni gerçekten çizebiliyor mu — yükleme anında denenir */
+export function canRender(font: opentypeNs.Font, text = "Deneme ĞÜŞİÖÇ 123"): boolean {
+  try {
+    const yollar = font.getPaths(text, 0, 0, 40).map((p) => commandsToPathData(p.commands));
+    return yollar.some((d) => d.length > 2);
+  } catch (err) {
+    console.error("[text-render] font metni çizemedi:", err);
+    return false;
+  }
 }
 
 export interface LayoutOptions {
@@ -154,7 +181,7 @@ export function layoutText(opts: LayoutOptions): TextLayout {
   let fontSize = opts.fontSize;
   let width = measure(font, text, fontSize);
 
-  if (opts.overflow === "shrink" && width > box.width && width > 0) {
+  if (opts.overflow === "shrink" && width > 0 && width > box.width) {
     const min = opts.minFontSize ?? 8;
     fontSize = Math.max(min, Math.floor(fontSize * (box.width / width)));
     width = measure(font, text, fontSize);
@@ -170,10 +197,18 @@ export function layoutText(opts: LayoutOptions): TextLayout {
     : align === "center" ? box.x + (box.width - width) / 2
     : box.x;
 
-  const paths = font
-    .getPaths(text, x, baselineY, fontSize)
-    .map((p) => commandsToPathData(p.commands))
-    .filter((d) => d.length > 2); // boşluk gibi çizimi olmayan glifler
+  let paths: string[] = [];
+  try {
+    paths = font
+      .getPaths(text, x, baselineY, fontSize)
+      .map((p) => commandsToPathData(p.commands))
+      .filter((d) => d.length > 2); // boşluk gibi çizimi olmayan glifler
+  } catch (err) {
+    // Çağıran boş yol listesini "bu fontla çizilemedi" olarak okuyup sistem
+    // fontuna düşüyor; sipariş düşmüyor.
+    console.error("[text-render] metin çizilemedi, sistem fontuna düşülecek:", err);
+    paths = [];
+  }
   return { paths, fontSize, width };
 }
 

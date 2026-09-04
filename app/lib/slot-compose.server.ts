@@ -198,16 +198,26 @@ async function buildTextLayers(
     const font = slot.font_url ? await loadFont(slot.font_url) : null;
     let body = "";
 
-    if (font) {
-      const laid = layoutText({
-        text: raw,
-        font,
-        fontSize,
-        box: inner,
-        align: slot.align,
-        overflow: slot.overflow,
-      });
-      if (laid.paths.length === 0) continue;
+    // Yol üretilemezse font metni çizemiyor demektir (opentype.js bazı
+    // biçimlendirme tablolarını desteklemiyor). O durumda alanı atlamak
+    // yerine sistem fontuna düşüyoruz: eksik yazıyla basmaktansa farklı
+    // fontla basmak yeğdir ve sipariş düşmez.
+    let laid = font
+      ? layoutText({
+          text: raw,
+          font,
+          fontSize,
+          box: inner,
+          align: slot.align,
+          overflow: slot.overflow,
+        })
+      : null;
+    if (laid && laid.paths.length === 0) {
+      console.warn(`[slot-compose] "${slot.id}" fontla çizilemedi, sistem fontuna düşülüyor`);
+      laid = null;
+    }
+
+    if (laid) {
       const stroke = slot.bold
         ? ` stroke="${escapeAttr(slot.color)}" stroke-width="${(laid.fontSize * 0.03).toFixed(2)}"`
         : "";
