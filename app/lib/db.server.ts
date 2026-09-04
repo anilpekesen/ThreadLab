@@ -872,6 +872,14 @@ async function _runMigrationsLocked() {
       ADD COLUMN IF NOT EXISTS version          INTEGER NOT NULL DEFAULT 1
   `);
 
+  // Set ürünlerinde bir sipariş satırı birden fazla baskı dosyası taşıyor
+  // (3'lü çerçevede üç ayrı 30x30). Tek kolonlu production_file_url yalnızca
+  // ilkini tutabiliyordu; üretime eksik iş giderdi.
+  await query(`
+    ALTER TABLE orders
+      ADD COLUMN IF NOT EXISTS production_files JSONB NOT NULL DEFAULT '[]'
+  `);
+
   // Set ürünleri: bir sipariş satırı birden fazla baskı dosyası üretebilir.
   // "3'lü çerçeve seti"nde üç ayrı 30x30 dosya gerekiyor; hepsini tek tuvale
   // koymak yanlış olur, çünkü onlar üç ayrı çerçeve ve her birinin kendi taşma

@@ -398,6 +398,16 @@ export default function OrderDetail() {
   const frontPreviewUrl = validUrl(order.previewUrl) || validUrl(design?.frontPreviewUrl) || validUrl(order.designFrontPreviewUrl) || "";
   const backPreviewUrl = validUrl(order.backPreviewUrl) || validUrl(design?.backPreviewUrl) || validUrl(order.designBackPreviewUrl) || "";
   const frontPrintUrl = validUrl(design?.frontPrintUrl) || validUrl(order.designFrontPrintUrl) || validUrl(order.productionFileUrl) || "";
+  // Set ürünlerinde üretime giden bütün dosyalar. Sipariş kaydında yoksa
+  // tasarım kaydındaki parça listesinden türetiliyor: eski siparişler de
+  // eksiksiz indirilebilsin.
+  const setDosyalari: string[] = (() => {
+    const kayittan = Array.isArray(order.productionFiles) ? order.productionFiles.filter(Boolean) : [];
+    if (kayittan.length > 0) return kayittan;
+    const parcalar = (design as { pieces?: Array<{ url?: string }> } | null)?.pieces;
+    if (Array.isArray(parcalar)) return parcalar.map((p) => p?.url ?? "").filter(Boolean);
+    return [];
+  })();
   const backPrintUrl = validUrl(design?.backPrintUrl) || validUrl(order.designBackPrintUrl) || "";
   const hasDesignFiles = Boolean(frontPreviewUrl || backPreviewUrl || frontPrintUrl || backPrintUrl);
 
@@ -636,11 +646,20 @@ export default function OrderDetail() {
                         <Button variant="plain" size="slim">{t("orderDetail.downloadPreview")}</Button>
                       </a>
                     )}
-                    {frontPrintUrl && (
-                      <a href={dlUrl(frontPrintUrl, "on-baski.png")} download>
-                        <Button variant="secondary" size="slim">{t("orderDetail.downloadPrintFile")}</Button>
-                      </a>
-                    )}
+                    {/* Set ürünlerinde tek dosya yok: her parça ayrı basılıyor.
+                        Tek dosyalı ürünlerde bu liste boş ve altta klasik
+                        indirme düğmesi kalıyor. */}
+                    {setDosyalari.length > 1
+                      ? setDosyalari.map((u, i) => (
+                          <a key={u} href={dlUrl(u, `baski-${i + 1}.png`)} download>
+                            <Button variant="secondary" size="slim">{`${i + 1}. baskı dosyası`}</Button>
+                          </a>
+                        ))
+                      : frontPrintUrl && (
+                          <a href={dlUrl(frontPrintUrl, "on-baski.png")} download>
+                            <Button variant="secondary" size="slim">{t("orderDetail.downloadPrintFile")}</Button>
+                          </a>
+                        )}
                   </InlineStack>
                   {frontObjects.length > 0 && (
                     <BlockStack gap="300">
