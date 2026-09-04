@@ -147,6 +147,10 @@ export async function buildSlotData(
     noSlots: isTr ? "Bu şablonda fotoğraf alanı tanımlı değil." : "This template has no photo slots.",
     error: isTr ? "Bir hata oluştu, lütfen tekrar deneyin." : "Something went wrong, please try again.",
     emptyArea: isTr ? "Fotoğraf ekleyin" : "Add a photo",
+    heading: isTr ? "Fotoğraflarınızı yerleştirin" : "Place your photos",
+    dropHere: isTr ? "Fotoğrafları buraya bırakın" : "Drop your photos here",
+    progress: isTr ? "{a} / {b} fotoğraf" : "{a} / {b} photos",
+    colorLabel: isTr ? "seçili" : "selected",
   };
 
   function page(message: string) {
@@ -300,121 +304,302 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>${escapeHtml(template.name)}</title>
 <style>
+  /* Tek aile, sabit rem ölçeği. Ürün arayüzü: tipografi göreve hizmet eder,
+     görevin önüne geçmez. */
+  :root {
+    --bg: #ffffff;
+    --surface: #f6f7f8;
+    --surface-2: #eef0f2;
+    --line: #e2e4e8;
+    --line-strong: #cdd1d7;
+    --ink: #15171c;
+    --ink-2: #565c68;          /* beyaz üstünde 6.4:1 */
+    --accent: #15171c;
+    --commit: #0b7a43;         /* beyaz üstünde 4.6:1 */
+    --commit-hover: #096236;
+    --warn: #b02a1f;           /* beyaz üstünde 5.5:1 */
+    --focus: #2f6fd0;
+
+    --r-sm: 6px;
+    --r: 10px;
+    --r-lg: 14px;
+
+    --z-sticky: 20;
+    --z-drop: 40;
+    --z-dialog: 60;
+
+    --ease: cubic-bezier(.22,.61,.36,1);
+  }
+
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body { margin:0; font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; color:#1d2129; background:#fff; }
-  .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
-  .board-outer { position: relative; width: 100%; background:#f6f6f6; border:1px solid #e3e3e3; border-radius:8px; overflow:hidden; }
-  .mockup { position:relative; width:100%; margin-bottom:16px; border-radius:10px; overflow:hidden; background:#f6f6f6; }
-  .mockup > img.base { display:block; width:100%; }
-  .mockup .area { position:absolute; overflow:hidden; }
-  .mockup .area img { position:absolute; max-width:none; }
-  .mockup .bos { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-                 background:rgba(255,255,255,.55); color:#6b7280; font-size:12px; }
-  .variants { display:flex; flex-direction:column; gap:14px; margin-bottom:18px; }
-  .vgroup .vlabel { font-size:13px; font-weight:600; margin:0 0 6px; }
-  .vgroup .vopts { display:flex; flex-wrap:wrap; gap:8px; }
-  .vopt { appearance:none; border:1px solid #d5d9de; background:#fff; border-radius:8px;
-          padding:8px 14px; font:500 14px system-ui; cursor:pointer; color:#1d2129; }
-  .vopt[aria-pressed="true"] { border-color:#1d2129; background:#1d2129; color:#fff; }
-  .vopt:disabled { opacity:.4; cursor:not-allowed; }
-  .price { font-size:16px; font-weight:600; margin-left:auto; }
-  .piece { margin-bottom: 18px; }
-  /* Set ürünlerinde parçalar yan yana: müşteri üç çerçeveyi bir arada görmeli,
-     duvarda da öyle duracak. Dar ekranda alt alta iner. */
-  #boards.set { display: grid; gap: 14px; grid-template-columns: 1fr; }
-  @media (min-width: 560px) { #boards.set { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); } }
-  #boards.set .piece { margin-bottom: 0; }
-  .piece-title { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:#4b5563; margin:0 0 6px; }
-  .piece-title .n { background:#1d2129; color:#fff; border-radius:4px; padding:1px 7px; font-size:11px; }
-  .piece-title .eksik { color:#b3261e; font-weight:500; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 4px 16px 96px; }
+
+  /* ── Başlık şeridi ──────────────────────────────────────────────── */
+  .head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin: 4px 0 16px;
+  }
+  .head h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+  .progress { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .progress b { color: var(--ink); font-weight: 600; }
+  .progress.done { color: var(--commit); }
+
+  /* ── Varyant seçimi ─────────────────────────────────────────────── */
+  .variants { display: grid; gap: 16px; margin-bottom: 20px; }
+  @media (min-width: 640px) { .variants { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
+  .vlabel {
+    font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--ink);
+    display: flex; gap: 6px; align-items: baseline;
+  }
+  .vlabel span { font-weight: 400; color: var(--ink-2); }
+  .vopts { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .vopt {
+    appearance: none; cursor: pointer; font: inherit; font-size: 14px;
+    border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink);
+    border-radius: var(--r); padding: 9px 14px;
+    transition: border-color .15s var(--ease), background .15s var(--ease);
+  }
+  .vopt:hover { border-color: var(--ink-2); }
+  .vopt[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: #fff; }
+  .vopt:disabled { opacity: .38; cursor: not-allowed; }
+
+  /* Renk seçenekleri mağazanın kendi çerçeve görselini gösteriyor:
+     müşteri adı değil, alacağı şeyi görüyor. */
+  .vopt.swatch { padding: 6px 12px 6px 6px; display: inline-flex; align-items: center; gap: 9px; }
+  .vopt.swatch img {
+    width: 30px; height: 30px; border-radius: var(--r-sm);
+    object-fit: cover; background: var(--surface-2); display: block;
+  }
+
+  /* ── Çerçeveler ─────────────────────────────────────────────────── */
+  #boards { display: grid; gap: 14px; }
+  #boards.set { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .piece { min-width: 0; }
+  .piece-title {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 13px; font-weight: 500; color: var(--ink-2); margin: 0 0 7px;
+  }
+  .piece-title .n {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; height: 20px; padding: 0 5px;
+    background: var(--surface-2); color: var(--ink-2);
+    border-radius: 5px; font-size: 11px; font-weight: 600;
+  }
+  .piece.dolu .piece-title .n { background: var(--ink); color: #fff; }
+  .piece-title .eksik { color: var(--warn); }
+
+  .board-outer { position: relative; width: 100%; border-radius: var(--r); overflow: hidden; }
   .board { position: relative; width: 100%; }
-  .board img.bg, .board img.ov { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; pointer-events:none; }
+  .board img.bg, .board img.ov {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: fill; pointer-events: none;
+  }
   .board img.ov { z-index: 3; }
-  .slot { position:absolute; overflow:hidden; z-index:2; background:rgba(0,0,0,.045); cursor:pointer; }
-  .slot.empty { outline:2px dashed #c4c9d0; outline-offset:-2px; }
-  .slot.missing { outline-color:#e23b4a; background:rgba(226,59,74,.08); }
-  .slot img { position:absolute; max-width:none; pointer-events:none; user-select:none; }
-  .slot .num { position:absolute; z-index:2; left:4px; top:4px; font-size:11px; font-weight:600; color:#fff;
-               background:rgba(30,34,40,.62); border-radius:3px; padding:1px 5px; pointer-events:none; }
-  .slot .warn { position:absolute; z-index:2; right:4px; top:4px; font-size:12px; }
-  .slot.dragover { outline:3px solid #2f6fd0; outline-offset:-3px; }
+
+  .slot {
+    position: absolute; overflow: hidden; z-index: 2; cursor: pointer;
+    background: var(--surface);
+    transition: box-shadow .15s var(--ease);
+  }
+  .slot:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .slot img { position: absolute; max-width: none; pointer-events: none; user-select: none; }
+  .slot.empty {
+    display: flex; align-items: center; justify-content: center;
+    border: 1px dashed var(--line-strong);
+  }
+  .slot.empty::after {
+    content: "+"; font-size: 26px; font-weight: 300; color: var(--ink-2); line-height: 1;
+  }
+  .slot.empty.missing { border-color: var(--warn); background: #fdf3f2; }
+  .slot.empty.missing::after { color: var(--warn); }
+  .slot.dragover { box-shadow: inset 0 0 0 3px var(--focus); }
+  .slot .num {
+    position: absolute; z-index: 2; left: 5px; top: 5px;
+    font-size: 11px; font-weight: 600; color: #fff;
+    background: rgba(21,23,28,.62); border-radius: 4px; padding: 1px 6px;
+    pointer-events: none;
+  }
+  .slot .warn {
+    position: absolute; z-index: 2; right: 5px; top: 5px; font-size: 12px;
+    background: rgba(255,255,255,.9); border-radius: 4px; padding: 0 4px;
+  }
+
+  /* ── Mockup paneli (alan tanımlı görseller için) ─────────────────── */
+  .mockup { position: relative; width: 100%; margin-bottom: 16px; border-radius: var(--r); overflow: hidden; }
+  .mockup > img.base { display: block; width: 100%; }
+  .mockup .area { position: absolute; overflow: hidden; }
+  .mockup .area img { position: absolute; max-width: none; }
+  .mockup .bos {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,.6); color: var(--ink-2); font-size: 12px;
+  }
+
+  /* ── Eylemler ───────────────────────────────────────────────────── */
+  .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 18px 0 0; }
+  .hint { font-size: 13px; color: var(--ink-2); margin: 8px 0 0; max-width: 62ch; }
+
+  .btn {
+    appearance: none; cursor: pointer; font: inherit; font-weight: 600; font-size: 15px;
+    border: 1px solid transparent; border-radius: var(--r); padding: 11px 18px;
+    transition: background .15s var(--ease), border-color .15s var(--ease), color .15s var(--ease);
+  }
+  .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .btn-primary { background: var(--ink); color: #fff; }
+  .btn-primary:hover { background: #000; }
+  .btn-outline { background: var(--bg); color: var(--ink); border-color: var(--line-strong); }
+  .btn-outline:hover { border-color: var(--ink-2); }
+  .btn-commit { background: var(--commit); color: #fff; }
+  .btn-commit:hover { background: var(--commit-hover); }
+  .btn:disabled { background: var(--surface-2); color: #8c929c; border-color: transparent; cursor: not-allowed; }
+
+  .status { font-size: 14px; }
+  .status.warnc { color: var(--warn); }
+  .status.okc { color: var(--commit); }
+
+  /* ── Alt eylem çubuğu ───────────────────────────────────────────── */
+  .commitbar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line);
+  }
+  .price { font-size: 17px; font-weight: 600; margin-left: auto; font-variant-numeric: tabular-nums; }
+  @media (max-width: 599px) {
+    .commitbar {
+      position: sticky; bottom: 0; z-index: var(--z-sticky);
+      background: var(--bg); margin: 22px -16px 0; padding: 12px 16px;
+      border-top: 1px solid var(--line); box-shadow: 0 -6px 18px rgba(0,0,0,.06);
+    }
+    .commitbar .btn-commit { flex: 1; }
+    .price { margin-left: 0; order: -1; width: 100%; }
+  }
+
+  /* ── Metin alanları ─────────────────────────────────────────────── */
+  .fields { display: grid; gap: 14px; margin: 20px 0 0; }
+  @media (min-width: 640px) { .fields { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
+  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; padding: 10px 12px; font: inherit;
+    border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--bg); color: var(--ink);
+  }
+  .field input:focus-visible, .field select:focus-visible {
+    outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--focus);
+  }
+
+  /* ── Havuz ──────────────────────────────────────────────────────── */
+  .pool { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 16px 0 0; }
+  .pool .baslik { width: 100%; font-size: 13px; color: var(--ink-2); }
+  .pool .chip {
+    width: 54px; height: 54px; border-radius: var(--r-sm); overflow: hidden;
+    border: 1px solid var(--line); cursor: grab; background: var(--surface);
+  }
+  .pool .chip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* ── Sürükleme ──────────────────────────────────────────────────── */
   .slot, .pool .chip { touch-action: manipulation; }
-  img.ghost { position:fixed; z-index:99; width:84px; height:84px; object-fit:cover; border-radius:6px;
-              transform:translate(-50%,-50%); pointer-events:none; opacity:.9;
-              box-shadow:0 6px 18px rgba(0,0,0,.3); }
-  .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:14px 0; }
-  .btn { appearance:none; border:0; border-radius:8px; padding:11px 18px; font:600 15px system-ui; cursor:pointer; }
-  .btn-primary { background:#1d2129; color:#fff; }
-  .btn-primary:disabled, .btn-success:disabled, .btn-ghost:disabled { background:#c8ccd1; color:#6b7280; cursor:not-allowed; }
-  .btn-ghost { background:#eef0f2; color:#1d2129; }
-  .btn-success { background:#0f8a4d; color:#fff; }
-  .status { font-size:14px; }
-  .status.warnc { color:#b3261e; }
-  .status.okc { color:#0f8a4d; }
-  .hint { font-size:13px; color:#6b7280; margin:6px 0 0; }
-  .fields { display:grid; gap:12px; margin:18px 0; }
-  .field label { display:block; font-size:13px; font-weight:600; margin-bottom:5px; }
-  .field input, .field select { width:100%; padding:10px 12px; border:1px solid #d5d9de; border-radius:8px; font:15px system-ui; }
-  .pool { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
-  .pool .chip { width:56px; height:56px; border-radius:6px; overflow:hidden; border:1px solid #d5d9de; cursor:grab; }
-  .pool .chip img { width:100%; height:100%; object-fit:cover; }
-  dialog.crop { border:0; border-radius:12px; padding:0; max-width:min(92vw,420px); width:100%; }
-  dialog.crop::backdrop { background:rgba(0,0,0,.45); }
-  .crop-body { padding:16px; }
-  .crop-stage { position:relative; width:100%; overflow:hidden; border-radius:8px; background:#f0f0f0; touch-action:none; cursor:grab; }
-  .crop-stage img { position:absolute; max-width:none; pointer-events:none; }
-  .crop-row { display:flex; align-items:center; gap:10px; margin-top:12px; }
-  .crop-row input[type=range] { flex:1; }
-  .preview-out { margin-top:16px; }
-  .preview-out.set { display:grid; gap:12px; grid-template-columns: 1fr; }
+  img.ghost {
+    position: fixed; z-index: var(--z-drop); width: 76px; height: 76px;
+    object-fit: cover; border-radius: var(--r-sm);
+    transform: translate(-50%,-50%); pointer-events: none; opacity: .92;
+    box-shadow: 0 8px 22px rgba(0,0,0,.28);
+  }
+
+  /* Dosyayı sayfaya bırakma */
+  .dropveil {
+    position: fixed; inset: 0; z-index: var(--z-drop);
+    display: none; align-items: center; justify-content: center;
+    background: rgba(255,255,255,.92); font-size: 16px; font-weight: 600; color: var(--ink);
+  }
+  .dropveil.on { display: flex; }
+
+  /* ── Kırpma penceresi ───────────────────────────────────────────── */
+  dialog.crop {
+    border: 0; border-radius: var(--r-lg); padding: 0; max-width: min(92vw, 420px); width: 100%;
+    box-shadow: 0 12px 40px rgba(0,0,0,.22);
+  }
+  dialog.crop::backdrop { background: rgba(21,23,28,.5); }
+  .crop-body { padding: 18px; }
+  .crop-body h2 { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
+  .crop-stage {
+    position: relative; width: 100%; overflow: hidden;
+    border-radius: var(--r); background: var(--surface-2); touch-action: none; cursor: grab;
+  }
+  .crop-stage img { position: absolute; max-width: none; pointer-events: none; }
+  .crop-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .crop-row input[type=range] { flex: 1; accent-color: var(--ink); }
+
+  /* ── Önizleme çıktısı ───────────────────────────────────────────── */
+  .preview-out { margin-top: 20px; display: grid; gap: 12px; }
+  .preview-out.set { grid-template-columns: 1fr; }
   @media (min-width: 560px) { .preview-out.set { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); } }
-  .preview-out img { width:100%; border-radius:8px; border:1px solid #e3e3e3; }
-  .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.4);
-             border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
+  .preview-out img { width: 100%; border-radius: var(--r); border: 1px solid var(--line); display: block; }
+
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%;
+    animation: spin .7s linear infinite; vertical-align: -2px;
+  }
   @keyframes spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="head">
+    <h1>${escapeHtml(t.heading)}</h1>
+    <p class="progress" id="progress"></p>
+  </div>
+
   <div id="variants" class="variants" hidden></div>
   <div id="mockup" class="mockup" hidden></div>
   <div id="boards"></div>
 
-  <p class="hint" id="swapHint">${escapeHtml(t.swapHint)}</p>
-
-  <div class="bar">
+  <div class="actions">
     <button class="btn btn-primary" id="pickBtn">${escapeHtml(t.choosePhotos)}</button>
+    <button class="btn btn-outline" id="previewBtn">${escapeHtml(t.preview)}</button>
     <span class="status" id="status"></span>
   </div>
+  <p class="hint" id="swapHint">${escapeHtml(t.swapHint)}</p>
   <p class="hint" id="countHint">${escapeHtml(t.hint(imageSlotCount))}</p>
 
   <div class="pool" id="pool" hidden></div>
-
   <div class="fields" id="fields"></div>
-
-  <div class="bar">
-    <button class="btn btn-ghost" id="previewBtn">${escapeHtml(t.preview)}</button>
-    <button class="btn btn-success" id="cartBtn" disabled>${escapeHtml(t.addToCart)}</button>
-    <span class="price" id="price"></span>
-  </div>
-
   <div class="preview-out" id="previewOut"></div>
+
+  <div class="commitbar">
+    <span class="price" id="price"></span>
+    <button class="btn btn-commit" id="cartBtn" disabled>${escapeHtml(t.addToCart)}</button>
+  </div>
 </div>
+
+<div class="dropveil" id="dropveil">${escapeHtml(t.dropHere)}</div>
 
 <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp" multiple hidden>
 
 <dialog class="crop" id="cropDlg">
   <div class="crop-body">
-    <strong id="cropTitle">${escapeHtml(t.cropTitle)}</strong>
+    <h2 id="cropTitle">${escapeHtml(t.cropTitle)}</h2>
     <div class="crop-stage" id="cropStage"></div>
     <div class="crop-row">
       <span style="font-size:13px">${escapeHtml(t.zoom)}</span>
       <input type="range" id="zoom" min="1" max="3" step="0.02" value="1">
     </div>
     <div class="crop-row">
-      <button class="btn btn-ghost" id="cropReplace">${escapeHtml(t.replace)}</button>
-      <button class="btn btn-ghost" id="cropClear">${escapeHtml(t.clear)}</button>
+      <button class="btn btn-outline" id="cropReplace">${escapeHtml(t.replace)}</button>
+      <button class="btn btn-outline" id="cropClear">${escapeHtml(t.clear)}</button>
       <button class="btn btn-primary" id="cropDone" style="margin-left:auto">${escapeHtml(t.done)}</button>
     </div>
     <p class="hint">${escapeHtml(t.cropHint)}</p>
@@ -543,7 +728,17 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         el.appendChild(num);
       }
 
-    el.addEventListener('pointerdown', function (e) { beginDrag(e, { kind: 'slot', id: s.id }); });
+    // Klavyeyle de dolaşılabilmeli: alanlar birer düğme gibi davranıyor
+      el.setAttribute('role', 'button');
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('aria-label', s.label || 'Fotoğraf alanı');
+      el.addEventListener('pointerdown', function (e) { beginDrag(e, { kind: 'slot', id: s.id }); });
+      el.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        if (fills[s.id]) onSlotClick(s.id);
+        else { replaceTarget = s.id; fileInput.click(); }
+      });
 
       board.appendChild(el);
       slotEls[s.id] = el;
@@ -863,7 +1058,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     poolEl.hidden = pool.length === 0;
     if (pool.length === 0) return;
     var title = document.createElement('div');
-    title.style.cssText = 'width:100%;font-size:13px;color:#6b7280';
+    title.className = 'baslik';
     title.textContent = T.pool;
     poolEl.appendChild(title);
     pool.forEach(function (p, i) {
@@ -913,8 +1108,27 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       statusEl.textContent = T.ready;
     }
     cartBtn.disabled = miss > 0 || uploadsPending();
-    document.getElementById('pickBtn').textContent =
-      Object.keys(fills).length ? T.chooseMore : T.choosePhotos;
+
+    var dolu = ALL.length - miss;
+    var prog = document.getElementById('progress');
+    if (prog) {
+      prog.innerHTML = String(T.progress).replace('{a}', '<b>' + dolu + '</b>').replace('{b}', ALL.length);
+      prog.classList.toggle('done', miss === 0 && ALL.length > 0);
+    }
+
+    // Yükleme ana eylem olmaktan çıkınca ikincil görünüme geçiyor
+    var pick = document.getElementById('pickBtn');
+    pick.textContent = Object.keys(fills).length ? T.chooseMore : T.choosePhotos;
+    pick.className = miss === 0 && ALL.length > 0 ? 'btn btn-outline' : 'btn btn-primary';
+
+    // Dolu parçalar başlıkta belli olsun
+    D.pieces.forEach(function (p) {
+      var bos = 0;
+      p.slots.forEach(function (sl) { if (!fills[sl.id]) bos++; });
+      var ilk = p.slots[0] ? slotEls[p.slots[0].id] : null;
+      var wrap = ilk ? ilk.closest('.piece') : null;
+      if (wrap) wrap.classList.toggle('dolu', bos === 0);
+    });
   }
 
   // ── Yükleme ────────────────────────────────────────────────────────────
@@ -994,6 +1208,37 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         statusEl.textContent = T.error;
       });
   }
+
+  // ── Dosyayı sayfaya bırakma ────────────────────────────────────────────
+  // Masaüstünde beklenen davranış: fotoğrafları pencereye sürükleyip bırakmak.
+  // Dosya seçme düğmesi duruyor; bu onun yerine değil, yanına.
+  var veil = document.getElementById('dropveil');
+  var veilSayac = 0;
+
+  window.addEventListener('dragenter', function (e) {
+    if (!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') < 0) return;
+    e.preventDefault();
+    if (++veilSayac === 1) veil.classList.add('on');
+  });
+  window.addEventListener('dragover', function (e) {
+    if (!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') < 0) return;
+    e.preventDefault();
+  });
+  window.addEventListener('dragleave', function () {
+    if (--veilSayac <= 0) { veilSayac = 0; veil.classList.remove('on'); }
+  });
+  window.addEventListener('drop', function (e) {
+    if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+    e.preventDefault();
+    veilSayac = 0;
+    veil.classList.remove('on');
+    var dosyalar = Array.prototype.filter.call(e.dataTransfer.files, function (f) {
+      // Şablon dizisi içinde regex kaçışı kayboluyor; dize karşılaştırması
+      // aynı işi görüyor ve kırılgan değil.
+      return String(f.type).indexOf('image/') === 0;
+    });
+    if (dosyalar.length) assignFiles(dosyalar, null);
+  });
 
   // ── Kırpma ─────────────────────────────────────────────────────────────
   var dlg = document.getElementById('cropDlg');
@@ -1271,6 +1516,9 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       var lab = document.createElement('p');
       lab.className = 'vlabel';
       lab.textContent = opt.name;
+      var secLbl = document.createElement('span');
+      secLbl.textContent = secim[opt.name] || '';
+      lab.appendChild(secLbl);
       grup.appendChild(lab);
 
       var kutu = document.createElement('div');
@@ -1279,7 +1527,23 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         var b = document.createElement('button');
         b.type = 'button';
         b.className = 'vopt';
-        b.textContent = deger;
+
+        // Seçenek bir ürün görseline karşılık geliyorsa adını değil kendisini
+        // gösteriyoruz: müşteri "Ceviz" kelimesini değil, alacağı çerçeveyi
+        // görmeli.
+        var gorsel = null;
+        (D.mockups || []).forEach(function (m) {
+          if (m.key && m.key.toLocaleLowerCase('tr') === String(deger).toLocaleLowerCase('tr')) gorsel = m;
+        });
+        if (gorsel) {
+          b.className = 'vopt swatch';
+          var im = document.createElement('img');
+          im.src = gorsel.url; im.alt = '';
+          b.appendChild(im);
+          b.appendChild(document.createTextNode(deger));
+        } else {
+          b.textContent = deger;
+        }
         b.setAttribute('aria-pressed', String(secim[opt.name] === deger));
         b.addEventListener('click', function () {
           if (secim[opt.name] === deger) return;
@@ -1298,8 +1562,10 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     variantsEl.querySelectorAll('.vgroup').forEach(function (grup, i) {
       var ad = URUN.options[i].name;
       grup.querySelectorAll('.vopt').forEach(function (b) {
-        b.setAttribute('aria-pressed', String(b.textContent === secim[ad]));
+        b.setAttribute('aria-pressed', String(b.textContent.trim() === secim[ad]));
       });
+      var sec = grup.querySelector('.vlabel span');
+      if (sec) sec.textContent = secim[ad] || '';
     });
   }
 
