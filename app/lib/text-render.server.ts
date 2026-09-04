@@ -1,4 +1,7 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import * as opentypeNs from "opentype.js";
+import { isLibraryFontUrl } from "./font-library";
 
 /**
  * opentype.js hem CommonJS hem ESM derlemesi yayınlıyor ve `parse` paketleyiciye
@@ -51,6 +54,34 @@ const cache = new Map<string, opentypeNs.Font>();
 const MAX_CACHED = 24;
 const FETCH_TIMEOUT = 20_000;
 
+/**
+ * Kütüphane fontları depoyla birlikte geliyor, bu yüzden ağ üzerinden değil
+ * doğrudan diskten okunuyor: sipariş render'ı kendi HTTP sunucusuna istek
+ * atmasın ve ağ kesintisi baskıyı düşürmesin. Remix `public/` içeriğini
+ * derlerken `build/client` altına kopyalıyor; ikisi de aranıyor.
+ */
+async function readLibraryFont(url: string): Promise<ArrayBuffer> {
+  const rel = url.replace(/^\/+/, "");
+  const adaylar = [
+    join(process.cwd(), "public", rel),
+    join(process.cwd(), "build", "client", rel),
+  ];
+  let son: unknown;
+  for (const yol of adaylar) {
+    try {
+      const buf = await readFile(yol);
+      return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+    } catch (err) { son = err; }
+  }
+  throw son ?? new Error(`kütüphane fontu bulunamadı: ${url}`);
+}
+
+async function fetchFont(url: string): Promise<ArrayBuffer> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.arrayBuffer();
+}
+
 export async function loadFont(url: string): Promise<opentypeNs.Font | null> {
   const key = String(url ?? "").trim();
   if (!key) return null;
@@ -64,9 +95,9 @@ export async function loadFont(url: string): Promise<opentypeNs.Font | null> {
   }
 
   try {
-    const res = await fetch(key, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const font = opentype.parse(await res.arrayBuffer());
+    const font = opentype.parse(
+      isLibraryFontUrl(key) ? await readLibraryFont(key) : await fetchFont(key),
+    );
     cache.set(key, font);
     if (cache.size > MAX_CACHED) {
       const oldest = cache.keys().next().value;

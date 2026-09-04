@@ -1,0 +1,103 @@
+Bu klasördeki yazı tipleri SIL Open Font License 1.1 ile dağıtılıyor.
+Ticari kullanım, değiştirme ve yeniden dağıtım serbest; tek şart bu
+lisans metninin fontlarla birlikte taşınması.
+
+Kaynak: https://github.com/google/fonts
+Hazırlanışları: scripts/font-library.py
+
+================================================================
+ofl/montserrat
+================================================================
+Copyright 2024 The Montserrat.Git Project Authors (https://github.com/JulietaUla/Montserrat.git)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+https://openfontlicense.org
+
+
+-----------------------------------------------------------
+
+================================================================
+ofl/poppins
+================================================================
+Copyright 2020 The Poppins Project Authors (https://github.com/itfoundry/Poppins)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+http://scripts.sil.org/OFL
+
+
+-----------------------------------------------------------
+
+================================================================
+ofl/quicksand
+================================================================
+Copyright 2011 The Quicksand Project Authors (https://github.com/andrew-paglinawan/QuicksandFamily), with Reserved Font Name “Quicksand”.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+http://scripts.sil.org/OFL
+
+
+-----------------------------------------------------------
+
+================================================================
+ofl/oswald
+================================================================
+Copyright 2016 The Oswald Project Authors (https://github.com/googlefonts/OswaldFont)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+https://scripts.sil.org/OFL
+
+
+-----------------------------------------------------------
+
+================================================================
+ofl/playfairdisplay
+================================================================
+Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name "Playfair Display"
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+http://scripts.sil.org/OFL
+
+
+-----------------------------------------------------------
+
+================================================================
+ofl/cormorantgaramond
+================================================================
+Copyright 2015 the Cormorant Project Authors (github.com/CatharsisFonts/Cormorant)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+https://scripts.sil.org/OFL
+
+
+-----------------------------------------------------------
+
+================================================================
+ofl/dancingscript
+================================================================
+Copyright 2016 The Dancing Script Project Authors (https://github.com/googlefonts/DancingScript), with Reserved Font Name 'Dancing Script'.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+http://scripts.sil.org/OFL
+
+
+-----------------------------------------------------------
+
+================================================================
+ofl/greatvibes
+================================================================
+Copyright 2015 The Great Vibes Pro Project Authors (https://github.com/googlefonts/great-vibes)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+https://openfontlicense.org
+
+
+-----------------------------------------------------------
+
