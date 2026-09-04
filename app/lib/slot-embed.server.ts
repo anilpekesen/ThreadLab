@@ -133,8 +133,6 @@ export async function buildSlotData(
       ? "{n} alan boş — sepete eklemek için hepsini doldurun"
       : "{n} slots empty — fill them all to continue",
     ready: isTr ? "Tasarımınız hazır" : "Your design is ready",
-    preview: isTr ? "Önizleme al" : "Get preview",
-    previewing: isTr ? "Hazırlanıyor…" : "Preparing…",
     addToCart: isTr ? "Sepete ekle" : "Add to cart",
     fontLabel: isTr ? "Yazı tipi" : "Font",
     fontDefault: isTr ? "Varsayılan" : "Default",
@@ -594,10 +592,6 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   .crop-row input[type=range] { flex: 1; accent-color: var(--ink); }
 
   /* ── Önizleme çıktısı ───────────────────────────────────────────── */
-  .preview-out { margin-top: 20px; display: grid; gap: 12px; }
-  .preview-out.set { grid-template-columns: 1fr; }
-  @media (min-width: 560px) { .preview-out.set { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); } }
-  .preview-out img { width: 100%; border-radius: var(--r); border: 1px solid var(--line); display: block; }
 
   .spinner {
     display: inline-block; width: 14px; height: 14px;
@@ -624,7 +618,6 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
   <div class="actions">
     <button class="btn btn-primary" id="pickBtn">${escapeHtml(t.choosePhotos)}</button>
-    <button class="btn btn-outline" id="previewBtn">${escapeHtml(t.preview)}</button>
     <span class="status" id="status"></span>
   </div>
   <p class="hint" id="swapHint">${escapeHtml(t.swapHint)}</p>
@@ -632,7 +625,6 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
   <div class="pool" id="pool" hidden></div>
   <div class="fields" id="fields"></div>
-  <div class="preview-out" id="previewOut"></div>
 
   <div class="commitbar">
     <span class="price" id="price"></span>
@@ -677,7 +669,6 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   var boardsEl = document.getElementById('boards');
   var statusEl = document.getElementById('status');
   var cartBtn = document.getElementById('cartBtn');
-  var previewBtn = document.getElementById('previewBtn');
   var fileInput = document.getElementById('fileInput');
   var poolEl = document.getElementById('pool');
 
@@ -1562,47 +1553,6 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       body: JSON.stringify(payload(mode)),
     }).then(function (r) { return r.json(); });
   }
-
-  previewBtn.addEventListener('click', function () {
-    previewBtn.disabled = true;
-    previewBtn.innerHTML = '<span class="spinner"></span> ' + T.previewing;
-    post('preview')
-      .then(function (res) {
-        if (res.error) throw new Error(res.error);
-        var out = document.getElementById('previewOut');
-        out.innerHTML = '';
-        // Set ürünlerinde her parçanın önizlemesi ayrı gösteriliyor: müşteri
-        // üç çerçeveyi de onaylamadan sepete gitmemeli
-        var list = (res.pieces && res.pieces.length) ? res.pieces : [{ name: '', url: res.url }];
-        if (list.length > 1) out.className = 'preview-out set';
-        list.forEach(function (p, i) {
-          var cell = document.createElement('div');
-          if (list.length > 1) {
-            var cap = document.createElement('p');
-            cap.className = 'hint';
-            cap.style.margin = '0 0 4px';
-            // Parça adı zaten "1. Çerçeve" gibi numaralı geliyor; başına bir
-            // numara daha koymak "1. 1. Çerçeve" üretiyordu
-            cap.textContent = p.name || (i + 1) + '.';
-            cell.appendChild(cap);
-          }
-          var im = document.createElement('img');
-          im.src = p.url; im.alt = '';
-          cell.appendChild(im);
-          out.appendChild(cell);
-        });
-        out.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      })
-      .catch(function (err) {
-        statusEl.className = 'status warnc';
-        statusEl.textContent = err.message || T.error;
-      })
-      .finally(function () {
-        previewBtn.disabled = false;
-        previewBtn.textContent = T.preview;
-        scheduleHeight();
-      });
-  });
 
   cartBtn.addEventListener('click', function () {
     cartBtn.disabled = true;
