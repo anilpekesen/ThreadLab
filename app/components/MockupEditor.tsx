@@ -25,6 +25,14 @@ export function MockupEditor({ mockups, onChange }: MockupEditorProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [uyari, setUyari] = useState("");
+  const [bilgi, setBilgi] = useState("");
+  /**
+   * Başarılı bir yüklemede bulunan açıklık, görsel ölçüsüne göre saklanıyor.
+   * Mağazalar aynı çekimin renk varyantlarını yüklüyor ve beyaz çerçevede iç
+   * alanla çerçevenin yüzü arasında ışık farkı olmadığı için tarama yetmiyor;
+   * kardeş görselden ölçülen dikdörtgen o durumu kurtarıyor.
+   */
+  const acikliklar = useRef<Record<string, { x: number; y: number; w: number; h: number }>>({});
   const fileInput = useRef<HTMLInputElement>(null);
   const hedef = useRef<number | null>(null);
 
@@ -44,20 +52,26 @@ export function MockupEditor({ mockups, onChange }: MockupEditorProps) {
     setBusy(true);
     setError("");
     setUyari("");
+    setBilgi("");
     try {
+      const olcu = await gorselOlcusu(file);
       const fd = new FormData();
       fd.append("image", file);
       fd.append("folder", "personalizer-mockup");
+      const ipucu = olcu ? acikliklar.current[olcu] : undefined;
+      if (ipucu) fd.append("openingHint", JSON.stringify(ipucu));
+
       const res = await fetch("/api/personalizer/upload-image", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || "Yüklenemedi");
       patch(i, { url: data.url });
-      if (!data.hasAlpha) {
-        // Şeffaflık yoksa açıklık taranamaz ve fotoğraf çerçevenin içinde
-        // görünmez. Kaydetmeden önce söylenmesi gerekiyor.
-        setUyari(
-          "Bu görselde şeffaflık yok. Fotoğrafın görüneceği alanın şeffaf bırakılması gerekiyor; "
-          + "aksi halde müşteri fotoğrafını çerçevenin içinde göremez.",
+
+      if (data.opening && olcu) acikliklar.current[olcu] = data.opening;
+      if (data.uyari) setUyari(data.uyari);
+      else if (data.openingCut) {
+        setBilgi(
+          "Görselin ortası şeffaf değildi, fotoğrafın gireceği alan otomatik açıldı. "
+          + "Aşağıdaki örnekte çerçevenin içi boş görünüyorsa doğru.",
         );
       }
     } catch (err) {
@@ -65,6 +79,17 @@ export function MockupEditor({ mockups, onChange }: MockupEditorProps) {
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Sunucuya ipucu gönderirken hangi kardeş görselin ölçüsü olduğunu bilmek gerekiyor */
+  function gorselOlcusu(file: File): Promise<string | null> {
+    return new Promise((cozumle) => {
+      const url = URL.createObjectURL(file);
+      const im = new Image();
+      im.onload = () => { URL.revokeObjectURL(url); cozumle(`${im.naturalWidth}x${im.naturalHeight}`); };
+      im.onerror = () => { URL.revokeObjectURL(url); cozumle(null); };
+      im.src = url;
+    });
   }
 
   return (
@@ -145,6 +170,7 @@ export function MockupEditor({ mockups, onChange }: MockupEditorProps) {
           </Box>
         ))}
 
+        {bilgi && <Banner tone="success"><p>{bilgi}</p></Banner>}
         {uyari && <Banner tone="warning"><p>{uyari}</p></Banner>}
         {error && <Banner tone="critical"><p>{error}</p></Banner>}
 

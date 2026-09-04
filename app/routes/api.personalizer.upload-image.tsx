@@ -5,6 +5,7 @@ import {
 import sharp from "sharp";
 import { authenticate } from "~/lib/authenticate.server";
 import { uploadToR2 } from "~/lib/r2.server";
+import { cutOpening, hasUsableOpening, type OpeningRect } from "~/lib/mockup-opening.server";
 
 /**
  * Yönetici arayüzünden tek görsel yükleme.
@@ -43,15 +44,55 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ error: "Görsel okunamadı" }, { status: 400 });
     }
 
-    const ext = file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png";
-    const url = await uploadToR2(buf, ext, folder);
+    let cikti: Buffer = buf;
+    let ext = file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png";
+    let opening: OpeningRect | null = null;
+    let acildi = false;
+    let uyari = "";
+
+    // Çerçeve görselinde fotoğrafın gireceği alan ŞEFFAF olmak zorunda; düz
+    // bir ürün fotoğrafı yüklendiğinde açıklık taranamıyor ve çerçeve mağazada
+    // sessizce kayboluyor. Mağaza sahibinden görseli yeniden dışa aktarmasını
+    // istemek yerine deliği burada açıyoruz.
+    if (folder === "personalizer-mockup") {
+      opening = await hasUsableOpening(buf);
+      if (!opening) {
+        // Aynı çekimin başka bir renk varyantından ölçülen açıklık; beyaz
+        // çerçevede iç alanla çerçevenin yüzü arasında ışık farkı olmadığı
+        // için tarama yetmiyor.
+        let ipucu: OpeningRect | undefined;
+        const ham = String(form.get("openingHint") ?? "");
+        if (ham) {
+          try {
+            const h = JSON.parse(ham);
+            if ([h?.x, h?.y, h?.w, h?.h].every((v) => typeof v === "number")) ipucu = h;
+          } catch { /* bozuk ipucu yok sayılır */ }
+        }
+        const kesim = await cutOpening(buf, ipucu);
+        if (kesim) {
+          cikti = kesim.png;
+          ext = "png";
+          opening = kesim.opening;
+          acildi = true;
+        } else {
+          uyari = "Bu görselde fotoğrafın gireceği şeffaf alan yok ve otomatik açılamadı. "
+            + "Ortası şeffaf bir PNG yükleyin — aksi halde müşteri fotoğrafını çerçevenin "
+            + "içinde göremez.";
+        }
+      }
+    }
+
+    const url = await uploadToR2(cikti, ext, folder);
     return json({
       url,
       width: meta.width,
       height: meta.height,
-      // Ortası şeffaf çerçevelerde açıklık taranarak bulunuyor; alfa yoksa
-      // mağaza sahibine bunu söylemek gerekiyor
       hasAlpha: meta.hasAlpha === true,
+      /** Fotoğrafın gireceği şeffaf alan (oran); yoksa null */
+      opening,
+      /** Şeffaf alanı biz açtıysak true — mağaza sahibine söylenmeli */
+      openingCut: acildi,
+      uyari,
     });
   } catch (err) {
     console.error("[upload-image] hata:", err);
