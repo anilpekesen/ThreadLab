@@ -129,7 +129,12 @@ export default function PersonalizerIndex() {
         {
           content: "Bağlantıları denetle",
           loading: fetcher.state !== "idle",
-          onAction: () => fetcher.submit({ intent: "sync_metafields" }, { method: "POST" }),
+          // Hedef açıkça veriliyor: gömülü uygulamada fetcher'ın varsayılan hedefi
+          // "/" olarak çözülüyor ve istek bu rotanın action'ına hiç ulaşmıyor.
+          onAction: () => fetcher.submit(
+            { intent: "sync_metafields" },
+            { method: "POST", action: "/app/personalizer" },
+          ),
           helpText: "Ürün sayfasındaki kişiselleştirme kutusunu kuralla hizalar",
         },
       ]}
