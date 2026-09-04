@@ -48,7 +48,6 @@ const LABELS = {
 };
 
 const FIELD_MAP = [
-  ['size', 'size'],
   ['totalQuantity', 'totalQuantity'],
   ['productUnitPrice', 'productUnitPrice'],
   ['productSubtotal', 'productSubtotal'],

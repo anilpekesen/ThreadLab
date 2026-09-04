@@ -1,3 +1,10 @@
+# Shopify, fonksiyon girdi sorgusuna 30 karmaşıklık sınırı koyuyor ve bu sorgu
+# 31'e çıkmıştı (id + 29 öznitelik + merchandise). Alan eklemek gerekirse
+# önce buradan bir öznitelik çıkarılmalı.
+#
+# "_pl_size" çıkarıldı: sepette yalnızca "Beden" etiketini göstermek için
+# kopyalanıyordu ve beden zaten varyant adında yazıyor. Fiyat hesabına ya da
+# tasarım-sipariş bağına dokunan hiçbir alan çıkarılmadı.
 query RunInput {
   cart {
     lines {
@@ -10,7 +17,6 @@ query RunInput {
       designTokenAlt: attribute(key: "design_token") { value }
       designDetailUrl: attribute(key: "_design_detail_url") { value }
       locale: attribute(key: "_pl_locale") { value }
-      size: attribute(key: "_pl_size") { value }
       frontDesign: attribute(key: "_pl_front_design") { value }
       frontDesignLabel: attribute(key: "Ön Tasarım") { value }
       backDesign: attribute(key: "_pl_back_design") { value }
