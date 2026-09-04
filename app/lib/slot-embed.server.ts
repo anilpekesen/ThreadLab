@@ -131,8 +131,8 @@ export async function buildSlotData(
     // JSON.stringify onu sessizce siler ve arayüz çalışmaz. Yer tutucu
     // istemcide dolduruluyor.
     missing: isTr
-      ? "{n} alan boş — sepete eklemek için hepsini doldurun"
-      : "{n} slots empty — fill them all to continue",
+      ? "{n} alan boş. Sepete eklemek için tümünü doldurun."
+      : "{n} slots empty. Fill them all to continue.",
     ready: isTr ? "Tasarımınız hazır" : "Your design is ready",
     addToCart: isTr ? "Sepete ekle" : "Add to cart",
     fontLabel: isTr ? "Yazı tipi" : "Font",
@@ -155,6 +155,9 @@ export async function buildSlotData(
     dropHere: isTr ? "Fotoğrafları buraya bırakın" : "Drop your photos here",
     progress: isTr ? "{a} / {b} fotoğraf" : "{a} / {b} photos",
     colorLabel: isTr ? "seçili" : "selected",
+    photoSection: isTr ? "Fotoğrafları ekleyin" : "Add your photos",
+    textSection: isTr ? "Yazıları düzenleyin" : "Edit the text",
+    setHint: isTr ? "Diğer çerçeveler için yana kaydırın" : "Swipe sideways for the other frames",
   };
 
   function page(message: string) {
@@ -376,20 +379,36 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     -webkit-font-smoothing: antialiased;
   }
 
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 4px 16px 96px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 4px 18px 36px; }
 
   /* ── Başlık şeridi ──────────────────────────────────────────────── */
   .head {
     display: flex; align-items: baseline; justify-content: space-between;
-    gap: 12px; flex-wrap: wrap; margin: 4px 0 16px;
+    gap: 12px; flex-wrap: wrap; margin: 4px 0 20px;
   }
   .head h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
   .progress { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
   .progress b { color: var(--ink); font-weight: 600; }
   .progress.done { color: var(--commit); }
 
+  /* Masaüstünde ürün önizlemesi hep görünür, karar ve girişler sağdaki
+     görev sütununda kalır. Mobilde aynı DOM doğal okuma sırasına döner. */
+  .editor {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(330px, .85fr);
+    gap: 28px;
+    align-items: start;
+  }
+  .preview-panel { min-width: 0; position: sticky; top: 12px; }
+  .control-column { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+  .controls-panel {
+    min-width: 0; padding: 18px;
+    background: var(--surface); border-radius: var(--r-lg);
+  }
+  .section-head { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+
   /* ── Varyant seçimi ─────────────────────────────────────────────── */
-  .variants { display: grid; gap: 16px; margin-bottom: 20px; }
+  .variants { display: grid; gap: 14px; margin: 0; }
   @media (min-width: 640px) { .variants { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
   .vlabel {
     font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--ink);
@@ -418,7 +437,8 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
   /* ── Çerçeveler ─────────────────────────────────────────────────── */
   #boards { display: grid; gap: 14px; }
-  #boards.set { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  #boards.set { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .set-hint { display: none; }
   .piece { min-width: 0; }
   .piece-title {
     display: flex; align-items: center; gap: 7px;
@@ -498,7 +518,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   }
 
   /* ── Eylemler ───────────────────────────────────────────────────── */
-  .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 18px 0 0; }
+  .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0; }
   .hint { font-size: 13px; color: var(--ink-2); margin: 8px 0 0; max-width: 62ch; }
 
   .btn {
@@ -525,18 +545,9 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line);
   }
   .price { font-size: 17px; font-weight: 600; margin-left: auto; font-variant-numeric: tabular-nums; }
-  @media (max-width: 599px) {
-    .commitbar {
-      position: sticky; bottom: 0; z-index: var(--z-sticky);
-      background: var(--bg); margin: 22px -16px 0; padding: 12px 16px;
-      border-top: 1px solid var(--line); box-shadow: 0 -6px 18px rgba(0,0,0,.06);
-    }
-    .commitbar .btn-commit { flex: 1; }
-    .price { margin-left: 0; order: -1; width: 100%; }
-  }
-
   /* ── Metin alanları ─────────────────────────────────────────────── */
-  .fields { display: grid; gap: 14px; margin: 20px 0 0; }
+  .text-settings { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .fields { display: grid; gap: 16px; margin: 0; }
   @media (min-width: 640px) { .fields { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
   .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
   .field input, .field select {
@@ -624,6 +635,40 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   @media (prefers-reduced-motion: reduce) {
     * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
   }
+
+  @media (max-width: 799px) {
+    .wrap { padding: 4px 16px 28px; }
+    .head { margin-bottom: 18px; }
+    .editor { display: flex; flex-direction: column; gap: 18px; }
+    .control-column { display: contents; }
+    .variants { order: 1; width: 100%; }
+    .preview-panel { order: 2; position: static; width: 100%; }
+    .controls-panel {
+      order: 3; width: 100%; margin: 0; padding: 16px;
+      border-radius: var(--r);
+    }
+    #boards.set {
+      display: grid; grid-template-columns: none;
+      grid-auto-flow: column; grid-auto-columns: calc(86% - 8px);
+      gap: 12px; overflow-x: auto; overscroll-behavior-inline: contain;
+      scroll-snap-type: inline mandatory; scroll-padding-inline: 16px;
+      margin-inline: -16px; padding: 0 16px 10px;
+      -webkit-overflow-scrolling: touch;
+    }
+    #boards.set .piece { scroll-snap-align: start; }
+    .set-hint {
+      display: flex; align-items: center; justify-content: space-between;
+      margin: 8px 0 0; color: var(--ink-2); font-size: 12px;
+    }
+    .set-hint::after { content: "→"; font-size: 17px; color: var(--ink); }
+    .actions { align-items: stretch; }
+    .actions .btn { width: 100%; min-height: 48px; }
+    .status { width: 100%; }
+    .fields { grid-template-columns: minmax(0, 1fr); }
+    .commitbar { align-items: stretch; }
+    .commitbar .btn-commit { width: 100%; min-height: 48px; }
+    .price { margin-left: 0; width: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -633,23 +678,36 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     <p class="progress" id="progress"></p>
   </div>
 
-  <div id="variants" class="variants" hidden></div>
-  <div id="mockup" class="mockup" hidden></div>
-  <div id="boards"></div>
+  <div class="editor">
+    <section class="preview-panel" aria-label="${escapeHtml(t.heading)}">
+      <div id="mockup" class="mockup" hidden></div>
+      <div id="boards"></div>
+      ${multiPiece ? `<p class="set-hint">${escapeHtml(t.setHint)}</p>` : ""}
+    </section>
 
-  <div class="actions">
-    <button class="btn btn-primary" id="pickBtn">${escapeHtml(t.choosePhotos)}</button>
-    <span class="status" id="status"></span>
-  </div>
-  <p class="hint" id="swapHint">${escapeHtml(t.swapHint)}</p>
-  <p class="hint" id="countHint">${escapeHtml(t.hint(imageSlotCount))}</p>
+    <div class="control-column">
+      <div id="variants" class="variants" hidden></div>
+      <aside class="controls-panel">
+      <h2 class="section-head">${escapeHtml(t.photoSection)}</h2>
+      <div class="actions">
+        <button class="btn btn-primary" id="pickBtn">${escapeHtml(t.choosePhotos)}</button>
+        <span class="status" id="status"></span>
+      </div>
+      <p class="hint" id="countHint">${escapeHtml(t.hint(imageSlotCount))}</p>
+      <p class="hint" id="swapHint">${escapeHtml(t.swapHint)}</p>
 
-  <div class="pool" id="pool" hidden></div>
-  <div class="fields" id="fields"></div>
+      <div class="pool" id="pool" hidden></div>
+      <section class="text-settings"${data.texts.length ? "" : " hidden"}>
+        <h2 class="section-head">${escapeHtml(t.textSection)}</h2>
+        <div class="fields" id="fields"></div>
+      </section>
 
-  <div class="commitbar">
-    <span class="price" id="price"></span>
-    <button class="btn btn-commit" id="cartBtn" disabled>${escapeHtml(t.addToCart)}</button>
+      <div class="commitbar">
+        <span class="price" id="price"></span>
+        <button class="btn btn-commit" id="cartBtn" disabled>${escapeHtml(t.addToCart)}</button>
+      </div>
+      </aside>
+    </div>
   </div>
 </div>
 
