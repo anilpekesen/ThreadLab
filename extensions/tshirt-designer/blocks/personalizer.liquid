@@ -74,6 +74,24 @@
       {%- endfor -%}
     };
 
+    // Seçim kutunun içinde yapılıyor: müşteri rengi ve bordürü gördüğü
+    // önizlemenin yanında seçmeli, sayfanın başka bir yerinde değil.
+    var PRODUCT_OPTIONS = [
+      {%- for o in product.options_with_values -%}
+        { name: {{ o.name | json }}, values: [
+          {%- for v in o.values -%}{{ v | json }}{% unless forloop.last %},{% endunless %}{%- endfor -%}
+        ] }{% unless forloop.last %},{% endunless %}
+      {%- endfor -%}
+    ];
+    var PRODUCT_VARIANTS = [
+      {%- for v in product.variants -%}
+        { id: {{ v.id | json }},
+          options: [{%- for o in v.options -%}{{ o | json }}{% unless forloop.last %},{% endunless %}{%- endfor -%}],
+          price: {{ v.price | money | json }},
+          available: {{ v.available | json }} }{% unless forloop.last %},{% endunless %}
+      {%- endfor -%}
+    ];
+
     function srcFor(variantId) {
       return APP_URL + '/embed/personalizer'
         + '?templateId=' + encodeURIComponent(TEMPLATE)
@@ -115,8 +133,36 @@
     window.addEventListener('popstate', syncVariant);
     setInterval(syncVariant, 800);
 
+    // Temanın kendi sepet formu gizleniyor: iki ayrı "Sepete ekle" olursa
+    // müşteri temanınkine basıp ürünü FOTOĞRAFSIZ sipariş edebilir ve üretime
+    // boş iş gider. Seçim ve sepete ekleme tek yerde toplanıyor.
+    function temaFormunuGizle() {
+      if (!{{ block.settings.hide_theme_form | default: true | json }}) return;
+      var formlar = document.querySelectorAll('form[action*="/cart/add"]');
+      for (var i = 0; i < formlar.length; i++) {
+        // Kutunun kendi formu varsa dokunma
+        if (formlar[i].closest('.pl-personalizer')) continue;
+        formlar[i].style.display = 'none';
+      }
+    }
+    temaFormunuGizle();
+    // Tema formu sonradan çizebiliyor (varyant değişiminde yeniden render)
+    setTimeout(temaFormunuGizle, 800);
+    setTimeout(temaFormunuGizle, 2500);
+
     window.addEventListener('message', function (e) {
       if (!e.data) return;
+
+      // Kutu hazır olduğunu bildirince varyant listesi gönderiliyor. URL ile
+      // göndermek uzun listelerde adres sınırına takılıyordu.
+      if (e.data.type === 'PERSONALIZER_READY') {
+        iframe.contentWindow.postMessage({
+          type: 'PERSONALIZER_PRODUCT',
+          options: PRODUCT_OPTIONS,
+          variants: PRODUCT_VARIANTS,
+        }, '*');
+        return;
+      }
 
       if (e.data.type === 'PERSONALIZER_RESIZE' && e.data.height) {
         // Gelen değere pay EKLENMİYOR: iframe her seferinde biraz daha büyür,
@@ -195,6 +241,13 @@
       "step": 4,
       "unit": "px",
       "default": 24
+    },
+    {
+      "type": "checkbox",
+      "id": "hide_theme_form",
+      "label": "Temanın sepet butonunu gizle",
+      "info": "Açık bırakın. Kapatırsanız müşteri ürünü fotoğrafsız sipariş edebilir.",
+      "default": true
     },
     {
       "type": "text",

@@ -86,6 +86,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const slotResponse = await buildSlotResponse(template, {
     variantId,
     shop,
+    productId,
     locale: normalizedLocale,
     optionValues: (url.searchParams.get("options") ?? "").split("|").filter(Boolean),
   });
