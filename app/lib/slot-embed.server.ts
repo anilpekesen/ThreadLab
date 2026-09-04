@@ -28,7 +28,7 @@ import { scanTemplateHoles } from "~/lib/template-hole.server";
  */
 const openingCache = new Map<string, { x: number; y: number; w: number; h: number; aspect: number } | null>();
 
-async function mockupOpening(url: string) {
+export async function mockupOpening(url: string) {
   if (openingCache.has(url)) return openingCache.get(url) ?? null;
   let result: { x: number; y: number; w: number; h: number; aspect: number } | null = null;
   try {
@@ -1334,6 +1334,8 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       locale: D.locale,
       mode: mode,
       texts: texts,
+      // Sipariş önizlemesinde doğru renk çerçevesi seçilebilsin
+      optionValues: URUN ? URUN.options.map(function (o) { return secim[o.name]; }) : [],
       fills: ALL.filter(function (s) { return fills[s.id] && fills[s.id].url; })
         .map(function (s) {
           var f = fills[s.id];
@@ -1401,6 +1403,8 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         // baskı dosyası bozulursa tasarım aynı sürümle yeniden üretilebilsin.
         var props = { _personalizer_template: D.templateId, _print_file: res.url };
         if (res.designToken) props._design_token = res.designToken;
+        // Sipariş ekranında müşterinin gördüğü hâl görünsün
+        if (res.previewUrl) props._front_preview_url = res.previewUrl;
         if (res.templateVersion) props._template_version = String(res.templateVersion);
         // Set ürününde üretime birden fazla dosya gidiyor; hepsi sipariş
         // satırında olmalı, yoksa üretim yalnızca ilk çerçeveyi basar
