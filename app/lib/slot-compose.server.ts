@@ -306,6 +306,98 @@ export async function composeSlotDesign(opts: ComposeSlotsOptions): Promise<Buff
     : out.png().toBuffer();
 }
 
+/** Mockup üzerindeki şeffaf açıklık; oran cinsinden */
+export interface MockupOpening {
+  x: number; y: number; w: number; h: number;
+}
+
+export interface PreviewStripOptions {
+  /** Her parçanın baskı görüntüsü */
+  pieces: Buffer[];
+  /** Ürün görseli (ortası şeffaf çerçeve); yoksa parçalar olduğu gibi dizilir */
+  mockupUrl?: string;
+  opening?: MockupOpening | null;
+  /** Tek parçanın hedef genişliği */
+  cellWidth?: number;
+  gap?: number;
+}
+
+/**
+ * Sipariş önizlemesi — müşterinin gördüğü hâl.
+ *
+ * Sipariş ekranında baskı dosyasını göstermek işe yaramıyor: set ürününde
+ * yalnızca ilk parça görünüyor, çerçeve görünmüyor ve operatör siparişin
+ * doğru olup olmadığını anlamak için dosyaları tek tek indirmek zorunda
+ * kalıyor. Bu fonksiyon parçaları kendi çerçevelerine yerleştirip yan yana
+ * diziyor.
+ */
+export async function composePreviewStrip(opts: PreviewStripOptions): Promise<Buffer> {
+  const cell = Math.max(120, opts.cellWidth ?? 420);
+  const gap = opts.gap ?? 16;
+
+  const frame = opts.mockupUrl && opts.opening
+    ? await fetchBuffer(opts.mockupUrl).catch((err) => {
+        console.error("[slot-compose] önizleme çerçevesi indirilemedi:", err);
+        return null;
+      })
+    : null;
+
+  const hucreler: Array<{ buf: Buffer; w: number; h: number }> = [];
+
+  for (const parca of opts.pieces) {
+    if (frame && opts.opening) {
+      const meta = await sharp(frame).metadata();
+      const fw = meta.width ?? cell;
+      const fh = meta.height ?? cell;
+      const olcek = cell / fw;
+      const W = Math.round(fw * olcek);
+      const H = Math.round(fh * olcek);
+
+      const ax = Math.round(opts.opening.x * W);
+      const ay = Math.round(opts.opening.y * H);
+      const aw = Math.max(1, Math.round(opts.opening.w * W));
+      const ah = Math.max(1, Math.round(opts.opening.h * H));
+
+      const icerik = await sharp(parca).resize(aw, ah, { fit: "cover" }).png().toBuffer();
+      const cerceve = await sharp(frame).resize(W, H, { fit: "fill" }).png().toBuffer();
+
+      const buf = await sharp({
+        create: { width: W, height: H, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
+      })
+        .composite([{ input: icerik, left: ax, top: ay }, { input: cerceve }])
+        .png()
+        .toBuffer();
+      hucreler.push({ buf, w: W, h: H });
+    } else {
+      const meta = await sharp(parca).metadata();
+      const oran = (meta.height ?? 1) / (meta.width ?? 1);
+      const W = cell;
+      const H = Math.max(1, Math.round(cell * oran));
+      hucreler.push({ buf: await sharp(parca).resize(W, H, { fit: "cover" }).png().toBuffer(), w: W, h: H });
+    }
+  }
+
+  if (hucreler.length === 0) throw new Error("Önizleme için parça yok");
+
+  const toplamW = hucreler.reduce((n, c) => n + c.w, 0) + gap * (hucreler.length - 1) + gap * 2;
+  const enYuksek = Math.max(...hucreler.map((c) => c.h));
+  const toplamH = enYuksek + gap * 2;
+
+  let x = gap;
+  const yerlesim: sharp.OverlayOptions[] = hucreler.map((c) => {
+    const item = { input: c.buf, left: x, top: Math.round((toplamH - c.h) / 2) };
+    x += c.w + gap;
+    return item;
+  });
+
+  return sharp({
+    create: { width: toplamW, height: toplamH, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
+  })
+    .composite(yerlesim)
+    .jpeg({ quality: 88 })
+    .toBuffer();
+}
+
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }

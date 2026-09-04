@@ -5,8 +5,9 @@ import { uploadToR2 } from "~/lib/r2.server";
 import { getPersonalizerTemplatePublic, templatePieces } from "~/models/personalizer.server";
 import { getPrintProductPublic } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
-import { isImageSlot } from "~/lib/slots";
-import { composeSlotDesign, type SlotFill } from "~/lib/slot-compose.server";
+import { isImageSlot, pickMockup } from "~/lib/slots";
+import { composeSlotDesign, composePreviewStrip, type SlotFill } from "~/lib/slot-compose.server";
+import { mockupOpening } from "~/lib/slot-embed.server";
 
 /**
  * Çoklu slot önizlemesi ve baskı çıktısı.
@@ -46,6 +47,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     texts?: Record<string, string>;
     mode?: string;
     locale?: string;
+    /** Sipariş önizlemesinde doğru renk çerçevesini seçmek için */
+    optionValues?: string[];
   };
   try {
     body = await request.json();
@@ -100,6 +103,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const texts = body.texts ?? {};
   const rendered: Array<{ id: string; name: string; url: string; width: number; height: number }> = [];
+  const parcaGorselleri: Buffer[] = [];
 
   try {
     // Parçalar sırayla basılıyor. Set ürünlerinde her parça ayrı bir fiziksel
@@ -138,6 +142,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         strict: isRender,
       });
 
+      if (isRender) parcaGorselleri.push(buf);
+
       const url = await uploadToR2(
         buf,
         isRender ? "png" : "jpg",
@@ -152,6 +158,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
     }
 
+    // Sipariş önizlemesi: operatörün sipariş ekranında göreceği görüntü.
+    // Baskı dosyasını göstermek yetmiyor — set ürününde yalnızca ilk parça
+    // görünür, çerçeve hiç görünmez ve siparişin doğruluğu anlaşılmaz.
+    let previewUrl = "";
+    if (isRender && parcaGorselleri.length > 0) {
+      try {
+        const mockup = pickMockup(
+          template.mockups,
+          Array.isArray(body.optionValues) ? body.optionValues.map(String) : [],
+        );
+        const opening = mockup && mockup.areas.length === 0
+          ? await mockupOpening(mockup.url)
+          : null;
+        const strip = await composePreviewStrip({
+          pieces: parcaGorselleri,
+          mockupUrl: opening ? mockup?.url : undefined,
+          opening,
+          cellWidth: parcaGorselleri.length > 2 ? 380 : 520,
+        });
+        previewUrl = await uploadToR2(strip, "jpg", "personalizer-preview");
+      } catch (err) {
+        // Önizleme üretilemezse sipariş düşmeye devam etmeli; baskı dosyaları
+        // zaten hazır ve asıl iş onlar.
+        console.error("[slot-preview] sipariş önizlemesi üretilemedi:", err);
+      }
+    }
+
     // Önizlemede kayıt tutulmuyor: müşteri onlarca kez önizleyebilir, her biri
     // için tasarım kaydı açmak veritabanını çöple doldurur.
     let designToken: string | null = null;
@@ -163,11 +196,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // günkü hâliyle basılabilir.
       await query(
         `INSERT INTO designs (token, shop, front_print_url, front_preview_url, design_json, created_at)
-         VALUES ($1, $2, $3, $3, $4, now())`,
+         VALUES ($1, $2, $3, $4, $5, now())`,
         [
           designToken,
           template.shop,
           rendered[0]?.url ?? "",
+          previewUrl || rendered[0]?.url || "",
           JSON.stringify({
             type: "personalizer-slots",
             templateId: template.id,
@@ -185,6 +219,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       {
         // Tek parçalı şablonlarda eski alanlar korunuyor
         url: rendered[0]?.url ?? "",
+        previewUrl,
         width: rendered[0]?.width ?? 0,
         height: rendered[0]?.height ?? 0,
         pieces: rendered,
