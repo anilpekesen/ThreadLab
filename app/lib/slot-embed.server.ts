@@ -198,6 +198,21 @@ export async function buildSlotData(
             Math.round(sl.rect.h * canvas.canvasHeight),
           ),
         })),
+      // Metin alanlarının geometrisi de gidiyor: müşteri yazdıkça yazı
+      // tasarımın üstünde görünmeli, önizleme düğmesini beklememeli.
+      textSlots: piece.slots.filter(isTextSlot).map((sl) => ({
+        id: sl.id,
+        rect: sl.rect,
+        fontSize: sl.font_size,
+        fontFamily: sl.font_family,
+        fontUrl: sl.font_url ?? "",
+        color: sl.color,
+        bold: sl.bold,
+        align: sl.align,
+        overflow: sl.overflow,
+        mode: sl.mode,
+        defaultValue: sl.default_value,
+      })),
     });
   }
 
@@ -266,6 +281,7 @@ export interface SlotPageData {
     overlayUrl: string;
     canvas: { width: number; height: number };
     slots: Array<Record<string, unknown>>;
+    textSlots: Array<Record<string, unknown>>;
   }>;
   texts: Array<Record<string, unknown>>;
   /** Bütün varyant görselleri; seçim istemcide yapılır */
@@ -431,6 +447,16 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     background: rgba(21,23,28,.62); border-radius: 4px; padding: 1px 6px;
     pointer-events: none;
   }
+  /* Canlı yazı: tasarımın üstünde, baskıdakiyle aynı kutuda */
+  .tslot {
+    position: absolute; z-index: 4; display: flex; align-items: center;
+    pointer-events: none; overflow: hidden; line-height: 1.1;
+    white-space: pre; text-wrap: nowrap;
+  }
+  .tslot.l { justify-content: flex-start; }
+  .tslot.c { justify-content: center; }
+  .tslot.r { justify-content: flex-end; }
+
   .slot .warn {
     position: absolute; z-index: 2; right: 5px; top: 5px; font-size: 12px;
     background: rgba(255,255,255,.9); border-radius: 4px; padding: 0 4px;
@@ -633,6 +659,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   var pieceOfSlot = {};
   var slotEls = {};
   var pieceTitles = {};
+  var boardEls = {};
   var FRAME = null;
 
   // Seçili varyant görseli. Renk değişiminde sunucuya gidilmiyor: bütün
@@ -659,6 +686,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     pieceOfSlot = {};
     slotEls = {};
     pieceTitles = {};
+    boardEls = {};
     boardsEl.innerHTML = '';
     boardsEl.className = '';
 
@@ -700,6 +728,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     outer.appendChild(board);
     wrap.appendChild(outer);
     boardsEl.appendChild(wrap);
+    boardEls[piece.id] = board;
 
     if (piece.templateUrl) {
       var bg = document.createElement('img');
@@ -755,6 +784,91 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       board.appendChild(fr);
     }
   });
+  }
+
+  // ── Canlı yazı ─────────────────────────────────────────────────────────
+  // Müşteri yazdıkça yazı tasarımın üstünde görünüyor. Sunucu baskıda aynı
+  // fontu yazı yoluna çevirerek basıyor; burada aynı font @font-face ile
+  // yükleniyor, aynı kutuya aynı oranla yerleştiriliyor. İkisi görsel olarak
+  // örtüşüyor.
+  var textEls = {};
+  var yuklenenFontlar = {};
+
+  function fontYukle(url, aile) {
+    if (!url || yuklenenFontlar[url]) return;
+    yuklenenFontlar[url] = true;
+    var st = document.createElement('style');
+    st.textContent = '@font-face{font-family:"' + aile.replace(/"/g, '') + '";'
+      + 'src:url("' + url + '");font-display:swap;}';
+    document.head.appendChild(st);
+    // Font geldiğinde yazıların yeniden ölçülmesi gerekiyor
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () { paintTexts(); });
+    }
+  }
+
+  function buildTexts() {
+    textEls = {};
+    D.pieces.forEach(function (piece) {
+      (piece.textSlots || []).forEach(function (ts) {
+        var board = boardEls[piece.id];
+        if (!board) return;
+        if (ts.fontUrl) fontYukle(ts.fontUrl, ts.fontFamily || 'PLFont-' + ts.id);
+
+        var el = document.createElement('div');
+        el.className = 'tslot ' + (ts.align === 'left' ? 'l' : ts.align === 'right' ? 'r' : 'c');
+        var o = FRAME ? FRAME.opening : { x: 0, y: 0, w: 1, h: 1 };
+        el.style.left = ((o.x + ts.rect.x * o.w) * 100) + '%';
+        el.style.top = ((o.y + ts.rect.y * o.h) * 100) + '%';
+        el.style.width = (ts.rect.w * o.w * 100) + '%';
+        el.style.height = (ts.rect.h * o.h * 100) + '%';
+        el.style.color = ts.color;
+        el.style.fontWeight = ts.bold ? '700' : '400';
+        el.style.fontFamily = ts.fontFamily || 'inherit';
+        board.appendChild(el);
+        textEls[piece.id + '::' + ts.id] = { el: el, ts: ts, piece: piece };
+      });
+    });
+  }
+
+  var olcumCanvas = null;
+
+  /** Metnin verilen puntodaki gerçek genişliği */
+  function metinGenisligi(metin, px, ts) {
+    if (!olcumCanvas) olcumCanvas = document.createElement('canvas');
+    var ctx = olcumCanvas.getContext('2d');
+    if (!ctx) return 0;
+    ctx.font = (ts.bold ? '700 ' : '400 ') + px + 'px ' + (ts.fontFamily || 'sans-serif');
+    return ctx.measureText(metin).width;
+  }
+
+  function paintTexts() {
+    Object.keys(textEls).forEach(function (k) {
+      var kayit = textEls[k];
+      var ts = kayit.ts;
+      var el = kayit.el;
+      var deger = (texts[ts.id] != null ? texts[ts.id] : ts.defaultValue) || '';
+      el.textContent = deger;
+      if (!deger) return;
+
+      var boardH = el.parentElement ? el.parentElement.clientHeight : 0;
+      var o = FRAME ? FRAME.opening : { x: 0, y: 0, w: 1, h: 1 };
+      // Punto tuval YÜKSEKLİĞİNE oran; çerçeve varsa açıklık kadar ölçekleniyor
+      var px = ts.fontSize * boardH * o.h;
+      el.style.fontSize = px + 'px';
+
+      // Taşarsa küçült. Ölçüm canvas ile yapılıyor: ortalanmış bir esnek
+      // kutuda scrollWidth gerçek metin genişliğini vermiyor, metin iki uçtan
+      // kırpılıyor ve tek geçişlik küçültme yetmiyordu. Sunucu da metni fontun
+      // kendi genişliğiyle ölçüyor; aynı yöntem iki tarafı hizalı tutuyor.
+      if (ts.overflow !== 'clip') {
+        var kutu = el.clientWidth;
+        var gercek = metinGenisligi(deger, px, ts);
+        if (kutu > 0 && gercek > kutu) {
+          el.style.fontSize = Math.max(6, Math.floor(px * (kutu / gercek))) + 'px';
+        }
+      }
+    });
   }
 
   function escapeText(v) {
@@ -909,8 +1023,8 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       input.value = texts[f.id];
     }
     input.id = 'tx_' + f.id;
-    input.addEventListener('input', function () { texts[f.id] = input.value; });
-    input.addEventListener('change', function () { texts[f.id] = input.value; });
+    input.addEventListener('input', function () { texts[f.id] = input.value; paintTexts(); });
+    input.addEventListener('change', function () { texts[f.id] = input.value; paintTexts(); });
     wrap.appendChild(input);
     fieldsEl.appendChild(wrap);
   });
@@ -1043,6 +1157,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
   function renderAll() {
     ALL.forEach(function (s) { paint(s.id); });
+    paintTexts();
     paintMockup();
     renderPool();
     updateStatus();
@@ -1050,6 +1165,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
   window.addEventListener('resize', function () {
     ALL.forEach(function (s) { layout(s.id); });
+    paintTexts();
     paintMockup();
   });
 
@@ -1644,6 +1760,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     fills = yeniFills;
 
     buildBoards();
+    buildTexts();
     buildMockup();
     renderAll();
     scheduleHeight();
@@ -1667,6 +1784,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   });
 
   buildBoards();
+  buildTexts();
   buildMockup();
   renderAll();
   // Temaya hazır olduğumuzu bildiriyoruz; varyant listesini o zaman gönderiyor
