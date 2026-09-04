@@ -644,7 +644,22 @@ export default function Orders() {
               itemCount={groups.length}
               selectedItemsCount={allResourcesSelected ? "All" : selectedResources.length}
               onSelectionChange={handleSelectionChange}
-              promotedBulkActions={driveConnected ? [
+              promotedBulkActions={[
+                {
+                  // Set ürünlerinde bir sipariş üç dosya üretiyor; tek tek
+                  // indirmek günde yirmi siparişte altmış tıklama demek.
+                  content: "Baskı dosyalarını indir",
+                  onAction: () => {
+                    const secili = allResourcesSelected
+                      ? groups
+                      : groups.filter((g) => selectedResources.includes(g.shopifyOrderId));
+                    const ids = secili.flatMap((g) => g.ids);
+                    if (ids.length === 0) return;
+                    window.location.href =
+                      `/api/production-zip?shop=${encodeURIComponent(shop)}&ids=${ids.join(",")}`;
+                  },
+                },
+                ...(driveConnected ? [
                 {
                   content: isDriveExporting ? "Yükleniyor..." : "Drive'a Aktar",
                   onAction: () => {
@@ -662,6 +677,7 @@ export default function Orders() {
                   content: "Drive Bağla",
                   onAction: () => navigate("/app/settings"),
                 },
+              ]),
               ]}
               headings={[
                 { title: "" },

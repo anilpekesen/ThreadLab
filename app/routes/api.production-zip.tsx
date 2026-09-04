@@ -25,20 +25,27 @@ async function fetchBuffer(url: string): Promise<Buffer | null> {
 // the customer finishes designing. Falls back to empty string if not found.
 async function getDesignPrintUrls(
   designToken: string,
-): Promise<{ frontPrintUrl: string; backPrintUrl: string }> {
-  if (!designToken) return { frontPrintUrl: "", backPrintUrl: "" };
+): Promise<{ frontPrintUrl: string; backPrintUrl: string; pieces: Array<{ name?: string; url?: string }> }> {
+  if (!designToken) return { frontPrintUrl: "", backPrintUrl: "", pieces: [] };
   try {
-    const result = await query<{ front_print_url: string; back_print_url: string }>(
-      "SELECT front_print_url, back_print_url FROM designs WHERE token = $1 LIMIT 1",
+    const result = await query<{
+      front_print_url: string;
+      back_print_url: string;
+      design_json: { pieces?: Array<{ name?: string; url?: string }> } | null;
+    }>(
+      "SELECT front_print_url, back_print_url, design_json FROM designs WHERE token = $1 LIMIT 1",
       [designToken],
     );
     const row = result.rows[0];
     return {
       frontPrintUrl: row?.front_print_url ?? "",
       backPrintUrl: row?.back_print_url ?? "",
+      // Set ürünlerinde parça listesi burada; sipariş kaydında liste yoksa
+      // (düzeltmeden önce gelen siparişler) tek kaynak bu.
+      pieces: Array.isArray(row?.design_json?.pieces) ? row!.design_json!.pieces! : [],
     };
   } catch {
-    return { frontPrintUrl: "", backPrintUrl: "" };
+    return { frontPrintUrl: "", backPrintUrl: "", pieces: [] };
   }
 }
 
@@ -75,14 +82,36 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       // 3. order.productionFileUrl    (legacy field)
       let frontUrl = order.designFrontPrintUrl ?? "";
       let backUrl = order.designBackPrintUrl ?? "";
+      let parcalar: Array<{ name?: string; url?: string }> = [];
 
       if ((!frontUrl || !backUrl) && order.designToken) {
-        const { frontPrintUrl, backPrintUrl } = await getDesignPrintUrls(order.designToken);
+        const { frontPrintUrl, backPrintUrl, pieces } = await getDesignPrintUrls(order.designToken);
         if (!frontUrl && frontPrintUrl) frontUrl = frontPrintUrl;
         if (!backUrl && backPrintUrl) backUrl = backPrintUrl;
+        parcalar = pieces;
       }
 
       if (!frontUrl) frontUrl = order.productionFileUrl || "";
+
+      // ── Set ürünleri ─────────────────────────────────────────────────
+      // Bir sipariş satırı birden fazla dosya taşıyorsa hepsi klasöre girmeli;
+      // yalnızca ilkini koymak üretime eksik iş çıkarır.
+      const setUrls = (order.productionFiles ?? []).filter(Boolean);
+      if (setUrls.length > 1 || parcalar.length > 1) {
+        const liste = setUrls.length > 1
+          ? setUrls.map((u, i) => ({ url: u, name: parcalar[i]?.name }))
+          : parcalar.map((p) => ({ url: p.url ?? "", name: p.name }));
+
+        const bufs = await Promise.all(liste.map((x) => fetchBuffer(x.url)));
+        let eklenen = 0;
+        bufs.forEach((buf, i) => {
+          if (!buf) return;
+          const ad = sanitize(liste[i].name || `parca-${i + 1}`);
+          files[`${folder}/${String(i + 1).padStart(2, "0")}-${ad}.png`] = new Uint8Array(buf);
+          eklenen++;
+        });
+        if (eklenen > 0) return;
+      }
 
       const [frontBuf, backBuf] = await Promise.all([
         fetchBuffer(frontUrl),
