@@ -33,8 +33,13 @@ import { uploadToR2 } from "~/lib/r2.server";
 import { listPrintProducts } from "~/models/print-product.server";
 import { setProductTemplateMetafield } from "~/lib/personalizer-metafield.server";
 import { printCanvas, aspectLabel, type PrintProduct } from "~/lib/print-spec";
-import { normalizeSlots, normalizeGridConfig, type GridConfig, type Slot } from "~/lib/slots";
+import {
+  normalizeSlots, normalizeGridConfig, normalizePieces, normalizeMockups,
+  type GridConfig, type Slot, type TemplatePiece, type TemplateMockup,
+} from "~/lib/slots";
 import { SlotBoard } from "~/components/SlotBoard";
+import { PieceEditor } from "~/components/PieceEditor";
+import { MockupEditor } from "~/components/MockupEditor";
 
 const MAX_UPLOAD = 20 * 1024 * 1024;
 const AI_STYLE_OPTIONS = [
@@ -201,6 +206,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const print_product_id = String(form.get("print_product_id") ?? "").trim();
     const expected_slots = Math.max(0, parseInt(String(form.get("expected_slots") ?? "0"), 10) || 0);
 
+    // Parçalar ve varyant görselleri de normalize ediliyor: geometrisi bozuk
+    // ya da tanınmayan kayıtlar render motoruna geçmemeli.
+    const pieces = normalizePieces((() => {
+      try { return JSON.parse(String(form.get("pieces") ?? "[]")); } catch { return []; }
+    })());
+    const mockups = normalizeMockups((() => {
+      try { return JSON.parse(String(form.get("mockups") ?? "[]")); } catch { return []; }
+    })());
+
     if (!name) return json({ error: "İsim gerekli" }, { status: 400 });
 
     let text_fields: TextFieldDef[] = [];
@@ -216,11 +230,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // template_url opsiyonel — sadece çerçeve bazlı kullanımda boş olabilir
 
     if (id === "new") {
-      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url });
+      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url, pieces, mockups });
       // json döndür, client tarafı navigate etsin (Shopify embedded app redirect güvenilmez)
       return json({ redirectTo: `/app/personalizer/${created.id}` });
     } else {
-      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url });
+      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url, pieces, mockups });
       return json({ ok: true });
     }
   }
@@ -1018,12 +1032,15 @@ function PersonalizerEditor() {
   const [printProductId, setPrintProductId] = useState(template?.print_product_id ?? "");
   const [overlayPreview, setOverlayPreview] = useState(template?.overlay_url ?? "");
   const [expectedSlots, setExpectedSlots] = useState(template?.expected_slots ?? 0);
+  const [pieces, setPieces] = useState<TemplatePiece[]>(() => normalizePieces(template?.pieces));
+  const [mockups, setMockups] = useState<TemplateMockup[]>(() => normalizeMockups(template?.mockups));
 
   // Deneme çıktısı — şablonu örnek fotoğraflarla basıp gösterir.
   // Ayrı bir fetcher: kaydetme akışına karışmamalı, kaydedilmiş şablon üstünde
   // çalışıyor.
   const testFetcher = useFetcher<{
     url?: string;
+    pieces?: Array<{ id: string; name: string; url: string }>;
     error?: string;
     photoCount?: number;
     version?: number;
@@ -1125,6 +1142,8 @@ function PersonalizerEditor() {
     fd.set("grid_config", JSON.stringify(gridConfig));
     fd.set("print_product_id", printProductId);
     fd.set("expected_slots", String(expectedSlots));
+    fd.set("pieces", JSON.stringify(pieces));
+    fd.set("mockups", JSON.stringify(mockups));
     fetcher.submit(fd, { method: "POST", encType: "multipart/form-data" });
   }
 
@@ -1547,7 +1566,7 @@ function PersonalizerEditor() {
                 </Card>
               )}
 
-              {layoutMode !== "ai" && slotCanvas && (
+              {layoutMode !== "ai" && slotCanvas && pieces.length === 0 && (
                 <SlotBoard
                   slots={slots}
                   onChange={setSlots}
@@ -1559,6 +1578,28 @@ function PersonalizerEditor() {
                   onGridConfigChange={setGridConfig}
                   dpi={activePrintProduct?.dpi ?? 300}
                 />
+              )}
+
+              {/* Set ürünleri ve varyant görselleri */}
+              {layoutMode !== "ai" && (
+                <PieceEditor
+                  pieces={pieces}
+                  onChange={setPieces}
+                  printProducts={printProducts as PrintProduct[]}
+                  fallback={{
+                    name: name || "Tasarım",
+                    print_product_id: printProductId,
+                    slots,
+                    background_url: templatePreview || undefined,
+                    overlay_url: overlayPreview || undefined,
+                  }}
+                  gridConfig={gridConfig}
+                  onGridConfigChange={setGridConfig}
+                />
+              )}
+
+              {layoutMode !== "ai" && (
+                <MockupEditor mockups={mockups} onChange={setMockups} />
               )}
 
               {/* Deneme çıktısı */}
@@ -1604,15 +1645,26 @@ function PersonalizerEditor() {
                     )}
 
                     {testFetcher.data?.url && (
-                      <BlockStack gap="200">
+                      <BlockStack gap="300">
                         <Text as="p" variant="bodySm" tone="subdued">
                           {testFetcher.data.photoCount} örnek fotoğraf · şablon sürümü v{testFetcher.data.version}
+                          {(testFetcher.data.pieces?.length ?? 0) > 1
+                            ? ` · ${testFetcher.data.pieces?.length} baskı dosyası`
+                            : ""}
                         </Text>
-                        <img
-                          src={testFetcher.data.url}
-                          alt="Deneme çıktısı"
-                          style={{ maxWidth: "100%", borderRadius: 8, border: "1px solid #e5e7eb" }}
-                        />
+                        <InlineStack gap="300" wrap>
+                          {(testFetcher.data.pieces ?? [{ id: "main", name: "", url: testFetcher.data.url }])
+                            .map((p) => (
+                              <BlockStack key={p.id} gap="100">
+                                {p.name && <Text as="span" variant="bodySm" tone="subdued">{p.name}</Text>}
+                                <img
+                                  src={p.url}
+                                  alt={p.name || "Deneme çıktısı"}
+                                  style={{ maxWidth: 260, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                                />
+                              </BlockStack>
+                            ))}
+                        </InlineStack>
                       </BlockStack>
                     )}
                   </BlockStack>

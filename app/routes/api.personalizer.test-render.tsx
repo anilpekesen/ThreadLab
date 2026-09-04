@@ -2,10 +2,10 @@ import { json, type ActionFunctionArgs } from "@remix-run/node";
 import sharp from "sharp";
 import { authenticate } from "~/lib/authenticate.server";
 import { uploadToR2 } from "~/lib/r2.server";
-import { getPersonalizerTemplate } from "~/models/personalizer.server";
+import { getPersonalizerTemplate, templatePieces } from "~/models/personalizer.server";
 import { getPrintProduct } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
-import { normalizeSlots, isImageSlot, isTextSlot, validateSlots } from "~/lib/slots";
+import { isImageSlot, isTextSlot, validateSlots, type SlotIssue } from "~/lib/slots";
 import { composeSlotDesign, type SlotFill } from "~/lib/slot-compose.server";
 
 /**
@@ -57,27 +57,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const template = await getPersonalizerTemplate(String(body.templateId ?? ""), session.shop);
   if (!template) return json({ error: "Şablon bulunamadı" }, { status: 404 });
 
-  const product = template.print_product_id
-    ? await getPrintProduct(template.print_product_id, session.shop)
-    : null;
-  if (!product) return json({ error: "Şablona baskı ebadı bağlanmamış" }, { status: 400 });
+  const pieces = templatePieces(template);
 
-  const slots = normalizeSlots(template.slots);
-  const imageSlots = slots.filter(isImageSlot);
-  if (imageSlots.length === 0) {
+  const allImageSlots = pieces.flatMap((piece) => piece.slots.filter(isImageSlot));
+  if (allImageSlots.length === 0) {
     return json({ error: "Şablonda fotoğraf alanı yok" }, { status: 400 });
   }
-
-  // Önizleme ölçeği: mm ve oran aynı kalır, yalnızca dpi düşer
-  const longEdgeMm = Math.max(product.width_mm, product.height_mm);
-  const dpi = Math.max(24, Math.min(product.dpi, Math.round((PREVIEW_LONG_EDGE * 25.4) / longEdgeMm)));
-  const canvas = printCanvas({ ...product, dpi });
 
   // Aynı kaynağı gösteren slotlar aynı örnek fotoğrafı almalı; şablon "tek
   // fotoğraf, çok yerleşim" kuruyorsa deneme çıktısı da öyle görünmeli.
   const bySource = new Map<string, string>();
   const fills: SlotFill[] = [];
-  for (const slot of imageSlots) {
+  for (const slot of allImageSlots) {
     const source = slot.source || slot.id;
     if (!bySource.has(source)) bySource.set(source, await samplePhoto(bySource.size));
     fills.push({ slot_id: slot.id, url: bySource.get(source)!, offset_x: 0, offset_y: 0, scale: 1 });
@@ -86,37 +77,78 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // Metin alanları örnek değerle dolduruluyor; boş bırakılırsa taşma ve font
   // sorunları görünmez kalır
   const texts: Record<string, string> = {};
-  for (const slot of slots.filter(isTextSlot)) {
-    texts[slot.id] = slot.default_value.trim() || örnekMetin(slot.max_length);
+  for (const piece of pieces) {
+    for (const slot of piece.slots) {
+      if (isTextSlot(slot)) texts[slot.id] = slot.default_value.trim() || örnekMetin(slot.max_length);
+    }
   }
 
-  try {
-    const buf = await composeSlotDesign({
-      canvas, slots, fills, texts,
-      backgroundUrl: template.template_url || undefined,
-      overlayUrl: template.overlay_url || undefined,
-      outputFormat: "jpeg",
-      quality: 86,
-    });
-    const url = await uploadToR2(buf, "jpg", "personalizer-test");
+  const issues: SlotIssue[] = [];
+  const rendered: Array<{ id: string; name: string; url: string }> = [];
 
-    const issues = validateSlots(slots, canvas, {
-      expected_image_slots: template.expected_slots,
-      // 12 MP'lik tipik bir telefon fotoğrafının kısa kenarı
-      typical_photo_px: 3000,
-    });
-    // Fontu olmayan metin alanı: baskıda sistem fontuna düşer
-    for (const slot of slots.filter(isTextSlot)) {
-      if (slot.mode !== "fixed" && !slot.font_url) {
-        issues.push({
-          level: "warning",
-          slot_id: slot.id,
-          message: `"${slot.label || slot.id}" için font yüklenmemiş; baskıda tasarımdan farklı görünecek.`,
-        });
+  try {
+    for (const piece of pieces) {
+      const product = piece.print_product_id
+        ? await getPrintProduct(piece.print_product_id, session.shop)
+        : null;
+      if (!product) {
+        return json(
+          { error: `"${piece.name}" parçasına baskı ebadı bağlanmamış` },
+          { status: 400 },
+        );
+      }
+
+      // Önizleme ölçeği: mm ve oran aynı kalır, yalnızca dpi düşer
+      const longEdgeMm = Math.max(product.width_mm, product.height_mm);
+      const dpi = Math.max(24, Math.min(product.dpi, Math.round((PREVIEW_LONG_EDGE * 25.4) / longEdgeMm)));
+      const canvas = printCanvas({ ...product, dpi });
+
+      const ids = new Set(piece.slots.map((sl) => sl.id));
+      const buf = await composeSlotDesign({
+        canvas,
+        slots: piece.slots,
+        fills: fills.filter((f) => ids.has(f.slot_id)),
+        texts,
+        backgroundUrl: piece.background_url,
+        overlayUrl: piece.overlay_url,
+        outputFormat: "jpeg",
+        quality: 86,
+      });
+      const url = await uploadToR2(buf, "jpg", "personalizer-test");
+      rendered.push({ id: piece.id, name: piece.name, url });
+
+      const pieceIssues = validateSlots(piece.slots, canvas, {
+        expected_image_slots: pieces.length === 1 ? template.expected_slots : 0,
+        // 12 MP'lik tipik bir telefon fotoğrafının kısa kenarı
+        typical_photo_px: 3000,
+      });
+      for (const issue of pieceIssues) {
+        issues.push(pieces.length > 1
+          ? { ...issue, message: `${piece.name}: ${issue.message}` }
+          : issue);
       }
     }
 
-    return json({ url, issues, photoCount: bySource.size, version: template.version });
+    // Fontu olmayan metin alanı: baskıda sistem fontuna düşer
+    for (const piece of pieces) {
+      for (const slot of piece.slots) {
+        if (isTextSlot(slot) && slot.mode !== "fixed" && !slot.font_url) {
+          issues.push({
+            level: "warning",
+            slot_id: slot.id,
+            message: `"${slot.label || slot.id}" için font yüklenmemiş; baskıda tasarımdan farklı görünecek.`,
+          });
+        }
+      }
+    }
+
+    return json({
+      url: rendered[0]?.url ?? "",
+      pieces: rendered,
+      issues,
+      photoCount: bySource.size,
+      version: template.version,
+    });
   } catch (err) {
     console.error("[test-render] hata:", err);
     return json({ error: "Deneme çıktısı üretilemedi" }, { status: 500 });
