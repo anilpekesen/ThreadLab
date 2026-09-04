@@ -19,17 +19,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const productId = url.searchParams.get("productId") ?? "";
   const shop = url.searchParams.get("shop") ?? "";
   const side = url.searchParams.get("side") ?? "front";
+  const variantId = url.searchParams.get("variantId") ?? "";
 
   const template = templateId
     ? await getPersonalizerTemplatePublic(templateId)
     : productId
-      ? await getPersonalizerTemplateByProduct(shop, productId, normalizeSide(side))
+      ? await getPersonalizerTemplateByProduct(shop, productId, normalizeSide(side), variantId)
       : null;
 
   const res = await buildSlotResponse(template, {
-    variantId: url.searchParams.get("variantId") ?? "",
+    variantId,
     shop,
     locale: url.searchParams.get("locale") ?? "tr",
+    // Tema, seçili varyantın seçenek değerlerini gönderiyor ("Ceviz|Tam Alan").
+    // Admin API'ye gitmeden doğru mockup'ı seçebilmek için en ucuz yol bu.
+    optionValues: (url.searchParams.get("options") ?? "").split("|").filter(Boolean),
   });
 
   // Slotu olmayan şablon bu rotaya ait değil

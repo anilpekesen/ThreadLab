@@ -971,7 +971,9 @@ function PersonalizerEditor() {
   const firstLinkedProduct = availableProductLinks[0];
   const initialProductId = firstLinkedProduct?.product_id || availableProducts[0]?.id || "";
   const initialProduct = availableProducts.find((product) => product.id === initialProductId) || availableProducts[0];
-  const initialVariantId = firstLinkedProduct?.variant_id || initialProduct?.variants[0]?.id || "";
+  // Varsayılan "tüm varyantlar": çoğu üründe tek şablon yeter, varyant ayrımı
+  // yalnızca set gibi ürünlerde gerekiyor.
+  const initialVariantId = firstLinkedProduct?.variant_id ?? "";
   const [selectedProductId, setSelectedProductId] = useState(initialProductId);
   const [selectedVariantId, setSelectedVariantId] = useState(initialVariantId);
   const selectedProduct = availableProducts.find((product) => product.id === selectedProductId) || availableProducts[0];
@@ -991,10 +993,11 @@ function PersonalizerEditor() {
 
   useEffect(() => {
     if (!selectedProduct) return;
+    // Boş değer "tüm varyantlar" demek ve geçerli bir seçim; ürün değişince
+    // varsayılana dönüyoruz, çünkü eski varyant kimliği yeni üründe yok.
+    if (selectedVariantId === "") return;
     const hasVariant = selectedProduct.variants.some((variant) => variant.id === selectedVariantId);
-    if (!hasVariant) {
-      setSelectedVariantId(selectedProduct.variants[0]?.id || "");
-    }
+    if (!hasVariant) setSelectedVariantId("");
   }, [selectedProduct, selectedVariantId]);
 
   const [name, setName] = useState(template?.name ?? "");
@@ -1138,12 +1141,18 @@ function PersonalizerEditor() {
     label: productOptionLabel(product),
     value: product.id,
   }));
-  const variantOptions = (selectedProduct?.variants ?? []).map((variant) => ({
+  // "Tüm varyantlar" ürünün varsayılanı: varyant seçilmemiş bağlantı her varyant
+  // için geçerli olur. Belirli bir varyant seçilirse yalnızca o varyant o
+  // şablona gider — "3'lü set"te Tam Alan ile Beyaz Kenarlı böyle ayrılıyor.
+  const variantOptions = [
+    { label: "Tüm varyantlar (varsayılan)", value: "" },
+    ...(selectedProduct?.variants ?? []).map((variant) => ({
     label: variant.title === "Default Title"
       ? `Default Title${variant.price ? ` - ${variant.price}` : ""}`
       : `${variant.title}${variant.price ? ` - ${variant.price}` : ""}`,
     value: variant.id,
-  }));
+    })),
+  ];
   const linkedProductGroups = Object.values(availableProductLinks.reduce<
     Record<string, Array<(typeof availableProductLinks)[number]>>
   >((groups, link) => {

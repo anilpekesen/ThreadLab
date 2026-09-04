@@ -2,10 +2,10 @@ import { json, type ActionFunctionArgs } from "@remix-run/node";
 import { randomBytes } from "node:crypto";
 import { query } from "~/lib/db.server";
 import { uploadToR2 } from "~/lib/r2.server";
-import { getPersonalizerTemplatePublic } from "~/models/personalizer.server";
+import { getPersonalizerTemplatePublic, templatePieces } from "~/models/personalizer.server";
 import { getPrintProductPublic } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
-import { normalizeSlots, isImageSlot } from "~/lib/slots";
+import { isImageSlot } from "~/lib/slots";
 import { composeSlotDesign, type SlotFill } from "~/lib/slot-compose.server";
 
 /**
@@ -69,20 +69,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const template = await getPersonalizerTemplatePublic(templateId);
   if (!template) return json({ error: msg.notFound }, { status: 404, headers: CORS });
 
-  const product = template.print_product_id
-    ? await getPrintProductPublic(template.print_product_id)
-    : null;
-  if (!product) return json({ error: msg.noSize }, { status: 400, headers: CORS });
-
-  const slots = normalizeSlots(template.slots);
+  const pieces = templatePieces(template);
   const isRender = String(body.mode ?? "") === "render";
 
   // İstemciden gelen doldurma kayıtları temizlenir: tanınmayan slot kimlikleri
   // atılır, kaydırma ve ölçek makul aralığa çekilir. Böylece uç değerlerle
   // sunucuda devasa ara görsel üretilemez.
-  const known = new Set(slots.filter(isImageSlot).map((s) => s.id));
+  const allImageSlotIds = new Set<string>();
+  for (const piece of pieces) {
+    for (const slot of piece.slots) if (isImageSlot(slot)) allImageSlotIds.add(slot.id);
+  }
   const fills: SlotFill[] = (Array.isArray(body.fills) ? body.fills : [])
-    .filter((f) => f && typeof f.url === "string" && known.has(String(f.slot_id)))
+    .filter((f) => f && typeof f.url === "string" && allImageSlotIds.has(String(f.slot_id)))
     .map((f) => ({
       slot_id: String(f.slot_id),
       url: String(f.url),
@@ -91,48 +89,75 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       scale: clamp(Number(f.scale) || 1, 1, 4),
     }));
 
+  const filled = new Set(fills.map((f) => f.slot_id));
+  const missing = allImageSlotIds.size - filled.size;
+
   // Baskı çıktısında eksik alan kabul edilmez; önizlemede serbest, müşteri
   // doldururken sonucu görebilmeli.
-  const missing = known.size - new Set(fills.map((f) => f.slot_id)).size;
   if (isRender && missing > 0) {
     return json({ error: msg.missing(missing) }, { status: 400, headers: CORS });
   }
 
-  const fullCanvas = printCanvas(product);
-  const canvas = isRender
-    ? fullCanvas
-    : printCanvas({
-        ...product,
-        // Oran ve mm ölçüleri aynı kalır, yalnızca dpi düşer
-        dpi: previewDpi(product.width_mm, product.height_mm, product.dpi),
-      });
+  const texts = body.texts ?? {};
+  const rendered: Array<{ id: string; name: string; url: string; width: number; height: number }> = [];
 
   try {
-    const buf = await composeSlotDesign({
-      canvas,
-      slots,
-      fills,
-      texts: body.texts ?? {},
-      backgroundUrl: template.template_url || undefined,
-      overlayUrl: template.overlay_url || undefined,
-      outputFormat: isRender ? "png" : "jpeg",
-      quality: 88,
-      // Baskıda eksik fotoğraf hata; önizlemede tolere edilir
-      strict: isRender,
-    });
+    // Parçalar sırayla basılıyor. Set ürünlerinde her parça ayrı bir fiziksel
+    // ürün: üç çerçevelik bir sette üretime üç ayrı dosya gider.
+    for (const piece of pieces) {
+      const product = piece.print_product_id
+        ? await getPrintProductPublic(piece.print_product_id)
+        : null;
+      if (!product) {
+        return json(
+          { error: `${msg.noSize} (${piece.name})` },
+          { status: 400, headers: CORS },
+        );
+      }
 
-    const url = await uploadToR2(
-      buf,
-      isRender ? "png" : "jpg",
-      isRender ? "personalizer-print" : "personalizer-preview",
-    );
+      const fullCanvas = printCanvas(product);
+      const canvas = isRender
+        ? fullCanvas
+        : printCanvas({
+            ...product,
+            // Oran ve mm ölçüleri aynı kalır, yalnızca dpi düşer
+            dpi: previewDpi(product.width_mm, product.height_mm, product.dpi),
+          });
+
+      const pieceSlotIds = new Set(piece.slots.map((sl) => sl.id));
+      const buf = await composeSlotDesign({
+        canvas,
+        slots: piece.slots,
+        fills: fills.filter((f) => pieceSlotIds.has(f.slot_id)),
+        texts,
+        backgroundUrl: piece.background_url,
+        overlayUrl: piece.overlay_url,
+        outputFormat: isRender ? "png" : "jpeg",
+        quality: 88,
+        // Baskıda eksik fotoğraf hata; önizlemede tolere edilir
+        strict: isRender,
+      });
+
+      const url = await uploadToR2(
+        buf,
+        isRender ? "png" : "jpg",
+        isRender ? "personalizer-print" : "personalizer-preview",
+      );
+      rendered.push({
+        id: piece.id,
+        name: piece.name,
+        url,
+        width: canvas.canvasWidth,
+        height: canvas.canvasHeight,
+      });
+    }
 
     // Önizlemede kayıt tutulmuyor: müşteri onlarca kez önizleyebilir, her biri
     // için tasarım kaydı açmak veritabanını çöple doldurur.
     let designToken: string | null = null;
     if (isRender) {
       designToken = randomBytes(16).toString("hex");
-      // Tarif saklanıyor, yalnızca çıktı dosyası değil: baskı dosyası
+      // Tarif saklanıyor, yalnızca çıktı dosyaları değil: baskı dosyası
       // kaybolursa ya da bozulursa aynı tasarım birebir yeniden üretilebilsin.
       // Şablon sürümü de burada — şablon sonradan değişse bile sipariş, o
       // günkü hâliyle basılabilir.
@@ -142,15 +167,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         [
           designToken,
           template.shop,
-          url,
+          rendered[0]?.url ?? "",
           JSON.stringify({
             type: "personalizer-slots",
             templateId: template.id,
             templateVersion: template.version,
             templateName: template.name,
-            printProductId: product.id,
+            pieces: rendered.map((r) => ({ id: r.id, name: r.name, url: r.url })),
             fills,
-            texts: body.texts ?? {},
+            texts,
           }),
         ],
       );
@@ -158,9 +183,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return json(
       {
-        url,
-        width: canvas.canvasWidth,
-        height: canvas.canvasHeight,
+        // Tek parçalı şablonlarda eski alanlar korunuyor
+        url: rendered[0]?.url ?? "",
+        width: rendered[0]?.width ?? 0,
+        height: rendered[0]?.height ?? 0,
+        pieces: rendered,
         missing,
         designToken,
         templateVersion: template.version,

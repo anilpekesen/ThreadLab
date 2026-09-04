@@ -90,6 +90,167 @@ export function requiredPhotoCount(slots: Slot[]): number {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Parçalar — bir şablonun ürettiği ayrı baskı dosyaları
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bir parça, kendi başına basılan tek bir fiziksel ürün.
+ *
+ * "3'lü çerçeve seti" gibi ürünlerde bir sipariş satırı üç ayrı 30x30 dosya
+ * üretmeli. Hepsini tek tuvale koymak yanlış olur: onlar üç ayrı çerçeve ve
+ * her birinin kendi taşma payı olmalı. Tek geniş dosyayı kesmek de yetmez,
+ * çünkü o dosyada yalnızca dış kenarlar taşma alır.
+ *
+ * Parça, şablonun kendisiyle aynı yapıya sahip: kendi baskı ürünü, kendi
+ * slotları, kendi arka planı. Böylece karışık setler de (farklı ebatlarda
+ * parçalar) aynı modelle ifade edilebiliyor.
+ *
+ * `pieces` boşsa şablon tek parçalıdır ve mevcut alanlarından türetilir;
+ * bugüne kadarki bütün şablonlar böyle çalışmaya devam eder.
+ */
+export interface TemplatePiece {
+  id: string;
+  /** Müşteriye ve üretime gösterilen ad — "1. Çerçeve" */
+  name: string;
+  print_product_id: string;
+  slots: Slot[];
+  /** Fotoğrafların altında duran tasarım */
+  background_url?: string;
+  /** Fotoğrafların üstünde duran tasarım */
+  overlay_url?: string;
+  /** Sıra; müşteri arayüzünde ve baskı dosyası adlandırmasında kullanılır */
+  order: number;
+}
+
+export function normalizePieces(raw: unknown): TemplatePiece[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TemplatePiece[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const p = item as Record<string, unknown>;
+    const id = String(p.id ?? "").trim();
+    if (!id) continue;
+    out.push({
+      id,
+      name: String(p.name ?? id),
+      print_product_id: String(p.print_product_id ?? ""),
+      slots: normalizeSlots(p.slots),
+      background_url: p.background_url ? String(p.background_url) : undefined,
+      overlay_url: p.overlay_url ? String(p.overlay_url) : undefined,
+      order: Number(p.order ?? out.length + 1),
+    });
+  }
+  return out.sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Bir parçanın kopyasını üretir.
+ *
+ * Slot kimlikleri parça öneki alıyor: üç çerçevenin de "photo_1" adında bir
+ * slotu olsaydı müşterinin yüklediği fotoğraflar birbirine karışırdı.
+ */
+export function clonePiece(source: TemplatePiece, newId: string, name: string, order: number): TemplatePiece {
+  return {
+    ...source,
+    id: newId,
+    name,
+    order,
+    slots: source.slots.map((slot) => {
+      const localId = slot.id.includes("__") ? slot.id.split("__").slice(1).join("__") : slot.id;
+      const id = `${newId}__${localId}`;
+      return slot.kind === "image"
+        ? { ...slot, id, source: id }
+        : { ...slot, id };
+    }),
+  };
+}
+
+/** Parçanın toplam fotoğraf alanı sayısı */
+export function pieceImageSlotCount(piece: TemplatePiece): number {
+  return piece.slots.filter(isImageSlot).length;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mockup — müşterinin ürünü gerçek hâlinde gördüğü görsel
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bir varyanta karşılık gelen ürün görseli ve üzerindeki gösterim alanları.
+ *
+ * Çerçeve rengi baskı dosyasını değiştirmiyor; değişen tek şey müşterinin
+ * gördüğü ürün. Ceviz çerçeve seçen biri fotoğrafını ceviz çerçevenin içinde
+ * görmeli, yoksa neyi satın aldığını hayal etmek zorunda kalıyor.
+ *
+ * `key` Shopify seçenek değeriyle eşleşiyor ("Ceviz"). Müşterinin seçtiği
+ * varyantın değerlerinden biri bu anahtarı tutuyorsa o mockup gösteriliyor.
+ */
+export interface MockupArea {
+  /** Hangi parçanın fotoğrafı buraya düşecek */
+  piece_id: string;
+  /** Mockup görseline göre normalize dikdörtgen */
+  rect: Rect;
+  /** Alan dikdörtgen değilse (açılı çerçeve, yansıma) şekil maskesi */
+  mask_url?: string;
+}
+
+export interface TemplateMockup {
+  key: string;
+  label: string;
+  url: string;
+  areas: MockupArea[];
+}
+
+export function normalizeMockups(raw: unknown): TemplateMockup[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TemplateMockup[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const m = item as Record<string, unknown>;
+    const url = String(m.url ?? "").trim();
+    if (!url) continue;
+    const areas = Array.isArray(m.areas) ? m.areas : [];
+    out.push({
+      key: String(m.key ?? "").trim(),
+      label: String(m.label ?? m.key ?? ""),
+      url,
+      areas: areas.flatMap((a) => {
+        if (!a || typeof a !== "object") return [];
+        const area = a as Record<string, unknown>;
+        const rect = area.rect as Partial<Rect> | undefined;
+        if (!rect || typeof rect.x !== "number" || typeof rect.y !== "number"
+          || typeof rect.w !== "number" || typeof rect.h !== "number") return [];
+        return [{
+          piece_id: String(area.piece_id ?? ""),
+          rect: { x: rect.x, y: rect.y, w: rect.w, h: rect.h },
+          mask_url: area.mask_url ? String(area.mask_url) : undefined,
+        }];
+      }),
+    });
+  }
+  return out;
+}
+
+/**
+ * Müşterinin seçtiği varyantın değerlerine uyan mockup'ı bulur.
+ *
+ * Eşleşme büyük/küçük harf duyarsız: Shopify'daki "Ceviz" ile mağaza sahibinin
+ * yazdığı "ceviz" aynı sayılmalı. Anahtarı boş olan mockup varsayılandır ve
+ * hiçbiri uymazsa o gösterilir.
+ */
+export function pickMockup(
+  mockups: TemplateMockup[],
+  optionValues: string[],
+): TemplateMockup | null {
+  if (mockups.length === 0) return null;
+  const values = optionValues.map((v) => v.trim().toLocaleLowerCase("tr"));
+  for (const m of mockups) {
+    const key = m.key.trim().toLocaleLowerCase("tr");
+    if (key && values.includes(key)) return m;
+  }
+  return mockups.find((m) => !m.key.trim()) ?? null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Normalize ↔ piksel
 // ─────────────────────────────────────────────────────────────────────────────
 

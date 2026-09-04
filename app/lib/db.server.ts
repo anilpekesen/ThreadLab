@@ -784,6 +784,29 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS personalizer_product_links_template
       ON personalizer_product_links (template_id)
   `);
+  // Aynı ürünün farklı varyantları farklı şablona bağlanabilmeli: "3'lü
+  // çerçeve seti"nde Tam Alan ile Beyaz Kenarlı ayrı yerleşimler, yani ayrı
+  // şablonlar. Birincil anahtara varyant ekleniyor; boş varyant o ürünün
+  // varsayılanı olarak kalıyor ve tek şablonlu ürünler aynen çalışıyor.
+  // Yalnızca anahtar hâlâ üç kolonluyken çalışır, tekrar çalıştırılabilir.
+  await query(`
+    DO $$
+    DECLARE pk_name TEXT;
+    BEGIN
+      SELECT c.conname INTO pk_name
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+       WHERE t.relname = 'personalizer_product_links'
+         AND c.contype = 'p'
+         AND array_length(c.conkey, 1) = 3;
+      IF pk_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE personalizer_product_links DROP CONSTRAINT %I', pk_name);
+        ALTER TABLE personalizer_product_links
+          ADD CONSTRAINT personalizer_product_links_pkey
+          PRIMARY KEY (shop, product_id, side, variant_id);
+      END IF;
+    END $$;
+  `);
 
   // Giriş yapmış müşterilerin "Kayıtlı Tasarımlar"ı — localStorage yerine hesapla
   // taşınabilir kayıt. id istemci tarafında üretilir, bu yüzden PK müşteriye
@@ -847,6 +870,22 @@ async function _runMigrationsLocked() {
       ADD COLUMN IF NOT EXISTS overlay_url      TEXT  NOT NULL DEFAULT '',
       ADD COLUMN IF NOT EXISTS expected_slots   INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS version          INTEGER NOT NULL DEFAULT 1
+  `);
+
+  // Set ürünleri: bir sipariş satırı birden fazla baskı dosyası üretebilir.
+  // "3'lü çerçeve seti"nde üç ayrı 30x30 dosya gerekiyor; hepsini tek tuvale
+  // koymak yanlış olur, çünkü onlar üç ayrı çerçeve ve her birinin kendi taşma
+  // payı olmalı. Boş dizi = tek parçalı şablon, eski davranış.
+  await query(`
+    ALTER TABLE personalizer_templates
+      ADD COLUMN IF NOT EXISTS pieces JSONB NOT NULL DEFAULT '[]'
+  `);
+
+  // Varyanta göre ürün görselleri. Çerçeve rengi baskıyı değiştirmiyor, ama
+  // müşteri fotoğrafını seçtiği renkteki çerçevenin içinde görmeli.
+  await query(`
+    ALTER TABLE personalizer_templates
+      ADD COLUMN IF NOT EXISTS mockups JSONB NOT NULL DEFAULT '[]'
   `);
 
   // ── Şablon sürümleri ──────────────────────────────────────────────────────

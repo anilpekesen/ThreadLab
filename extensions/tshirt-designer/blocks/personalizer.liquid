@@ -1,0 +1,190 @@
+{%- comment -%}
+  PrintLab Kişiselleştirici — ürün sayfası app block'u
+
+  Şablon ürüne uygulamadan bağlanınca `personalizer.template_id` metafield'ı
+  yazılıyor; bu blok onu okuyup kişiselleştirme penceresini açıyor. Mağaza
+  sahibinin tema koduna dokunması gerekmiyor, bloğu tema düzenleyicisinden
+  ürün sayfasına sürüklemesi yeterli.
+{%- endcomment -%}
+
+{%- assign pl_template_id = product.metafields.personalizer.template_id -%}
+{%- assign pl_app_url = block.settings.app_url | default: 'https://app.printlabapp.com' -%}
+
+{%- if pl_template_id != blank -%}
+  <div class="pl-personalizer" style="margin:{{ block.settings.spacing }}px 0;">
+    {%- if block.settings.heading != blank -%}
+      <h3 style="font-size:16px;font-weight:600;margin:0 0 10px;">{{ block.settings.heading }}</h3>
+    {%- endif -%}
+
+    <div id="pl-loading-{{ block.id }}" style="text-align:center;padding:44px 0;color:#6b7280;font-size:14px;">
+      {{ block.settings.loading_text | default: 'Yükleniyor…' }}
+    </div>
+
+    <iframe
+      id="pl-iframe-{{ block.id }}"
+      src=""
+      title="{{ block.settings.heading | default: 'Kişiselleştir' | escape }}"
+      style="display:none;width:100%;border:none;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);"
+      allow="camera *"
+      scrolling="no"
+      loading="lazy"
+    ></iframe>
+  </div>
+
+  <script>
+  (function () {
+    var BLOCK    = {{ block.id | json }};
+    var APP_URL  = {{ pl_app_url | json }};
+    var TEMPLATE = {{ pl_template_id | json }};
+    var PRODUCT  = {{ product.id | json }};
+    var SHOP     = {{ shop.permanent_domain | json }};
+    var LOCALE   = {{ request.locale.iso_code | default: 'tr' | json }};
+
+    var iframe  = document.getElementById('pl-iframe-' + BLOCK);
+    var loading = document.getElementById('pl-loading-' + BLOCK);
+    if (!iframe) return;
+
+    function currentVariant() {
+      // Tema varyantı üç yerden birinde tutuyor olabilir. Varyant bu üründe
+      // yerleşimi değiştirebiliyor (bordürlü/bordürsüz), bu yüzden doğru
+      // okumak önemli.
+      var m = window.location.search.match(/[?&]variant=(\d+)/);
+      if (m) return m[1];
+      var input = document.querySelector('form[action*="/cart/add"] [name="id"]');
+      if (input && input.value) return input.value;
+      return {{ product.selected_or_first_available_variant.id | json }};
+    }
+
+    // Varyant kimliği → seçenek değerleri. Uygulama doğru ürün görselini
+    // ("Ceviz" çerçeve) bu değerlerle seçiyor; Admin API'ye gitmeye gerek
+    // kalmıyor.
+    var VARIANT_OPTIONS = {
+      {%- for v in product.variants -%}
+        {{ v.id | json }}: {{ v.options | join: '|' | json }}{% unless forloop.last %},{% endunless %}
+      {%- endfor -%}
+    };
+
+    function srcFor(variantId) {
+      return APP_URL + '/embed/personalizer'
+        + '?templateId=' + encodeURIComponent(TEMPLATE)
+        + '&productId='  + encodeURIComponent(PRODUCT)
+        + '&variantId='  + encodeURIComponent(variantId || '')
+        + '&options='    + encodeURIComponent(VARIANT_OPTIONS[variantId] || '')
+        + '&shop='       + encodeURIComponent(SHOP)
+        + '&locale='     + encodeURIComponent(LOCALE);
+    }
+
+    var lastVariant = currentVariant();
+    iframe.src = srcFor(lastVariant);
+
+    iframe.addEventListener('load', function () {
+      if (loading) loading.style.display = 'none';
+      iframe.style.display = 'block';
+      if (!iframe.style.height) iframe.style.height = '640px';
+    });
+
+    // Varyant değişimini yakalamanın tek güvenilir yolu yok: temalar kimi
+    // zaman formu, kimi zaman yalnızca adres çubuğunu güncelliyor. İkisini de
+    // izliyoruz ve yalnızca gerçekten değiştiğinde yeniden yüklüyoruz.
+    function syncVariant() {
+      var v = currentVariant();
+      if (!v || v === lastVariant) return;
+      lastVariant = v;
+      if (loading) loading.style.display = 'block';
+      iframe.style.display = 'none';
+      iframe.src = srcFor(v);
+    }
+
+    document.addEventListener('change', function (e) {
+      if (e.target && (e.target.name === 'id' || e.target.closest('variant-selects, variant-radios, .product-form__input'))) {
+        setTimeout(syncVariant, 60);
+      }
+    });
+    window.addEventListener('popstate', syncVariant);
+    setInterval(syncVariant, 800);
+
+    window.addEventListener('message', function (e) {
+      if (!e.data) return;
+
+      if (e.data.type === 'PERSONALIZER_RESIZE' && e.data.height) {
+        iframe.style.height = (e.data.height + 24) + 'px';
+        return;
+      }
+
+      if (e.data.type !== 'PERSONALIZER_ADD_TO_CART') return;
+      var d = e.data;
+
+      fetch('/cart/add.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: d.variantId || currentVariant(),
+          quantity: d.quantity || 1,
+          properties: d.properties || {}
+        })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (item) {
+          if (!item || !item.id) throw new Error('sepete eklenemedi');
+          if (window.Shopify && window.Shopify.theme && typeof window.Shopify.theme.openCart === 'function') {
+            window.Shopify.theme.openCart();
+          } else {
+            window.location.href = '/cart';
+          }
+        })
+        .catch(function () { window.location.href = '/cart'; });
+    });
+  })();
+  </script>
+
+{%- elsif request.design_mode -%}
+  {%- comment -%}
+    Yalnızca tema düzenleyicisinde görünür: mağaza sahibi bloğu eklemiş ama
+    ürünü uygulamada bağlamamışsa sebebini burada görsün, boş bir alana bakıp
+    bloğun bozuk olduğunu sanmasın.
+  {%- endcomment -%}
+  <div style="margin:16px 0;padding:16px 18px;border:1px dashed #c4c9d0;border-radius:10px;color:#4b5563;font:14px/1.5 system-ui;">
+    <strong>PrintLab Kişiselleştirici</strong><br>
+    Bu ürüne henüz bir şablon bağlanmamış. PrintLab uygulamasında
+    <em>Kişiselleştirici → şablon → Ürünü Bağla</em> adımını tamamlayın;
+    bu alan ürün sayfasında otomatik görünecek.
+  </div>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "PrintLab Kişiselleştirici",
+  "target": "section",
+  "enabled_on": { "templates": ["product"] },
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Başlık",
+      "default": "Kişiselleştir"
+    },
+    {
+      "type": "text",
+      "id": "loading_text",
+      "label": "Yüklenirken gösterilecek yazı",
+      "default": "Yükleniyor…"
+    },
+    {
+      "type": "range",
+      "id": "spacing",
+      "label": "Üst ve alt boşluk",
+      "min": 0,
+      "max": 60,
+      "step": 4,
+      "unit": "px",
+      "default": 24
+    },
+    {
+      "type": "text",
+      "id": "app_url",
+      "label": "Uygulama adresi",
+      "info": "Boş bırakın; yalnızca özel kurulumlarda değiştirin."
+    }
+  ]
+}
+{% endschema %}
