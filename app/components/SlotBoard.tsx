@@ -9,6 +9,7 @@ import {
   type GridConfig, type ImageSlot, type Slot, type SlotIssue, type TextSlot,
 } from "~/lib/slots";
 import type { PrintCanvas } from "~/lib/print-spec";
+import { FONT_LIBRARY, findLibraryFont, isLibraryFontUrl } from "~/lib/font-library";
 
 /**
  * Slot tahtası — şablondaki fotoğraf alanlarının görsel editörü.
@@ -20,6 +21,22 @@ import type { PrintCanvas } from "~/lib/print-spec";
  * İki üretim yolu bir arada: ızgara parametreleriyle toplu üretim ve fareyle
  * tek tek düzeltme. İkisi de aynı diziyi üretir.
  */
+
+/**
+ * Kütüphane fontlarını yönetim ekranına da yükler.
+ *
+ * Seçim kutusunda font adını okumak yeterli değil: mağaza sahibinin harfleri
+ * görmesi gerekiyor. Aynı .ttf dosyaları hem burada hem müşteri sayfasında
+ * kullanıldığı için önizleme baskıyla birebir aynı.
+ */
+const FONT_FACE_CSS = FONT_LIBRARY
+  .map((f) => `@font-face{font-family:"${f.family}";src:url("${f.url}") format("truetype");font-display:swap;}`)
+  .join("\n");
+
+const FONT_SECENEKLERI = [
+  { label: "Font seçilmedi (sunucu fontu)", value: "" },
+  ...FONT_LIBRARY.map((f) => ({ label: f.label, value: f.url })),
+];
 
 type Handle = "move" | "nw" | "ne" | "sw" | "se";
 
@@ -61,6 +78,21 @@ export function SlotBoard({
   const [fontBusy, setFontBusy] = useState(false);
   const [fontError, setFontError] = useState("");
   const fontInputRef = useRef<HTMLInputElement>(null);
+
+  /** Mağazanın yüklediği font listede yok; seçili görünsün diye satır eklenir */
+  const fontSecenekleri = useMemo(() => {
+    const sl = slots.find((x) => x.id === selectedId);
+    const url = sl && isTextSlot(sl) ? sl.font_url : undefined;
+    return url && !isLibraryFontUrl(url)
+      ? [...FONT_SECENEKLERI, { label: "Yüklediğim font", value: "__yuklenen" }]
+      : FONT_SECENEKLERI;
+  }, [selectedId, slots]);
+
+  /** Önizleme kutusunun font-family değeri; kütüphane dışı fontlar için yok */
+  function fontOnizlemeAdi(url: string | undefined): string {
+    const lib = findLibraryFont(url);
+    return lib ? `"${lib.family}", serif` : "inherit";
+  }
 
   const grid = gridConfig ?? DEFAULT_GRID;
   const imageSlots = useMemo(() => slots.filter(isImageSlot), [slots]);
@@ -297,6 +329,7 @@ export function SlotBoard({
 
   return (
     <Card>
+      <style dangerouslySetInnerHTML={{ __html: FONT_FACE_CSS }} />
       <BlockStack gap="400">
         <InlineStack align="space-between" blockAlign="center" gap="300">
           <BlockStack gap="050">
@@ -556,16 +589,54 @@ export function SlotBoard({
                   {/* Font: baskıda metin fontun kendi harf çizimlerine
                       çevriliyor, dosya olmadan tasarımın yazısı tutmaz */}
                   <Box background="bg-surface" padding="300" borderRadius="200">
-                    <BlockStack gap="200">
+                    <BlockStack gap="300">
                       <InlineStack gap="200" blockAlign="center" wrap={false}>
                         <Text as="span" variant="bodySm" fontWeight="semibold">Font</Text>
                         {selected.font_url
-                          ? <Badge tone="success">{selected.font_family || "Yüklendi"}</Badge>
-                          : <Badge tone="warning">Yüklenmedi</Badge>}
+                          ? <Badge tone="success">{selected.font_family || "Seçildi"}</Badge>
+                          : <Badge tone="warning">Seçilmedi</Badge>}
                       </InlineStack>
+
+                      <Select
+                        label="Hazır fontlar"
+                        options={fontSecenekleri}
+                        value={
+                          isLibraryFontUrl(selected.font_url) ? selected.font_url!
+                            : selected.font_url ? "__yuklenen" : ""
+                        }
+                        onChange={(v) => {
+                          const lib = findLibraryFont(v);
+                          patchText(selected.id, lib
+                            ? { font_url: lib.url, font_family: lib.family }
+                            : { font_url: undefined, font_family: undefined });
+                        }}
+                        helpText={
+                          findLibraryFont(selected.font_url)?.role
+                          ?? (selected.font_url
+                            ? "Mağazanın yüklediği font kullanılıyor."
+                            : "Font seçilmezse baskıda sunucunun kendi fontu kullanılır ve tasarımdan sapar.")
+                        }
+                      />
+
+                      {/* Önizleme: seçilen fontun harflerini gerçekten göstermek,
+                          adını okumaktan çok daha hızlı karar verdiriyor */}
+                      {selected.font_url && (
+                        <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+                          <div style={{
+                            fontFamily: fontOnizlemeAdi(selected.font_url),
+                            fontSize: 26, lineHeight: 1.35, textAlign: "center",
+                            color: "#1a1a1a", wordBreak: "break-word",
+                          }}>
+                            {selected.default_value?.trim() || "İyi ki doğdun · ĞÜŞİÖÇ 123"}
+                          </div>
+                        </Box>
+                      )}
+
+                      <Divider />
+
                       <Text as="p" variant="bodySm" tone="subdued">
-                        Font yüklenmezse baskıda sunucunun kendi fontu kullanılır ve tasarımdan
-                        sapar. <b>.ttf, .otf veya .woff</b> yükleyin — .woff2 okunamıyor.
+                        Listede olmayan bir font gerekiyorsa kendi lisanslı dosyanızı yükleyin:
+                        <b> .ttf, .otf veya .woff</b> — .woff2 okunamıyor.
                       </Text>
                       <input
                         ref={fontInputRef}
@@ -580,11 +651,11 @@ export function SlotBoard({
                       />
                       <InlineStack gap="200">
                         <Button onClick={() => fontInputRef.current?.click()} loading={fontBusy}>
-                          {selected.font_url ? "Fontu değiştir" : "Font yükle"}
+                          Kendi fontumu yükle
                         </Button>
-                        {selected.font_url && (
+                        {selected.font_url && !isLibraryFontUrl(selected.font_url) && (
                           <Button variant="plain" tone="critical"
-                            onClick={() => patchText(selected.id, { font_url: undefined })}>
+                            onClick={() => patchText(selected.id, { font_url: undefined, font_family: undefined })}>
                             Kaldır
                           </Button>
                         )}
