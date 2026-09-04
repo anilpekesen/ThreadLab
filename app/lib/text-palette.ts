@@ -7,26 +7,63 @@
  * paspartunun üstünde okunmaz bir yazı basılır ve bunu ancak ürün eline
  * geçtiğinde görür.
  *
- * Palet, bu ürün ailesinde gerçekten kullanılan renklerden derlendi (çerçeve
- * baskılarında koyu nötrler ve metalik tonlar). Mağaza sahibi listede olmayan
- * bir rengi de ekleyebiliyor; palet yalnızca hızlı yol.
+ * Palet beş grupta toplandı; tek sıra hâlinde yirmi sekiz kutucuk panelde
+ * okunmaz oluyordu. Gruplar yalnızca yönetim ekranını düzenliyor, müşteriye
+ * mağazanın açtığı renkler düz bir sıra olarak gidiyor.
+ *
+ * Mağaza sahibi listede olmayan bir rengi de ekleyebiliyor; palet hızlı yol.
  */
 
 export interface PaletteColor {
   hex: string;
   label: string;
+  /** Panelde renkleri satırlara ayırmak için; müşteri tarafına gitmiyor */
+  group: PaletteGroup;
 }
 
+export type PaletteGroup = "notr" | "sicak" | "kirmizi" | "soguk" | "mor";
+
+export const PALETTE_GROUPS: Array<{ id: PaletteGroup; label: string }> = [
+  { id: "notr", label: "Nötr" },
+  { id: "sicak", label: "Sıcak ve metalik" },
+  { id: "kirmizi", label: "Kırmızı ve pembe" },
+  { id: "soguk", label: "Mavi ve yeşil" },
+  { id: "mor", label: "Mor" },
+];
+
 export const TEXT_PALETTE: PaletteColor[] = [
-  { hex: "#1a1a1a", label: "Siyah" },
-  { hex: "#6b6b6b", label: "Gri" },
-  { hex: "#ffffff", label: "Beyaz" },
-  { hex: "#b08d57", label: "Altın" },
-  { hex: "#b76e79", label: "Rose gold" },
-  { hex: "#8a7f6d", label: "Vizon" },
-  { hex: "#2f4858", label: "Lacivert" },
-  { hex: "#6b7f5e", label: "Adaçayı" },
-  { hex: "#a0522d", label: "Kiremit" },
+  { hex: "#1a1a1a", label: "Siyah", group: "notr" },
+  { hex: "#3d3d3d", label: "Antrasit", group: "notr" },
+  { hex: "#6b6b6b", label: "Gri", group: "notr" },
+  { hex: "#9e9e9e", label: "Açık gri", group: "notr" },
+  { hex: "#ffffff", label: "Beyaz", group: "notr" },
+  { hex: "#f4ece1", label: "Krem", group: "notr" },
+  { hex: "#8a7f6d", label: "Vizon", group: "notr" },
+
+  { hex: "#b08d57", label: "Altın", group: "sicak" },
+  { hex: "#c9a227", label: "Hardal", group: "sicak" },
+  { hex: "#b87333", label: "Bakır", group: "sicak" },
+  { hex: "#8c6239", label: "Bronz", group: "sicak" },
+  { hex: "#6b4423", label: "Kahve", group: "sicak" },
+  { hex: "#d9b98a", label: "Bej", group: "sicak" },
+
+  { hex: "#7b2d3b", label: "Bordo", group: "kirmizi" },
+  { hex: "#a0522d", label: "Kiremit", group: "kirmizi" },
+  { hex: "#c85a54", label: "Mercan", group: "kirmizi" },
+  { hex: "#b76e79", label: "Rose gold", group: "kirmizi" },
+  { hex: "#8c4a5f", label: "Gül kurusu", group: "kirmizi" },
+  { hex: "#d8a0a6", label: "Pudra", group: "kirmizi" },
+
+  { hex: "#1f3a5f", label: "Gece mavisi", group: "soguk" },
+  { hex: "#2f4858", label: "Lacivert", group: "soguk" },
+  { hex: "#3f7c9e", label: "Petrol", group: "soguk" },
+  { hex: "#7fa8c9", label: "Gök mavisi", group: "soguk" },
+  { hex: "#2f5d50", label: "Çam", group: "soguk" },
+  { hex: "#4a6741", label: "Zeytin", group: "soguk" },
+  { hex: "#6b7f5e", label: "Adaçayı", group: "soguk" },
+
+  { hex: "#5b3a5c", label: "Mürdüm", group: "mor" },
+  { hex: "#9b8aa6", label: "Lavanta", group: "mor" },
 ];
 
 /** Yalnızca #rrggbb kabul ediliyor; kısa biçim genişletiliyor. */

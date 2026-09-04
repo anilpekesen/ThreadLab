@@ -10,7 +10,7 @@ import {
 } from "~/lib/slots";
 import type { PrintCanvas } from "~/lib/print-spec";
 import { FONT_LIBRARY, findLibraryFont, isLibraryFontUrl } from "~/lib/font-library";
-import { TEXT_PALETTE, isLightColor, normalizeHex } from "~/lib/text-palette";
+import { TEXT_PALETTE, PALETTE_GROUPS, isLightColor, normalizeHex } from "~/lib/text-palette";
 
 /**
  * Slot tahtası — şablondaki fotoğraf alanlarının görsel editörü.
@@ -712,35 +712,62 @@ export function SlotBoard({
                         </InlineStack>
                         <Text as="p" variant="bodySm" tone="subdued">
                           Şablonun kendi rengi müşteriye her zaman "varsayılan" olarak gösterilir;
-                          burada işaretledikleriniz onun yanına eklenir. Serbest renk vermiyoruz:
-                          açık bir renk beyaz zeminde okunmaz basılır ve bu ancak ürün elde
-                          göründüğünde fark edilir.
+                          burada işaretledikleriniz onun yanına eklenir. Hepsini açmak zorunda
+                          değilsiniz — dört beş renk müşteriyi yormadan seçim hissi veriyor.
+                          Zeminle karışacak renkleri (beyaz tasarımda krem gibi) açmayın: yazı
+                          okunmaz basılır ve bu ancak ürün elde göründüğünde fark edilir.
                         </Text>
-                        <InlineStack gap="200" wrap>
-                          {TEXT_PALETTE.map((c) => {
-                            const acik = musteriRenkleri.includes(c.hex);
-                            return (
-                              <button
-                                key={c.hex}
-                                type="button"
-                                title={c.label}
-                                aria-label={c.label}
-                                aria-pressed={acik}
-                                onClick={() => patchText(selected.id, {
-                                  color_choices: acik
-                                    ? musteriRenkleri.filter((h) => h !== c.hex)
-                                    : [...musteriRenkleri, c.hex],
+                        {PALETTE_GROUPS.map((g) => {
+                          const grupRenkleri = TEXT_PALETTE.filter((c) => c.group === g.id);
+                          const hepsiAcik = grupRenkleri.every((c) => musteriRenkleri.includes(c.hex));
+                          return (
+                            <BlockStack key={g.id} gap="100">
+                              <InlineStack gap="200" blockAlign="center" wrap={false}>
+                                <Text as="span" variant="bodySm" tone="subdued">{g.label}</Text>
+                                <Button
+                                  variant="plain"
+                                  onClick={() => patchText(selected.id, {
+                                    color_choices: hepsiAcik
+                                      ? musteriRenkleri.filter((h) => !grupRenkleri.some((c) => c.hex === h))
+                                      : [
+                                          ...musteriRenkleri,
+                                          ...grupRenkleri
+                                            .map((c) => c.hex)
+                                            .filter((h) => !musteriRenkleri.includes(h)),
+                                        ],
+                                  })}
+                                >
+                                  {hepsiAcik ? "kaldır" : "tümü"}
+                                </Button>
+                              </InlineStack>
+                              <InlineStack gap="200" wrap>
+                                {grupRenkleri.map((c) => {
+                                  const acik = musteriRenkleri.includes(c.hex);
+                                  return (
+                                    <button
+                                      key={c.hex}
+                                      type="button"
+                                      title={c.label}
+                                      aria-label={c.label}
+                                      aria-pressed={acik}
+                                      onClick={() => patchText(selected.id, {
+                                        color_choices: acik
+                                          ? musteriRenkleri.filter((h) => h !== c.hex)
+                                          : [...musteriRenkleri, c.hex],
+                                      })}
+                                      style={{
+                                        width: 30, height: 30, borderRadius: "50%", padding: 0,
+                                        cursor: "pointer", background: c.hex,
+                                        border: `1px solid ${isLightColor(c.hex) ? "#8c9196" : "rgba(0,0,0,.2)"}`,
+                                        boxShadow: acik ? "0 0 0 2px #fff, 0 0 0 4px #303030" : "none",
+                                      }}
+                                    />
+                                  );
                                 })}
-                                style={{
-                                  width: 30, height: 30, borderRadius: "50%", padding: 0,
-                                  cursor: "pointer", background: c.hex,
-                                  border: `1px solid ${isLightColor(c.hex) ? "#8c9196" : "rgba(0,0,0,.2)"}`,
-                                  boxShadow: acik ? "0 0 0 2px #fff, 0 0 0 4px #303030" : "none",
-                                }}
-                              />
-                            );
-                          })}
-                        </InlineStack>
+                              </InlineStack>
+                            </BlockStack>
+                          );
+                        })}
 
                         {/* Paletin dışında bir marka rengi gerekebilir */}
                         <InlineStack gap="200" blockAlign="center" wrap={false}>
