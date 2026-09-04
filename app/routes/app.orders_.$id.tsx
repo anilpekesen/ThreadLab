@@ -646,6 +646,14 @@ export default function OrderDetail() {
                         <Button variant="plain" size="slim">{t("orderDetail.downloadPreview")}</Button>
                       </a>
                     )}
+                    {/* Üç dosyayı tek tek indirmek yerine tek arşiv */}
+                    {setDosyalari.length > 1 && (
+                      <a href={`/api/production-zip?shop=${encodeURIComponent(shop)}&ids=${order.id}`} download>
+                        <Button variant="primary" size="slim">
+                          {`Hepsini indir (${setDosyalari.length} dosya)`}
+                        </Button>
+                      </a>
+                    )}
                     {/* Set ürünlerinde tek dosya yok: her parça ayrı basılıyor.
                         Tek dosyalı ürünlerde bu liste boş ve altta klasik
                         indirme düğmesi kalıyor. */}
