@@ -136,8 +136,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const shop = session.shop;
   const id = params.id ?? "";
 
-  const uploadHandler = unstable_createMemoryUploadHandler({ maxPartSize: MAX_UPLOAD });
-  const form = await unstable_parseMultipartFormData(request, uploadHandler);
+  // Gövde iki biçimde gelebiliyor. Dosya taşıyan formlar multipart, düğmeden
+  // yapılan basit gönderimler urlencoded. Eskiden her istek multipart olarak
+  // ayrıştırılıyordu ve urlencoded gelenler "Could not parse content as
+  // FormData" ile düşüyordu — çerçeve silme düğmesi bu yüzden hiçbir şey
+  // yapmıyordu, üstelik hata da göstermeden. İçerik türüne bakıyoruz.
+  const contentType = request.headers.get("content-type") ?? "";
+  const form = contentType.includes("multipart/form-data")
+    ? await unstable_parseMultipartFormData(
+        request,
+        unstable_createMemoryUploadHandler({ maxPartSize: MAX_UPLOAD }),
+      )
+    : await request.formData();
   const intent = String(form.get("intent") ?? "");
 
   // ── Save template ─────────────────────────────────────────────────────────
@@ -347,16 +357,32 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       variant_id: variantId,
     })));
 
-    // Tema snippet'i şablonu ürün metafield'ından okuyor. Bu yazılmazsa
-    // uygulamadaki bağlantı mağaza tarafında hiçbir şey yapmaz: kişiselleştirme
-    // kutusu ürün sayfasında görünmez ve sebebi anlaşılmaz.
+    // Bağlantı iki ayrı şeyi besliyor ve ikisi aynı şablon türüne ait değil:
     //
-    // Yazma başarısız olursa bağlantı geri alınmıyor: kayıt uygulamada duruyor,
-    // mağaza sahibine metafield'ı elle girmesi gerektiği söyleniyor.
-    const meta = await setProductTemplateMetafield(shop, productId, id);
+    //   1. Tema bloğu ürün metafield'ını okuyup ÜRÜN SAYFASINDA ayrı bir
+    //      kişiselleştirme kutusu açıyor. Bu, çoklu fotoğraf alanı olan
+    //      şablonlar için — "6 fotoğraflı çerçeve" gibi.
+    //   2. /api/designer-config bağlantıyı okuyup TASARIMCININ İÇİNDE
+    //      "Fotoğrafını ekle" panelini gösteriyor. Bu, maske/AI şablonları
+    //      için — tişörte basılan kalpli tasarım gibi.
+    //
+    // Metafield'ı ayrım gözetmeden yazınca ikisi çakışıyordu: tişört ürününde
+    // hem tasarımcı hem de üstünde istenmeyen bir kişiselleştirme kutusu
+    // çıkıyordu. Canlıda tam olarak bu oldu. Metafield artık yalnızca slot
+    // taşıyan şablonlarda yazılıyor; diğerlerinde temizleniyor ki eski bir
+    // değer kalıp kutuyu açmaya devam etmesin.
+    const slotluMu =
+      (Array.isArray(template.slots) && template.slots.length > 0)
+      || (Array.isArray(template.pieces) && template.pieces.length > 0);
+
+    const meta = slotluMu
+      ? await setProductTemplateMetafield(shop, productId, id)
+      : await clearProductTemplateMetafield(shop, productId);
+
     return json({
       ok: true,
       linked: true,
+      kutuAcilir: slotluMu,
       metafieldOk: meta.ok,
       metafieldError: meta.ok ? undefined : meta.error,
     });
@@ -988,7 +1014,7 @@ function PersonalizerEditor() {
   const { shop, template, frames, productLinks, products, linkedAreaRatio, printProducts, isNew } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ error?: string; ok?: boolean; redirectTo?: string }>();
   const linkFetcher = useFetcher<{
-    error?: string; ok?: boolean; linked?: boolean; unlinked?: number;
+    error?: string; ok?: boolean; linked?: boolean; unlinked?: number; kutuAcilir?: boolean;
     metafieldOk?: boolean; metafieldError?: string;
   }>();
   const navigate = useNavigate();
@@ -1789,8 +1815,9 @@ function PersonalizerEditor() {
                 {linkFetcher.data?.linked && linkFetcher.data.metafieldOk && (
                   <Banner tone="success">
                     <p>
-                      Ürün bağlandı ve Shopify'daki <code>personalizer.template_id</code> alanı
-                      yazıldı. Ürün sayfasında kişiselleştirme kutusu görünmeye başlayacak.
+                      {linkFetcher.data.kutuAcilir
+                        ? "Ürün bağlandı. Ürün sayfasında ayrı bir kişiselleştirme kutusu görünmeye başlayacak."
+                        : "Ürün bağlandı. Bu şablonun fotoğraf alanı yok, yani ayrı bir kutu açılmıyor; tasarımcının içinde \"Fotoğrafını ekle\" olarak çıkıyor."}
                     </p>
                   </Banner>
                 )}
