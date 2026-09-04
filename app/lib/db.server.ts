@@ -849,6 +849,15 @@ async function _runMigrationsLocked() {
       ADD COLUMN IF NOT EXISTS version          INTEGER NOT NULL DEFAULT 1
   `);
 
+  // Set ürünleri: bir sipariş satırı birden fazla baskı dosyası üretebilir.
+  // "3'lü çerçeve seti"nde üç ayrı 30x30 dosya gerekiyor; hepsini tek tuvale
+  // koymak yanlış olur, çünkü onlar üç ayrı çerçeve ve her birinin kendi taşma
+  // payı olmalı. Boş dizi = tek parçalı şablon, eski davranış.
+  await query(`
+    ALTER TABLE personalizer_templates
+      ADD COLUMN IF NOT EXISTS pieces JSONB NOT NULL DEFAULT '[]'
+  `);
+
   // ── Şablon sürümleri ──────────────────────────────────────────────────────
   // Yayındaki bir şablon değiştirilirse eski siparişlerin baskı dosyası artık
   // yeniden üretilemez: müşteri A tasarımını onaylamışken B basılır. Her kayıtta

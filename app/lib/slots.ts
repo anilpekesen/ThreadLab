@@ -90,6 +90,87 @@ export function requiredPhotoCount(slots: Slot[]): number {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Parçalar — bir şablonun ürettiği ayrı baskı dosyaları
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bir parça, kendi başına basılan tek bir fiziksel ürün.
+ *
+ * "3'lü çerçeve seti" gibi ürünlerde bir sipariş satırı üç ayrı 30x30 dosya
+ * üretmeli. Hepsini tek tuvale koymak yanlış olur: onlar üç ayrı çerçeve ve
+ * her birinin kendi taşma payı olmalı. Tek geniş dosyayı kesmek de yetmez,
+ * çünkü o dosyada yalnızca dış kenarlar taşma alır.
+ *
+ * Parça, şablonun kendisiyle aynı yapıya sahip: kendi baskı ürünü, kendi
+ * slotları, kendi arka planı. Böylece karışık setler de (farklı ebatlarda
+ * parçalar) aynı modelle ifade edilebiliyor.
+ *
+ * `pieces` boşsa şablon tek parçalıdır ve mevcut alanlarından türetilir;
+ * bugüne kadarki bütün şablonlar böyle çalışmaya devam eder.
+ */
+export interface TemplatePiece {
+  id: string;
+  /** Müşteriye ve üretime gösterilen ad — "1. Çerçeve" */
+  name: string;
+  print_product_id: string;
+  slots: Slot[];
+  /** Fotoğrafların altında duran tasarım */
+  background_url?: string;
+  /** Fotoğrafların üstünde duran tasarım */
+  overlay_url?: string;
+  /** Sıra; müşteri arayüzünde ve baskı dosyası adlandırmasında kullanılır */
+  order: number;
+}
+
+export function normalizePieces(raw: unknown): TemplatePiece[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TemplatePiece[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const p = item as Record<string, unknown>;
+    const id = String(p.id ?? "").trim();
+    if (!id) continue;
+    out.push({
+      id,
+      name: String(p.name ?? id),
+      print_product_id: String(p.print_product_id ?? ""),
+      slots: normalizeSlots(p.slots),
+      background_url: p.background_url ? String(p.background_url) : undefined,
+      overlay_url: p.overlay_url ? String(p.overlay_url) : undefined,
+      order: Number(p.order ?? out.length + 1),
+    });
+  }
+  return out.sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Bir parçanın kopyasını üretir.
+ *
+ * Slot kimlikleri parça öneki alıyor: üç çerçevenin de "photo_1" adında bir
+ * slotu olsaydı müşterinin yüklediği fotoğraflar birbirine karışırdı.
+ */
+export function clonePiece(source: TemplatePiece, newId: string, name: string, order: number): TemplatePiece {
+  return {
+    ...source,
+    id: newId,
+    name,
+    order,
+    slots: source.slots.map((slot) => {
+      const localId = slot.id.includes("__") ? slot.id.split("__").slice(1).join("__") : slot.id;
+      const id = `${newId}__${localId}`;
+      return slot.kind === "image"
+        ? { ...slot, id, source: id }
+        : { ...slot, id };
+    }),
+  };
+}
+
+/** Parçanın toplam fotoğraf alanı sayısı */
+export function pieceImageSlotCount(piece: TemplatePiece): number {
+  return piece.slots.filter(isImageSlot).length;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Normalize ↔ piksel
 // ─────────────────────────────────────────────────────────────────────────────
 

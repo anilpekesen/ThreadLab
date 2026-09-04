@@ -1,7 +1,10 @@
 import { query } from "~/lib/db.server";
 import { randomBytes } from "node:crypto";
 import { AI_STYLES, normalizeAiConfig, type AiTemplateConfig } from "~/lib/ai-styles";
-import { normalizeSlots, type GridConfig, type Slot } from "~/lib/slots";
+import {
+  normalizeSlots, normalizePieces,
+  type GridConfig, type Slot, type TemplatePiece,
+} from "~/lib/slots";
 
 export interface TextFieldDef {
   id: string;
@@ -199,6 +202,11 @@ export interface PersonalizerTemplate {
   /** Her kaydetmede artar; sipariş hangi sürümle basıldığını bunun üzerinden
    *  saklar ve eski baskı aynen yeniden üretilebilir */
   version: number;
+  /**
+   * Set ürünlerinde ayrı ayrı basılan parçalar. Boşsa şablon tek parçalıdır ve
+   * parça, şablonun kendi alanlarından türetilir (bkz. templatePieces).
+   */
+  pieces: TemplatePiece[];
   active: boolean;
   sort_order: number;
   created_at: string;
@@ -216,7 +224,29 @@ function mapTemplateRow(row: Row): PersonalizerTemplate {
     overlay_url: String(row.overlay_url ?? ""),
     expected_slots: Number(row.expected_slots ?? 0),
     version: Number(row.version ?? 1),
+    pieces: normalizePieces(row.pieces),
   };
+}
+
+/**
+ * Şablonun basılacak parçaları.
+ *
+ * Tek parçalı şablonlarda `pieces` boştur; o durumda şablonun kendi baskı
+ * ürünü, slotları ve görselleri tek bir parça gibi sunulur. Böylece render ve
+ * müşteri arayüzü tek bir döngüyle çalışıyor ve eski şablonlar için ayrı bir
+ * kod yolu tutmak gerekmiyor.
+ */
+export function templatePieces(template: PersonalizerTemplate): TemplatePiece[] {
+  if (template.pieces.length > 0) return template.pieces;
+  return [{
+    id: "main",
+    name: template.name || "Tasarım",
+    print_product_id: template.print_product_id,
+    slots: template.slots,
+    background_url: template.template_url || undefined,
+    overlay_url: template.overlay_url || undefined,
+    order: 1,
+  }];
 }
 
 export async function listPersonalizerTemplates(shop: string, activeOnly = false): Promise<PersonalizerTemplate[]> {
@@ -273,6 +303,7 @@ export interface CreatePersonalizerTemplateInput {
   print_product_id?: string;
   overlay_url?: string;
   expected_slots?: number;
+  pieces?: TemplatePiece[];
   sort_order?: number;
 }
 
@@ -285,9 +316,9 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
         mockup_x, mockup_y, mockup_width, mockup_height,
         text_fields, ai_style, hole_seed_x, hole_seed_y,
         layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order,
-        slots, grid_config, print_product_id, overlay_url, expected_slots)
+        slots, grid_config, print_product_id, overlay_url, expected_slots, pieces)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,
-             $25,$26,$27,$28,$29)
+             $25,$26,$27,$28,$29,$30)
      RETURNING *`,
     [
       id, input.shop, input.name, input.description ?? "",
@@ -312,6 +343,7 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
       input.print_product_id ?? "",
       input.overlay_url ?? "",
       input.expected_slots ?? 0,
+      JSON.stringify(input.pieces ?? []),
     ],
   );
   const created = mapTemplateRow(res.rows[0]);
@@ -346,6 +378,7 @@ export interface UpdatePersonalizerTemplateInput {
   print_product_id?: string;
   overlay_url?: string;
   expected_slots?: number;
+  pieces?: TemplatePiece[];
   active?: boolean;
   sort_order?: number;
 }
@@ -364,7 +397,7 @@ export async function updatePersonalizerTemplate(
     sets.push(`${k} = $${i++}`);
     const isJsonColumn = k === "text_fields" || k === "scatter_config"
       || k === "customer_options" || k === "ai_config"
-      || k === "slots" || k === "grid_config";
+      || k === "slots" || k === "grid_config" || k === "pieces";
     vals.push(isJsonColumn ? JSON.stringify(v) : v);
   }
   if (sets.length === 0) return getPersonalizerTemplate(id, shop);
@@ -477,6 +510,7 @@ export async function duplicatePersonalizerTemplate(
     print_product_id: source.print_product_id,
     overlay_url: source.overlay_url,
     expected_slots: source.expected_slots,
+    pieces: source.pieces,
     sort_order: source.sort_order + 1,
   });
 
