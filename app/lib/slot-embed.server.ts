@@ -3,6 +3,7 @@ import { getPrintProductPublic } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
 import { isImageSlot, isTextSlot, pickMockup } from "~/lib/slots";
 import { findLibraryFont } from "~/lib/font-library";
+import { colorLabel, isLightColor } from "~/lib/text-palette";
 import { scanTemplateHoles } from "~/lib/template-hole.server";
 
 /**
@@ -136,6 +137,8 @@ export async function buildSlotData(
     addToCart: isTr ? "Sepete ekle" : "Add to cart",
     fontLabel: isTr ? "Yazı tipi" : "Font",
     fontDefault: isTr ? "Varsayılan" : "Default",
+    yaziRengi: isTr ? "Renk" : "Colour",
+    yaziRengiVarsayilan: isTr ? "Varsayılan renk" : "Default colour",
     adding: isTr ? "Ekleniyor…" : "Adding…",
     added: isTr ? "Sepete eklendi" : "Added to cart",
     lowRes: isTr ? "Düşük çözünürlük" : "Low resolution",
@@ -237,6 +240,10 @@ export async function buildSlotData(
           .map((f) => ({ url: f.url, label: f.label, family: f.family })),
         fontUrl: sl.font_url ?? "",
         fontFamily: sl.font_family,
+        colorChoices: (sl.color_choices ?? []).map((c) => ({
+          hex: c, label: colorLabel(c), light: isLightColor(c),
+        })),
+        color: sl.color,
       });
     }
   }
@@ -548,6 +555,20 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     margin: 0; flex: none; font-size: 12px; font-weight: 500; color: var(--ink-2);
   }
   .field .fontsec { padding: 7px 10px; font-size: 13px; }
+  .fontsatir .renketiket {
+    flex: none; font-size: 12px; font-weight: 500; color: var(--ink-2);
+  }
+  .renkler { display: flex; gap: 8px; flex-wrap: wrap; }
+  .renk {
+    width: 26px; height: 26px; padding: 0; border-radius: 50%;
+    border: 1px solid rgba(0,0,0,.18); cursor: pointer;
+    /* Seçili halka rengin kendisinden bağımsız olmalı: koyu bir kenarlık
+       siyah kutucukta görünmüyordu. */
+    box-shadow: 0 0 0 0 var(--focus); transition: box-shadow .12s ease;
+  }
+  .renk.acik { border-color: rgba(0,0,0,.32); }
+  .renk.secili { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ink); }
+  .renk:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
   /* ── Havuz ──────────────────────────────────────────────────────── */
   .pool { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 16px 0 0; }
@@ -848,6 +869,14 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     return ts.fontFamily || 'inherit';
   }
 
+  // Müşterinin seçtiği yazı renkleri; slot kimliği → #rrggbb
+  var secilenRenkler = {};
+
+  /** Bu metin alanının o an geçerli rengi */
+  function aktifRenk(ts) {
+    return secilenRenkler[ts.id] || ts.color;
+  }
+
   function buildTexts() {
     textEls = {};
     D.pieces.forEach(function (piece) {
@@ -863,7 +892,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         el.style.top = ((o.y + ts.rect.y * o.h) * 100) + '%';
         el.style.width = (ts.rect.w * o.w * 100) + '%';
         el.style.height = (ts.rect.h * o.h * 100) + '%';
-        el.style.color = ts.color;
+        el.style.color = aktifRenk(ts);
         el.style.fontWeight = ts.bold ? '700' : '400';
         el.style.fontFamily = aktifAile(ts);
         board.appendChild(el);
@@ -890,8 +919,9 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       var el = kayit.el;
       var deger = (texts[ts.id] != null ? texts[ts.id] : ts.defaultValue) || '';
       el.textContent = deger;
-      // Font seçimi değişmiş olabilir; ölçümden önce uygulanmalı
+      // Font ve renk seçimi değişmiş olabilir; ölçümden önce uygulanmalı
       el.style.fontFamily = aktifAile(ts);
+      el.style.color = aktifRenk(ts);
       if (!deger) return;
 
       var boardH = el.parentElement ? el.parentElement.clientHeight : 0;
@@ -1109,6 +1139,47 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       fl.textContent = T.fontLabel; fl.htmlFor = fs.id;
       fw.appendChild(fl); fw.appendChild(fs);
       wrap.appendChild(fw);
+    }
+
+    // Renk seçimi. Liste yerine kutucuk: renk okunacak bir şey değil,
+    // görülecek bir şey — telefonda da tek dokunuşla değişiyor.
+    if (f.colorChoices && f.colorChoices.length) {
+      var rw = document.createElement('div');
+      rw.className = 'fontsatir';
+      var rl = document.createElement('span');
+      rl.className = 'renketiket';
+      rl.textContent = T.yaziRengi;
+      rw.appendChild(rl);
+
+      var kutular = document.createElement('div');
+      kutular.className = 'renkler';
+      kutular.setAttribute('role', 'group');
+      kutular.setAttribute('aria-label', (f.label || '') + ' ' + T.yaziRengi);
+
+      var hepsi = [{ hex: f.color, label: T.yaziRengiVarsayilan, light: false, varsayilan: true }]
+        .concat(f.colorChoices.filter(function (c) { return c.hex !== f.color; }));
+
+      hepsi.forEach(function (c) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'renk' + (c.light ? ' acik' : '');
+        b.style.background = c.hex;
+        b.title = c.label;
+        b.setAttribute('aria-label', c.label);
+        b.dataset.hex = c.varsayilan ? '' : c.hex;
+        if (c.varsayilan) b.classList.add('secili');
+        b.addEventListener('click', function () {
+          [].forEach.call(kutular.children, function (x) { x.classList.remove('secili'); });
+          b.classList.add('secili');
+          if (b.dataset.hex) secilenRenkler[f.id] = b.dataset.hex;
+          else delete secilenRenkler[f.id];
+          paintTexts();
+        });
+        kutular.appendChild(b);
+      });
+
+      rw.appendChild(kutular);
+      wrap.appendChild(rw);
     }
 
     fieldsEl.appendChild(wrap);
@@ -1536,6 +1607,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       mode: mode,
       texts: texts,
       fonts: secilenFontlar,
+      colors: secilenRenkler,
       // Sipariş önizlemesinde doğru renk çerçevesi seçilebilsin
       optionValues: URUN ? URUN.options.map(function (o) { return secim[o.name]; }) : [],
       fills: ALL.filter(function (s) { return fills[s.id] && fills[s.id].url; })
@@ -1582,6 +1654,11 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
           if (sec && f.fontChoices) {
             var bulunan = f.fontChoices.filter(function (c) { return c.url === sec; })[0];
             if (bulunan) props[f.label + ' — ' + T.fontLabel] = bulunan.label;
+          }
+          var renk = secilenRenkler[f.id];
+          if (renk && f.colorChoices) {
+            var rBul = f.colorChoices.filter(function (c) { return c.hex === renk; })[0];
+            props[f.label + ' — ' + T.yaziRengi] = rBul ? rBul.label : renk;
           }
         });
 

@@ -47,6 +47,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     texts?: Record<string, string>;
     /** Müşterinin seçtiği fontlar; slot kimliği → kütüphane adresi */
     fonts?: Record<string, string>;
+    /** Müşterinin seçtiği yazı renkleri; slot kimliği → #rrggbb */
+    colors?: Record<string, string>;
     mode?: string;
     locale?: string;
     /** Sipariş önizlemesinde doğru renk çerçevesini seçmek için */
@@ -108,12 +110,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // Font seçimi istemciden geliyor, yani doğrulanmadan kullanılamaz. Burada
   // yalnızca sözlüğe çevriliyor; asıl iki kapı (kütüphanede var mı, o alan
   // için açılmış mı) render motorunda, çünkü izin listesi slotun kendisinde.
-  const fonts: Record<string, string> = {};
-  if (body.fonts && typeof body.fonts === "object") {
-    for (const [k, v] of Object.entries(body.fonts)) {
-      if (typeof v === "string") fonts[String(k)] = v;
+  const sozluk = (raw: unknown): Record<string, string> => {
+    const out: Record<string, string> = {};
+    if (raw && typeof raw === "object") {
+      for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+        if (typeof v === "string") out[String(k)] = v;
+      }
     }
-  }
+    return out;
+  };
+  const fonts = sozluk(body.fonts);
+  const colors = sozluk(body.colors);
   const rendered: Array<{ id: string; name: string; url: string; width: number; height: number }> = [];
   const parcaGorselleri: Buffer[] = [];
 
@@ -147,6 +154,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fills: fills.filter((f) => pieceSlotIds.has(f.slot_id)),
         texts,
         fonts,
+        colors,
         backgroundUrl: piece.background_url,
         overlayUrl: piece.overlay_url,
         outputFormat: isRender ? "png" : "jpeg",
@@ -224,6 +232,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             fills,
             texts,
             fonts,
+            colors,
           }),
         ],
       );

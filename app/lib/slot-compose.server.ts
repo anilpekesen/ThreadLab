@@ -6,6 +6,7 @@ import {
 } from "~/lib/slots";
 import { loadFont, layoutText } from "~/lib/text-render.server";
 import { resolveChosenFont } from "~/lib/font-library";
+import { resolveChosenColor } from "~/lib/text-palette";
 
 /**
  * Çoklu slot kompozisyonu — N fotoğrafı şablonun N alanına yerleştirir.
@@ -52,6 +53,8 @@ export interface ComposeSlotsOptions {
    * geri kalanında şablonun kendi fontu basılıyor.
    */
   fonts?: Record<string, string>;
+  /** Müşterinin seçtiği yazı renkleri; slot kimliği → #rrggbb */
+  colors?: Record<string, string>;
   /** Fotoğrafların ALTINDA duran tasarım */
   backgroundUrl?: string;
   /** Fotoğrafların ÜSTÜNDE duran tasarım */
@@ -181,6 +184,7 @@ async function buildTextLayers(
   slots: TextSlot[],
   values: Record<string, string>,
   chosenFonts: Record<string, string>,
+  chosenColors: Record<string, string>,
   canvasWidth: number,
   canvasHeight: number,
 ): Promise<sharp.OverlayOptions[]> {
@@ -208,6 +212,7 @@ async function buildTextLayers(
     const chosen = resolveChosenFont(chosenFonts[slot.id], slot.font_choices);
     const fontUrl = chosen?.url ?? slot.font_url;
     const fontFamily = chosen?.family ?? slot.font_family;
+    const color = resolveChosenColor(chosenColors[slot.id], slot.color_choices) ?? slot.color;
     const font = fontUrl ? await loadFont(fontUrl) : null;
     let body = "";
 
@@ -232,11 +237,11 @@ async function buildTextLayers(
 
     if (laid) {
       const stroke = slot.bold
-        ? ` stroke="${escapeAttr(slot.color)}" stroke-width="${(laid.fontSize * 0.03).toFixed(2)}"`
+        ? ` stroke="${escapeAttr(color)}" stroke-width="${(laid.fontSize * 0.03).toFixed(2)}"`
         : "";
       // Harfler ayrı path'ler: tek birleşik path'te librsvg çizimi yarıda kesiyor
       body = laid.paths
-        .map((d) => `<path d="${d}" fill="${escapeAttr(slot.color)}"${stroke}/>`)
+        .map((d) => `<path d="${d}" fill="${escapeAttr(color)}"${stroke}/>`)
         .join("");
     } else {
       if (fontUrl) {
@@ -258,7 +263,7 @@ async function buildTextLayers(
         : slot.align === "center" ? inner.x + inner.width / 2
         : inner.x;
       body = `<text x="${x}" y="${inner.y + inner.height / 2}" font-size="${size}"` +
-        ` fill="${escapeAttr(slot.color)}" font-weight="${slot.bold ? "bold" : "normal"}"` +
+        ` fill="${escapeAttr(color)}" font-weight="${slot.bold ? "bold" : "normal"}"` +
         ` font-family="${escapeAttr(fontFamily || "Arial, Helvetica, sans-serif")}"` +
         ` text-anchor="${anchor}" dominant-baseline="middle">${text}</text>`;
     }
@@ -320,7 +325,7 @@ export async function composeSlotDesign(opts: ComposeSlotsOptions): Promise<Buff
   }
 
   for (const layer of await buildTextLayers(
-    slots.filter(isTextSlot), opts.texts ?? {}, opts.fonts ?? {}, W, H,
+    slots.filter(isTextSlot), opts.texts ?? {}, opts.fonts ?? {}, opts.colors ?? {}, W, H,
   )) {
     composites.push(layer);
   }

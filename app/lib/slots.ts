@@ -12,6 +12,7 @@
  */
 
 import { isLibraryFontUrl } from "./font-library";
+import { normalizeHex } from "./text-palette";
 
 import type { PrintCanvas } from "~/lib/print-spec";
 
@@ -74,6 +75,12 @@ export interface TextSlot {
    * bir adresi indirmek olmaz.
    */
   font_choices?: string[];
+  /**
+   * Müşterinin seçebileceği yazı renkleri (#rrggbb). Fonttaki mantığın aynısı:
+   * boşsa renk değiştirilemez, dolu olduğunda sunucu gelen seçimi yalnızca bu
+   * listeye karşı doğruluyor.
+   */
+  color_choices?: string[];
   color: string;
   bold: boolean;
   align: "left" | "center" | "right";
@@ -752,6 +759,11 @@ export function normalizeSlots(raw: unknown): Slot[] {
         font_url: s.font_url ? String(s.font_url) : undefined,
         font_choices: Array.isArray(s.font_choices)
           ? (s.font_choices as unknown[]).map(String).filter(isLibraryFontUrl)
+          : undefined,
+        color_choices: Array.isArray(s.color_choices)
+          ? (s.color_choices as unknown[])
+              .map(normalizeHex)
+              .filter((c): c is string => Boolean(c))
           : undefined,
         color: String(s.color ?? "#000000"),
         bold: s.bold === true,

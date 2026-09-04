@@ -10,6 +10,7 @@ import {
 } from "~/lib/slots";
 import type { PrintCanvas } from "~/lib/print-spec";
 import { FONT_LIBRARY, findLibraryFont, isLibraryFontUrl } from "~/lib/font-library";
+import { TEXT_PALETTE, isLightColor, normalizeHex } from "~/lib/text-palette";
 
 /**
  * Slot tahtası — şablondaki fotoğraf alanlarının görsel editörü.
@@ -87,6 +88,13 @@ export function SlotBoard({
       ? [...FONT_SECENEKLERI, { label: "Yüklediğim font", value: "__yuklenen" }]
       : FONT_SECENEKLERI;
   }, [selectedId, slots]);
+
+  /** Seçili metin alanında müşteriye açılmış renkler */
+  const musteriRenkleri = useMemo(() => {
+    const sl = slots.find((x) => x.id === selectedId);
+    return sl && isTextSlot(sl) ? (sl.color_choices ?? []) : [];
+  }, [selectedId, slots]);
+  const [ozelRenk, setOzelRenk] = useState("#1a1a1a");
 
   /** Seçili metin alanında müşteriye açılmış fontlar */
   const musteriFontlari = useMemo(() => {
@@ -685,6 +693,105 @@ export function SlotBoard({
                               onClick={() => patchText(selected.id, { font_choices: [] })}>
                               Seçimi kapat
                             </Button>
+                          </InlineStack>
+                        )}
+                      </BlockStack>
+
+                      <Divider />
+
+                      {/* Müşteriye açılan renkler. Fontla aynı kural: liste
+                          boşsa müşteri rengi değiştiremez. */}
+                      <BlockStack gap="200">
+                        <InlineStack gap="200" blockAlign="center" wrap={false}>
+                          <Text as="span" variant="bodySm" fontWeight="semibold">
+                            Müşteri bu yazının rengini değiştirebilsin mi?
+                          </Text>
+                          {musteriRenkleri.length > 0 && (
+                            <Badge tone="success">{`${musteriRenkleri.length} renk açık`}</Badge>
+                          )}
+                        </InlineStack>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Şablonun kendi rengi müşteriye her zaman "varsayılan" olarak gösterilir;
+                          burada işaretledikleriniz onun yanına eklenir. Serbest renk vermiyoruz:
+                          açık bir renk beyaz zeminde okunmaz basılır ve bu ancak ürün elde
+                          göründüğünde fark edilir.
+                        </Text>
+                        <InlineStack gap="200" wrap>
+                          {TEXT_PALETTE.map((c) => {
+                            const acik = musteriRenkleri.includes(c.hex);
+                            return (
+                              <button
+                                key={c.hex}
+                                type="button"
+                                title={c.label}
+                                aria-label={c.label}
+                                aria-pressed={acik}
+                                onClick={() => patchText(selected.id, {
+                                  color_choices: acik
+                                    ? musteriRenkleri.filter((h) => h !== c.hex)
+                                    : [...musteriRenkleri, c.hex],
+                                })}
+                                style={{
+                                  width: 30, height: 30, borderRadius: "50%", padding: 0,
+                                  cursor: "pointer", background: c.hex,
+                                  border: `1px solid ${isLightColor(c.hex) ? "#8c9196" : "rgba(0,0,0,.2)"}`,
+                                  boxShadow: acik ? "0 0 0 2px #fff, 0 0 0 4px #303030" : "none",
+                                }}
+                              />
+                            );
+                          })}
+                        </InlineStack>
+
+                        {/* Paletin dışında bir marka rengi gerekebilir */}
+                        <InlineStack gap="200" blockAlign="center" wrap={false}>
+                          <input
+                            type="color"
+                            value={ozelRenk}
+                            onChange={(e) => setOzelRenk(e.target.value)}
+                            aria-label="Özel renk"
+                            style={{ width: 38, height: 30, padding: 0, border: "1px solid #c9cccf",
+                                     borderRadius: 6, background: "none", cursor: "pointer" }}
+                          />
+                          <Button
+                            size="slim"
+                            disabled={!normalizeHex(ozelRenk) || musteriRenkleri.includes(normalizeHex(ozelRenk)!)}
+                            onClick={() => {
+                              const hex = normalizeHex(ozelRenk);
+                              if (hex) patchText(selected.id, { color_choices: [...musteriRenkleri, hex] });
+                            }}
+                          >
+                            Bu rengi ekle
+                          </Button>
+                          {musteriRenkleri.length > 0 && (
+                            <Button variant="plain" tone="critical"
+                              onClick={() => patchText(selected.id, { color_choices: [] })}>
+                              Seçimi kapat
+                            </Button>
+                          )}
+                        </InlineStack>
+
+                        {/* Palette olmayan, elle eklenmiş renkler ayrıca görünmeli;
+                            yoksa kaldırmanın yolu kalmıyor */}
+                        {musteriRenkleri.filter((h) => !TEXT_PALETTE.some((c) => c.hex === h)).length > 0 && (
+                          <InlineStack gap="200" blockAlign="center" wrap>
+                            <Text as="span" variant="bodySm" tone="subdued">Eklediğiniz renkler:</Text>
+                            {musteriRenkleri.filter((h) => !TEXT_PALETTE.some((c) => c.hex === h)).map((h) => (
+                              <button
+                                key={h}
+                                type="button"
+                                title={`${h} — kaldır`}
+                                aria-label={`${h} rengini kaldır`}
+                                onClick={() => patchText(selected.id, {
+                                  color_choices: musteriRenkleri.filter((x) => x !== h),
+                                })}
+                                style={{
+                                  width: 30, height: 30, borderRadius: "50%", padding: 0,
+                                  cursor: "pointer", background: h,
+                                  border: `1px solid ${isLightColor(h) ? "#8c9196" : "rgba(0,0,0,.2)"}`,
+                                  boxShadow: "0 0 0 2px #fff, 0 0 0 4px #303030",
+                                }}
+                              />
+                            ))}
                           </InlineStack>
                         )}
                       </BlockStack>
