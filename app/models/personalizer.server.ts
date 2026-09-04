@@ -658,6 +658,21 @@ export async function linkPersonalizerProduct(input: {
   product_handle?: string;
   variant_id?: string;
 }): Promise<PersonalizerProductLink> {
+  const side = normalizeSide(input.side);
+  const variantId = input.variant_id ?? "";
+
+  // "Tüm varyantlar" seçildiğinde o ürünün varyanta özel kayıtları siliniyor.
+  // Aksi halde eski bir varyant kaydı kalıyor ve arama tam eşleşmeyi önce
+  // denediği için ürün düzeyindeki bağlantıyı gölgeliyor: mağaza sahibi
+  // "tüm varyantlar" dediği hâlde bir renk hâlâ eski şablonu açardı.
+  if (!variantId) {
+    await query(
+      `DELETE FROM personalizer_product_links
+        WHERE shop = $1 AND product_id = $2 AND side = $3 AND variant_id <> ''`,
+      [input.shop, input.product_id, side],
+    );
+  }
+
   const res = await query<PersonalizerProductLink>(
     `INSERT INTO personalizer_product_links
        (shop, product_id, side, template_id, product_title, product_handle, variant_id)
@@ -672,11 +687,11 @@ export async function linkPersonalizerProduct(input: {
     [
       input.shop,
       input.product_id,
-      normalizeSide(input.side),
+      side,
       input.template_id,
       input.product_title ?? "",
       input.product_handle ?? "",
-      input.variant_id ?? "",
+      variantId,
     ],
   );
   return res.rows[0];

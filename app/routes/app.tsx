@@ -1,8 +1,9 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { NavLink, Outlet, useLoaderData, useNavigate, useRouteError } from "@remix-run/react";
+import { Link, NavLink, Outlet, useLoaderData, useNavigate, useRouteError } from "@remix-run/react";
 import * as Sentry from "@sentry/remix";
 import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
+import type { LinkLikeComponent } from "@shopify/polaris/build/ts/src/utilities/link";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import trTranslations from "@shopify/polaris/locales/tr.json";
 import enTranslations from "@shopify/polaris/locales/en.json";
@@ -102,7 +103,10 @@ function AppInner() {
   ].filter((item) => item.show);
 
   return (
-    <PolarisAppProvider i18n={lang === "en" ? enTranslations : trTranslations}>
+    <PolarisAppProvider
+      i18n={lang === "en" ? enTranslations : trTranslations}
+      linkComponent={PolarisLink}
+    >
       {/* App Bridge navigation — Shopify admin sidebar entegrasyonu */}
       <ui-nav-menu>
         {navItems.map((item) => (
@@ -170,6 +174,23 @@ function AppInner() {
     </PolarisAppProvider>
   );
 }
+
+/**
+ * Polaris'in `url` alan bileşenleri (Button, Link, Banner action…) varsayılan
+ * olarak düz <a> basıyor; gömülü uygulamada bu tam sayfa yüklemesi demek.
+ * Remix'in Link'ine bağlayınca aynı bileşenler istemci tarafında geziniyor ve
+ * bağlantı olarak da davranıyor: orta tıkla yeni sekmede açılabiliyor.
+ */
+const PolarisLink: LinkLikeComponent = ({ children, url = "", external, ref, ...rest }) => {
+  if (external || /^(https?:)?\/\//.test(url) || url.startsWith("mailto:")) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" ref={ref as React.Ref<HTMLAnchorElement>} {...rest}>
+        {children}
+      </a>
+    );
+  }
+  return <Link to={url} ref={ref as React.Ref<HTMLAnchorElement>} {...rest}>{children}</Link>;
+};
 
 export default function App() {
   const { lang } = useLoaderData<typeof loader>();

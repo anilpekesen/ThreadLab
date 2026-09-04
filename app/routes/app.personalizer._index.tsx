@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
+import { useLoaderData, useFetcher } from "@remix-run/react";
 import {
   Page, Layout, Card, Box, Text, BlockStack, InlineStack, Button,
   Badge, EmptyState, Thumbnail, Banner, Divider,
@@ -58,7 +58,6 @@ const AI_STYLE_LABELS: Record<string, string> = {
 export default function PersonalizerIndex() {
   const { shop, templates } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
-  const navigate = useNavigate();
 
   const appUrl = typeof window !== "undefined"
     ? window.location.origin
@@ -80,8 +79,8 @@ export default function PersonalizerIndex() {
   return (
     <Page
       title="Personalizer Şablonları"
-      primaryAction={{ content: "+ Şablon Ekle", onAction: () => navigate("/app/personalizer/new") }}
-      secondaryActions={[{ content: "Mağaza Kurulum Rehberi →", onAction: () => navigate("/app/personalizer/setup") }]}
+      primaryAction={{ content: "+ Şablon Ekle", url: "/app/personalizer/new" }}
+      secondaryActions={[{ content: "Mağaza Kurulum Rehberi →", url: "/app/personalizer/setup" }]}
     >
       <Layout>
           <Layout.Section>
@@ -98,7 +97,7 @@ export default function PersonalizerIndex() {
               <Card>
                 <EmptyState
                   heading="Henüz şablon yok"
-                  action={{ content: "Şablon Oluştur", onAction: () => navigate("/app/personalizer/new") }}
+                  action={{ content: "Şablon Oluştur", url: "/app/personalizer/new" }}
                   image="/empty-templates.svg"
                 >
                   <Text as="p">Müşterilerin fotoğraflarını kişiselleştirebileceği şablonlar oluşturun.</Text>
@@ -148,7 +147,12 @@ export default function PersonalizerIndex() {
                         <Button onClick={() => handleToggle(t)} size="slim">
                           {t.active ? "Pasif Yap" : "Aktif Yap"}
                         </Button>
-                        <Button onClick={() => navigate(`/app/personalizer/${t.id}`)} size="slim">
+                        {/* onClick yerine gerçek bağlantı: Polaris'in url'i
+                            AppProvider'daki linkComponent üzerinden Remix'e
+                            gidiyor, yani istemci tarafında geziniyor ama <a>
+                            olarak da davranıyor — orta tıkla yeni sekmede
+                            açılabiliyor ve tıklama kaybolmuyor. */}
+                        <Button url={`/app/personalizer/${t.id}`} size="slim">
                           Düzenle
                         </Button>
                         <Button onClick={() => handleDuplicate(t)} size="slim">

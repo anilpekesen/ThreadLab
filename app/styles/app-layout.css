@@ -1,6 +1,13 @@
+/* Gömülü Shopify uygulamasında sayfanın KENDİSİ kaymalı.
+   Eskiden burada height:100vh vardı ve içerik .app-content içindeki ayrı bir
+   kaydırma kutusunda akıyordu. İki sonucu oluyordu: App Bridge iframe'i içeriğe
+   göre büyütemiyor (yükseklik hep tam ekran çıkıyor), ve uzun şablon sayfası
+   yalnızca imleç o kutunun üstündeyken kayıyordu — dışarıda kaydırma çubuğu
+   hiç görünmüyordu. Kenar çubuğu zaten display:none (Shopify'ın kendi menüsü
+   kullanılıyor), yani sabit yükseklikten kazanılan bir şey yoktu. */
 .app-shell {
   display: flex;
-  height: 100vh;
+  min-height: 100vh;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: #f7f8fa;
 }
@@ -98,7 +105,6 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden;
 }
 
 .app-topbar {
@@ -158,14 +164,11 @@
 
 .app-content {
   flex: 1;
-  overflow-y: auto;
 }
 
 @media (max-width: 960px) {
   .app-shell {
     flex-direction: column;
-    height: auto;
-    min-height: 100vh;
   }
 
   .app-sidebar {

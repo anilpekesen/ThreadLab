@@ -1819,14 +1819,25 @@ function PersonalizerEditor() {
                           helpText="Aynı ürünün ön ve arka yüzü ayrı şablonlara bağlanabilir."
                         />
                       )}
+                      {/* Boş değer "tüm varyantlar" demek: bağlantı ürün
+                          düzeyinde kurulur ve her varyant bu şablonu açar.
+                          Renk gibi tasarımı değiştirmeyen seçeneklerde doğru
+                          olan bu — sonradan yeni bir renk eklendiğinde tekrar
+                          bağlamak gerekmiyor. Yalnızca varyanta göre TASARIM
+                          değişiyorsa (bordürlü/bordürsüz gibi) tek varyant
+                          seçilip her biri ayrı ayrı bağlanır. */}
                       <Select
-                        label="Varsayılan Varyant"
+                        label="Hangi varyantlar"
                         name="variant_id"
                         options={variantOptions.length ? variantOptions : [{ label: "Varyant yok", value: "" }]}
                         value={selectedVariantId}
                         onChange={(value) => setSelectedVariantId(value)}
                         disabled={!variantOptions.length}
-                        helpText="Sepete ekleme için bu varyant kullanılır."
+                        helpText={
+                          selectedVariantId
+                            ? "Yalnızca bu varyant bu şablonu açar. Tasarım varyanta göre değişiyorsa böyle bağlayın ve her varyant için tekrarlayın."
+                            : "Ürünün bütün varyantları bu şablonu açar. Sonradan eklenen varyantlar da çalışır."
+                        }
                       />
                       {selectedProduct && (
                         <Box background="bg-surface-secondary" padding="300" borderRadius="200">
@@ -1840,7 +1851,7 @@ function PersonalizerEditor() {
                           </BlockStack>
                         </Box>
                       )}
-                      <Button submit variant="primary" loading={linkFetcher.state !== "idle"} disabled={!selectedProductId || !selectedVariantId}>
+                      <Button submit variant="primary" loading={linkFetcher.state !== "idle"} disabled={!selectedProductId}>
                         {layoutMode === "ai" ? "Ürünü iki yüze bağla" : "Seçili ürüne bağla"}
                       </Button>
                     </FormLayout>
