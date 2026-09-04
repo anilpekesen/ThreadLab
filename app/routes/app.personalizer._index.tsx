@@ -8,11 +8,16 @@ import {
 import { authenticate } from "~/lib/authenticate.server";
 import {
   listPersonalizerTemplates,
+  listPersonalizerProductLinks,
   deletePersonalizerTemplate,
   updatePersonalizerTemplate,
   duplicatePersonalizerTemplate,
   type PersonalizerTemplate,
 } from "~/models/personalizer.server";
+import {
+  setProductTemplateMetafield,
+  clearProductTemplateMetafield,
+} from "~/lib/personalizer-metafield.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
@@ -44,6 +49,42 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ ok: true, duplicatedId: copy.id });
   }
 
+  // Mağazadaki `personalizer.template_id` alanlarını kuralla hizalar.
+  //
+  // Kural: bu alan yalnızca ÇOKLU FOTOĞRAF ALANI olan şablonlarda yazılı olmalı,
+  // çünkü ürün sayfasındaki ayrı kişiselleştirme kutusunu o açıyor. Maske/AI
+  // şablonları tasarımcının içinde çalışıyor ve kutuya ihtiyaç duymuyor.
+  //
+  // Elle senkron gerekiyor çünkü alan geçmişte ayrım gözetmeden yazılmıştı ve
+  // tema bloğu eklendiğinde eski kayıtlar yüzünden tişört gibi ürünlerde
+  // istenmeyen kutu çıktı. Şablonu yeniden bağlamak da düzeltiyor ama bütün
+  // ürünleri tek tek gezmek gerekiyordu.
+  if (intent === "sync_metafields") {
+    const templates = await listPersonalizerTemplates(session.shop);
+    let temizlenen = 0;
+    let yazilan = 0;
+    const hatalar: string[] = [];
+
+    for (const t of templates) {
+      const slotluMu =
+        (Array.isArray(t.slots) && t.slots.length > 0)
+        || (Array.isArray(t.pieces) && t.pieces.length > 0);
+      const links = await listPersonalizerProductLinks(t.id);
+      const urunler = [...new Set(links.map((l) => l.product_id).filter(Boolean))];
+
+      for (const productId of urunler) {
+        const sonuc = slotluMu
+          ? await setProductTemplateMetafield(session.shop, productId, t.id)
+          : await clearProductTemplateMetafield(session.shop, productId);
+        if (!sonuc.ok) hatalar.push(`${t.name}: ${sonuc.error ?? "bilinmeyen hata"}`);
+        else if (slotluMu) yazilan++;
+        else temizlenen++;
+      }
+    }
+
+    return json({ ok: true, synced: true, yazilan, temizlenen, hatalar });
+  }
+
   return json({ error: "Bilinmeyen işlem" }, { status: 400 });
 };
 
@@ -57,7 +98,10 @@ const AI_STYLE_LABELS: Record<string, string> = {
 
 export default function PersonalizerIndex() {
   const { shop, templates } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<{
+    error?: string; ok?: boolean; duplicatedId?: string;
+    synced?: boolean; yazilan?: number; temizlenen?: number; hatalar?: string[];
+  }>();
 
   const appUrl = typeof window !== "undefined"
     ? window.location.origin
@@ -80,9 +124,32 @@ export default function PersonalizerIndex() {
     <Page
       title="Personalizer Şablonları"
       primaryAction={{ content: "+ Şablon Ekle", url: "/app/personalizer/new" }}
-      secondaryActions={[{ content: "Mağaza Kurulum Rehberi →", url: "/app/personalizer/setup" }]}
+      secondaryActions={[
+        { content: "Mağaza Kurulum Rehberi →", url: "/app/personalizer/setup" },
+        {
+          content: "Bağlantıları denetle",
+          loading: fetcher.state !== "idle",
+          onAction: () => fetcher.submit({ intent: "sync_metafields" }, { method: "POST" }),
+          helpText: "Ürün sayfasındaki kişiselleştirme kutusunu kuralla hizalar",
+        },
+      ]}
     >
       <Layout>
+          {fetcher.data?.synced && (
+            <Layout.Section>
+              <Banner tone={fetcher.data.hatalar?.length ? "warning" : "success"}>
+                <p>
+                  {`Denetlendi: ${fetcher.data.yazilan ?? 0} üründe kutu açık bırakıldı, `
+                    + `${fetcher.data.temizlenen ?? 0} üründe kapatıldı.`}
+                </p>
+                {fetcher.data.hatalar?.length ? (
+                  <p style={{ marginTop: 8 }}>
+                    {`Shopify'a yazılamayanlar: ${fetcher.data.hatalar.join(" · ")}`}
+                  </p>
+                ) : null}
+              </Banner>
+            </Layout.Section>
+          )}
           <Layout.Section>
             <Banner tone="info">
               <Text as="p">
