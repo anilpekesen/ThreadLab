@@ -697,6 +697,28 @@ export async function linkPersonalizerProduct(input: {
   return res.rows[0];
 }
 
+/**
+ * Ürünün bir şablonla bağını tamamen koparır (bütün yüzler ve varyantlar).
+ *
+ * Gerekiyor çünkü tema bloğu ürün metafield'ına bakıyor ve blok tema
+ * şablonuna bir kez eklendiğinde metafield'ı olan HER üründe açılıyor.
+ * Bağlanan ama sonradan başka bir akışa geçen bir üründe (ör. tişört
+ * tasarımcısına dönen bir ürün) kişiselleştirme kutusu istenmeden görünüyor
+ * ve panelden kaldırmanın yolu yoktu.
+ */
+export async function unlinkPersonalizerProduct(
+  shop: string,
+  productId: string,
+  templateId: string,
+): Promise<number> {
+  const res = await query(
+    `DELETE FROM personalizer_product_links
+      WHERE shop = $1 AND product_id = $2 AND template_id = $3`,
+    [shop, productId, templateId],
+  );
+  return res.rowCount ?? 0;
+}
+
 export async function listPersonalizerProductLinks(templateId: string): Promise<PersonalizerProductLink[]> {
   const res = await query<PersonalizerProductLink>(
     `SELECT * FROM personalizer_product_links WHERE template_id = $1 ORDER BY updated_at DESC`,

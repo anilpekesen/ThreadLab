@@ -20,6 +20,7 @@ import {
   updatePersonalizerFrame,
   deletePersonalizerFrame,
   linkPersonalizerProduct,
+  unlinkPersonalizerProduct,
   listPersonalizerProductLinks,
   normalizeCustomerOptions,
   normalizeLayoutMode,
@@ -31,7 +32,7 @@ import { fetchShopifyProducts, findConfigForStorefront } from "~/models/product-
 import { AI_STYLES, AI_PROVIDERS, normalizeAiConfig, type AiProvider } from "~/lib/ai-styles";
 import { uploadToR2 } from "~/lib/r2.server";
 import { listPrintProducts } from "~/models/print-product.server";
-import { setProductTemplateMetafield } from "~/lib/personalizer-metafield.server";
+import { setProductTemplateMetafield, clearProductTemplateMetafield } from "~/lib/personalizer-metafield.server";
 import { printCanvas, aspectLabel, type PrintProduct } from "~/lib/print-spec";
 import {
   normalizeSlots, normalizeGridConfig, normalizePieces, normalizeMockups,
@@ -305,6 +306,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const frameId = String(form.get("frame_id") ?? "");
     if (frameId) await deletePersonalizerFrame(frameId, id);
     return json({ ok: true });
+  }
+
+  // ── Ürün bağlantısını kaldır ─────────────────────────────────────────────
+  if (intent === "unlink_product") {
+    const productId = normalizeShopifyNumericId(String(form.get("product_id") ?? ""));
+    if (!productId) return json({ error: "Shopify ürün ID gerekli" }, { status: 400 });
+
+    const silinen = await unlinkPersonalizerProduct(shop, productId, id);
+
+    // Metafield da silinmeli: tema bloğu ona bakıyor ve kayıt gitse bile
+    // metafield dururken kişiselleştirme kutusu ürün sayfasında görünmeye
+    // devam ederdi — üstelik artık hangi şablonu açacağını bilmeden.
+    const meta = await clearProductTemplateMetafield(shop, productId);
+    return json({ ok: true, unlinked: silinen, metafieldOk: meta.ok, metafieldError: meta.error ?? "" });
   }
 
   // ── Link Shopify product ─────────────────────────────────────────────────
@@ -973,7 +988,7 @@ function PersonalizerEditor() {
   const { shop, template, frames, productLinks, products, linkedAreaRatio, printProducts, isNew } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ error?: string; ok?: boolean; redirectTo?: string }>();
   const linkFetcher = useFetcher<{
-    error?: string; ok?: boolean; linked?: boolean;
+    error?: string; ok?: boolean; linked?: boolean; unlinked?: number;
     metafieldOk?: boolean; metafieldError?: string;
   }>();
   const navigate = useNavigate();
@@ -1000,7 +1015,9 @@ function PersonalizerEditor() {
   }, [fetcher.state, fetcher.data, navigate]);
 
   useEffect(() => {
-    if (linkFetcher.state === "idle" && linkFetcher.data?.linked) {
+    // Bağlama ve kaldırma sonrası "Bağlı Ürünler" listesi tazelenmeli
+    if (linkFetcher.state === "idle"
+      && (linkFetcher.data?.linked || linkFetcher.data?.unlinked !== undefined)) {
       revalidator.revalidate();
     }
   }, [linkFetcher.state, linkFetcher.data, revalidator]);
@@ -1760,6 +1777,15 @@ function PersonalizerEditor() {
                 </BlockStack>
 
                 {linkFetcher.data?.error && <Banner tone="critical">{linkFetcher.data.error}</Banner>}
+                {linkFetcher.data?.unlinked !== undefined && (
+                  <Banner tone={linkFetcher.data.metafieldOk ? "success" : "warning"}>
+                    <p>
+                      {linkFetcher.data.metafieldOk
+                        ? "Bağlantı kaldırıldı ve Shopify'daki personalizer.template_id alanı silindi. Kişiselleştirme kutusu ürün sayfasında artık görünmeyecek."
+                        : `Bağlantı kaydı silindi ama Shopify'daki metafield temizlenemedi: ${linkFetcher.data.metafieldError}. Metafield dururken kutu görünmeye devam eder; Shopify yöneticisinden elle silin.`}
+                    </p>
+                  </Banner>
+                )}
                 {linkFetcher.data?.linked && linkFetcher.data.metafieldOk && (
                   <Banner tone="success">
                     <p>
@@ -1879,6 +1905,20 @@ function PersonalizerEditor() {
                           <Text as="p" tone="subdued" variant="bodySm">
                             {`Product ID: ${link.product_id}${variantIds.length ? `, Variant ID: ${variantIds.join(", ")}` : ""}`}
                           </Text>
+                          {/* Bağlantıyı kaldırmanın yolu yoktu. Tema bloğu ürün
+                              metafield'ına bakıyor ve blok tema şablonuna bir kez
+                              eklendiğinde metafield'ı olan HER üründe açılıyor;
+                              sonradan başka bir akışa geçen bir üründe
+                              kişiselleştirme kutusu istenmeden görünüyordu. */}
+                          <InlineStack>
+                            <linkFetcher.Form method="post">
+                              <input type="hidden" name="intent" value="unlink_product" />
+                              <input type="hidden" name="product_id" value={link.product_id} />
+                              <Button submit variant="plain" tone="critical" size="slim">
+                                Bağlantıyı kaldır
+                              </Button>
+                            </linkFetcher.Form>
+                          </InlineStack>
                         </BlockStack>
                       </Box>
                       );
