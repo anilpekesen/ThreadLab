@@ -64,11 +64,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return field;
   };
 
-  const template = templateId
-    ? await getPersonalizerTemplatePublic(templateId)
-    : shop && productId
+  // Ürün kimliği varsa önce ürün+varyant bağlantısına bakılıyor: aynı ürünün
+  // farklı varyantları farklı şablona bağlı olabilir ve metafield'daki tek
+  // kimlik o ayrımı taşıyamaz. Bağlantı yoksa metafield'daki şablona düşülüyor,
+  // böylece varyant bağlamamış mevcut kurulumlar aynen çalışıyor.
+  const template =
+    (shop && productId
       ? await getPersonalizerTemplateByProduct(shop, productId, "front", variantId)
-      : null;
+      : null)
+    ?? (templateId ? await getPersonalizerTemplatePublic(templateId) : null);
   if (!template) {
     return new Response(t.notFound, { status: 404 });
   }

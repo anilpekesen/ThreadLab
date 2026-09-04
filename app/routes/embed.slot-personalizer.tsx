@@ -21,11 +21,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const side = url.searchParams.get("side") ?? "front";
   const variantId = url.searchParams.get("variantId") ?? "";
 
-  const template = templateId
-    ? await getPersonalizerTemplatePublic(templateId)
-    : productId
+  // Ürün kimliği varsa önce ürün+varyant bağlantısı; yoksa şablon kimliği.
+  // Bkz. embed.personalizer içindeki aynı sıralama.
+  const template =
+    (productId
       ? await getPersonalizerTemplateByProduct(shop, productId, normalizeSide(side), variantId)
-      : null;
+      : null)
+    ?? (templateId ? await getPersonalizerTemplatePublic(templateId) : null);
 
   const res = await buildSlotResponse(template, {
     variantId,
