@@ -107,7 +107,12 @@
       if (!e.data) return;
 
       if (e.data.type === 'PERSONALIZER_RESIZE' && e.data.height) {
-        iframe.style.height = (e.data.height + 24) + 'px';
+        // Gelen değere pay EKLENMİYOR: iframe her seferinde biraz daha büyür,
+        // içerideki ölçüm de büyüyen iframe'i görür ve yükseklik sonsuza gider.
+        // Pay gerekiyorsa iframe içinde veriliyor.
+        var yeni = Math.max(240, Math.round(e.data.height));
+        if (Math.abs(yeni - (parseInt(iframe.style.height, 10) || 0)) < 4) return;
+        iframe.style.height = yeni + 'px';
         return;
       }
 

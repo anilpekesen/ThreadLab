@@ -1069,7 +1069,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       .finally(function () {
         previewBtn.disabled = false;
         previewBtn.textContent = T.preview;
-        notifyHeight();
+        scheduleHeight();
       });
   });
 
@@ -1130,14 +1130,33 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   }
   function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 
+  // Yükseklik bildirimi kendi kendini besleyebiliyor: documentElement.scrollHeight
+  // iframe'in KENDİ yüksekliğini de kapsıyor, ana sayfa onu iframe'e yazınca
+  // ölçüm bir sonraki turda daha büyük çıkıyor ve MutationObserver her turu
+  // tetiklediği için yükseklik büyüyerek gidiyor (canlıda 28940 px'e çıktı).
+  //
+  // Bu yüzden iframe'in değil, İÇERİĞİN yüksekliği ölçülüyor ve değer
+  // gerçekten değişmedikçe mesaj gönderilmiyor.
+  var sonYukseklik = 0;
+  var yukseklikZamani = 0;
+
   function notifyHeight() {
     if (window.parent === window) return;
-    var h = document.documentElement.scrollHeight;
+    var h = Math.ceil(document.body.getBoundingClientRect().height) + 16;
+    if (Math.abs(h - sonYukseklik) < 4) return;
+    sonYukseklik = h;
     window.parent.postMessage({ type: 'PERSONALIZER_RESIZE', height: h }, '*');
   }
-  window.addEventListener('load', notifyHeight);
-  window.addEventListener('resize', notifyHeight);
-  new MutationObserver(notifyHeight).observe(document.body, { childList: true, subtree: true });
+
+  /** Art arda gelen DOM değişimlerinde tek ölçüm yapılsın */
+  function scheduleHeight() {
+    clearTimeout(yukseklikZamani);
+    yukseklikZamani = window.setTimeout(notifyHeight, 120);
+  }
+
+  window.addEventListener('load', scheduleHeight);
+  window.addEventListener('resize', scheduleHeight);
+  new MutationObserver(scheduleHeight).observe(document.body, { childList: true, subtree: true });
 
   buildMockup();
   renderAll();
