@@ -2,8 +2,8 @@ import { query } from "~/lib/db.server";
 import { randomBytes } from "node:crypto";
 import { AI_STYLES, normalizeAiConfig, type AiTemplateConfig } from "~/lib/ai-styles";
 import {
-  normalizeSlots, normalizePieces,
-  type GridConfig, type Slot, type TemplatePiece,
+  normalizeSlots, normalizePieces, normalizeMockups,
+  type GridConfig, type Slot, type TemplatePiece, type TemplateMockup,
 } from "~/lib/slots";
 
 export interface TextFieldDef {
@@ -207,6 +207,8 @@ export interface PersonalizerTemplate {
    * parça, şablonun kendi alanlarından türetilir (bkz. templatePieces).
    */
   pieces: TemplatePiece[];
+  /** Varyanta göre ürün görselleri; müşteri önizlemesinde kullanılır */
+  mockups: TemplateMockup[];
   active: boolean;
   sort_order: number;
   created_at: string;
@@ -225,6 +227,7 @@ function mapTemplateRow(row: Row): PersonalizerTemplate {
     expected_slots: Number(row.expected_slots ?? 0),
     version: Number(row.version ?? 1),
     pieces: normalizePieces(row.pieces),
+    mockups: normalizeMockups(row.mockups),
   };
 }
 
@@ -304,6 +307,7 @@ export interface CreatePersonalizerTemplateInput {
   overlay_url?: string;
   expected_slots?: number;
   pieces?: TemplatePiece[];
+  mockups?: TemplateMockup[];
   sort_order?: number;
 }
 
@@ -316,9 +320,9 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
         mockup_x, mockup_y, mockup_width, mockup_height,
         text_fields, ai_style, hole_seed_x, hole_seed_y,
         layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order,
-        slots, grid_config, print_product_id, overlay_url, expected_slots, pieces)
+        slots, grid_config, print_product_id, overlay_url, expected_slots, pieces, mockups)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,
-             $25,$26,$27,$28,$29,$30)
+             $25,$26,$27,$28,$29,$30,$31)
      RETURNING *`,
     [
       id, input.shop, input.name, input.description ?? "",
@@ -344,6 +348,7 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
       input.overlay_url ?? "",
       input.expected_slots ?? 0,
       JSON.stringify(input.pieces ?? []),
+      JSON.stringify(input.mockups ?? []),
     ],
   );
   const created = mapTemplateRow(res.rows[0]);
@@ -379,6 +384,7 @@ export interface UpdatePersonalizerTemplateInput {
   overlay_url?: string;
   expected_slots?: number;
   pieces?: TemplatePiece[];
+  mockups?: TemplateMockup[];
   active?: boolean;
   sort_order?: number;
 }
@@ -397,7 +403,7 @@ export async function updatePersonalizerTemplate(
     sets.push(`${k} = $${i++}`);
     const isJsonColumn = k === "text_fields" || k === "scatter_config"
       || k === "customer_options" || k === "ai_config"
-      || k === "slots" || k === "grid_config" || k === "pieces";
+      || k === "slots" || k === "grid_config" || k === "pieces" || k === "mockups";
     vals.push(isJsonColumn ? JSON.stringify(v) : v);
   }
   if (sets.length === 0) return getPersonalizerTemplate(id, shop);
@@ -511,6 +517,7 @@ export async function duplicatePersonalizerTemplate(
     overlay_url: source.overlay_url,
     expected_slots: source.expected_slots,
     pieces: source.pieces,
+    mockups: source.mockups,
     sort_order: source.sort_order + 1,
   });
 
@@ -655,12 +662,11 @@ export async function linkPersonalizerProduct(input: {
     `INSERT INTO personalizer_product_links
        (shop, product_id, side, template_id, product_title, product_handle, variant_id)
      VALUES ($1,$2,$3,$4,$5,$6,$7)
-     ON CONFLICT (shop, product_id, side)
+     ON CONFLICT (shop, product_id, side, variant_id)
      DO UPDATE SET
        template_id = EXCLUDED.template_id,
        product_title = EXCLUDED.product_title,
        product_handle = EXCLUDED.product_handle,
-       variant_id = EXCLUDED.variant_id,
        updated_at = now()
      RETURNING *`,
     [
@@ -684,20 +690,32 @@ export async function listPersonalizerProductLinks(templateId: string): Promise<
   return res.rows;
 }
 
+/**
+ * Ürüne (ve varsa varyanta) bağlı şablonu bulur.
+ *
+ * Önce tam varyant eşleşmesi, sonra ürünün varsayılanı (boş varyant) denenir.
+ * "3'lü çerçeve seti"nde Tam Alan ile Beyaz Kenarlı farklı yerleşimler, yani
+ * farklı şablonlar; ama tek şablonlu ürünlerde varyant hiç bağlanmaz ve
+ * varsayılan kayıt her varyant için çalışır.
+ */
 export async function getPersonalizerTemplateByProduct(
   shop: string,
   productId: string,
   side: TemplateSide = "front",
+  variantId = "",
 ): Promise<PersonalizerTemplate | null> {
   const res = await query<PersonalizerTemplate>(
     `SELECT pt.*
        FROM personalizer_product_links ppl
        JOIN personalizer_templates pt ON pt.id = ppl.template_id
-      WHERE ppl.shop = $1 AND ppl.product_id = $2 AND ppl.side = $3 AND pt.active = TRUE
+      WHERE ppl.shop = $1 AND ppl.product_id = $2 AND ppl.side = $3
+        AND ppl.variant_id IN ($4, '')
+        AND pt.active = TRUE
+      ORDER BY CASE WHEN ppl.variant_id = $4 THEN 0 ELSE 1 END
       LIMIT 1`,
-    [shop, productId, normalizeSide(side)],
+    [shop, productId, normalizeSide(side), String(variantId ?? "")],
   );
-  return res.rows[0] ?? null;
+  return res.rows[0] ? mapTemplateRow(res.rows[0]) : null;
 }
 
 /** Ürünün hangi yüzlerinde şablon var — tasarımcı sekmeleri buna göre çizilir */

@@ -67,7 +67,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const template = templateId
     ? await getPersonalizerTemplatePublic(templateId)
     : shop && productId
-      ? await getPersonalizerTemplateByProduct(shop, productId)
+      ? await getPersonalizerTemplateByProduct(shop, productId, "front", variantId)
       : null;
   if (!template) {
     return new Response(t.notFound, { status: 404 });
@@ -79,7 +79,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // snippet aynen çalışmaya devam etsin, yeni ürün tipi için ikinci bir kurulum
   // adımı gerekmesin. Slotu olmayan şablonlarda `null` döner ve aşağıdaki eski
   // akış aynen sürer.
-  const slotResponse = await buildSlotResponse(template, { variantId, shop, locale: normalizedLocale });
+  const slotResponse = await buildSlotResponse(template, {
+    variantId,
+    shop,
+    locale: normalizedLocale,
+    optionValues: (url.searchParams.get("options") ?? "").split("|").filter(Boolean),
+  });
   if (slotResponse) return slotResponse;
 
   const resolvedTemplateId = template.id;

@@ -1,7 +1,8 @@
 import { templatePieces, type PersonalizerTemplate } from "~/models/personalizer.server";
 import { getPrintProductPublic } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
-import { isImageSlot, isTextSlot } from "~/lib/slots";
+import { isImageSlot, isTextSlot, pickMockup } from "~/lib/slots";
+import { scanTemplateHoles } from "~/lib/template-hole.server";
 
 /**
  * Çoklu fotoğraflı ürünlerin müşteri arayüzü.
@@ -19,10 +20,53 @@ import { isImageSlot, isTextSlot } from "~/lib/slots";
  * görünen ile basılan birebir örtüşüyor.
  */
 
+/**
+ * Çerçeve görselinin şeffaf açıklığını bulur.
+ *
+ * Sonuç süreç belleğinde tutuluyor: aynı ürün görseli her müşteri isteğinde
+ * yeniden taranmamalı, tarama bir milyon pikseli dolaşıyor.
+ */
+const openingCache = new Map<string, { x: number; y: number; w: number; h: number; aspect: number } | null>();
+
+async function mockupOpening(url: string) {
+  if (openingCache.has(url)) return openingCache.get(url) ?? null;
+  let result: { x: number; y: number; w: number; h: number; aspect: number } | null = null;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (res.ok) {
+      const scan = await scanTemplateHoles(Buffer.from(await res.arrayBuffer()));
+      // En büyük kapalı şeffaf alan çerçevenin içidir; dış kenardaki şeffaflık
+      // taramada zaten "dışarısı" sayılıyor.
+      const hole = scan.holes[0];
+      if (hole) {
+        // Açıklık, çerçevenin yumuşatılmış iç kenarı yüzünden görünenden bir
+        // tık küçük çıkıyor ve arada ince bir açık çizgi kalıyor. Fotoğrafı
+        // az miktarda çerçevenin altına sokuyoruz.
+        const bleed = 0.006;
+        const x = Math.max(0, hole.x / scan.width - bleed);
+        const y = Math.max(0, hole.y / scan.height - bleed);
+        result = {
+          x,
+          y,
+          w: Math.min(1 - x, hole.width / scan.width + bleed * 2),
+          h: Math.min(1 - y, hole.height / scan.height + bleed * 2),
+          aspect: scan.width / scan.height,
+        };
+      }
+    }
+  } catch (err) {
+    console.error(`[slot-embed] mockup açıklığı bulunamadı (${url}):`, err);
+  }
+  openingCache.set(url, result);
+  return result;
+}
+
 export interface SlotEmbedOptions {
   variantId: string;
   shop: string;
   locale: string;
+  /** Müşterinin seçtiği varyantın seçenek değerleri ("Ceviz", "Tam Alan"…) */
+  optionValues?: string[];
 }
 
 /**
@@ -76,6 +120,7 @@ export async function buildSlotResponse(
     noSize: isTr ? "Bu şablona baskı ebadı bağlanmamış." : "This template has no print size.",
     noSlots: isTr ? "Bu şablonda fotoğraf alanı tanımlı değil." : "This template has no photo slots.",
     error: isTr ? "Bir hata oluştu, lütfen tekrar deneyin." : "Something went wrong, please try again.",
+    emptyArea: isTr ? "Fotoğraf ekleyin" : "Add a photo",
   };
 
   function page(message: string) {
@@ -141,6 +186,18 @@ export async function buildSlotResponse(
     }
   }
 
+  // Müşterinin seçtiği varyanta uyan ürün görseli. Yoksa yalnızca baskı
+  // tuvalleri gösterilir; mockup zorunlu değil.
+  const mockup = pickMockup(template.mockups, opts.optionValues ?? []);
+
+  // Alan tanımlanmamış bir mockup "çerçeve" demektir: ortası şeffaf bırakılmış
+  // bir ürün görseli. Açıklığı taramayla buluyoruz, çünkü mağaza sahibinden
+  // her renk için elle dikdörtgen çizmesini istemek gereksiz bir yük — çerçeve
+  // görselleri zaten şeffaf ortalı geliyor.
+  const opening = mockup && mockup.areas.length === 0
+    ? await mockupOpening(mockup.url)
+    : null;
+
   const data = {
     templateId: template.id,
     name: template.name,
@@ -149,6 +206,9 @@ export async function buildSlotResponse(
     locale: isTr ? "tr" : "en",
     pieces: piecePayload,
     texts,
+    mockup: mockup
+      ? { url: mockup.url, label: mockup.label, areas: mockup.areas, opening }
+      : null,
   };
 
   return new Response(renderSlotPage(data, t), {
@@ -176,6 +236,14 @@ export interface SlotPageData {
     slots: Array<Record<string, unknown>>;
   }>;
   texts: Array<Record<string, unknown>>;
+  /** Seçili varyantın ürün görseli ve üzerindeki gösterim alanları */
+  mockup: {
+    url: string;
+    label: string;
+    areas: Array<{ piece_id: string; rect: { x: number; y: number; w: number; h: number }; mask_url?: string }>;
+    /** Çerçeve tipi mockup'ta fotoğrafın görüneceği şeffaf açıklık */
+    opening: { x: number; y: number; w: number; h: number; aspect: number } | null;
+  } | null;
 }
 
 /**
@@ -205,6 +273,12 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   body { margin:0; font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; color:#1d2129; background:#fff; }
   .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
   .board-outer { position: relative; width: 100%; background:#f6f6f6; border:1px solid #e3e3e3; border-radius:8px; overflow:hidden; }
+  .mockup { position:relative; width:100%; margin-bottom:16px; border-radius:10px; overflow:hidden; background:#f6f6f6; }
+  .mockup > img.base { display:block; width:100%; }
+  .mockup .area { position:absolute; overflow:hidden; }
+  .mockup .area img { position:absolute; max-width:none; }
+  .mockup .bos { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+                 background:rgba(255,255,255,.55); color:#6b7280; font-size:12px; }
   .piece { margin-bottom: 18px; }
   /* Set ürünlerinde parçalar yan yana: müşteri üç çerçeveyi bir arada görmeli,
      duvarda da öyle duracak. Dar ekranda alt alta iner. */
@@ -264,6 +338,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 </head>
 <body>
 <div class="wrap">
+  <div id="mockup" class="mockup" hidden></div>
   <div id="boards"></div>
 
   <p class="hint" id="swapHint">${escapeHtml(t.swapHint)}</p>
@@ -338,6 +413,11 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   var pieceTitles = {};
 
   // ── Tahtaları kur: her parça kendi tuvali ──────────────────────────────
+  // Çerçeve tipi mockup: ortası şeffaf tek bir ürün görseli. Her parça
+  // tahtası bu çerçevenin içine çiziliyor, yani müşteri fotoğrafını seçtiği
+  // renkteki gerçek çerçevede görüyor ve düzenlemesini orada yapıyor.
+  var FRAME = (D.mockup && !D.mockup.areas.length && D.mockup.opening) ? D.mockup : null;
+
   if (D.pieces.length > 1) boardsEl.className = 'set';
 
   D.pieces.forEach(function (piece, pi) {
@@ -357,7 +437,12 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     outer.className = 'board-outer';
     var board = document.createElement('div');
     board.className = 'board';
-    board.style.aspectRatio = piece.canvas.width + ' / ' + piece.canvas.height;
+    // Çerçeve varsa tahta çerçevenin oranını alır; slotlar açıklığın içine
+    // haritalanır. Yoksa doğrudan baskı tuvali gösterilir.
+    board.style.aspectRatio = FRAME
+      ? (FRAME.opening.aspect + ' / 1')
+      : (piece.canvas.width + ' / ' + piece.canvas.height);
+    if (FRAME) outer.style.background = 'transparent';
     outer.appendChild(board);
     wrap.appendChild(outer);
     boardsEl.appendChild(wrap);
@@ -369,12 +454,15 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     }
 
     piece.slots.forEach(function (s) {
-    var el = document.createElement('div');
-    el.className = 'slot empty';
-    el.style.left = (s.rect.x * 100) + '%';
-    el.style.top = (s.rect.y * 100) + '%';
-    el.style.width = (s.rect.w * 100) + '%';
-    el.style.height = (s.rect.h * 100) + '%';
+      var el = document.createElement('div');
+      el.className = 'slot empty';
+      // Slot koordinatları baskı tuvaline göre; çerçeve varsa açıklığın içine
+      // yeniden ölçekleniyor
+      var o = FRAME ? FRAME.opening : { x: 0, y: 0, w: 1, h: 1 };
+      el.style.left = ((o.x + s.rect.x * o.w) * 100) + '%';
+      el.style.top = ((o.y + s.rect.y * o.h) * 100) + '%';
+      el.style.width = (s.rect.w * o.w * 100) + '%';
+      el.style.height = (s.rect.h * o.h * 100) + '%';
     if (s.radius > 0) el.style.borderRadius = (s.radius * 100) + '%';
     el.dataset.slot = s.id;
 
@@ -396,6 +484,11 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       var ov = document.createElement('img');
       ov.className = 'ov'; ov.src = piece.overlayUrl; ov.alt = '';
       board.appendChild(ov);
+    }
+    if (FRAME) {
+      var fr = document.createElement('img');
+      fr.className = 'ov'; fr.src = FRAME.url; fr.alt = FRAME.label || '';
+      board.appendChild(fr);
     }
   });
 
@@ -603,14 +696,96 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     img.style.top = top + 'px';
   }
 
+  // ── Mockup ─────────────────────────────────────────────────────────────
+  // Müşteri fotoğrafını seçtiği renkteki gerçek çerçevenin içinde görüyor.
+  // Çizim istemcide ve slotlarla aynı kırpma matematiğiyle yapılıyor; sunucuya
+  // gidilse her düzeltmede bekleme olurdu.
+  var mockupEl = document.getElementById('mockup');
+  var areaEls = {};
+
+  function buildMockup() {
+    // Çerçeve tipi mockup zaten tahtaların üstünde; ayrı panel açmıyoruz
+    if (!D.mockup || !D.mockup.areas.length) return;
+    mockupEl.hidden = false;
+    mockupEl.innerHTML = '';
+
+    var base = document.createElement('img');
+    base.className = 'base';
+    base.src = D.mockup.url;
+    base.alt = D.mockup.label || '';
+    base.addEventListener('load', paintMockup);
+    mockupEl.appendChild(base);
+
+    D.mockup.areas.forEach(function (a) {
+      var el = document.createElement('div');
+      el.className = 'area';
+      el.style.left = (a.rect.x * 100) + '%';
+      el.style.top = (a.rect.y * 100) + '%';
+      el.style.width = (a.rect.w * 100) + '%';
+      el.style.height = (a.rect.h * 100) + '%';
+      if (a.mask_url) {
+        el.style.webkitMaskImage = 'url(' + a.mask_url + ')';
+        el.style.maskImage = 'url(' + a.mask_url + ')';
+        el.style.webkitMaskSize = '100% 100%';
+        el.style.maskSize = '100% 100%';
+      }
+      mockupEl.appendChild(el);
+      areaEls[a.piece_id] = el;
+    });
+  }
+
+  /** Parçanın ilk dolu fotoğraf alanı — mockup o fotoğrafı gösterir */
+  function pieceFill(pieceId) {
+    for (var i = 0; i < D.pieces.length; i++) {
+      if (D.pieces[i].id !== pieceId) continue;
+      var slots = D.pieces[i].slots;
+      for (var k = 0; k < slots.length; k++) {
+        if (fills[slots[k].id]) return fills[slots[k].id];
+      }
+    }
+    return null;
+  }
+
+  function paintMockup() {
+    if (!D.mockup) return;
+    D.mockup.areas.forEach(function (a) {
+      var el = areaEls[a.piece_id];
+      if (!el) return;
+      el.innerHTML = '';
+      var f = pieceFill(a.piece_id);
+      if (!f) {
+        var bos = document.createElement('span');
+        bos.className = 'bos';
+        bos.textContent = T.emptyArea || '';
+        el.appendChild(bos);
+        return;
+      }
+      var img = document.createElement('img');
+      img.src = f.localUrl || f.url;
+      img.alt = '';
+      el.appendChild(img);
+
+      var W = el.clientWidth, H = el.clientHeight;
+      if (!W || !H || !f.width || !f.height) return;
+      var k = Math.max(W / f.width, H / f.height) * (f.scale || 1);
+      var rw = f.width * k, rh = f.height * k;
+      img.style.width = rw + 'px';
+      img.style.height = rh + 'px';
+      img.style.left = (-clamp((rw - W) / 2 - (f.offset_x || 0) * W, 0, rw - W)) + 'px';
+      img.style.top = (-clamp((rh - H) / 2 - (f.offset_y || 0) * H, 0, rh - H)) + 'px';
+    });
+  }
+
   function renderAll() {
     ALL.forEach(function (s) { paint(s.id); });
+    paintMockup();
     renderPool();
     updateStatus();
   }
 
   window.addEventListener('resize', function () {
     ALL.forEach(function (s) { layout(s.id); });
+    paintMockup();
   });
 
   function renderPool() {
@@ -824,7 +999,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   });
 
   document.getElementById('cropDone').addEventListener('click', function () {
-    dlg.close(); paint(cropSlot); updateStatus();
+    dlg.close(); paint(cropSlot); paintMockup(); updateStatus();
   });
   document.getElementById('cropReplace').addEventListener('click', function () {
     replaceTarget = cropSlot; dlg.close(); fileInput.click();
@@ -832,7 +1007,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   document.getElementById('cropClear').addEventListener('click', function () {
     delete fills[cropSlot]; dlg.close(); renderAll();
   });
-  dlg.addEventListener('close', function () { paint(cropSlot); updateStatus(); });
+  dlg.addEventListener('close', function () { paint(cropSlot); paintMockup(); updateStatus(); });
 
   // ── Önizleme ve sepet ──────────────────────────────────────────────────
   function payload(mode) {
@@ -964,6 +1139,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   window.addEventListener('resize', notifyHeight);
   new MutationObserver(notifyHeight).observe(document.body, { childList: true, subtree: true });
 
+  buildMockup();
   renderAll();
 })();
 </script>

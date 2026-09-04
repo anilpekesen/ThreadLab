@@ -171,6 +171,86 @@ export function pieceImageSlotCount(piece: TemplatePiece): number {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Mockup — müşterinin ürünü gerçek hâlinde gördüğü görsel
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bir varyanta karşılık gelen ürün görseli ve üzerindeki gösterim alanları.
+ *
+ * Çerçeve rengi baskı dosyasını değiştirmiyor; değişen tek şey müşterinin
+ * gördüğü ürün. Ceviz çerçeve seçen biri fotoğrafını ceviz çerçevenin içinde
+ * görmeli, yoksa neyi satın aldığını hayal etmek zorunda kalıyor.
+ *
+ * `key` Shopify seçenek değeriyle eşleşiyor ("Ceviz"). Müşterinin seçtiği
+ * varyantın değerlerinden biri bu anahtarı tutuyorsa o mockup gösteriliyor.
+ */
+export interface MockupArea {
+  /** Hangi parçanın fotoğrafı buraya düşecek */
+  piece_id: string;
+  /** Mockup görseline göre normalize dikdörtgen */
+  rect: Rect;
+  /** Alan dikdörtgen değilse (açılı çerçeve, yansıma) şekil maskesi */
+  mask_url?: string;
+}
+
+export interface TemplateMockup {
+  key: string;
+  label: string;
+  url: string;
+  areas: MockupArea[];
+}
+
+export function normalizeMockups(raw: unknown): TemplateMockup[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TemplateMockup[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const m = item as Record<string, unknown>;
+    const url = String(m.url ?? "").trim();
+    if (!url) continue;
+    const areas = Array.isArray(m.areas) ? m.areas : [];
+    out.push({
+      key: String(m.key ?? "").trim(),
+      label: String(m.label ?? m.key ?? ""),
+      url,
+      areas: areas.flatMap((a) => {
+        if (!a || typeof a !== "object") return [];
+        const area = a as Record<string, unknown>;
+        const rect = area.rect as Partial<Rect> | undefined;
+        if (!rect || typeof rect.x !== "number" || typeof rect.y !== "number"
+          || typeof rect.w !== "number" || typeof rect.h !== "number") return [];
+        return [{
+          piece_id: String(area.piece_id ?? ""),
+          rect: { x: rect.x, y: rect.y, w: rect.w, h: rect.h },
+          mask_url: area.mask_url ? String(area.mask_url) : undefined,
+        }];
+      }),
+    });
+  }
+  return out;
+}
+
+/**
+ * Müşterinin seçtiği varyantın değerlerine uyan mockup'ı bulur.
+ *
+ * Eşleşme büyük/küçük harf duyarsız: Shopify'daki "Ceviz" ile mağaza sahibinin
+ * yazdığı "ceviz" aynı sayılmalı. Anahtarı boş olan mockup varsayılandır ve
+ * hiçbiri uymazsa o gösterilir.
+ */
+export function pickMockup(
+  mockups: TemplateMockup[],
+  optionValues: string[],
+): TemplateMockup | null {
+  if (mockups.length === 0) return null;
+  const values = optionValues.map((v) => v.trim().toLocaleLowerCase("tr"));
+  for (const m of mockups) {
+    const key = m.key.trim().toLocaleLowerCase("tr");
+    if (key && values.includes(key)) return m;
+  }
+  return mockups.find((m) => !m.key.trim()) ?? null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Normalize ↔ piksel
 // ─────────────────────────────────────────────────────────────────────────────
 
