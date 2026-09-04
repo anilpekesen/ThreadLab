@@ -65,6 +65,8 @@ export interface SlotEmbedOptions {
   variantId: string;
   shop: string;
   locale: string;
+  /** Varyant değişiminde şablonu yeniden çözebilmek için */
+  productId?: string;
   /** Müşterinin seçtiği varyantın seçenek değerleri ("Ceviz", "Tam Alan"…) */
   optionValues?: string[];
 }
@@ -80,6 +82,30 @@ export async function buildSlotResponse(
   template: PersonalizerTemplate | null,
   opts: SlotEmbedOptions,
 ): Promise<Response | null> {
+  const built = await buildSlotData(template, opts);
+  if (!built) return null;
+  if ("page" in built) return built.page;
+
+  return new Response(renderSlotPage(built.data, built.t), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Security-Policy": "frame-ancestors *",
+    },
+  });
+}
+
+/**
+ * Sayfanın verisini üretir.
+ *
+ * HTML'den ayrı durması, varyant değişiminde aynı veriyi JSON olarak
+ * verebilmek için: müşteri rengi ya da bordürü değiştirdiğinde sayfa
+ * yeniden yüklenmemeli, yoksa yüklediği fotoğraflar kaybolur.
+ */
+export async function buildSlotData(
+  template: PersonalizerTemplate | null,
+  opts: SlotEmbedOptions,
+): Promise<{ data: SlotPageData; t: Record<string, any> } | { page: Response } | null> {
   const { variantId, shop, locale } = opts;
   const isTr = !locale.toLowerCase().startsWith("en");
 
@@ -124,11 +150,11 @@ export async function buildSlotResponse(
   };
 
   function page(message: string) {
-    return new Response(
+    return { page: new Response(
       `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
        <body style="font:15px system-ui;padding:24px;color:#444">${message}</body>`,
       { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "frame-ancestors *" } },
-    );
+    ) };
   }
 
   if (!template) return page(t.notFound);
@@ -186,42 +212,44 @@ export async function buildSlotResponse(
     }
   }
 
-  // Müşterinin seçtiği varyanta uyan ürün görseli. Yoksa yalnızca baskı
-  // tuvalleri gösterilir; mockup zorunlu değil.
-  const mockup = pickMockup(template.mockups, opts.optionValues ?? []);
-
+  // Bütün varyant görselleri gönderiliyor, yalnızca seçili olan değil: müşteri
+  // rengi değiştirdiğinde çerçeve anında değişmeli, sunucuya gidip beklememeli.
+  //
   // Alan tanımlanmamış bir mockup "çerçeve" demektir: ortası şeffaf bırakılmış
   // bir ürün görseli. Açıklığı taramayla buluyoruz, çünkü mağaza sahibinden
   // her renk için elle dikdörtgen çizmesini istemek gereksiz bir yük — çerçeve
   // görselleri zaten şeffaf ortalı geliyor.
-  const opening = mockup && mockup.areas.length === 0
-    ? await mockupOpening(mockup.url)
-    : null;
+  const mockups = [];
+  for (const m of template.mockups) {
+    mockups.push({
+      key: m.key,
+      label: m.label,
+      url: m.url,
+      areas: m.areas,
+      opening: m.areas.length === 0 ? await mockupOpening(m.url) : null,
+    });
+  }
+  const aktif = pickMockup(template.mockups, opts.optionValues ?? []);
 
   const data = {
     templateId: template.id,
+    productId: opts.productId ?? "",
     name: template.name,
     variantId,
     shop,
     locale: isTr ? "tr" : "en",
     pieces: piecePayload,
     texts,
-    mockup: mockup
-      ? { url: mockup.url, label: mockup.label, areas: mockup.areas, opening }
-      : null,
+    mockups,
+    activeMockupKey: aktif?.key ?? "",
   };
 
-  return new Response(renderSlotPage(data, t), {
-    status: 200,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Content-Security-Policy": "frame-ancestors *",
-    },
-  });
+  return { data, t };
 }
 
 export interface SlotPageData {
   templateId: string;
+  productId: string;
   name: string;
   variantId: string;
   shop: string;
@@ -236,14 +264,17 @@ export interface SlotPageData {
     slots: Array<Record<string, unknown>>;
   }>;
   texts: Array<Record<string, unknown>>;
-  /** Seçili varyantın ürün görseli ve üzerindeki gösterim alanları */
-  mockup: {
-    url: string;
+  /** Bütün varyant görselleri; seçim istemcide yapılır */
+  mockups: Array<{
+    key: string;
     label: string;
+    url: string;
     areas: Array<{ piece_id: string; rect: { x: number; y: number; w: number; h: number }; mask_url?: string }>;
     /** Çerçeve tipi mockup'ta fotoğrafın görüneceği şeffaf açıklık */
     opening: { x: number; y: number; w: number; h: number; aspect: number } | null;
-  } | null;
+  }>;
+  /** Sayfa açılırken hangi görselin seçili olduğu */
+  activeMockupKey: string;
 }
 
 /**
@@ -279,6 +310,14 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   .mockup .area img { position:absolute; max-width:none; }
   .mockup .bos { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
                  background:rgba(255,255,255,.55); color:#6b7280; font-size:12px; }
+  .variants { display:flex; flex-direction:column; gap:14px; margin-bottom:18px; }
+  .vgroup .vlabel { font-size:13px; font-weight:600; margin:0 0 6px; }
+  .vgroup .vopts { display:flex; flex-wrap:wrap; gap:8px; }
+  .vopt { appearance:none; border:1px solid #d5d9de; background:#fff; border-radius:8px;
+          padding:8px 14px; font:500 14px system-ui; cursor:pointer; color:#1d2129; }
+  .vopt[aria-pressed="true"] { border-color:#1d2129; background:#1d2129; color:#fff; }
+  .vopt:disabled { opacity:.4; cursor:not-allowed; }
+  .price { font-size:16px; font-weight:600; margin-left:auto; }
   .piece { margin-bottom: 18px; }
   /* Set ürünlerinde parçalar yan yana: müşteri üç çerçeveyi bir arada görmeli,
      duvarda da öyle duracak. Dar ekranda alt alta iner. */
@@ -338,6 +377,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 </head>
 <body>
 <div class="wrap">
+  <div id="variants" class="variants" hidden></div>
   <div id="mockup" class="mockup" hidden></div>
   <div id="boards"></div>
 
@@ -356,6 +396,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   <div class="bar">
     <button class="btn btn-ghost" id="previewBtn">${escapeHtml(t.preview)}</button>
     <button class="btn btn-success" id="cartBtn" disabled>${escapeHtml(t.addToCart)}</button>
+    <span class="price" id="price"></span>
   </div>
 
   <div class="preview-out" id="previewOut"></div>
@@ -405,19 +446,47 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   // tasarım; hangi dosyaya bastığımız onu ilgilendirmiyor.
   var ALL = [];
   var pieceOfSlot = {};
-  D.pieces.forEach(function (p) {
-    p.slots.forEach(function (s) { ALL.push(s); pieceOfSlot[s.id] = p; });
-  });
-
   var slotEls = {};
   var pieceTitles = {};
+  var FRAME = null;
+
+  // Seçili varyant görseli. Renk değişiminde sunucuya gidilmiyor: bütün
+  // görseller açıklıklarıyla birlikte geldi, sadece hangisinin çizileceği
+  // değişiyor. buildBoards ve paintMockup ikisi de okuduğu için dış kapsamda.
+  var aktifMockup = null;
+  function mockupSec(key) {
+    var liste = D.mockups || [];
+    aktifMockup = null;
+    for (var i = 0; i < liste.length; i++) {
+      if (liste[i].key === key) { aktifMockup = liste[i]; break; }
+    }
+    if (!aktifMockup) {
+      for (var j = 0; j < liste.length; j++) if (!liste[j].key) { aktifMockup = liste[j]; break; }
+    }
+    return aktifMockup;
+  }
+  mockupSec(D.activeMockupKey);
+
+  // Varyant değişiminde tahtalar yeniden kuruluyor; bu yüzden kurulum
+  // fonksiyon içinde ve durum her seferinde sıfırlanıyor.
+  function buildBoards() {
+    ALL = [];
+    pieceOfSlot = {};
+    slotEls = {};
+    pieceTitles = {};
+    boardsEl.innerHTML = '';
+    boardsEl.className = '';
+
+    D.pieces.forEach(function (p) {
+      p.slots.forEach(function (s) { ALL.push(s); pieceOfSlot[s.id] = p; });
+    });
+
+    FRAME = (aktifMockup && !aktifMockup.areas.length && aktifMockup.opening) ? aktifMockup : null;
 
   // ── Tahtaları kur: her parça kendi tuvali ──────────────────────────────
   // Çerçeve tipi mockup: ortası şeffaf tek bir ürün görseli. Her parça
   // tahtası bu çerçevenin içine çiziliyor, yani müşteri fotoğrafını seçtiği
   // renkteki gerçek çerçevede görüyor ve düzenlemesini orada yapıyor.
-  var FRAME = (D.mockup && !D.mockup.areas.length && D.mockup.opening) ? D.mockup : null;
-
   if (D.pieces.length > 1) boardsEl.className = 'set';
 
   D.pieces.forEach(function (piece, pi) {
@@ -491,6 +560,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       board.appendChild(fr);
     }
   });
+  }
 
   function escapeText(v) {
     return String(v == null ? '' : v)
@@ -705,18 +775,18 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
   function buildMockup() {
     // Çerçeve tipi mockup zaten tahtaların üstünde; ayrı panel açmıyoruz
-    if (!D.mockup || !D.mockup.areas.length) return;
+    if (!aktifMockup || !aktifMockup.areas.length) return;
     mockupEl.hidden = false;
     mockupEl.innerHTML = '';
 
     var base = document.createElement('img');
     base.className = 'base';
-    base.src = D.mockup.url;
-    base.alt = D.mockup.label || '';
+    base.src = aktifMockup.url;
+    base.alt = aktifMockup.label || '';
     base.addEventListener('load', paintMockup);
     mockupEl.appendChild(base);
 
-    D.mockup.areas.forEach(function (a) {
+    aktifMockup.areas.forEach(function (a) {
       var el = document.createElement('div');
       el.className = 'area';
       el.style.left = (a.rect.x * 100) + '%';
@@ -747,8 +817,8 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   }
 
   function paintMockup() {
-    if (!D.mockup) return;
-    D.mockup.areas.forEach(function (a) {
+    if (!aktifMockup) return;
+    aktifMockup.areas.forEach(function (a) {
       var el = areaEls[a.piece_id];
       if (!el) return;
       el.innerHTML = '';
@@ -1013,6 +1083,9 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   function payload(mode) {
     return {
       templateId: D.templateId,
+      productId: D.productId,
+      variantId: seciliVaryant || D.variantId,
+      shop: D.shop,
       locale: D.locale,
       mode: mode,
       texts: texts,
@@ -1094,7 +1167,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
         var msg = {
           type: 'PERSONALIZER_ADD_TO_CART',
-          variantId: D.variantId,
+          variantId: seciliVaryant || D.variantId,
           quantity: 1,
           designToken: res.designToken || '',
           properties: props,
@@ -1106,7 +1179,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
           return fetch(APP_URL + '/api/embed/cart', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shop: D.shop, variantId: D.variantId, quantity: 1, designToken: res.designToken || '', properties: props }),
+            body: JSON.stringify({ shop: D.shop, variantId: seciliVaryant || D.variantId, quantity: 1, designToken: res.designToken || '', properties: props }),
           }).then(function (r) { return r.json(); }).then(function (c) {
             if (c.checkoutUrl) window.location.href = c.checkoutUrl;
             else cartBtn.innerHTML = '&#10003; ' + T.added;
@@ -1158,8 +1231,178 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   window.addEventListener('resize', scheduleHeight);
   new MutationObserver(scheduleHeight).observe(document.body, { childList: true, subtree: true });
 
+  // ── Varyant seçimi ─────────────────────────────────────────────────────
+  // Renk ve bordür seçimi kutunun içinde yapılıyor. Seçim doğrudan görüneni
+  // değiştirdiği için önizlemenin yanında olması gerekiyor; ayrıca temanın
+  // kendi sepet butonuyla iki ayrı "Sepete ekle" olmasının önüne geçiyor.
+  var URUN = null;         // { options:[{name,values}], variants:[...] }
+  var secim = {};          // seçenek adı -> değer
+  var seciliVaryant = D.variantId || '';
+  var variantsEl = document.getElementById('variants');
+  var priceEl = document.getElementById('price');
+
+  function varyantBul() {
+    if (!URUN) return null;
+    var adlar = URUN.options.map(function (o) { return o.name; });
+    for (var i = 0; i < URUN.variants.length; i++) {
+      var v = URUN.variants[i];
+      var uyar = true;
+      for (var k = 0; k < adlar.length; k++) {
+        if (v.options[k] !== secim[adlar[k]]) { uyar = false; break; }
+      }
+      if (uyar) return v;
+    }
+    return null;
+  }
+
+  function fiyatYaz(v) {
+    if (!priceEl) return;
+    priceEl.textContent = v && v.price ? v.price : '';
+  }
+
+  function varyantArayuzuKur() {
+    if (!URUN || !URUN.options.length) return;
+    variantsEl.hidden = false;
+    variantsEl.innerHTML = '';
+
+    URUN.options.forEach(function (opt) {
+      var grup = document.createElement('div');
+      grup.className = 'vgroup';
+      var lab = document.createElement('p');
+      lab.className = 'vlabel';
+      lab.textContent = opt.name;
+      grup.appendChild(lab);
+
+      var kutu = document.createElement('div');
+      kutu.className = 'vopts';
+      opt.values.forEach(function (deger) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'vopt';
+        b.textContent = deger;
+        b.setAttribute('aria-pressed', String(secim[opt.name] === deger));
+        b.addEventListener('click', function () {
+          if (secim[opt.name] === deger) return;
+          secim[opt.name] = deger;
+          varyantDegisti();
+        });
+        kutu.appendChild(b);
+      });
+      grup.appendChild(kutu);
+      variantsEl.appendChild(grup);
+    });
+    scheduleHeight();
+  }
+
+  function seciliGorunumuTazele() {
+    variantsEl.querySelectorAll('.vgroup').forEach(function (grup, i) {
+      var ad = URUN.options[i].name;
+      grup.querySelectorAll('.vopt').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.textContent === secim[ad]));
+      });
+    });
+  }
+
+  var yapilandirmaIstegi = 0;
+
+  function varyantDegisti() {
+    var v = varyantBul();
+    seciliGorunumuTazele();
+    if (!v) { fiyatYaz(null); return; }
+    seciliVaryant = String(v.id);
+    fiyatYaz(v);
+
+    // Renk değişimi anında: çerçeve görseli zaten elimizde
+    var yeniKey = null;
+    for (var i = 0; i < v.options.length; i++) {
+      for (var k = 0; k < (D.mockups || []).length; k++) {
+        if (D.mockups[k].key && D.mockups[k].key.toLowerCase() === String(v.options[i]).toLowerCase()) {
+          yeniKey = D.mockups[k].key;
+        }
+      }
+    }
+    if (yeniKey) { mockupSec(yeniKey); buildBoards(); renderAll(); }
+
+    // Yerleşim değişmiş olabilir (bordürlü/bordürsüz ayrı şablon). Sunucudan
+    // yeni yapılandırma alınıyor ama SAYFA YENİLENMİYOR: müşterinin yüklediği
+    // fotoğraflar korunuyor.
+    var istek = ++yapilandirmaIstegi;
+    fetch(APP_URL + '/api/personalizer/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        templateId: D.templateId, productId: D.productId, variantId: seciliVaryant,
+        shop: D.shop, locale: D.locale, optionValues: v.options,
+      }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        // Arka arkaya tıklanırsa yalnızca son isteğin sonucu uygulanmalı
+        if (istek !== yapilandirmaIstegi || !res.data) return;
+        yenidenYapilandir(res.data);
+      })
+      .catch(function (err) { console.error('[slot] yapılandırma alınamadı', err); });
+  }
+
+  /**
+   * Yeni yerleşime geçerken fotoğrafları korur.
+   *
+   * Eşleme slot kimliğine göre değil, parça ve alan SIRASINA göre yapılıyor:
+   * iki şablonun slot kimlikleri farklı olabilir ama müşteri için "birinci
+   * çerçevenin fotoğrafı" aynı fotoğraftır.
+   */
+  function yenidenYapilandir(yeni) {
+    var eski = [];
+    D.pieces.forEach(function (p) {
+      p.slots.forEach(function (sl, i) { eski.push({ piece: p.id, idx: i, fill: fills[sl.id] }); });
+    });
+
+    D.pieces = yeni.pieces;
+    D.mockups = yeni.mockups;
+    D.texts = yeni.texts;
+    D.templateId = yeni.templateId;
+    mockupSec(yeni.activeMockupKey);
+
+    var yeniFills = {};
+    var sayac = 0;
+    yeni.pieces.forEach(function (p, pi) {
+      p.slots.forEach(function (sl, si) {
+        var kaynak = eski[sayac++];
+        if (kaynak && kaynak.fill) yeniFills[sl.id] = kaynak.fill;
+      });
+    });
+    fills = yeniFills;
+
+    buildBoards();
+    buildMockup();
+    renderAll();
+    scheduleHeight();
+  }
+
+  // Tema, ürünün varyantlarını yükleme sonrası gönderiyor. URL ile göndermek
+  // uzun varyant listelerinde adres sınırına takılıyordu.
+  window.addEventListener('message', function (e) {
+    if (!e.data || e.data.type !== 'PERSONALIZER_PRODUCT') return;
+    URUN = { options: e.data.options || [], variants: e.data.variants || [] };
+    var mevcut = null;
+    for (var i = 0; i < URUN.variants.length; i++) {
+      if (String(URUN.variants[i].id) === String(seciliVaryant)) mevcut = URUN.variants[i];
+    }
+    if (!mevcut) mevcut = URUN.variants[0];
+    if (!mevcut) return;
+    URUN.options.forEach(function (o, i) { secim[o.name] = mevcut.options[i]; });
+    seciliVaryant = String(mevcut.id);
+    fiyatYaz(mevcut);
+    varyantArayuzuKur();
+  });
+
+  buildBoards();
   buildMockup();
   renderAll();
+  // Temaya hazır olduğumuzu bildiriyoruz; varyant listesini o zaman gönderiyor
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'PERSONALIZER_READY' }, '*');
+  }
 })();
 </script>
 </body>

@@ -32,6 +32,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const res = await buildSlotResponse(template, {
     variantId,
     shop,
+    productId,
     locale: url.searchParams.get("locale") ?? "tr",
     // Tema, seçili varyantın seçenek değerlerini gönderiyor ("Ceviz|Tam Alan").
     // Admin API'ye gitmeden doğru mockup'ı seçebilmek için en ucuz yol bu.
