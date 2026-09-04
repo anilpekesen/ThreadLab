@@ -16,19 +16,29 @@
       <h3 style="font-size:16px;font-weight:600;margin:0 0 10px;">{{ block.settings.heading }}</h3>
     {%- endif -%}
 
-    <div id="pl-loading-{{ block.id }}" style="text-align:center;padding:44px 0;color:#6b7280;font-size:14px;">
-      {{ block.settings.loading_text | default: 'Yükleniyor…' }}
-    </div>
+    {%- comment -%}
+      iframe BAŞTAN görünür duruyor. Daha önce display:none ile başlayıp
+      yüklendiğinde gösteriliyordu, ama tarayıcı görünmeyen bir iframe için
+      lazy yüklemeyi hiç başlatmıyor: kutu "Yükleniyor…" yazısında sonsuza
+      kadar takılı kalıyordu. Yükleme yazısı artık üstte duran bir katman.
+    {%- endcomment -%}
+    <div style="position:relative;min-height:240px;">
+      <div id="pl-loading-{{ block.id }}"
+        style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+               color:#6b7280;font-size:14px;background:#fff;border-radius:12px;">
+        {{ block.settings.loading_text | default: 'Yükleniyor…' }}
+      </div>
 
-    <iframe
-      id="pl-iframe-{{ block.id }}"
-      src=""
-      title="{{ block.settings.heading | default: 'Kişiselleştir' | escape }}"
-      style="display:none;width:100%;border:none;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);"
-      allow="camera *"
-      scrolling="no"
-      loading="lazy"
-    ></iframe>
+      <iframe
+        id="pl-iframe-{{ block.id }}"
+        src=""
+        title="{{ block.settings.heading | default: 'Kişiselleştir' | escape }}"
+        style="width:100%;height:240px;border:none;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);"
+        allow="camera *"
+        scrolling="no"
+        loading="lazy"
+      ></iframe>
+    </div>
   </div>
 
   <script>
@@ -74,14 +84,15 @@
         + '&locale='     + encodeURIComponent(LOCALE);
     }
 
-    var lastVariant = currentVariant();
-    iframe.src = srcFor(lastVariant);
-
+    // Dinleyici src'den ÖNCE bağlanıyor: önbellekten gelen bir yanıtta load
+    // olayı src atandığı anda tetiklenebiliyor ve sonradan bağlanan dinleyici
+    // onu kaçırıyor.
     iframe.addEventListener('load', function () {
       if (loading) loading.style.display = 'none';
-      iframe.style.display = 'block';
-      if (!iframe.style.height) iframe.style.height = '640px';
     });
+
+    var lastVariant = currentVariant();
+    iframe.src = srcFor(lastVariant);
 
     // Varyant değişimini yakalamanın tek güvenilir yolu yok: temalar kimi
     // zaman formu, kimi zaman yalnızca adres çubuğunu güncelliyor. İkisini de
@@ -90,8 +101,9 @@
       var v = currentVariant();
       if (!v || v === lastVariant) return;
       lastVariant = v;
-      if (loading) loading.style.display = 'block';
-      iframe.style.display = 'none';
+      // Varyant değişiminde iframe gizlenmiyor; yalnızca yükleme katmanı
+      // gösteriliyor. Gizlemek yeniden yüklemeyi engelleyebiliyor.
+      if (loading) loading.style.display = 'flex';
       iframe.src = srcFor(v);
     }
 
