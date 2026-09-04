@@ -1911,13 +1911,24 @@ function PersonalizerEditor() {
                               sonradan başka bir akışa geçen bir üründe
                               kişiselleştirme kutusu istenmeden görünüyordu. */}
                           <InlineStack>
-                            <linkFetcher.Form method="post">
-                              <input type="hidden" name="intent" value="unlink_product" />
-                              <input type="hidden" name="product_id" value={link.product_id} />
-                              <Button submit variant="plain" tone="critical" size="slim">
-                                Bağlantıyı kaldır
-                              </Button>
-                            </linkFetcher.Form>
+                            {/* Form yerine programatik gönderim: bu sayfanın
+                                action'ı gövdeyi HER ZAMAN multipart olarak
+                                ayrıştırıyor, urlencoded bir form "Could not
+                                parse content as FormData" ile düşüyordu. */}
+                            <Button
+                              variant="plain"
+                              tone="critical"
+                              size="slim"
+                              loading={linkFetcher.state !== "idle"}
+                              onClick={() => {
+                                const fd = new FormData();
+                                fd.set("intent", "unlink_product");
+                                fd.set("product_id", link.product_id);
+                                linkFetcher.submit(fd, { method: "POST", encType: "multipart/form-data" });
+                              }}
+                            >
+                              Bağlantıyı kaldır
+                            </Button>
                           </InlineStack>
                         </BlockStack>
                       </Box>
