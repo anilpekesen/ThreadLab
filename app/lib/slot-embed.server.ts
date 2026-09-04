@@ -2,6 +2,7 @@ import { templatePieces, type PersonalizerTemplate } from "~/models/personalizer
 import { getPrintProductPublic } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
 import { isImageSlot, isTextSlot, pickMockup } from "~/lib/slots";
+import { findLibraryFont } from "~/lib/font-library";
 import { scanTemplateHoles } from "~/lib/template-hole.server";
 
 /**
@@ -135,6 +136,8 @@ export async function buildSlotData(
     preview: isTr ? "Önizleme al" : "Get preview",
     previewing: isTr ? "Hazırlanıyor…" : "Preparing…",
     addToCart: isTr ? "Sepete ekle" : "Add to cart",
+    fontLabel: isTr ? "Yazı tipi" : "Font",
+    fontDefault: isTr ? "Varsayılan" : "Default",
     adding: isTr ? "Ekleniyor…" : "Adding…",
     added: isTr ? "Sepete eklendi" : "Added to cart",
     lowRes: isTr ? "Düşük çözünürlük" : "Low resolution",
@@ -227,6 +230,15 @@ export async function buildSlotData(
         id: sl.id, label: sl.label, mode: sl.mode,
         maxLength: sl.max_length, defaultValue: sl.default_value,
         options: sl.options ?? [],
+        // Mağaza bu alan için font seçimi açtıysa müşteriye liste çıkıyor.
+        // Şablonun kendi fontu listenin başında "varsayılan" olarak duruyor,
+        // müşteri denedikten sonra geri dönebilsin.
+        fontChoices: (sl.font_choices ?? [])
+          .map((u) => findLibraryFont(u))
+          .filter((f): f is NonNullable<typeof f> => Boolean(f))
+          .map((f) => ({ url: f.url, label: f.label, family: f.family })),
+        fontUrl: sl.font_url ?? "",
+        fontFamily: sl.font_family,
       });
     }
   }
@@ -530,6 +542,15 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--focus);
   }
 
+  /* Yazı tipi seçimi metin kutusunun altına, ona bağlı bir satır olarak
+     giriyor: ayrı bir alan gibi görünürse müşteri hangi yazıya ait olduğunu
+     çıkaramıyor. Etiket küçük ve soluk, asıl alan metnin kendisi. */
+  .fontsatir { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .fontsatir label {
+    margin: 0; flex: none; font-size: 12px; font-weight: 500; color: var(--ink-2);
+  }
+  .field .fontsec { padding: 7px 10px; font-size: 13px; }
+
   /* ── Havuz ──────────────────────────────────────────────────────── */
   .pool { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 16px 0 0; }
   .pool .baslik { width: 100%; font-size: 13px; color: var(--ink-2); }
@@ -823,6 +844,19 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     }
   }
 
+  // Müşterinin seçtiği fontlar; slot kimliği → kütüphane adresi. Sunucuya da
+  // aynı sözlük gidiyor, yani ekranda görülen ile basılan aynı font.
+  var secilenFontlar = {};
+  // Seçenek adresinden aile adına harita — canlı yazıda font-family gerekiyor
+  var fontAileleri = {};
+
+  /** Bu metin alanının o an geçerli font ailesi */
+  function aktifAile(ts) {
+    var secim = secilenFontlar[ts.id];
+    if (secim && fontAileleri[secim]) return fontAileleri[secim];
+    return ts.fontFamily || 'inherit';
+  }
+
   function buildTexts() {
     textEls = {};
     D.pieces.forEach(function (piece) {
@@ -840,7 +874,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         el.style.height = (ts.rect.h * o.h * 100) + '%';
         el.style.color = ts.color;
         el.style.fontWeight = ts.bold ? '700' : '400';
-        el.style.fontFamily = ts.fontFamily || 'inherit';
+        el.style.fontFamily = aktifAile(ts);
         board.appendChild(el);
         textEls[piece.id + '::' + ts.id] = { el: el, ts: ts, piece: piece };
       });
@@ -854,7 +888,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     if (!olcumCanvas) olcumCanvas = document.createElement('canvas');
     var ctx = olcumCanvas.getContext('2d');
     if (!ctx) return 0;
-    ctx.font = (ts.bold ? '700 ' : '400 ') + px + 'px ' + (ts.fontFamily || 'sans-serif');
+    ctx.font = (ts.bold ? '700 ' : '400 ') + px + 'px ' + aktifAile(ts);
     return ctx.measureText(metin).width;
   }
 
@@ -865,6 +899,8 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       var el = kayit.el;
       var deger = (texts[ts.id] != null ? texts[ts.id] : ts.defaultValue) || '';
       el.textContent = deger;
+      // Font seçimi değişmiş olabilir; ölçümden önce uygulanmalı
+      el.style.fontFamily = aktifAile(ts);
       if (!deger) return;
 
       var boardH = el.parentElement ? el.parentElement.clientHeight : 0;
@@ -1043,6 +1079,47 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     input.addEventListener('input', function () { texts[f.id] = input.value; paintTexts(); });
     input.addEventListener('change', function () { texts[f.id] = input.value; paintTexts(); });
     wrap.appendChild(input);
+
+    // Mağaza bu alan için font seçimi açtıysa listeyi kur. Seçenekler kendi
+    // yazı tipiyle görünüyor: adı okumak yerine harfleri görmek, telefonda
+    // tek bakışta karar verdiriyor.
+    if (f.fontChoices && f.fontChoices.length) {
+      var fs = document.createElement('select');
+      fs.className = 'fontsec';
+      fs.id = 'fnt_' + f.id;
+      fs.setAttribute('aria-label', (f.label || '') + ' ' + T.fontLabel);
+
+      var varsayilan = document.createElement('option');
+      varsayilan.value = '';
+      varsayilan.textContent = T.fontDefault;
+      if (f.fontFamily) varsayilan.style.fontFamily = f.fontFamily;
+      fs.appendChild(varsayilan);
+
+      f.fontChoices.forEach(function (c) {
+        fontAileleri[c.url] = c.family;
+        // Seçenek listesi açılmadan önce yüklensin, tıklayınca gecikme olmasın
+        fontYukle(c.url, c.family);
+        var opt = document.createElement('option');
+        opt.value = c.url;
+        opt.textContent = c.label;
+        opt.style.fontFamily = '"' + c.family.replace(/"/g, '') + '", inherit';
+        fs.appendChild(opt);
+      });
+
+      fs.addEventListener('change', function () {
+        if (fs.value) secilenFontlar[f.id] = fs.value;
+        else delete secilenFontlar[f.id];
+        paintTexts();
+      });
+
+      var fw = document.createElement('div');
+      fw.className = 'fontsatir';
+      var fl = document.createElement('label');
+      fl.textContent = T.fontLabel; fl.htmlFor = fs.id;
+      fw.appendChild(fl); fw.appendChild(fs);
+      wrap.appendChild(fw);
+    }
+
     fieldsEl.appendChild(wrap);
   });
 
@@ -1467,6 +1544,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       locale: D.locale,
       mode: mode,
       texts: texts,
+      fonts: secilenFontlar,
       // Sipariş önizlemesinde doğru renk çerçevesi seçilebilsin
       optionValues: URUN ? URUN.options.map(function (o) { return secim[o.name]; }) : [],
       fills: ALL.filter(function (s) { return fills[s.id] && fills[s.id].url; })
@@ -1545,7 +1623,17 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
           props._print_files = res.pieces.map(function (p) { return p.url; }).join(',');
           props._piece_count = String(res.pieces.length);
         }
-        D.texts.forEach(function (f) { if (texts[f.id]) props[f.label] = texts[f.id]; });
+        D.texts.forEach(function (f) {
+          if (texts[f.id]) props[f.label] = texts[f.id];
+          // Seçilen yazı tipi sipariş satırında da görünsün: üretimde bir şey
+          // ters giderse operatör dosyayı açmadan hangi fontla basıldığını
+          // görebilmeli.
+          var sec = secilenFontlar[f.id];
+          if (sec && f.fontChoices) {
+            var bulunan = f.fontChoices.filter(function (c) { return c.url === sec; })[0];
+            if (bulunan) props[f.label + ' — ' + T.fontLabel] = bulunan.label;
+          }
+        });
 
         var msg = {
           type: 'PERSONALIZER_ADD_TO_CART',

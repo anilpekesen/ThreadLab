@@ -88,6 +88,12 @@ export function SlotBoard({
       : FONT_SECENEKLERI;
   }, [selectedId, slots]);
 
+  /** Seçili metin alanında müşteriye açılmış fontlar */
+  const musteriFontlari = useMemo(() => {
+    const sl = slots.find((x) => x.id === selectedId);
+    return sl && isTextSlot(sl) ? (sl.font_choices ?? []) : [];
+  }, [selectedId, slots]);
+
   /** Önizleme kutusunun font-family değeri; kütüphane dışı fontlar için yok */
   function fontOnizlemeAdi(url: string | undefined): string {
     const lib = findLibraryFont(url);
@@ -631,6 +637,57 @@ export function SlotBoard({
                           </div>
                         </Box>
                       )}
+
+                      <Divider />
+
+                      {/* Müşteriye açılan fontlar. Ayrı bir aç/kapa anahtarı
+                          koymuyoruz: liste boşsa seçim kapalı, dolu ise açık.
+                          Tek bir yerde tutmak hem yönetimi hem veriyi sadeleştiriyor. */}
+                      <BlockStack gap="200">
+                        <InlineStack gap="200" blockAlign="center" wrap={false}>
+                          <Text as="span" variant="bodySm" fontWeight="semibold">
+                            Müşteri bu yazıyı hangi fontlarla görebilsin?
+                          </Text>
+                          {musteriFontlari.length > 0 && (
+                            <Badge tone="success">{`${musteriFontlari.length} font açık`}</Badge>
+                          )}
+                        </InlineStack>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          İşaretlediğiniz fontlar ürün sayfasında bir liste olarak çıkar; müşteri
+                          seçtiğini anında görür ve baskı o fontla yapılır. Hiçbirini
+                          işaretlemezseniz müşteri fontu değiştiremez.
+                        </Text>
+                        <InlineStack gap="200" wrap>
+                          {FONT_LIBRARY.map((f) => {
+                            const acik = musteriFontlari.includes(f.url);
+                            return (
+                              <Button
+                                key={f.id}
+                                size="slim"
+                                pressed={acik}
+                                onClick={() => patchText(selected.id, {
+                                  font_choices: acik
+                                    ? musteriFontlari.filter((u) => u !== f.url)
+                                    : [...musteriFontlari, f.url],
+                                })}
+                              >
+                                {f.label}
+                              </Button>
+                            );
+                          })}
+                        </InlineStack>
+                        {musteriFontlari.length > 0 && (
+                          <InlineStack gap="200">
+                            <Button variant="plain" onClick={() => patchText(selected.id, {
+                              font_choices: FONT_LIBRARY.map((f) => f.url),
+                            })}>Hepsini aç</Button>
+                            <Button variant="plain" tone="critical"
+                              onClick={() => patchText(selected.id, { font_choices: [] })}>
+                              Seçimi kapat
+                            </Button>
+                          </InlineStack>
+                        )}
+                      </BlockStack>
 
                       <Divider />
 

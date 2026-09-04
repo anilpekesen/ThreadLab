@@ -100,3 +100,21 @@ export function findLibraryFont(url: string | undefined): LibraryFont | undefine
 export function isLibraryFontUrl(url: string | undefined): boolean {
   return typeof url === "string" && url.startsWith(LIBRARY_PREFIX);
 }
+
+/**
+ * Müşterinin seçtiği fontu güvenle çözer.
+ *
+ * İki kapı var ve ikisi de gerekli: seçim önce kütüphanede tanınmalı (yoksa
+ * istemci sunucuya istediği adresi indirtebilirdi), sonra o metin alanının
+ * mağaza tarafından açtığı listede bulunmalı (yoksa kapalı bir alanın fontu
+ * dışarıdan değiştirilebilirdi). Biri bile tutmazsa şablonun kendi fontuna
+ * dönülüyor — geçersiz bir seçim yüzünden sipariş düşmemeli.
+ */
+export function resolveChosenFont(
+  secim: string | undefined,
+  izinliler: string[] | undefined,
+): LibraryFont | undefined {
+  if (!secim || !izinliler?.length) return undefined;
+  if (!izinliler.includes(secim)) return undefined;
+  return findLibraryFont(secim);
+}

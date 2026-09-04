@@ -11,6 +11,8 @@
  * müşteri arayüzü ve sipariş kaydı yalnızca bu formatı bilir.
  */
 
+import { isLibraryFontUrl } from "./font-library";
+
 import type { PrintCanvas } from "~/lib/print-spec";
 
 /** Normalize dikdörtgen; tuvalin tamamına orandır */
@@ -63,6 +65,15 @@ export interface TextSlot {
   font_family: string;
   /** Sunucu çıktısında aynı görünüm için gereken font dosyası */
   font_url?: string;
+  /**
+   * Müşterinin ürün sayfasında seçebileceği fontlar (kütüphane adresleri).
+   *
+   * Boşsa müşteri fontu değiştiremez ve `font_url` neyse o basılır. Dolu
+   * olduğunda müşteri sayfasında bir seçim kutusu çıkıyor; sunucu, gelen
+   * seçimi yalnızca bu listeye karşı doğruluyor — istemciden gelen serbest
+   * bir adresi indirmek olmaz.
+   */
+  font_choices?: string[];
   color: string;
   bold: boolean;
   align: "left" | "center" | "right";
@@ -739,6 +750,9 @@ export function normalizeSlots(raw: unknown): Slot[] {
         font_size: Number(s.font_size ?? 0.04),
         font_family: String(s.font_family ?? "Arial, Helvetica, sans-serif"),
         font_url: s.font_url ? String(s.font_url) : undefined,
+        font_choices: Array.isArray(s.font_choices)
+          ? (s.font_choices as unknown[]).map(String).filter(isLibraryFontUrl)
+          : undefined,
         color: String(s.color ?? "#000000"),
         bold: s.bold === true,
         align: (s.align === "left" || s.align === "right" ? s.align : "center") as TextSlot["align"],

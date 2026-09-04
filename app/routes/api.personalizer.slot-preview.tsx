@@ -45,6 +45,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     templateId?: string;
     fills?: SlotFill[];
     texts?: Record<string, string>;
+    /** Müşterinin seçtiği fontlar; slot kimliği → kütüphane adresi */
+    fonts?: Record<string, string>;
     mode?: string;
     locale?: string;
     /** Sipariş önizlemesinde doğru renk çerçevesini seçmek için */
@@ -102,6 +104,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const texts = body.texts ?? {};
+
+  // Font seçimi istemciden geliyor, yani doğrulanmadan kullanılamaz. Burada
+  // yalnızca sözlüğe çevriliyor; asıl iki kapı (kütüphanede var mı, o alan
+  // için açılmış mı) render motorunda, çünkü izin listesi slotun kendisinde.
+  const fonts: Record<string, string> = {};
+  if (body.fonts && typeof body.fonts === "object") {
+    for (const [k, v] of Object.entries(body.fonts)) {
+      if (typeof v === "string") fonts[String(k)] = v;
+    }
+  }
   const rendered: Array<{ id: string; name: string; url: string; width: number; height: number }> = [];
   const parcaGorselleri: Buffer[] = [];
 
@@ -134,6 +146,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         slots: piece.slots,
         fills: fills.filter((f) => pieceSlotIds.has(f.slot_id)),
         texts,
+        fonts,
         backgroundUrl: piece.background_url,
         overlayUrl: piece.overlay_url,
         outputFormat: isRender ? "png" : "jpeg",
@@ -210,6 +223,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             pieces: rendered.map((r) => ({ id: r.id, name: r.name, url: r.url })),
             fills,
             texts,
+            fonts,
           }),
         ],
       );

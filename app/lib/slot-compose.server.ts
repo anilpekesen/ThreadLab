@@ -5,6 +5,7 @@ import {
   type ImageSlot, type Slot, type TextSlot,
 } from "~/lib/slots";
 import { loadFont, layoutText } from "~/lib/text-render.server";
+import { resolveChosenFont } from "~/lib/font-library";
 
 /**
  * Çoklu slot kompozisyonu — N fotoğrafı şablonun N alanına yerleştirir.
@@ -44,6 +45,13 @@ export interface ComposeSlotsOptions {
   fills: SlotFill[];
   /** Metin slotlarının değerleri; slot kimliği → metin */
   texts?: Record<string, string>;
+  /**
+   * Müşterinin seçtiği fontlar; slot kimliği → kütüphane adresi.
+   *
+   * Yalnızca slotun `font_choices` listesinde geçen bir seçim kabul ediliyor;
+   * geri kalanında şablonun kendi fontu basılıyor.
+   */
+  fonts?: Record<string, string>;
   /** Fotoğrafların ALTINDA duran tasarım */
   backgroundUrl?: string;
   /** Fotoğrafların ÜSTÜNDE duran tasarım */
@@ -172,6 +180,7 @@ async function applySlotShape(
 async function buildTextLayers(
   slots: TextSlot[],
   values: Record<string, string>,
+  chosenFonts: Record<string, string>,
   canvasWidth: number,
   canvasHeight: number,
 ): Promise<sharp.OverlayOptions[]> {
@@ -195,7 +204,11 @@ async function buildTextLayers(
     // Katman içi koordinatlar
     const inner = { x: box.x - left, y: box.y - top, width: box.width, height: box.height };
 
-    const font = slot.font_url ? await loadFont(slot.font_url) : null;
+    // Müşteri seçtiyse onun fontu, yoksa şablonunki
+    const chosen = resolveChosenFont(chosenFonts[slot.id], slot.font_choices);
+    const fontUrl = chosen?.url ?? slot.font_url;
+    const fontFamily = chosen?.family ?? slot.font_family;
+    const font = fontUrl ? await loadFont(fontUrl) : null;
     let body = "";
 
     // Yol üretilemezse font metni çizemiyor demektir (opentype.js bazı
@@ -226,7 +239,7 @@ async function buildTextLayers(
         .map((d) => `<path d="${d}" fill="${escapeAttr(slot.color)}"${stroke}/>`)
         .join("");
     } else {
-      if (slot.font_url) {
+      if (fontUrl) {
         console.warn(`[slot-compose] "${slot.id}" için font yüklenemedi, sistem fontuna düşüldü`);
       }
       const text = raw
@@ -246,7 +259,7 @@ async function buildTextLayers(
         : inner.x;
       body = `<text x="${x}" y="${inner.y + inner.height / 2}" font-size="${size}"` +
         ` fill="${escapeAttr(slot.color)}" font-weight="${slot.bold ? "bold" : "normal"}"` +
-        ` font-family="${escapeAttr(slot.font_family || "Arial, Helvetica, sans-serif")}"` +
+        ` font-family="${escapeAttr(fontFamily || "Arial, Helvetica, sans-serif")}"` +
         ` text-anchor="${anchor}" dominant-baseline="middle">${text}</text>`;
     }
 
@@ -306,7 +319,9 @@ export async function composeSlotDesign(opts: ComposeSlotsOptions): Promise<Buff
     composites.push({ input: await fitToCanvas(await fetchBuffer(opts.overlayUrl), W, H) });
   }
 
-  for (const layer of await buildTextLayers(slots.filter(isTextSlot), opts.texts ?? {}, W, H)) {
+  for (const layer of await buildTextLayers(
+    slots.filter(isTextSlot), opts.texts ?? {}, opts.fonts ?? {}, W, H,
+  )) {
     composites.push(layer);
   }
 
