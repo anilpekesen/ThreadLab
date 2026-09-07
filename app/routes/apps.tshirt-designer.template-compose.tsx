@@ -71,6 +71,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const shop = String(form.get("shop") ?? "").trim();
     const productId = String(form.get("productId") ?? "").trim();
+    const variantId = String(form.get("variantId") ?? "").split("/").pop() ?? "";
     const side = normalizeSide(form.get("side"));
     const photo = form.get("photo");
 
@@ -81,7 +82,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ error: "Fotoğraf yüklenmedi" }, { status: 400, headers: CORS });
     }
 
-    const template = await getPersonalizerTemplateByProduct(shop, productId, side);
+    const template = await getPersonalizerTemplateByProduct(shop, productId, side, variantId);
     if (!template) {
       return json({ error: "Bu ürünün bu yüzüne bağlı şablon yok" }, { status: 404, headers: CORS });
     }

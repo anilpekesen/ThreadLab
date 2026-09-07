@@ -12,6 +12,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const handle = url.searchParams.get("handle") ?? "";
   const productId = url.searchParams.get("productId") ?? "";
   const shop = url.searchParams.get("shop") ?? "";
+  const variantId = (url.searchParams.get("variantId") ?? "").split("/").pop() ?? "";
 
   const [config, globalSettings, shopSettings] = await Promise.all([
     findConfigForStorefront(shop, productId, handle),
@@ -45,8 +46,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // anlatır, templateSides ise "Fotoğrafını ekle" çağrısının hangi sekmelerde
   // çıkacağını belirler.
   const [linkedTemplate, templateSides] = await Promise.all([
-    getPersonalizerTemplateByProduct(shop, numericProductId, "front").catch(() => null),
-    listTemplateSidesForProduct(shop, numericProductId).catch(() => []),
+    getPersonalizerTemplateByProduct(shop, numericProductId, "front", variantId).catch(() => null),
+    listTemplateSidesForProduct(shop, numericProductId, variantId).catch(() => []),
   ]);
 
   return json({

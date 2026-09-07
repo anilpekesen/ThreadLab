@@ -759,13 +759,16 @@ export async function getPersonalizerTemplateByProduct(
 export async function listTemplateSidesForProduct(
   shop: string,
   productId: string,
+  variantId = "",
 ): Promise<TemplateSide[]> {
   const res = await query<{ side: TemplateSide }>(
-    `SELECT ppl.side
+    `SELECT DISTINCT ppl.side
        FROM personalizer_product_links ppl
        JOIN personalizer_templates pt ON pt.id = ppl.template_id
-      WHERE ppl.shop = $1 AND ppl.product_id = $2 AND pt.active = TRUE`,
-    [shop, productId],
+      WHERE ppl.shop = $1 AND ppl.product_id = $2
+        AND ppl.variant_id IN ($3, '')
+        AND pt.active = TRUE`,
+    [shop, productId, String(variantId ?? "")],
   );
   return res.rows.map((r) => normalizeSide(r.side));
 }

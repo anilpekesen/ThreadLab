@@ -31,6 +31,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop") ?? "";
   const productId = (url.searchParams.get("productId") ?? "").split("/").pop() ?? "";
+  const variantId = (url.searchParams.get("variantId") ?? "").split("/").pop() ?? "";
   // Yüz belirtilmezse ön yüz — eski istemciler side göndermiyor
   const side = normalizeSide(url.searchParams.get("side"));
   if (!shop || !productId) {
@@ -38,8 +39,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const [template, availableSides] = await Promise.all([
-    getPersonalizerTemplateByProduct(shop, productId, side).catch(() => null),
-    listTemplateSidesForProduct(shop, productId).catch(() => [] as ReturnType<typeof normalizeSide>[]),
+    getPersonalizerTemplateByProduct(shop, productId, side, variantId).catch(() => null),
+    listTemplateSidesForProduct(shop, productId, variantId).catch(() => [] as ReturnType<typeof normalizeSide>[]),
   ]);
   if (!template) {
     return json(

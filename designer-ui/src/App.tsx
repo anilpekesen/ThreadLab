@@ -1174,6 +1174,7 @@ export default function App() {
   const [templateAssets, setTemplateAssets] = useState<Record<string, unknown> | null>(null);
   /** templateAssets hangi yüz için çekildi — yüz değişince yeniden çekilir */
   const [templateAssetsSide, setTemplateAssetsSide] = useState<'front' | 'back' | null>(null);
+  const [templateAssetsVariantId, setTemplateAssetsVariantId] = useState('');
   const [templatePhotoFile, setTemplatePhotoFile] = useState<File | null>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   /** Müşterinin şablon için yüklediği HAM fotoğrafların sunucu adresleri.
@@ -1476,6 +1477,7 @@ export default function App() {
     if (config?.productHandle) params.set('handle', config.productHandle);
     if (config?.productId) params.set('productId', config.productId);
     if (config?.shop) params.set('shop', config.shop);
+    if (config?.selectedVariant?.id) params.set('variantId', String(config.selectedVariant.id));
     fetch(`/api/designer-config?${params.toString()}`, {
       headers: { Accept: 'application/json' },
     })
@@ -1498,7 +1500,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [config?.productHandle, config?.productId]);
+  }, [config?.productHandle, config?.productId, config?.selectedVariant?.id]);
 
 	  // Admin mockup'ını yalnızca seçili renk mockup'ı yoksa uygula.
 	  useEffect(() => {
@@ -1744,6 +1746,7 @@ export default function App() {
     fd.append('shop', config.shop);
     fd.append('productId', String(config.productId).split('/').pop() ?? '');
     fd.append('side', activeSide);
+    fd.append('variantId', String(config.selectedVariant?.id ?? ''));
     fd.append('textValues', JSON.stringify(textValues));
     fd.append('choices', JSON.stringify(choices));
 
@@ -1773,6 +1776,7 @@ export default function App() {
     fd.append('shop', config.shop);
     fd.append('productId', String(config.productId).split('/').pop() ?? '');
     fd.append('side', activeSide);
+    fd.append('variantId', String(config.selectedVariant?.id ?? ''));
     fd.append('style', styleId);
     fd.append('textValues', JSON.stringify(textValues));
 
@@ -1793,8 +1797,13 @@ export default function App() {
     if (!config?.shop || !config?.productId) return;
     setTemplateError('');
     setTemplateModalOpen(true);
-    // Şablon yüz başına farklı olabilir — önbellek yüz değişince geçersiz
-    if (templateAssets && templateAssetsSide === activeSide) return;
+    // Şablon yüz ve varyant başına farklı olabilir; ikisinden biri değişirse yeniden çek.
+    const currentVariantId = String(config.selectedVariant?.id ?? '');
+    if (
+      templateAssets
+      && templateAssetsSide === activeSide
+      && templateAssetsVariantId === currentVariantId
+    ) return;
 
     setTemplateBusy(true);
     try {
@@ -1803,6 +1812,7 @@ export default function App() {
         productId: String(config.productId).split('/').pop() ?? '',
         side: activeSide,
       });
+      if (config.selectedVariant?.id) params.set('variantId', String(config.selectedVariant.id));
       const res = await fetch(`/apps/tshirt-designer/template-assets?${params}`);
       const data = await res.json();
       if (!res.ok || (!data?.maskDataUrl && data?.layoutMode !== 'scatter' && data?.layoutMode !== 'ai')) {
@@ -1812,6 +1822,7 @@ export default function App() {
       }
       setTemplateAssets(data);
       setTemplateAssetsSide(activeSide);
+      setTemplateAssetsVariantId(currentVariantId);
     } catch (err) {
       setTemplateError(String(err));
       setTemplateModalOpen(false);
