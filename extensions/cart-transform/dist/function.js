@@ -62,7 +62,6 @@ var LABELS = {
   }
 };
 var FIELD_MAP = [
-  ["size", "size"],
   ["totalQuantity", "totalQuantity"],
   ["productUnitPrice", "productUnitPrice"],
   ["productSubtotal", "productSubtotal"],
