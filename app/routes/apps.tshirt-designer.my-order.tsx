@@ -29,6 +29,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Sipariş verilmişse her beden kendi ölçekli önizlemesini taşır — bedene göre
   // ayrı ayrı göster. Sipariş henüz içe aktarılmadıysa tasarımın kendi görseli.
   const orderRows = await getOrdersByDesignToken(token).catch(() => []);
+
+  // Sipariş numarası. Aynı tasarım birden çok beden satırı üretiyor ve hepsi
+  // aynı numarayı taşıyor; yine de tekilleştiriyoruz — aynı tasarımla ikinci
+  // kez sipariş verildiğinde birden fazla numara çıkabiliyor.
+  const orderNumbers = [...new Set(
+    orderRows.map((row) => String(row.orderNumber ?? "").trim()).filter(Boolean),
+  )];
+
   const sizeVariants: SizeVariant[] = orderRows
     .filter((row) => row.previewUrl || row.backPreviewUrl)
     .map((row) => ({
@@ -77,7 +85,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const html = renderPage(verifiedDesign, frontObjects, backObjects, copy, sizeVariants, {
     front: buildRebuild(frontObjects, "front", frontPrintOk),
     back: buildRebuild(backObjects, "back", backPrintOk),
-  });
+  }, orderNumbers);
   return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
@@ -125,6 +133,8 @@ function myOrderCopy(lang: MyOrderLang) {
     errorNotFoundMessage: tr
       ? "Bu tasarım artık mevcut değil veya link hatalı."
       : "This design is no longer available or the link is incorrect.",
+    orderNumber: tr ? "Sipariş No" : "Order No",
+    orderNumberPlural: tr ? "Sipariş No" : "Order Nos",
   };
 }
 
@@ -163,6 +173,7 @@ function renderPage(
   copy: ReturnType<typeof myOrderCopy>,
   sizeVariants: SizeVariant[] = [],
   rebuild: { front?: RebuildOption; back?: RebuildOption } = {},
+  orderNumbers: string[] = [],
 ) {
   const hasFront = design.frontPreviewUrl || frontObjs.length > 0;
   const hasBack = design.backPreviewUrl || backObjs.length > 0;
@@ -181,6 +192,10 @@ function renderPage(
     .header { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 20px 24px; }
     .header h1 { font-size: 20px; font-weight: 700; color: #111827; }
     .header p { font-size: 14px; color: #6b7280; margin-top: 4px; }
+    .header-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .order-no { display: inline-flex; align-items: baseline; gap: 6px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+    .order-no span { color: #3b82f6; font-weight: 500; }
+    .order-no strong { color: #1d4ed8; font-weight: 700; }
     .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
@@ -215,7 +230,12 @@ function renderPage(
 </head>
 <body>
   <div class="header">
-    <h1>${copy.title}</h1>
+    <div class="header-top">
+      <h1>${copy.title}</h1>
+      ${orderNumbers.length
+        ? `<div class="order-no"><span>${orderNumbers.length > 1 ? copy.orderNumberPlural : copy.orderNumber}</span><strong>${esc(orderNumbers.join(", "))}</strong></div>`
+        : ""}
+    </div>
     <p>${copy.subtitle}</p>
   </div>
   <div class="container">
