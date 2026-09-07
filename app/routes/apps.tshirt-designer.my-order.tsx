@@ -165,8 +165,9 @@ function myOrderCopy(lang: MyOrderLang) {
     detailProduct: tr ? "Ürün" : "Product",
     detailSizes: tr ? "Beden" : "Size",
     detailOrderedAt: tr ? "Sipariş tarihi" : "Ordered on",
-    detailFrontPrint: tr ? "Ön yüz baskı ölçüsü" : "Front print size",
-    detailBackPrint: tr ? "Arka yüz baskı ölçüsü" : "Back print size",
+    detailFrontPrint: tr ? "Ön yüz baskı alanı" : "Front print area",
+    detailBackPrint: tr ? "Arka yüz baskı alanı" : "Back print area",
+    detailFile: tr ? "dosya" : "file",
     pieces: tr ? "adet" : "pcs",
   };
 }
@@ -240,15 +241,18 @@ function formatDate(value: string | undefined, lang: MyOrderLang): string {
 }
 
 /**
- * Baskı ölçüsü satırı: fiziksel ebat, ardından dosyanın piksel ölçüsü ve
- * ondan hesaplanan gerçek DPI.
+ * Baskı alanının fiziksel ebadı ve dosyanın piksel ölçüsü.
+ *
+ * Tek bir DPI değeri BİLEREK yazılmıyor: baskı dosyalarının en/boy oranı
+ * kayıtlı yerleşim alanınınkiyle uyuşmuyor (ölçüm: dosya 1.566 ve 1.759, alan
+ * 1.351), yani yatay ve dikey DPI birbirinden farklı çıkıyor. Tek sayı vermek
+ * eksenlerden birinde yanlış olurdu.
  */
-function printSummaryText(summary: PrintSummary, lang: MyOrderLang): string {
+function printSummaryText(summary: PrintSummary, copy: ReturnType<typeof myOrderCopy>): string {
   const parts: string[] = [];
-  if (summary.widthMm && summary.heightMm) parts.push(formatCm(summary.widthMm, summary.heightMm, lang));
+  if (summary.widthMm && summary.heightMm) parts.push(formatCm(summary.widthMm, summary.heightMm, copy.lang));
   if (summary.widthPx && summary.heightPx) {
-    const dpi = summary.widthMm ? Math.round(summary.widthPx / (summary.widthMm / 25.4)) : 0;
-    parts.push(`${summary.widthPx} × ${summary.heightPx} px${dpi ? ` · ${dpi} DPI` : ""}`);
+    parts.push(`${copy.detailFile} ${summary.widthPx} × ${summary.heightPx} px`);
   }
   return parts.join(" · ");
 }
@@ -279,8 +283,8 @@ function renderPage(
     }
     const orderedAt = formatDate(details.orderedAt, copy.lang);
     if (orderedAt) detailRows.push([copy.detailOrderedAt, orderedAt]);
-    if (details.front) detailRows.push([copy.detailFrontPrint, printSummaryText(details.front, copy.lang)]);
-    if (details.back) detailRows.push([copy.detailBackPrint, printSummaryText(details.back, copy.lang)]);
+    if (details.front) detailRows.push([copy.detailFrontPrint, printSummaryText(details.front, copy)]);
+    if (details.back) detailRows.push([copy.detailBackPrint, printSummaryText(details.back, copy)]);
   }
   const detailsCard = detailRows.length
     ? `<div class="card full-card">
