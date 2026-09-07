@@ -26,6 +26,7 @@ import {
   normalizeLayoutMode,
   normalizePersonalizerCategory,
   normalizeSide,
+  type TemplateSide,
   type TextFieldDef,
   type PersonalizerFrame,
   type PersonalizerCategory,
@@ -364,9 +365,17 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const productHandle = String(form.get("product_handle") ?? "").trim();
     if (!productId) return json({ error: "Shopify ürün ID gerekli" }, { status: 400 });
 
+    // Bir ürünün ön ve arka yüzü aynı şablona tek kayıtta bağlanabilmeli.
+    // Eskiden tek değer okunuyordu ve merchant aynı ürünü iki kez eklemek
+    // zorundaydı; unutulunca arka yüzde "Fotoğrafını ekle" hiç çıkmıyordu.
+    // İşaretlenmeyen yüze dokunulmaz — o yüz başka bir şablona bağlı olabilir,
+    // kaldırmak için satırdaki "Bağlantıyı kaldır" düğmesi var.
+    const secilenYuzler = Array.from(
+      new Set(form.getAll("side").map((value) => normalizeSide(value))),
+    );
     const sides = template.layout_mode === "ai"
-      ? (["front", "back"] as const)
-      : ([normalizeSide(form.get("side"))] as const);
+      ? (["front", "back"] as TemplateSide[])
+      : (secilenYuzler.length > 0 ? secilenYuzler : (["front"] as TemplateSide[]));
     await Promise.all(sides.map((side) => linkPersonalizerProduct({
       shop,
       product_id: productId,
@@ -1157,7 +1166,13 @@ function PersonalizerEditor() {
   };
 
   /** AI dışı şablonlarda ürün bağlarken kullanılacak yüz. */
-  const [linkSide, setLinkSide] = useState<"front" | "back">("front");
+  const [linkSides, setLinkSides] = useState<Array<"front" | "back">>(["front"]);
+  const toggleLinkSide = (side: "front" | "back", checked: boolean) =>
+    setLinkSides((prev) => {
+      const next = checked ? [...new Set([...prev, side])] : prev.filter((item) => item !== side);
+      // Hiçbiri seçilmemiş bir bağlantı anlamsız; en az bir yüz kalsın.
+      return next.length > 0 ? next : prev;
+    });
 
   const canvasRatio = (parseInt(canvasWidth, 10) || 0) / Math.max(parseInt(canvasHeight, 10) || 1, 1);
   const canvasRatioLabel = canvasRatio > 0 ? `${canvasRatio.toFixed(2)} : 1` : "—";
@@ -1907,17 +1922,29 @@ function PersonalizerEditor() {
                         helpText="Son güncellenen 50 aktif Shopify ürünü listelenir."
                       />
                       {layoutMode !== "ai" && (
-                        <Select
-                          label="Ürünün Hangi Yüzü"
-                          name="side"
-                          options={[
-                            { label: "Ön yüz", value: "front" },
-                            { label: "Arka yüz", value: "back" },
-                          ]}
-                          value={linkSide}
-                          onChange={(v) => setLinkSide(v === "back" ? "back" : "front")}
-                          helpText="Aynı ürünün ön ve arka yüzü ayrı şablonlara bağlanabilir."
-                        />
+                        <BlockStack gap="150">
+                          <Text as="p" variant="bodyMd">Ürünün Hangi Yüzü</Text>
+                          <Checkbox
+                            label="Ön yüz"
+                            checked={linkSides.includes("front")}
+                            onChange={(checked) => toggleLinkSide("front", checked)}
+                          />
+                          <Checkbox
+                            label="Arka yüz"
+                            checked={linkSides.includes("back")}
+                            onChange={(checked) => toggleLinkSide("back", checked)}
+                          />
+                          {/* Polaris Checkbox'ın form serileştirmesine güvenmek
+                              yerine seçimi gizli alanlara yazıyoruz; action
+                              form.getAll("side") ile okuyor. */}
+                          {linkSides.map((side) => (
+                            <input key={side} type="hidden" name="side" value={side} readOnly />
+                          ))}
+                          <Text as="p" tone="subdued" variant="bodySm">
+                            İkisini birden seçebilirsiniz. İşaretlemediğiniz yüze dokunulmaz —
+                            o yüz başka bir şablona bağlıysa öyle kalır.
+                          </Text>
+                        </BlockStack>
                       )}
                       {/* Boş değer "tüm varyantlar" demek: bağlantı ürün
                           düzeyinde kurulur ve her varyant bu şablonu açar.
