@@ -29,6 +29,23 @@ export function normalizeLayoutMode(raw: unknown): TemplateLayoutMode {
   return v === "scatter" || v === "ai" ? v : "mask";
 }
 
+/** Şablonun yönetim ekranındaki iş kolu. Yerleşim motorundan ayrı tutulur:
+ * giyim ve çerçeve aynı maske motorunu kullanabilir ama kurulumları farklıdır. */
+export type PersonalizerCategory = "apparel" | "boxer" | "frame" | "ai";
+
+export function normalizePersonalizerCategory(
+  raw: unknown,
+  layoutMode: TemplateLayoutMode = "mask",
+): PersonalizerCategory {
+  const value = String(raw ?? "");
+  if (value === "apparel" || value === "boxer" || value === "frame" || value === "ai") {
+    return value;
+  }
+  if (layoutMode === "scatter") return "boxer";
+  if (layoutMode === "ai") return "ai";
+  return "frame";
+}
+
 /** Dağıtımlı şablonun ayarları */
 export interface ScatterTemplateConfig {
   faceCount: number;
@@ -174,6 +191,8 @@ export interface PersonalizerTemplate {
    * 'ai'      = fotoğrafı AI ile stilize et, üstüne yazıları bas
    */
   layout_mode: TemplateLayoutMode;
+  /** Yönetim ekranındaki sektör/kullanım yolu */
+  category: PersonalizerCategory;
   scatter_config: ScatterTemplateConfig | Record<string, never>;
   /** Dağıtımda kullanılacak süsleme görseli (kalp vb.) */
   decoration_url: string;
@@ -213,6 +232,8 @@ export interface PersonalizerTemplate {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  /** Liste sorgusunda doldurulur; tekil kayıtlarda 0 olabilir. */
+  product_count: number;
 }
 
 type Row = PersonalizerTemplate;
@@ -221,6 +242,8 @@ type Row = PersonalizerTemplate;
 function mapTemplateRow(row: Row): PersonalizerTemplate {
   return {
     ...row,
+    layout_mode: normalizeLayoutMode(row.layout_mode),
+    category: normalizePersonalizerCategory(row.category, normalizeLayoutMode(row.layout_mode)),
     slots: normalizeSlots(row.slots),
     print_product_id: String(row.print_product_id ?? ""),
     overlay_url: String(row.overlay_url ?? ""),
@@ -228,6 +251,7 @@ function mapTemplateRow(row: Row): PersonalizerTemplate {
     version: Number(row.version ?? 1),
     pieces: normalizePieces(row.pieces),
     mockups: normalizeMockups(row.mockups),
+    product_count: Number(row.product_count ?? 0),
   };
 }
 
@@ -254,9 +278,16 @@ export function templatePieces(template: PersonalizerTemplate): TemplatePiece[] 
 
 export async function listPersonalizerTemplates(shop: string, activeOnly = false): Promise<PersonalizerTemplate[]> {
   const res = await query<Row>(
-    `SELECT * FROM personalizer_templates
-     WHERE shop = $1 ${activeOnly ? "AND active = TRUE" : ""}
-     ORDER BY sort_order ASC, created_at DESC`,
+    `SELECT pt.*,
+            COALESCE(link_counts.product_count, 0)::int AS product_count
+       FROM personalizer_templates pt
+       LEFT JOIN (
+         SELECT template_id, COUNT(DISTINCT product_id)::int AS product_count
+           FROM personalizer_product_links
+          GROUP BY template_id
+       ) link_counts ON link_counts.template_id = pt.id
+      WHERE pt.shop = $1 ${activeOnly ? "AND pt.active = TRUE" : ""}
+      ORDER BY pt.sort_order ASC, pt.created_at DESC`,
     [shop],
   );
   return res.rows.map(mapTemplateRow);
@@ -297,6 +328,7 @@ export interface CreatePersonalizerTemplateInput {
   hole_seed_x?: number;
   hole_seed_y?: number;
   layout_mode?: TemplateLayoutMode;
+  category?: PersonalizerCategory;
   scatter_config?: ScatterTemplateConfig;
   decoration_url?: string;
   customer_options?: CustomerOptionsConfig;
@@ -319,10 +351,10 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
         photo_x, photo_y, photo_width, photo_height,
         mockup_x, mockup_y, mockup_width, mockup_height,
         text_fields, ai_style, hole_seed_x, hole_seed_y,
-        layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order,
+        layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, sort_order,
         slots, grid_config, print_product_id, overlay_url, expected_slots, pieces, mockups)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,
-             $25,$26,$27,$28,$29,$30,$31)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,
+             $26,$27,$28,$29,$30,$31,$32)
      RETURNING *`,
     [
       id, input.shop, input.name, input.description ?? "",
@@ -337,6 +369,7 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
       // kaydedildiğinde 'mask' olarak dönüyor, ayarları ikinci kayda kadar
       // kayboluyordu.
       input.layout_mode ?? "mask",
+      normalizePersonalizerCategory(input.category, input.layout_mode ?? "mask"),
       JSON.stringify(input.scatter_config ?? {}),
       input.decoration_url ?? "",
       JSON.stringify(input.customer_options ?? DEFAULT_CUSTOMER_OPTIONS),
@@ -360,6 +393,7 @@ export interface UpdatePersonalizerTemplateInput {
   hole_seed_x?: number;
   hole_seed_y?: number;
   layout_mode?: TemplateLayoutMode;
+  category?: PersonalizerCategory;
   scatter_config?: ScatterTemplateConfig;
   decoration_url?: string;
   customer_options?: CustomerOptionsConfig;
@@ -507,6 +541,7 @@ export async function duplicatePersonalizerTemplate(
     hole_seed_x: source.hole_seed_x,
     hole_seed_y: source.hole_seed_y,
     layout_mode: source.layout_mode,
+    category: source.category,
     scatter_config: source.scatter_config as ScatterTemplateConfig,
     decoration_url: source.decoration_url,
     customer_options: source.customer_options as CustomerOptionsConfig,

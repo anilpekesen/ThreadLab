@@ -14,10 +14,12 @@ import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server
 import { PLANS, type PlanKey } from "~/lib/plans";
 import { LanguageProvider, useTranslation, type Lang } from "~/i18n";
 import appLayoutStyles from "~/styles/app-layout.css?url";
+import personalizerAdminStyles from "~/styles/personalizer-admin.css?url";
 
 export const links = () => [
   { rel: "stylesheet", href: polarisStyles },
   { rel: "stylesheet", href: appLayoutStyles },
+  { rel: "stylesheet", href: personalizerAdminStyles },
 ];
 
 async function syncShopDisplayName(

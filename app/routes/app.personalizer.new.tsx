@@ -1,597 +1,316 @@
-import {
-  unstable_createMemoryUploadHandler,
-  unstable_parseMultipartFormData,
-} from "@remix-run/node";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
-import {
-  Page, Layout, Card, FormLayout, TextField, Select, Checkbox,
-  Button, BlockStack, InlineStack, Text, Banner, Box, Badge,
-} from "@shopify/polaris";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { json } from "@remix-run/node";
+import { useFetcher, useNavigate } from "@remix-run/react";
+import { Banner, Button, Page, Text, TextField } from "@shopify/polaris";
+import { useEffect, useState } from "react";
 import { authenticate } from "~/lib/authenticate.server";
-import { createPersonalizerFrame, createPersonalizerTemplate, type TextFieldDef } from "~/models/personalizer.server";
-import { uploadToR2 } from "~/lib/r2.server";
-
-const MAX_UPLOAD = 20 * 1024 * 1024;
-const AI_STYLE_OPTIONS = [
-  { label: "Karikatür (Önerilen)", value: "caricature" },
-  { label: "Suluboya", value: "watercolor" },
-  { label: "Karakalem Çizim", value: "sketch" },
-  { label: "Pop Art", value: "pop_art" },
-  { label: "AI Dönüşümü Yok (orijinal fotoğraf)", value: "none" },
-];
+import {
+  createPersonalizerTemplate,
+  normalizePersonalizerCategory,
+  type PersonalizerCategory,
+  type ScatterTemplateConfig,
+  type TextFieldDef,
+} from "~/models/personalizer.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate(request);
-  return json({ shop: session.shop });
+  await authenticate(request);
+  return json({ ok: true });
 };
+
+function defaultAiTextFields(): TextFieldDef[] {
+  return [
+    {
+      id: "name", label: "İsim", placeholder: "Örn: ELİF",
+      x: 1200, y: 2520, font_size: 180, color: "#111111",
+      bold: true, max_length: 20, align: "center",
+    },
+    {
+      id: "story", label: "Hikâye / Not", placeholder: "Kısa bir cümle yazın",
+      x: 1200, y: 2730, font_size: 78, color: "#444444",
+      bold: false, max_length: 160, align: "center",
+    },
+  ];
+}
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate(request);
-  const shop = session.shop;
-
-  const uploadHandler = unstable_createMemoryUploadHandler({ maxPartSize: MAX_UPLOAD });
-  const form = await unstable_parseMultipartFormData(request, uploadHandler);
-
-  const count = parseInt(String(form.get("count") ?? "0"), 10);
-  if (count === 0) return json({ error: "En az 1 çerçeve gerekli" }, { status: 400 });
-
+  const form = await request.formData();
   const name = String(form.get("name") ?? "").trim();
   const description = String(form.get("description") ?? "").trim();
-  const aiStyle = String(form.get("ai_style") ?? "caricature");
-  const globalFields: TextFieldDef[] = JSON.parse(String(form.get("global_text_fields") ?? "[]"));
-
+  const category = normalizePersonalizerCategory(form.get("category"));
   if (!name) return json({ error: "Şablon adı gerekli" }, { status: 400 });
 
+  const layoutMode = category === "boxer" ? "scatter" : category === "ai" ? "ai" : "mask";
+  const scatterConfig: ScatterTemplateConfig | undefined = category === "boxer" ? {
+    faceCount: 13,
+    decorationCount: 8,
+    faceScale: 0.16,
+    decorationScale: 0.1,
+    sizeJitter: 0.18,
+    angleJitter: 0,
+    reserveCenter: null,
+    seed: 1,
+    canvasWidth: 2400,
+    canvasHeight: 1650,
+  } : undefined;
+
   const template = await createPersonalizerTemplate({
-    shop,
+    shop: session.shop,
     name,
     description,
+    category,
+    layout_mode: layoutMode,
     template_url: "",
-    mockup_url: "",
-    photo_x: 0,
-    photo_y: 0,
-    photo_width: 400,
-    photo_height: 400,
-    text_fields: [],
-    ai_style: aiStyle,
+    photo_x: 440,
+    photo_y: 600,
+    photo_width: 1600,
+    photo_height: 1600,
+    text_fields: category === "ai" ? defaultAiTextFields() : [],
+    ai_style: "caricature",
+    scatter_config: scatterConfig,
     sort_order: 0,
   });
 
-  const errors: string[] = [];
-
-  for (let i = 0; i < count; i++) {
-    const frameName = String(form.get(`name_${i}`) ?? "").trim() || `Çerçeve ${i + 1}`;
-    const photo_x = parseInt(String(form.get(`photo_x_${i}`) ?? "0"), 10);
-    const photo_y = parseInt(String(form.get(`photo_y_${i}`) ?? "0"), 10);
-    const photo_width = parseInt(String(form.get(`photo_width_${i}`) ?? "400"), 10);
-    const photo_height = parseInt(String(form.get(`photo_height_${i}`) ?? "400"), 10);
-    const textPositionsRaw = String(form.get(`text_positions_${i}`) ?? "{}");
-    let textPositions: Record<string, { x: number; y: number }> = {};
-    try { textPositions = JSON.parse(textPositionsRaw); } catch { /* ignore */ }
-
-    // Merge global field defs + per-template positions
-    const text_fields: TextFieldDef[] = globalFields.map((f) => ({
-      ...f,
-      x: textPositions[f.id]?.x ?? f.x,
-      y: textPositions[f.id]?.y ?? f.y,
-    }));
-
-    let mockup_url = "";
-    const file = form.get(`template_image_${i}`);
-    if (file instanceof File && file.size > 0) {
-      const buf = Buffer.from(await file.arrayBuffer());
-      const ext = file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png";
-      try {
-        mockup_url = await uploadToR2(buf, ext, "personalizer-frame");
-      } catch (e) {
-        errors.push(`Çerçeve ${i + 1}: görsel yüklenemedi`);
-        continue;
-      }
-    }
-
-    if (!mockup_url) {
-      errors.push(`Çerçeve ${i + 1}: görsel eksik`);
-      continue;
-    }
-
-    await createPersonalizerFrame({
-      template_id: template.id,
-      name: frameName,
-      mockup_url,
-      mockup_x: photo_x,
-      mockup_y: photo_y,
-      mockup_width: photo_width,
-      mockup_height: photo_height,
-      text_fields,
-      sort_order: i,
-    });
-  }
-
-  if (errors.length > 0) return json({ error: errors.join(" | ") }, { status: 207 });
-  return redirect(`/app/personalizer/${template.id}`);
+  return json({ redirectTo: `/app/personalizer/${template.id}` });
 };
 
-// ── Visual Editor (same as in $id.tsx) ─────────────────────────────────────
+const TYPES: Array<{
+  id: PersonalizerCategory;
+  title: string;
+  description: string;
+  tags: string[];
+  flow: Array<{ title: string; description: string }>;
+}> = [
+  {
+    id: "apparel",
+    title: "Tişört ve giyim",
+    description: "Tişört, sweatshirt ve benzeri ürünlerde baskı alanına yerleşen tasarımlar.",
+    tags: ["Tek görsel", "Ön / arka yüz"],
+    flow: [
+      { title: "Tasarımı yükleyin", description: "Müşteri fotoğrafının yerleşeceği tasarımı ekleyin." },
+      { title: "Baskı alanını ayarlayın", description: "Görselin ürün üzerinde görüneceği alanı belirleyin." },
+      { title: "Ürüne bağlayın", description: "Şablonu ilgili Shopify ürününe ve yüzüne bağlayın." },
+    ],
+  },
+  {
+    id: "boxer",
+    title: "Boxer ve tekrarlı desen",
+    description: "Müşteri fotoğrafını ve süslemeyi baskı yüzeyine tekrar eden desen olarak yayın.",
+    tags: ["Tekrarlı desen", "Süsleme"],
+    flow: [
+      { title: "Deseni ayarlayın", description: "Fotoğraf sayısını, boyutunu ve desen yoğunluğunu belirleyin." },
+      { title: "Süslemeyi ekleyin", description: "Kalp, yıldız veya ürüne özel saydam görseli yükleyin." },
+      { title: "Müşteri seçeneklerini açın", description: "Boyut, yoğunluk ve farklı dizilim seçeneklerini belirleyin." },
+    ],
+  },
+  {
+    id: "frame",
+    title: "Fotoğraflı çerçeve",
+    description: "Tek fotoğraflı, kolaj veya birden fazla parçadan oluşan çerçeve ürünleri.",
+    tags: ["Çoklu fotoğraf", "Set desteği"],
+    flow: [
+      { title: "Baskı ebadını seçin", description: "Çerçevenin fiziksel ölçüsünü ve baskı oranını belirleyin." },
+      { title: "Fotoğraf alanlarını kurun", description: "Tekli, kolaj veya set parçalarındaki alanları yerleştirin." },
+      { title: "Ürün görsellerini ekleyin", description: "Renk ve varyanta göre müşteri önizlemelerini tanımlayın." },
+    ],
+  },
+  {
+    id: "ai",
+    title: "AI portre",
+    description: "Müşteri fotoğrafından seçtiğiniz stile uygun sanatsal portre üretin.",
+    tags: ["Ayrı akış", "Stil seçimi"],
+    flow: [
+      { title: "Portre stilini seçin", description: "Karikatür, suluboya veya diğer görsel stilini belirleyin." },
+      { title: "Müşteri alanlarını düzenleyin", description: "Fotoğraf, isim ve kısa not alanlarını hazırlayın." },
+      { title: "Çıktıyı ürüne bağlayın", description: "Üretilecek baskı dosyasını ilgili ürüne bağlayın." },
+    ],
+  },
+];
 
-interface Rect { x: number; y: number; w: number; h: number }
-interface GlobalField { id: string; label: string; placeholder: string; font_size: number; color: string; bold: boolean; max_length: number; align: "left" | "center" | "right" }
-
-type EditorMode = { type: "photo" } | { type: "text"; fieldId: string };
-
-function VisualEditor({
-  imageUrl,
-  photoRect,
-  onPhotoRect,
-  globalFields,
-  textPositions,
-  onTextPos,
-  samplePhotoUrl,
-  sampleText,
-}: {
-  imageUrl: string;
-  photoRect: Rect;
-  onPhotoRect: (r: Rect) => void;
-  globalFields: GlobalField[];
-  textPositions: Record<string, { x: number; y: number }>;
-  onTextPos: (fieldId: string, x: number, y: number) => void;
-  samplePhotoUrl: string;
-  sampleText: string;
-}) {
-  const imgRef = useRef<HTMLImageElement>(null);
-  const [naturalW, setNaturalW] = useState(1);
-  const [naturalH, setNaturalH] = useState(1);
-  const [dragging, setDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [mode, setMode] = useState<EditorMode>({ type: "photo" });
-
-  function getImgCoords(e: React.MouseEvent) {
-    const img = imgRef.current!;
-    const rect = img.getBoundingClientRect();
-    return {
-      x: Math.round((e.clientX - rect.left) * (naturalW / rect.width)),
-      y: Math.round((e.clientY - rect.top) * (naturalH / rect.height)),
-    };
-  }
-
-  function toDisplayPx(imgX: number, imgY: number) {
-    const img = imgRef.current;
-    if (!img || naturalW === 1) return { left: 0, top: 0 };
-    const rect = img.getBoundingClientRect();
-    return { left: imgX * (rect.width / naturalW), top: imgY * (rect.height / naturalH) };
-  }
-
-  function toDisplayRect(r: Rect) {
-    const img = imgRef.current;
-    if (!img || naturalW === 1) return {};
-    const rect = img.getBoundingClientRect();
-    return {
-      left: `${r.x * (rect.width / naturalW)}px`,
-      top: `${r.y * (rect.height / naturalH)}px`,
-      width: `${r.w * (rect.width / naturalW)}px`,
-      height: `${r.h * (rect.height / naturalH)}px`,
-    };
-  }
-
-  function onMouseDown(e: React.MouseEvent) {
-    e.preventDefault();
-    const c = getImgCoords(e);
-    if (mode.type === "text") { onTextPos(mode.fieldId, c.x, c.y); return; }
-    setDragStart(c);
-    setDragging(true);
-    onPhotoRect({ x: c.x, y: c.y, w: 0, h: 0 });
-  }
-
-  function onMouseMove(e: React.MouseEvent) {
-    if (!dragging || mode.type !== "photo") return;
-    const c = getImgCoords(e);
-    onPhotoRect({ x: Math.min(dragStart.x, c.x), y: Math.min(dragStart.y, c.y), w: Math.abs(c.x - dragStart.x), h: Math.abs(c.y - dragStart.y) });
-  }
-
-  const isPhotoMode = mode.type === "photo";
-
-  return (
-    <BlockStack gap="200">
-      <InlineStack gap="200" wrap>
-        <Button size="slim" variant={isPhotoMode ? "primary" : "secondary"} onClick={() => setMode({ type: "photo" })}>
-          📷 Fotoğraf alanı
-        </Button>
-        {globalFields.map((f) => (
-          <Button key={f.id} size="slim"
-            variant={mode.type === "text" && mode.fieldId === f.id ? "primary" : "secondary"}
-            onClick={() => setMode({ type: "text", fieldId: f.id })}
-          >
-            {`T "${f.label}"`}
-          </Button>
-        ))}
-      </InlineStack>
-
-      <Text as="p" tone="subdued" variant="bodySm">
-        {isPhotoMode ? "Fotoğraf alanına tıklayıp sürükleyin." : `"${globalFields.find((f) => mode.type === "text" && f.id === mode.fieldId)?.label}" konumu için görsele tıklayın.`}
-      </Text>
-
-      <div
-        style={{ position: "relative", display: "inline-block", cursor: isPhotoMode ? "crosshair" : "cell", userSelect: "none" }}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={() => setDragging(false)}
-        onMouseLeave={() => setDragging(false)}
-      >
-        <img
-          ref={imgRef}
-          src={imageUrl}
-          alt="Şablon"
-          style={{ display: "block", maxWidth: "100%", maxHeight: "60vh", borderRadius: 8, border: "1px solid #e5e7eb" }}
-          onLoad={(e) => { setNaturalW(e.currentTarget.naturalWidth || 1); setNaturalH(e.currentTarget.naturalHeight || 1); }}
-          draggable={false}
-        />
-
-        {photoRect.w > 0 && photoRect.h > 0 && (
-          <div style={{ position: "absolute", ...toDisplayRect(photoRect), border: "2px solid #6366f1", background: "rgba(99,102,241,0.15)", pointerEvents: "none", boxSizing: "border-box", overflow: "hidden" }}>
-            {samplePhotoUrl && (
-              <img
-                src={samplePhotoUrl}
-                alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-              />
-            )}
-            <span style={{ position: "absolute", top: 2, left: 4, fontSize: 10, fontWeight: 700, color: "#4f46e5", background: "rgba(255,255,255,.85)", padding: "0 4px", borderRadius: 3 }}>
-              {`📷 ${photoRect.w}×${photoRect.h}`}
-            </span>
-          </div>
-        )}
-
-        {globalFields.map((f) => {
-          const pos = textPositions[f.id];
-          if (!pos) return null;
-          const dp = toDisplayPx(pos.x, pos.y);
-          return (
-            <div key={f.id} style={{ position: "absolute", left: dp.left, top: dp.top, transform: "translate(-50%,-50%)", pointerEvents: "none", zIndex: 10 }}>
-              <div style={{ background: mode.type === "text" && mode.fieldId === f.id ? "#6366f1" : "rgba(255,255,255,.92)", color: sampleText ? f.color : "#047857", fontSize: sampleText ? Math.max(10, Math.round(f.font_size * 0.12)) : 10, fontWeight: f.bold ? 700 : 500, padding: sampleText ? "1px 4px" : "2px 5px", borderRadius: 4, whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,.3)" }}>
-                {sampleText || f.label}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <Box background="bg-surface-secondary" padding="200" borderRadius="200">
-        <Text as="p" variant="bodySm">{`📷 X=${photoRect.x} Y=${photoRect.y} — ${photoRect.w}×${photoRect.h}px`}</Text>
-        {globalFields.map((f) => {
-          const pos = textPositions[f.id];
-          return <Text key={f.id} as="p" variant="bodySm">{`"${f.label}": X=${pos?.x ?? "?"} Y=${pos?.y ?? "?"}`}</Text>;
-        })}
-      </Box>
-    </BlockStack>
-  );
+function TypeIcon({ category }: { category: PersonalizerCategory }) {
+  const line = {
+    fill: "none", stroke: "currentColor", strokeWidth: 1.7,
+    strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
+  };
+  if (category === "apparel") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="m8 4-5 3 2.3 4L8 9.5V20h8V9.5l2.7 1.5L21 7l-5-3c-.7 1.4-2 2-4 2S8.7 5.4 8 4Z" /></svg>;
+  if (category === "boxer") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M5 4h14l-1 16h-5l-1-9-1 9H6L5 4Zm0 4h14M9 4v4m6-4v4" /></svg>;
+  if (category === "ai") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M12 3v3m0 12v3M3 12h3m12 0h3M6 6l2 2m8 8 2 2m0-12-2 2M8 16l-2 2" /><circle {...line} cx="12" cy="12" r="4" /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><rect {...line} x="4" y="3" width="16" height="18" rx="1" /><path {...line} d="m7 17 4-5 3 3 2-2 2 4M9 8h.01" /></svg>;
 }
 
-// ── Frame Item Card ──────────────────────────────────────────────────────────
-
-interface TemplateItemState {
-  tempId: string;
-  name: string;
-  file: File | null;
-  previewUrl: string;
-  photoRect: Rect;
-  textPositions: Record<string, { x: number; y: number }>;
-}
-
-function TemplateCard({
-  item,
-  index,
-  globalFields,
-  onUpdate,
-  onRemove,
-  isOnly,
-  samplePhotoUrl,
-  sampleText,
-}: {
-  item: TemplateItemState;
-  index: number;
-  globalFields: GlobalField[];
-  onUpdate: (updated: TemplateItemState) => void;
-  onRemove: () => void;
-  isOnly: boolean;
-  samplePhotoUrl: string;
-  sampleText: string;
-}) {
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    onUpdate({ ...item, file: f, previewUrl: URL.createObjectURL(f) });
-  }
-
-  return (
-    <Card>
-      <BlockStack gap="400">
-        <InlineStack align="space-between" blockAlign="center">
-          <InlineStack gap="200" blockAlign="center">
-            <Badge>{`Çerçeve ${index + 1}`}</Badge>
-            <Text as="h3" variant="headingSm" fontWeight="bold">{item.name || `Çerçeve ${index + 1}`}</Text>
-          </InlineStack>
-          {!isOnly && <Button tone="critical" size="slim" onClick={onRemove}>Kaldır</Button>}
-        </InlineStack>
-
-        <FormLayout>
-          <TextField
-            label="Çerçeve Adı"
-            value={item.name}
-            onChange={(v) => onUpdate({ ...item, name: v })}
-            autoComplete="off"
-            placeholder={`Örn: Çerçeve ${index + 1} - Ahşap`}
-          />
-        </FormLayout>
-
-        {!item.previewUrl ? (
-          <Box background="bg-surface-secondary" padding="600" borderRadius="200">
-            <BlockStack gap="200" inlineAlign="center">
-              <Text as="p" tone="subdued">Boş çerçeve görselini seçin</Text>
-              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} />
-            </BlockStack>
-          </Box>
-        ) : (
-          <BlockStack gap="300">
-            <InlineStack gap="300" blockAlign="center">
-              <Text as="p" variant="bodySm" tone="subdued">Görsel yüklendi</Text>
-              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} />
-            </InlineStack>
-            <VisualEditor
-              imageUrl={item.previewUrl}
-              photoRect={item.photoRect}
-              onPhotoRect={(r) => onUpdate({ ...item, photoRect: r })}
-              globalFields={globalFields}
-              textPositions={item.textPositions}
-              onTextPos={(fieldId, x, y) => onUpdate({ ...item, textPositions: { ...item.textPositions, [fieldId]: { x, y } } })}
-              samplePhotoUrl={samplePhotoUrl}
-              sampleText={sampleText}
-            />
-          </BlockStack>
-        )}
-      </BlockStack>
-    </Card>
-  );
-}
-
-// ── Main Page ────────────────────────────────────────────────────────────────
-
-function makeGlobalField(): GlobalField {
-  return { id: Math.random().toString(36).slice(2, 10), label: "İsim", placeholder: "Adınızı girin", font_size: 120, color: "#000000", bold: true, max_length: 30, align: "center" };
-}
-
-function makeTemplateItem(): TemplateItemState {
-  return { tempId: Math.random().toString(36).slice(2, 10), name: "", file: null, previewUrl: "", photoRect: { x: 0, y: 0, w: 0, h: 0 }, textPositions: {} };
-}
-
-export default function PersonalizerBulkNew() {
+export default function NewPersonalizerTemplate() {
+  const fetcher = useFetcher<{ error?: string; redirectTo?: string }>();
   const navigate = useNavigate();
-  const fetcher = useFetcher<{ error?: string }>();
-
+  const [step, setStep] = useState(1);
+  const [category, setCategory] = useState<PersonalizerCategory | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [aiStyle, setAiStyle] = useState("caricature");
-  const [globalFields, setGlobalFields] = useState<GlobalField[]>([makeGlobalField()]);
-  const [templates, setTemplates] = useState<TemplateItemState[]>([makeTemplateItem()]);
-  const [samplePhotoUrl, setSamplePhotoUrl] = useState("");
-  const [sampleText, setSampleText] = useState("Örnek yazı");
+  const [nameError, setNameError] = useState("");
+  const selected = TYPES.find((item) => item.id === category) ?? null;
 
-  const isLoading = fetcher.state !== "idle";
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.redirectTo) navigate(fetcher.data.redirectTo);
+  }, [fetcher.state, fetcher.data, navigate]);
 
-  function addField() { setGlobalFields((p) => [...p, makeGlobalField()]); }
-  function removeField(idx: number) { setGlobalFields((p) => p.filter((_, i) => i !== idx)); }
-  function updateField<K extends keyof GlobalField>(idx: number, key: K, val: GlobalField[K]) {
-    setGlobalFields((p) => p.map((f, i) => i === idx ? { ...f, [key]: val } : f));
+  function next() {
+    if (step === 1 && category) setStep(2);
+    if (step === 2) {
+      if (!name.trim()) {
+        setNameError("Şablon adı gerekli");
+        return;
+      }
+      setNameError("");
+      setStep(3);
+    }
   }
 
-  function addTemplate() { setTemplates((p) => [...p, makeTemplateItem()]); }
-  function removeTemplate(idx: number) { setTemplates((p) => p.filter((_, i) => i !== idx)); }
-  function updateTemplate(idx: number, updated: TemplateItemState) {
-    setTemplates((p) => p.map((t, i) => i === idx ? updated : t));
+  function createTemplate() {
+    if (!selected || !name.trim()) return;
+    fetcher.submit({
+      name: name.trim(),
+      description: description.trim(),
+      category: selected.id,
+    }, { method: "POST" });
   }
 
-  // Handle multiple file drop onto the page
-  function handleMultiFileDrop(e: React.DragEvent) {
-    e.preventDefault();
-    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
-    if (!files.length) return;
-    setTemplates((prev) => {
-      const current = prev.filter((t) => t.file || t.previewUrl);
-      const newItems: TemplateItemState[] = files.map((f) => ({
-        ...makeTemplateItem(),
-        file: f,
-        previewUrl: URL.createObjectURL(f),
-        name: f.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "),
-      }));
-      return current.length > 0 ? [...current, ...newItems] : newItems;
-    });
-  }
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData();
-    const validTemplates = templates.filter((t) => t.file && t.previewUrl);
-    fd.set("count", String(validTemplates.length));
-    fd.set("name", name);
-    fd.set("description", description);
-    fd.set("ai_style", aiStyle);
-
-    // GlobalFields with default x/y (fallback positions)
-    const fullGlobalFields: TextFieldDef[] = globalFields.map((f) => ({ ...f, x: 1240, y: 3200 }));
-    fd.set("global_text_fields", JSON.stringify(fullGlobalFields));
-
-    validTemplates.forEach((t, i) => {
-      fd.set(`name_${i}`, t.name || `Şablon ${i + 1}`);
-      fd.set(`photo_x_${i}`, String(t.photoRect.x));
-      fd.set(`photo_y_${i}`, String(t.photoRect.y));
-      fd.set(`photo_width_${i}`, String(t.photoRect.w || 400));
-      fd.set(`photo_height_${i}`, String(t.photoRect.h || 400));
-      fd.set(`text_positions_${i}`, JSON.stringify(t.textPositions));
-      if (t.file) fd.set(`template_image_${i}`, t.file);
-    });
-
-    fetcher.submit(fd, { method: "POST", encType: "multipart/form-data" });
-  }
+  const flow = selected?.flow ?? [
+    { title: "Ürün yolunu seçin", description: "Satacağınız ürüne uygun kurulum akışını açın." },
+    { title: "Temel bilgileri girin", description: "Ekibinizin kolay bulacağı bir ad ve açıklama ekleyin." },
+    { title: "Gelişmiş kurulumu tamamlayın", description: "Baskı ve müşteri seçeneklerini editörde ayarlayın." },
+  ];
 
   return (
     <Page
-      title="Yeni Personalizer Şablonu"
+      title="Yeni şablon"
+      subtitle="Ürününüze uygun akışla başlayın; teknik ayarları bir sonraki ekranda tamamlayın."
       backAction={{ content: "Şablonlar", onAction: () => navigate("/app/personalizer") }}
-      subtitle="Tek ürün için birden fazla boş çerçeveyi birlikte hazırlayın"
     >
-      <form onSubmit={handleSubmit}>
-        <Layout>
-          {fetcher.data?.error && (
-            <Layout.Section>
-              <Banner tone="critical">{fetcher.data.error}</Banner>
-            </Layout.Section>
-          )}
+      <div className="pl-new-shell">
+        <div className="pl-stepper" aria-label="Şablon oluşturma adımları">
+          {["Tür", "Temel bilgiler", "Kurulum"].map((label, index) => {
+            const number = index + 1;
+            const state = number === step ? "is-active" : number < step ? "is-complete" : "";
+            return (
+              <div className={`pl-step ${state}`} key={label} aria-current={number === step ? "step" : undefined}>
+                <span className="pl-step-number">{number < step ? "✓" : number}</span>
+                <span>{label}</span>
+              </div>
+            );
+          })}
+        </div>
 
-          {/* Toplu görsel sürükle-bırak */}
-          <Layout.Section>
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleMultiFileDrop}
-              style={{ border: "2px dashed #6366f1", borderRadius: 12, padding: "28px 20px", textAlign: "center", background: "#f5f5ff", cursor: "pointer" }}
-              onClick={() => {
-                const inp = document.createElement("input");
-                inp.type = "file"; inp.multiple = true; inp.accept = "image/png,image/jpeg,image/webp";
-                inp.onchange = (ev) => {
-                  const files = Array.from((ev.target as HTMLInputElement).files ?? []);
-                  setTemplates((prev) => {
-                    const current = prev.filter((t) => t.file || t.previewUrl);
-                    const newItems = files.map((f) => ({ ...makeTemplateItem(), file: f, previewUrl: URL.createObjectURL(f), name: f.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ") }));
-                    return current.length > 0 ? [...current, ...newItems] : newItems;
-                  });
-                };
-                inp.click();
-              }}
-            >
-              <Text as="p" variant="headingSm">Boş çerçeveleri buraya sürükleyin veya tıklayın</Text>
-              <Text as="p" tone="subdued" variant="bodySm">PNG, JPEG, WebP. Birden fazla dosya seçebilirsiniz.</Text>
+        {fetcher.data?.error ? <div style={{ marginBottom: 16 }}><Banner tone="critical">{fetcher.data.error}</Banner></div> : null}
+
+        <div className="pl-new-grid">
+          <section className="pl-new-main">
+            <div className="pl-new-content">
+              {step === 1 ? (
+                <>
+                  <div className="pl-new-heading">
+                    <Text as="h2" variant="headingLg">Ne oluşturacaksınız?</Text>
+                    <p>Doğru ürün grubunu seçtiğinizde yalnızca ihtiyacınız olan ayarlar hazırlanır.</p>
+                  </div>
+                  <div className="pl-type-list">
+                    {TYPES.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`pl-type-option${category === item.id ? " is-selected" : ""}`}
+                        onClick={() => setCategory(item.id)}
+                        aria-pressed={category === item.id}
+                      >
+                        <span className="pl-type-icon"><TypeIcon category={item.id} /></span>
+                        <span className="pl-type-copy">
+                          <strong>{item.title}</strong>
+                          <span>{item.description}</span>
+                        </span>
+                        <span className="pl-type-tags">
+                          {item.tags.map((tag) => <span className="pl-type-tag" key={tag}>{tag}</span>)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+
+              {step === 2 ? (
+                <>
+                  <div className="pl-new-heading">
+                    <Text as="h2" variant="headingLg">Temel bilgiler</Text>
+                    <p>Şablonu listenizde kolayca ayırt edebileceğiniz kısa bilgiler girin.</p>
+                  </div>
+                  <div className="pl-details-form">
+                    <TextField
+                      label="Şablon adı"
+                      value={name}
+                      onChange={(value) => { setName(value); if (value.trim()) setNameError(""); }}
+                      error={nameError}
+                      autoComplete="off"
+                      placeholder={selected?.id === "boxer" ? "Örn: Kalpli boxer deseni" : selected?.id === "frame" ? "Örn: 12 fotoğraflı 30×40 çerçeve" : "Örn: Anneler Günü tasarımı"}
+                      helpText="Bu ad yalnızca yönetim ekranında görünür."
+                    />
+                    <TextField
+                      label="Açıklama"
+                      value={description}
+                      onChange={setDescription}
+                      autoComplete="off"
+                      multiline={3}
+                      placeholder="Şablonun ne zaman ve hangi ürünlerde kullanıldığını yazın."
+                      helpText="İsteğe bağlı"
+                    />
+                  </div>
+                </>
+              ) : null}
+
+              {step === 3 && selected ? (
+                <>
+                  <div className="pl-new-heading">
+                    <Text as="h2" variant="headingLg">Şablonu oluşturun</Text>
+                    <p>Temel kayıt oluşturulduktan sonra gelişmiş kurulum ekranına geçeceksiniz.</p>
+                  </div>
+                  <div className="pl-review">
+                    <div className="pl-review-row"><span className="pl-review-label">Ürün grubu</span><span className="pl-review-value">{selected.title}</span></div>
+                    <div className="pl-review-row"><span className="pl-review-label">Şablon adı</span><span className="pl-review-value">{name}</span></div>
+                    <div className="pl-review-row">
+                      <span className="pl-review-label">Sonraki adım</span>
+                      <span className="pl-review-value">
+                        {selected.id === "boxer" ? "Desen ve süsleme ayarları" : selected.id === "frame" ? "Baskı ebadı ve fotoğraf alanları" : selected.id === "ai" ? "Portre stili ve çıktı ayarları" : "Tasarım ve baskı alanı"}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 20 }}>
+                    <Banner tone="info">Şablon henüz bir ürüne bağlı değildir. Önizleme ve baskı ayarlarını tamamladıktan sonra Shopify ürününe bağlayabilirsiniz.</Banner>
+                  </div>
+                </>
+              ) : null}
             </div>
-          </Layout.Section>
 
-          {/* Global Ayarlar */}
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">Ürün Şablonu</Text>
-                <FormLayout>
-                  <TextField
-                    label="Şablon Adı"
-                    value={name}
-                    onChange={setName}
-                    autoComplete="off"
-                    placeholder="Örn: Kişiye Özel Tablo"
-                  />
-                  <TextField
-                    label="Açıklama"
-                    value={description}
-                    onChange={setDescription}
-                    multiline={2}
-                    autoComplete="off"
-                    placeholder="Müşterinin ürün sayfasında göreceği kısa açıklama"
-                  />
-                  <Select label="AI Dönüşüm Stili" options={AI_STYLE_OPTIONS} value={aiStyle} onChange={setAiStyle} />
-                </FormLayout>
+            <div className="pl-new-actions">
+              <Button variant="plain" onClick={() => step === 1 ? navigate("/app/personalizer") : setStep(step - 1)}>
+                {step === 1 ? "Vazgeç" : "Geri"}
+              </Button>
+              {step < 3 ? (
+                <Button variant="primary" onClick={next} disabled={step === 1 && !category}>Devam et</Button>
+              ) : (
+                <Button variant="primary" onClick={createTemplate} loading={fetcher.state !== "idle"}>Şablonu oluştur</Button>
+              )}
+            </div>
+          </section>
 
-                <Divider />
-
-                <Text as="h3" variant="headingSm">Örnek Önizleme</Text>
-                <Text as="p" tone="subdued" variant="bodySm">
-                  Buraya yüklediğiniz örnek fotoğraf ve yazı sadece admin önizlemesi içindir. Müşteri kendi fotoğrafını ve yazısını girecek.
-                </Text>
-                <FormLayout>
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setSamplePhotoUrl(URL.createObjectURL(file));
-                    }}
-                  />
-                  <TextField
-                    label="Örnek Yazı"
-                    value={sampleText}
-                    onChange={setSampleText}
-                    autoComplete="off"
-                  />
-                </FormLayout>
-
-                <Divider />
-
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h3" variant="headingSm">Metin Alanları</Text>
-                  <Button size="slim" onClick={addField}>+ Alan Ekle</Button>
-                </InlineStack>
-                <Text as="p" tone="subdued" variant="bodySm">
-                  Bu alanlar tüm çerçevelerde geçerlidir. Her çerçevenin editöründe T butonuna basarak konumunu ayrı ayrı ayarlayın.
-                </Text>
-
-                {globalFields.map((f, idx) => (
-                  <Box key={f.id} background="bg-surface-secondary" padding="300" borderRadius="200">
-                    <BlockStack gap="200">
-                      <InlineStack align="space-between">
-                        <Text as="h4" variant="bodySm" fontWeight="bold">{`Metin Alanı ${idx + 1}`}</Text>
-                        {globalFields.length > 1 && <Button size="slim" tone="critical" onClick={() => removeField(idx)}>Sil</Button>}
-                      </InlineStack>
-                      <FormLayout>
-                        <FormLayout.Group>
-                          <TextField label="Etiket" value={f.label} onChange={(v) => updateField(idx, "label", v)} autoComplete="off" />
-                          <TextField label="Placeholder" value={f.placeholder} onChange={(v) => updateField(idx, "placeholder", v)} autoComplete="off" />
-                        </FormLayout.Group>
-                        <FormLayout.Group>
-                          <TextField label="Font Büyüklüğü (px)" type="number" value={String(f.font_size)} onChange={(v) => updateField(idx, "font_size", parseInt(v, 10) || 60)} autoComplete="off" />
-                          <TextField label="Renk (hex)" value={f.color} onChange={(v) => updateField(idx, "color", v)} autoComplete="off" placeholder="#000000" />
-                        </FormLayout.Group>
-                        <FormLayout.Group>
-                          <TextField label="Maks. Karakter" type="number" value={String(f.max_length)} onChange={(v) => updateField(idx, "max_length", parseInt(v, 10) || 30)} autoComplete="off" />
-                          <Select label="Hizalama" options={[{ label: "Sol", value: "left" }, { label: "Orta", value: "center" }, { label: "Sağ", value: "right" }]} value={f.align} onChange={(v) => updateField(idx, "align", v as GlobalField["align"])} />
-                        </FormLayout.Group>
-                        <Checkbox label="Kalın (Bold)" checked={f.bold} onChange={(v) => updateField(idx, "bold", v)} />
-                      </FormLayout>
-                    </BlockStack>
-                  </Box>
-                ))}
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-
-          {/* Template Cards */}
-          {templates.map((t, idx) => (
-            <Layout.Section key={t.tempId}>
-              <TemplateCard
-                item={t}
-                index={idx}
-                globalFields={globalFields}
-                onUpdate={(updated) => updateTemplate(idx, updated)}
-                onRemove={() => removeTemplate(idx)}
-                isOnly={templates.length === 1}
-                samplePhotoUrl={samplePhotoUrl}
-                sampleText={sampleText}
-              />
-            </Layout.Section>
-          ))}
-
-          <Layout.Section>
-            <InlineStack gap="300" align="space-between">
-              <Button onClick={addTemplate} size="slim">+ Çerçeve Ekle</Button>
-              <InlineStack gap="300">
-                <Button onClick={() => navigate("/app/personalizer")}>İptal</Button>
-                <Button submit variant="primary" loading={isLoading}>
-                  {`1 Şablon, ${templates.filter((t) => t.file && t.previewUrl).length} Çerçeve Kaydet`}
-                </Button>
-              </InlineStack>
-            </InlineStack>
-          </Layout.Section>
-        </Layout>
-      </form>
+          <aside className="pl-new-aside">
+            <h3>Bu akışta</h3>
+            <p>{selected ? `${selected.title} için önerilen kurulum sırası` : "Seçiminize göre kurulum adımları burada gösterilir."}</p>
+            <ol className="pl-flow-list">
+              {flow.map((item, index) => (
+                <li key={item.title}>
+                  <span className="pl-flow-number">{index + 1}</span>
+                  <span className="pl-flow-copy"><strong>{item.title}</strong><span>{item.description}</span></span>
+                </li>
+              ))}
+            </ol>
+          </aside>
+        </div>
+      </div>
     </Page>
   );
-}
-
-function Divider() {
-  return <div style={{ height: 1, background: "#e5e7eb", margin: "4px 0" }} />;
 }

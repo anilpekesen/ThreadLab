@@ -619,6 +619,10 @@ async function _runMigrationsLocked() {
   // açılan stil listesi. Diğer tiplerde kullanılmaz.
   await query(`ALTER TABLE personalizer_templates
     ADD COLUMN IF NOT EXISTS ai_config JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  // Yönetim ekranındaki kullanım yolu. Giyim ve çerçeve aynı maske motorunu
+  // kullanabildiği için bu bilgi layout_mode'dan ayrı saklanır.
+  await query(`ALTER TABLE personalizer_templates
+    ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'legacy'`);
   await query(`
     CREATE TABLE IF NOT EXISTS cliparts (
       id          TEXT PRIMARY KEY,
@@ -895,6 +899,23 @@ async function _runMigrationsLocked() {
     ALTER TABLE personalizer_templates
       ADD COLUMN IF NOT EXISTS mockups JSONB NOT NULL DEFAULT '[]'
   `);
+
+  // Yalnızca ilk kez kategori alanı alan eski kayıtları sınıflandır. Sonradan
+  // mağaza sahibinin yaptığı sektör seçimi, uygulama açılışında asla ezilmez.
+  await query(`
+    UPDATE personalizer_templates pt
+       SET category = CASE
+         WHEN pt.layout_mode = 'scatter' THEN 'boxer'
+         WHEN pt.layout_mode = 'ai' THEN 'ai'
+         WHEN pt.slots <> '[]'::jsonb
+           OR pt.pieces <> '[]'::jsonb
+           OR EXISTS (SELECT 1 FROM personalizer_frames pf WHERE pf.template_id = pt.id)
+           THEN 'frame'
+         ELSE 'apparel'
+       END
+     WHERE pt.category = 'legacy'
+  `);
+  await query(`ALTER TABLE personalizer_templates ALTER COLUMN category SET DEFAULT 'frame'`);
 
   // ── Şablon sürümleri ──────────────────────────────────────────────────────
   // Yayındaki bir şablon değiştirilirse eski siparişlerin baskı dosyası artık

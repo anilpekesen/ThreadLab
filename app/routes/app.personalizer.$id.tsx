@@ -24,9 +24,11 @@ import {
   listPersonalizerProductLinks,
   normalizeCustomerOptions,
   normalizeLayoutMode,
+  normalizePersonalizerCategory,
   normalizeSide,
   type TextFieldDef,
   type PersonalizerFrame,
+  type PersonalizerCategory,
 } from "~/models/personalizer.server";
 import { fetchShopifyProducts, findConfigForStorefront } from "~/models/product-config.server";
 import { AI_STYLES, AI_PROVIDERS, normalizeAiConfig, type AiProvider } from "~/lib/ai-styles";
@@ -162,6 +164,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const hole_seed_x = parseInt(String(form.get("hole_seed_x") ?? "-1"), 10);
     const hole_seed_y = parseInt(String(form.get("hole_seed_y") ?? "-1"), 10);
     const layout_mode = normalizeLayoutMode(form.get("layout_mode"));
+    const category = normalizePersonalizerCategory(form.get("category"), layout_mode);
 
     const ai_config = normalizeAiConfig((() => {
       try { return JSON.parse(String(form.get("ai_config") ?? "{}")); }
@@ -241,11 +244,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // template_url opsiyonel — sadece çerçeve bazlı kullanımda boş olabilir
 
     if (id === "new") {
-      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url, pieces, mockups });
+      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url, pieces, mockups });
       // json döndür, client tarafı navigate etsin (Shopify embedded app redirect güvenilmez)
       return json({ redirectTo: `/app/personalizer/${created.id}` });
     } else {
-      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url, pieces, mockups });
+      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url, pieces, mockups });
       return json({ ok: true });
     }
   }
@@ -1066,6 +1069,10 @@ function PersonalizerEditor() {
     h: template?.photo_height ?? 1600,
   });
   const [layoutMode, setLayoutMode] = useState<"mask" | "scatter" | "ai">(template?.layout_mode ?? "mask");
+  const [templateCategory, setTemplateCategory] = useState<PersonalizerCategory>(
+    template?.category
+      ?? (template?.layout_mode === "scatter" ? "boxer" : template?.layout_mode === "ai" ? "ai" : "frame"),
+  );
 
   // ── Çoklu fotoğraf alanları ────────────────────────────────────────────
   const [slots, setSlots] = useState<Slot[]>(() => normalizeSlots(template?.slots ?? []));
@@ -1283,6 +1290,23 @@ function PersonalizerEditor() {
                     <TextField label="Şablon Adı" name="name" value={name} onChange={setName} autoComplete="off" placeholder="Örn: Karikatür Tablo" />
                     <TextField label="Açıklama (opsiyonel)" name="description" value={description} onChange={setDescription} multiline={2} autoComplete="off" />
                     <Select
+                      label="Ürün grubu"
+                      name="category"
+                      options={[
+                        { label: "Tişört ve giyim", value: "apparel" },
+                        { label: "Boxer ve tekrarlı desen", value: "boxer" },
+                        { label: "Fotoğraflı çerçeve", value: "frame" },
+                        { label: "AI portre", value: "ai" },
+                      ]}
+                      value={templateCategory}
+                      onChange={(value) => {
+                        const next = value as PersonalizerCategory;
+                        setTemplateCategory(next);
+                        setLayoutMode(next === "boxer" ? "scatter" : next === "ai" ? "ai" : "mask");
+                      }}
+                      helpText="Liste gruplamasını ve bu şablon için önerilen kurulum yolunu belirler."
+                    />
+                    <Select
                       label="Şablon Tipi"
                       name="layout_mode"
                       options={[
@@ -1291,7 +1315,15 @@ function PersonalizerEditor() {
                         { label: "AI — fotoğraf yapay zekâ ile stilize edilir, üstüne yazı basılır", value: "ai" },
                       ]}
                       value={layoutMode}
-                      onChange={(v) => setLayoutMode(v as "mask" | "scatter" | "ai")}
+                      onChange={(value) => {
+                        const next = value as "mask" | "scatter" | "ai";
+                        setLayoutMode(next);
+                        if (next === "scatter") setTemplateCategory("boxer");
+                        else if (next === "ai") setTemplateCategory("ai");
+                        else if (templateCategory === "boxer" || templateCategory === "ai") {
+                          setTemplateCategory("apparel");
+                        }
+                      }}
                       helpText={layoutMode === "ai"
                         ? "Müşteri fotoğraf, isim ve hikâye girer; görsel ve baskı dosyası otomatik üretilir. Arka plan veya çerçeve yüklemeniz gerekmez."
                         : layoutMode === "scatter"
@@ -2002,5 +2034,5 @@ function PersonalizerEditor() {
 // Key prop ile state sıfırlama — aynı route component farklı $id için yeniden mount olur
 export default function PersonalizerEditorWrapper() {
   const params = useParams();
-  return <PersonalizerEditor key={params.id ?? "new"} />;
+  return <PersonalizerEditor key={params.id ?? "template"} />;
 }
