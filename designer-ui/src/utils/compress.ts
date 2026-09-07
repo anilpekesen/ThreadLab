@@ -88,6 +88,36 @@ export async function shrinkImageFile(
   }
 }
 
+/**
+ * Küçük önizleme kopyası.
+ *
+ * Yüklenenler galerisi `dataUrl`'i localStorage'a yazıyor ve orada tam boy bir
+ * PNG tek başına kotayı doldurup tüm galerinin kaydını düşürüyor (yazma
+ * try/catch içinde, sessizce başarısız oluyor). Galeride gösterilen kare zaten
+ * küçük olduğu için tam boy veriyi orada tutmanın karşılığı yok.
+ */
+export function makeThumbnail(src: string, maxSide = 256, mime = 'image/png'): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    if (!src.startsWith('data:')) img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.max(1, Math.round(img.naturalWidth * scale));
+      const h = Math.max(1, Math.round(img.naturalHeight * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(src); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      try { resolve(canvas.toDataURL(mime, 0.85)); } catch { resolve(src); }
+    };
+    // Küçültme başarısızsa orijinali döndür; akışı durdurmaya değmez.
+    img.onerror = () => resolve(src);
+    img.src = src;
+  });
+}
+
 export function generateId(): string {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ImagePlus, Link2, Loader2, QrCode, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, ImagePlus, Link2, Loader2, QrCode, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { useDesignerStore } from '@/store/designerStore';
-import { compressImage, generateId } from '@/utils/compress';
+import { compressImage, generateId, makeThumbnail } from '@/utils/compress';
+import { analyzeGlow, buildDarkPlate, dataUrlToFile, DEFAULT_PLATE_COLOR, type GlowAnalysis } from '@/utils/glowDetect';
 import type { UploadedImage } from '@/types';
 import { useDesignerI18n } from '../../i18n';
 
@@ -51,6 +52,16 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
   }, [consentAccepted]);
 
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+  /**
+   * Işımalı görsel yakalandığında müşteriye ne alacağını gösteren adım.
+   * `url` tasarıma eklenecek adres, `dataUrl` yerel kopya (tuval okuması ve
+   * plaka üretimi CORS'a takılmasın diye).
+   */
+  const [pendingGlow, setPendingGlow] = useState<
+    { url: string; dataUrl: string; analysis: GlowAnalysis } | null
+  >(null);
+  const [platePreview, setPlatePreview] = useState<string | null>(null);
+  const [plateBusy, setPlateBusy] = useState(false);
   const [urlLoading, setUrlLoading] = useState(false);
   const [urlError, setUrlError] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
@@ -71,9 +82,26 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
     }
   }, [uploadEndpoint]);
 
+  /**
+   * Işıma kontrolü. Yakalanırsa arka plan kaldırma sorusu atlanır: `soft-alpha`
+   * zaten kesilmiş olduğu için kaldırılacak bir zemin yok, `dark-source` içinse
+   * kaldırma tam olarak sorunu üreten adım.
+   */
+  const routeAfterUpload = useCallback(async (url: string, localDataUrl: string) => {
+    const analysis = await analyzeGlow(localDataUrl || url);
+    if (analysis.kind !== 'none') {
+      setPlatePreview(null);
+      setPendingGlow({ url, dataUrl: localDataUrl || url, analysis });
+      return;
+    }
+    if (canRemoveBg) setPendingUrl(url);
+    else onAddImage(url, { autoTrim: true });
+  }, [canRemoveBg, onAddImage]);
+
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files) return;
     let firstUrl = '';
+    let firstDataUrl = '';
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) continue;
       const [dataUrl, serverUrl] = await Promise.all([
@@ -83,18 +111,21 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
       const originalUrl = serverUrl || dataUrl;
       addUploadedImage({
         id: generateId(),
-        dataUrl,
+        // Tam boy kopya sunucudaysa galeriye yalnızca küçük önizleme yazılır:
+        // tek bir 4000 px PNG dataURL'i localStorage kotasını doldurup tüm
+        // galerinin kaydını düşürüyordu. Sunucuya yüklenemediyse elimizdeki tek
+        // kopya bu olduğu için tam boy saklanır.
+        dataUrl: serverUrl ? await makeThumbnail(dataUrl, 320) : dataUrl,
         serverUrl: originalUrl,
         name: file.name.replace(/\.[^.]+$/, '').slice(0, 40),
         addedAt: Date.now(),
       });
-      if (!firstUrl) firstUrl = originalUrl;
+      if (!firstUrl) { firstUrl = originalUrl; firstDataUrl = dataUrl; }
     }
     if (fileRef.current) fileRef.current.value = '';
     if (!firstUrl) return;
-    if (canRemoveBg) setPendingUrl(firstUrl);
-    else onAddImage(firstUrl, { autoTrim: true });
-  }, [addUploadedImage, onAddImage, canRemoveBg, uploadOriginalImage]);
+    await routeAfterUpload(firstUrl, firstDataUrl);
+  }, [addUploadedImage, uploadOriginalImage, routeAfterUpload]);
 
   const handleAddFromUrl = useCallback(async () => {
     const value = imageUrl.trim();
@@ -107,11 +138,64 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
       if (!res.ok || !data.url) { setUrlError(data.error ?? (tr ? 'Resim yüklenemedi' : 'Could not load image')); return; }
       setImageUrl('');
       setShowUrlInput(false);
-      if (canRemoveBg) setPendingUrl(data.url);
-      else onAddImage(data.url, { autoTrim: true });
+      await routeAfterUpload(data.url, '');
     } catch { setUrlError(tr ? 'Bağlantı hatası, tekrar deneyin' : 'Connection error, please retry'); }
     finally { setUrlLoading(false); }
-  }, [imageUrl, canRemoveBg, onAddImage]);
+  }, [imageUrl, routeAfterUpload, tr]);
+
+  /**
+   * Tam boy plaka birkaç MB tutuyor; DOM'da ve state'te küçük kopyasını
+   * taşıyoruz. Tam boyu yalnızca müşteri onayladığında üretilip yükleniyor.
+   */
+  useEffect(() => {
+    if (!pendingGlow || pendingGlow.analysis.kind !== 'soft-alpha' || platePreview) return;
+    let cancelled = false;
+    buildDarkPlate(pendingGlow.dataUrl)
+      .then((plate) => makeThumbnail(plate, 320, 'image/jpeg'))
+      .then((thumb) => { if (!cancelled) setPlatePreview(thumb); })
+      .catch(() => { });
+    return () => { cancelled = true; };
+  }, [pendingGlow, platePreview]);
+
+  const dismissGlow = useCallback(() => {
+    setPendingGlow(null);
+    setPlatePreview(null);
+  }, []);
+
+  /** Işımayı kendi koyu zeminine oturtup tasarıma ekler. */
+  const addWithDarkPlate = useCallback(async () => {
+    if (!pendingGlow) return;
+    setPlateBusy(true);
+    try {
+      const plate = await buildDarkPlate(pendingGlow.dataUrl);
+      const file = dataUrlToFile(plate, 'neon-plate.png');
+      const serverUrl = file ? await uploadOriginalImage(file) : '';
+      const finalUrl = serverUrl || plate;
+      addUploadedImage({
+        id: generateId(),
+        // Galeri karesi küçük; tam boyu localStorage'a yazmak kotayı doldurup
+        // tüm galerinin kaydını düşürüyor.
+        dataUrl: platePreview ?? await makeThumbnail(plate, 320, 'image/jpeg'),
+        serverUrl: finalUrl,
+        name: tr ? 'Koyu zeminli' : 'Dark plate',
+        addedAt: Date.now(),
+      });
+      dismissGlow();
+      // autoTrim kapalı: detectSafeAutoTrim opak köşeler uyuştuğunda zemini
+      // kırpıyor, yani az önce eklediğimiz plakayı geri söküyor.
+      onAddImage(finalUrl, { autoTrim: false });
+    } finally {
+      setPlateBusy(false);
+    }
+  }, [pendingGlow, platePreview, uploadOriginalImage, addUploadedImage, tr, dismissGlow, onAddImage]);
+
+  /** Görseli olduğu gibi ekler; koyu zeminli kaynakta plaka zaten görselin içinde. */
+  const addGlowAsIs = useCallback(() => {
+    if (!pendingGlow) return;
+    const { url, analysis } = pendingGlow;
+    dismissGlow();
+    onAddImage(url, { autoTrim: analysis.kind !== 'dark-source' });
+  }, [pendingGlow, dismissGlow, onAddImage]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -215,6 +299,104 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
               {urlError && <p className="px-3 pb-2 text-[11px] text-red-500">{urlError}</p>}
             </div>
           </div>
+
+          {/* Işımalı (neon / glow) görsel uyarısı */}
+          {pendingGlow && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                  <p className="text-sm font-semibold text-amber-800">{t.glowTitle}</p>
+                </div>
+                <button onClick={dismissGlow} className="text-gray-400 hover:text-gray-600" aria-label={t.btnClose}>
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <p className="mt-1.5 text-[11px] leading-relaxed text-amber-800/80">
+                {pendingGlow.analysis.kind === 'soft-alpha' ? t.glowBodySoft : t.glowBodyDark}
+              </p>
+
+              {pendingGlow.analysis.kind === 'soft-alpha' ? (
+                <>
+                  <div className="my-3 grid grid-cols-2 gap-2">
+                    <figure className="m-0">
+                      <div
+                        className="flex h-24 items-center justify-center overflow-hidden rounded-lg border border-amber-200/70"
+                        // Yarı saydam ışımanın zeminsiz ne kadar tuttuğu ancak
+                        // damalı bir arkaplanda görülüyor.
+                        style={{
+                          backgroundColor: '#fff',
+                          backgroundImage:
+                            'linear-gradient(45deg,#e5e7eb 25%,transparent 25%,transparent 75%,#e5e7eb 75%),linear-gradient(45deg,#e5e7eb 25%,transparent 25%,transparent 75%,#e5e7eb 75%)',
+                          backgroundSize: '12px 12px',
+                          backgroundPosition: '0 0,6px 6px',
+                        }}
+                      >
+                        <img src={pendingGlow.dataUrl} alt={t.glowBeforeLabel} className="max-h-full max-w-full object-contain" />
+                      </div>
+                      <figcaption className="mt-1 text-center text-[10px] font-medium text-gray-500">{t.glowBeforeLabel}</figcaption>
+                    </figure>
+                    <figure className="m-0">
+                      <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg border border-emerald-300 bg-gray-100">
+                        {platePreview ? (
+                          <img src={platePreview} alt={t.glowAfterLabel} className="max-h-full max-w-full object-contain" />
+                        ) : (
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                        )}
+                      </div>
+                      <figcaption className="mt-1 text-center text-[10px] font-semibold text-emerald-700">{t.glowAfterLabel}</figcaption>
+                    </figure>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      disabled={plateBusy}
+                      onClick={addWithDarkPlate}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {plateBusy
+                        ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t.glowPreparing}</>)
+                        : (<>{t.glowUsePlate} <span className="rounded bg-white/20 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">{t.glowRecommended}</span></>)}
+                    </button>
+                    <button
+                      disabled={plateBusy}
+                      onClick={addGlowAsIs}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {t.glowKeepAnyway}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-center text-[10px] text-gray-400">
+                    {tr ? 'Plaka rengi' : 'Plate colour'}:{' '}
+                    <span className="inline-block h-2 w-2 translate-y-px rounded-full align-middle" style={{ backgroundColor: DEFAULT_PLATE_COLOR }} /> {DEFAULT_PLATE_COLOR}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="my-3 flex h-24 items-center justify-center overflow-hidden rounded-lg border border-emerald-300 bg-gray-100">
+                    <img src={pendingGlow.dataUrl} alt={t.previewLabel} className="max-h-full max-w-full object-contain" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={addGlowAsIs}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                    >
+                      {t.glowKeepDark} <span className="rounded bg-white/20 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide">{t.glowRecommended}</span>
+                    </button>
+                    {canRemoveBg && (
+                      <button
+                        onClick={() => { const url = pendingGlow.url; dismissGlow(); setPendingUrl(url); }}
+                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                      >
+                        {t.imageRemoveBg}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Arka plan kaldırma onayı */}
           {pendingUrl && canRemoveBg && (

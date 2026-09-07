@@ -6,6 +6,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { getUploadsDir } from "~/lib/storage.server";
 import { uploadToR2 } from "~/lib/r2.server";
+import { applyGlowPlate } from "~/lib/glow-plate.server";
 
 const MAX_UPLOAD_BYTES = 120 * 1024 * 1024; // 120MB — 300 DPI print dosyaları için
 const MIME_TYPES: Record<string, string> = {
@@ -61,12 +62,35 @@ export async function handleDesignerUpload(request: Request) {
   let buffer = Buffer.from(await image.arrayBuffer());
   const side = sanitizeName(form.get("side"));
 
+  const isPrintFile = side === "front-print" || side === "back-print";
+
+  // Işımalı tasarımlarda sanatın arkasına opak koyu plaka koy. Asıl karar
+  // tasarımcıda müşteriye sorularak veriliyor; bu, o adımı atlayan siparişler
+  // için güvenlik ağı (bkz. glow-plate.server.ts).
+  if (isPrintFile) {
+    try {
+      const plated = await applyGlowPlate(buffer);
+      if (plated.applied) {
+        console.log(
+          `[glow-plate] ${side} plaka uygulandı — ` +
+          `yumuşak alfa %${(plated.measurement.softAlphaRatio * 100).toFixed(1)}, ` +
+          `opak %${(plated.measurement.opaqueRatio * 100).toFixed(1)}, ` +
+          `alan ${plated.rect?.width}x${plated.rect?.height} @ ${plated.rect?.left},${plated.rect?.top}`,
+        );
+        buffer = Buffer.from(plated.buffer);
+      }
+    } catch (err) {
+      // Plaka uygulanamazsa dosya olduğu gibi geçsin; yükleme durmasın.
+      console.error("[glow-plate] uygulanamadı, dosya değiştirilmeden geçiyor:", err);
+    }
+  }
+
   // Print dosyaları için PNG optimizasyonu (lossless, daha küçük dosya).
   // front/back print çıktılarında DPI metadata'sını da doğru yazıyoruz.
   if (ext === "png") {
     try {
       let pipeline = sharp(buffer, { limitInputPixels: false }).png({ compressionLevel: 6 });
-      if (side === "front-print" || side === "back-print") {
+      if (isPrintFile) {
         pipeline = pipeline.withMetadata({ density: 300 });
       }
       buffer = Buffer.from(await pipeline.toBuffer());

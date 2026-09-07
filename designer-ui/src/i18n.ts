@@ -58,6 +58,18 @@ export const tr = {
   contentLabel: 'İçerik',
   enterContentAbove: 'Yukarıya içerik girin',
 
+  // Işımalı (neon / glow) görsel uyarısı
+  glowTitle: 'Bu görselde ışıma var',
+  glowBodySoft: 'Neon ışıması yarı saydam piksellerden oluşuyor. Kumaş baskısında bu alanlar taneli çıkıyor ve ilk yıkamada dökülüyor. Işımayı koyu zeminle basmak tek güvenli yol.',
+  glowBodyDark: 'Koyu zemini sayesinde bu tasarım olduğu gibi sorunsuz basılır. Arka planı kaldırırsanız ışıma yarı saydama döner ve baskıda kaybolur.',
+  glowBeforeLabel: 'Şu an',
+  glowAfterLabel: 'Koyu zeminli',
+  glowUsePlate: 'Koyu zeminle ekle',
+  glowRecommended: 'Önerilen',
+  glowKeepAnyway: 'Yine de ışımalı ekle',
+  glowKeepDark: 'Olduğu gibi ekle',
+  glowPreparing: 'Koyu zemin hazırlanıyor...',
+
   // Text panel
   textAdd: 'Yazı Ekle',
   textEdit: 'Yazıyı Düzenle',
@@ -277,6 +289,17 @@ export const en: { [K in keyof typeof tr]: string } = {
   previewLabel: 'Preview',
   contentLabel: 'Content',
   enterContentAbove: 'Enter content above',
+
+  glowTitle: 'This image has a glow',
+  glowBodySoft: 'A neon glow is made of semi-transparent pixels. On fabric those areas print grainy and wash off after the first wash. Printing the glow on a dark plate is the only reliable way.',
+  glowBodyDark: 'Thanks to its dark background this design prints cleanly as-is. Removing the background turns the glow semi-transparent and it will be lost in print.',
+  glowBeforeLabel: 'Current',
+  glowAfterLabel: 'On dark plate',
+  glowUsePlate: 'Add on dark plate',
+  glowRecommended: 'Recommended',
+  glowKeepAnyway: 'Add with glow anyway',
+  glowKeepDark: 'Add as-is',
+  glowPreparing: 'Preparing dark plate...',
 
   textAdd: 'Add Text',
   textEdit: 'Edit Text',

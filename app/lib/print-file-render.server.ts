@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { unproxyImageUrl } from "~/models/designs.server";
+import { applyGlowPlate } from "~/lib/glow-plate.server";
 
 /**
  * Baskı dosyasını tasarım JSON'undan sunucuda yeniden üretir.
@@ -255,7 +256,7 @@ export async function renderPrintFile(opts: {
 
   if (ops.length === 0) return null;
 
-  const buffer = await sharp({
+  const composed = await sharp({
     create: {
       width: outW,
       height: outH,
@@ -267,6 +268,23 @@ export async function renderPrintFile(opts: {
     .composite(ops)
     .png()
     .toBuffer();
+
+  // Yeniden üretilen dosya da ışıma güvenlik ağından geçsin — bu yol
+  // tasarımcıyı tamamen atlıyor (bkz. glow-plate.server.ts).
+  let buffer = composed;
+  try {
+    const plated = await applyGlowPlate(composed);
+    if (plated.applied) {
+      console.log(
+        `[glow-plate] yeniden üretilen ${side} dosyasına plaka uygulandı — ` +
+        `yumuşak alfa %${(plated.measurement.softAlphaRatio * 100).toFixed(1)}, ` +
+        `opak %${(plated.measurement.opaqueRatio * 100).toFixed(1)}`,
+      );
+      buffer = plated.buffer;
+    }
+  } catch (err) {
+    console.error("[glow-plate] yeniden üretimde uygulanamadı:", err);
+  }
 
   return { buffer, width: outW, height: outH, skipped, drawn: ops.length };
 }
