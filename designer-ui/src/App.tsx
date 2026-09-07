@@ -15,6 +15,7 @@ function getBgSessionId(): string {
   }
 }
 import { fabric } from 'fabric';
+import { ensureCanvasFontsReady, ensureFontLoaded } from '@/utils/fonts';
 import {
   AlignCenter,
   AlignLeft,
@@ -2211,6 +2212,14 @@ export default function App() {
         return;
       }
 
+      // Mockup gibi fontlar da export'tan önce hazır olmalı. Font sonradan
+      // geldiğinde fabric'in önbellekteki ölçüsü eski kalıyor ve yazının sonu
+      // hem önizlemeye hem baskı dosyasına eksik düşüyordu (bkz. utils/fonts).
+      await Promise.all([
+        ensureCanvasFontsReady(frontCanvasRef.current?.getCanvas() ?? null),
+        ensureCanvasFontsReady(backCanvasRef.current?.getCanvas() ?? null),
+      ]);
+
       // Export canvas: 3x preview (1440px+) + print at 300 DPI
       const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(3) ?? '') : '';
       const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(3) ?? '') : '';
@@ -2572,16 +2581,20 @@ export default function App() {
     }
   }, [addUploadedImage, applyUrlToImageObject, cropModalState, showToast]);
 
-  const updateTextProp = (props: Partial<ObjectState>) => {
+  const updateTextProp = async (props: Partial<ObjectState>) => {
     const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv || !selectedObj || (selectedObj.type !== 'text' && selectedObj.type !== 'i-text' && selectedObj.type !== 'textbox')) return;
     const text = selectedObj as fabric.Text;
+    // Font dosyası gelmeden fontFamily atanırsa fabric yedek fontun ölçüsünü
+    // önbelleğe alıyor ve yazının kuyruğu çizimden düşüyor (bkz. utils/fonts).
+    if (props.fontFamily !== undefined) await ensureFontLoaded(props.fontFamily);
     if (props.color !== undefined) text.set('fill', props.color);
     if (props.fontSize !== undefined) text.set('fontSize', props.fontSize);
     if (props.fontFamily !== undefined) text.set('fontFamily', props.fontFamily);
     if (props.textAlign !== undefined) text.set('textAlign', props.textAlign);
     if (props.isBold !== undefined) text.set('fontWeight', props.isBold ? 'bold' : 'normal');
     if (props.isItalic !== undefined) text.set('fontStyle', props.isItalic ? 'italic' : 'normal');
+    (text as fabric.Text & { initDimensions?: () => void }).initDimensions?.();
     text.setCoords();
     setObjState((prev) => (prev ? { ...prev, ...props } : null));
     cv.fire('object:modified', { target: text });
@@ -2589,10 +2602,12 @@ export default function App() {
     updateToolbarPosition(text);
   };
 
-  const updateCurvedTextProp = (props: Partial<ObjectState>) => {
+  const updateCurvedTextProp = async (props: Partial<ObjectState>) => {
     const cv = getActiveCanvasHandle()?.getCanvas();
     if (!cv || !selectedObj || selectedObj.type !== 'curvedText') return;
     const c = selectedObj as unknown as import('@/utils/curvedText').CurvedText;
+    // Düz metinle aynı yarış: font gelmeden ölçülen yay yanlış çıkıyor
+    if (props.fontFamily !== undefined) await ensureFontLoaded(props.fontFamily);
     // applyProps re-measures the arc and refreshes the bounding box, so the box
     // follows font/weight/spacing changes too — not just size and radius.
     c.applyProps({

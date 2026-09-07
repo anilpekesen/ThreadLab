@@ -4,6 +4,7 @@ import { useDesignerStore } from '@/store/designerStore';
 import type { PrintAreaConfig, Side } from '@/types';
 import { CurvedText, registerCurvedText } from '@/utils/curvedText';
 import { remapObjectsBetweenAreas } from '@/utils/sizeScale';
+import { ensureCanvasFontsReady, ensureFontLoaded } from '@/utils/fonts';
 
 registerCurvedText();
 
@@ -980,6 +981,16 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     cv.setActiveObject(txt);
     onObjectSelectedRef.current(txt);
     cv.renderAll();
+    // Font henüz inmemişse yukarıdaki ölçü yedek fonta ait. Font gelince
+    // yeniden ölç ve baskı alanına göre tekrar yerleştir.
+    void ensureFontLoaded(String(txt.fontFamily ?? '')).then(() => {
+      if (!cv.getObjects().includes(txt)) return;
+      txt.initDimensions();
+      constrainObjectToArea(txt, toCanvasRect(printAreaRef.current));
+      txt.setCoords();
+      cv.renderAll();
+      onObjectSelectedRef.current(txt);
+    });
   }, []);
 
   const addCurvedText = useCallback((text: string, opts: Partial<import('@/utils/curvedText').CurvedTextOptions> = {}) => {
@@ -1005,6 +1016,14 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     cv.setActiveObject(obj);
     onObjectSelectedRef.current(obj);
     cv.renderAll();
+    // addText ile aynı yarış — font gelince yayı yeniden ölç
+    void ensureFontLoaded(String(obj.fontFamily ?? '')).then(() => {
+      if (!cv.getObjects().includes(obj)) return;
+      obj.applyProps({});
+      constrainObjectToArea(obj, toCanvasRect(printAreaRef.current));
+      cv.renderAll();
+      onObjectSelectedRef.current(obj);
+    });
   }, []);
 
   const convertSelectedToCurved = useCallback(() => {
@@ -1330,6 +1349,13 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       isRestoringRef.current = false;
       pushHistory(cv);
       onDesignChangeRef.current(side);
+      // Kayıtlı tasarım, fontlar gelmeden yüklenmiş olabilir; fabric o anki
+      // (yedek font) ölçüsünü önbelleğe alır ve yazının sonu düşer. Fontlar
+      // hazır olunca metinleri yeniden ölçtür.
+      void ensureCanvasFontsReady(cv).then(() => {
+        constrainCanvasObjects(cv, printAreaRef.current, toCanvasRect(printAreaRef.current));
+        cv.renderAll();
+      });
     });
   }, [pushHistory, side]);
 
