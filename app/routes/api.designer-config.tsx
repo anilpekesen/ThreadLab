@@ -32,11 +32,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       : Promise.resolve([]),
   ]);
 
+  // Slot ya da parça taşıyan şablonlar tasarımcıya ait değil: onları ürün
+  // sayfasındaki kişiselleştirme kutusu (tema bloğu + ürün metafield'ı) açar.
+  // Çok fotoğraflı çerçevelerde ikisi birden çıkıyordu — müşteri hem kutuya
+  // fotoğraf yüklüyor hem de altında hiçbir işe yaramayan tasarım aracını
+  // görüyordu. Bağlantı tipi ayrımı app.personalizer.$id.tsx'teki metafield
+  // kuralıyla aynı olmalı, yoksa iki taraf birbirini tutmaz.
+  const slotluSablon = Boolean(
+    (linkedTemplate?.slots?.length ?? 0) > 0 || (linkedTemplate?.pieces?.length ?? 0) > 0,
+  );
+
   // Personalizer bağlantısı tek başına tasarımcıyı açabilmeli. Yeni eklenen
   // Shopify ürününde henüz product_settings kaydı yoksa eski davranış 404
   // döndürüp iframe'i tamamen gizliyordu; şablon ve fotoğraf deliği doğru
-  // olmasına rağmen müşteri yükleme düğmesine hiç ulaşamıyordu.
-  if (!config && !linkedTemplate) {
+  // olmasına rağmen müşteri yükleme düğmesine hiç ulaşamıyordu. Slotlu şablon
+  // bu istisnaya girmez: ürünün ayrıca yapılandırılmış bir tasarımcı kaydı
+  // yoksa tasarımcı hiç açılmaz.
+  if (!config && (!linkedTemplate || slotluSablon)) {
     return json({ error: "Not found" }, { status: 404 });
   }
 
@@ -83,8 +95,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // anlatır, templateSides ise "Fotoğrafını ekle" çağrısının hangi sekmelerde
   // çıkacağını belirler.
   return json({
-    templateSides,
-    templateDesign: linkedTemplate
+    // Slotlu şablonda tasarımcının kendi "Fotoğrafını ekle" paneli de
+    // susturulur: o akış tek delikli maske için yazılmış, 12 fotoğraflık
+    // çerçeveyi doğru dolduramaz. Ürünün yapılandırılmış bir tasarımcı kaydı
+    // varsa tasarımcı yine açılır, sadece şablon paneli çıkmaz.
+    templateSides: slotluSablon ? [] : templateSides,
+    templateDesign: linkedTemplate && !slotluSablon
       ? {
           id: linkedTemplate.id,
           name: linkedTemplate.name,
