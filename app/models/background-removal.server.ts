@@ -276,3 +276,57 @@ export async function handleWaveSpeedRemoveBackground(
 
   return new Response(new Uint8Array(imageBytes), { headers });
 }
+
+/**
+ * Admin tarafı yardımcı: bir görselin arka planını kaldırıp PNG buffer döndürür.
+ *
+ * Müşteri uç noktasıyla aynı üç aşamalı akışı kullanır (zaten şeffaf → düz zemin
+ * anahtarlama → AI + tam çözünürlükte yeniden inşa), ama müşteriye özel oturum
+ * ve IP kotalarını uygulamaz: burada işlemi başlatan mağaza sahibidir.
+ * Mağazanın aylık kotası yalnızca gerçekten AI çağrısı yapıldığında düşer;
+ * şeffaf görsel veya yerel anahtarlama ücretsizdir.
+ *
+ * Dönüş `changed=false` ise görsele dokunulmamıştır (zaten şeffaftı).
+ */
+export async function removeBackgroundFromBuffer(
+  shop: string,
+  sourceBytes: Buffer,
+  mimeType = "image/png",
+): Promise<{ buffer: Buffer<ArrayBuffer>; method: string; changed: boolean }> {
+  const alreadyTransparent = await hasMeaningfulTransparency(sourceBytes).catch(() => false);
+  if (alreadyTransparent) {
+    return { buffer: sourceBytes as Buffer<ArrayBuffer>, method: "already-transparent", changed: false };
+  }
+
+  const flatArt = await tryFlatArtKeying(sourceBytes).catch((err) => {
+    console.error("[remove-bg:admin] flat-art anahtarlama denemesi başarısız:", err);
+    return null;
+  });
+  if (flatArt) {
+    return { buffer: flatArt.buffer as Buffer<ArrayBuffer>, method: "flat-art-key", changed: true };
+  }
+
+  const [globalSettings, shopSettings] = await Promise.all([
+    getGlobalSettings(),
+    getShopSettings(shop),
+  ]);
+  const apiKey = (process.env.WAVESPEED_API_KEY || shopSettings.wavespeedApiKey || globalSettings.wavespeedApiKey)?.trim();
+  if (!apiKey) throw new Error("WaveSpeed API anahtarı tanımlı değil");
+
+  const quota = await checkAndIncrementBgRemoval(shop);
+  if (!quota.allowed) throw new Error("Aylık arka plan kaldırma kotanız doldu");
+
+  const outputUrl = await removeBackground(apiKey, `data:${mimeType};base64,${sourceBytes.toString("base64")}`);
+  const imageRes = await fetch(outputUrl);
+  if (!imageRes.ok) throw new Error("Sonuç görseli indirilemedi");
+
+  const rawBytes = Buffer.from(await imageRes.arrayBuffer());
+  const rebuilt = await rebuildCutoutAtSourceResolution(sourceBytes, rawBytes).catch((err) => {
+    console.error("[remove-bg:admin] yüksek çözünürlüklü yeniden inşa başarısız:", err);
+    return rawBytes;
+  });
+
+  return Buffer.isBuffer(rebuilt)
+    ? { buffer: rebuilt as Buffer<ArrayBuffer>, method: "ai", changed: true }
+    : { buffer: rebuilt.buffer as Buffer<ArrayBuffer>, method: rebuilt.rebuiltFromOriginal ? "ai-original-resolution" : "ai", changed: true };
+}

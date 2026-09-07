@@ -1650,6 +1650,20 @@ export default function App() {
       }
     }
     setCanvasRevisions((prev) => ({ ...prev, [side]: prev[side] + 1 }));
+    // Bu yüz "dolu" mu? Sabit bir bayrak yerine tuvalin gerçek içeriğinden
+    // türetiyoruz. Aksi halde müşteri şablon tasarımını silince bayrak açık
+    // kalıyor, "Fotoğrafını ekle" çağrısı geri gelmiyor ve içi boş tasarım
+    // sepete gidebiliyordu.
+    const cvForSide = getCanvasHandle(side)?.getCanvas();
+    if (cvForSide) {
+      const hasTemplateDesign = cvForSide.getObjects().some(
+        (o) => (o as fabric.Object & { isTemplateDesign?: boolean }).isTemplateDesign === true,
+      );
+      setTemplateFilledSides((prev) => {
+        if (hasTemplateDesign === prev.includes(side)) return prev;
+        return hasTemplateDesign ? [...prev, side] : prev.filter((item) => item !== side);
+      });
+    }
     window.setTimeout(() => {
       const png = getCanvasHandle(side)?.exportPng(0.35) ?? '';
       setSidePreviews((prev) => ({ ...prev, [side]: png }));
@@ -1855,9 +1869,11 @@ export default function App() {
       }
 
       const url = await dataUrlToServerUrl(dataUrl, 'template-design');
-      await handleAddImage(url || dataUrl);
-      // Yalnızca bayrağı indirmek yetmez: çağrı görünürlüğü artık doldurulmuş
-      // yüzlerden türetiliyor, bu yüz işaretlenmezse çağrı hemen geri gelir.
+      // Nesne işaretlenerek eklenir: "Fotoğrafını ekle" çağrısının görünürlüğü
+      // artık bu bayraktan türetiliyor (bkz. handleDesignChange). Müşteri
+      // tasarımı silerse çağrı geri gelmeli — yoksa bir daha fotoğraf
+      // ekleyemiyor.
+      await handleAddImage(url || dataUrl, undefined, { isTemplateDesign: true });
       setTemplateFilledSides((prev) => (prev.includes(activeSide) ? prev : [...prev, activeSide]));
       setTemplateModalOpen(false);
       setActiveTab(null);

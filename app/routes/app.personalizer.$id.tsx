@@ -33,6 +33,7 @@ import {
 import { fetchShopifyProducts, findConfigForStorefront } from "~/models/product-config.server";
 import { AI_STYLES, AI_PROVIDERS, normalizeAiConfig, type AiProvider } from "~/lib/ai-styles";
 import { uploadToR2 } from "~/lib/r2.server";
+import { removeBackgroundFromBuffer } from "~/models/background-removal.server";
 import { listPrintProducts } from "~/models/print-product.server";
 import { setProductTemplateMetafield, clearProductTemplateMetafield } from "~/lib/personalizer-metafield.server";
 import { printCanvas, aspectLabel, type PrintProduct } from "~/lib/print-spec";
@@ -188,8 +189,24 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     let decoration_url = String(form.get("existing_decoration_url") ?? "");
     const decorationFile = form.get("decoration_image");
     if (decorationFile instanceof File && decorationFile.size > 0) {
-      const buf = Buffer.from(await decorationFile.arrayBuffer());
-      const ext = decorationFile.type === "image/webp" ? "webp" : "png";
+      let buf = Buffer.from(await decorationFile.arrayBuffer());
+      let ext = decorationFile.type === "image/webp" ? "webp" : "png";
+      // Süsleme fotoğrafların üstüne serpiştirildiği için zemini şeffaf olmalı;
+      // beyaz zeminli bir dosya baskıda kare lekeler bırakıyor. Kutu işaretliyse
+      // yüklemeden önce temizliyoruz. Görsel zaten şeffafsa dokunulmaz ve kota
+      // harcanmaz. Temizlik başarısız olursa yükleme iptal edilmez — merchant
+      // dosyasını kaybetmesin diye orijinaliyle devam edilir.
+      if (String(form.get("decoration_remove_bg") ?? "") === "on") {
+        try {
+          const cleaned = await removeBackgroundFromBuffer(shop, buf, decorationFile.type || "image/png");
+          if (cleaned.changed) {
+            buf = cleaned.buffer;
+            ext = "png";
+          }
+        } catch (err) {
+          console.error("[personalizer] süsleme arka planı temizlenemedi:", err);
+        }
+      }
       decoration_url = await uploadToR2(buf, ext, "personalizer-decoration");
     }
     // Fotoğrafların ÜSTÜNDE duran katman. Şeffaf delikli tasarımlarda aynı dosya
@@ -1101,6 +1118,7 @@ function PersonalizerEditor() {
     (printProducts as PrintProduct[]).find((p) => p.id === printProductId) ?? null;
   const slotCanvas = activePrintProduct ? printCanvas(activePrintProduct) : null;
   const [decorationUrl, setDecorationUrl] = useState(template?.decoration_url ?? "");
+  const [decorationRemoveBg, setDecorationRemoveBg] = useState(true);
   const sc = (template?.scatter_config ?? {}) as Partial<import("~/models/personalizer.server").ScatterTemplateConfig>;
   const [faceCount, setFaceCount] = useState(String(sc.faceCount ?? 13));
   const [decorationCount, setDecorationCount] = useState(String(sc.decorationCount ?? 8));
@@ -1484,6 +1502,13 @@ function PersonalizerEditor() {
                         name="decoration_image"
                         accept="image/png,image/webp"
                         style={{ display: "block", fontSize: 13 }}
+                      />
+                      <Checkbox
+                        label="Arka planı otomatik temizle"
+                        name="decoration_remove_bg"
+                        checked={decorationRemoveBg}
+                        onChange={setDecorationRemoveBg}
+                        helpText="Görsel zaten saydamsa atlanır ve kota harcanmaz."
                       />
                       <Text as="p" tone="subdued" variant="bodySm">
                         Dosya seçip aşağıdan <strong>Kaydet</strong> deyin.

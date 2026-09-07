@@ -38,6 +38,8 @@ interface AutoTrimRect {
 export interface ImageAddOptions {
   backgroundRemoved?: boolean;
   autoTrim?: boolean;
+  /** Şablondan üretilen tasarım görseli — silinince "Fotoğrafını ekle" çağrısı geri gelir. */
+  isTemplateDesign?: boolean;
 }
 
 export interface CanvasAreaHandle {
@@ -121,7 +123,7 @@ const MIN_EXPORT_DATA_URL_LENGTH = 2048;
 function isUsableDataUrl(dataUrl: string): boolean {
   return dataUrl.startsWith('data:image/') && dataUrl.length >= MIN_EXPORT_DATA_URL_LENGTH;
 }
-const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl', 'backgroundRemoved', 'autoTrimRect', 'printGroup'];
+const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl', 'backgroundRemoved', 'autoTrimRect', 'printGroup', 'isTemplateDesign'];
 
 type SourceBackedImage = fabric.Image & {
   sourceUrl?: string;
@@ -898,6 +900,11 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       // işlemlerinde her zaman ilk yüklenen tam çözünürlüklü kaynağa dön.
       (img as SourceBackedImage).sourceUrl = url;
       (img as SourceBackedImage).backgroundRemoved = Boolean(opts?.backgroundRemoved);
+      // Bayrak cv.add'den önce yazılır ki object:added dinleyicileri nesneyi
+      // daha ilk olayda doğru sınıflandırsın.
+      if (opts?.isTemplateDesign) {
+        (img as fabric.Object & { isTemplateDesign?: boolean }).isTemplateDesign = true;
+      }
       lockImageProportions(img);
       constrainObjectToArea(img, areaRect);
       cv.add(img);
