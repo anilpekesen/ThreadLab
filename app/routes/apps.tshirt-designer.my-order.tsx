@@ -1,6 +1,7 @@
 import { type LoaderFunctionArgs } from "@remix-run/node";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
 import { getOrdersByDesignToken } from "~/models/orders.server";
+import { readPrintAreas } from "~/models/product-config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -49,14 +50,39 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Baskı dosyaları müşterinin tarayıcısında üretiliyor ve canvas limiti aşıldığında
   // sessizce 1x1 boş PNG olarak kaydedilebiliyor. URL geçerli görünse bile içeriği
   // doğrula — yoksa müşteri "yüksek kalite" diye boş dosya indiriyor.
-  const [frontPrintOk, backPrintOk] = await Promise.all([
-    isUsablePrintFile(design.frontPrintUrl),
-    isUsablePrintFile(design.backPrintUrl),
+  const [frontProbe, backProbe] = await Promise.all([
+    probePrintFile(design.frontPrintUrl),
+    probePrintFile(design.backPrintUrl),
   ]);
+  const frontPrintOk = frontProbe.usable;
+  const backPrintOk = backProbe.usable;
   const verifiedDesign: Design = {
     ...design,
     frontPrintUrl: frontPrintOk ? design.frontPrintUrl : undefined,
     backPrintUrl: backPrintOk ? design.backPrintUrl : undefined,
+  };
+
+  // Sipariş özeti. Müşteri adı/e-postası BİLEREK dışarıda: bu sayfa token'ı
+  // olan herkese açık ve o bilgilerin burada bir işlevi yok.
+  const areas = await readPrintAreas(shop).catch(() => []);
+  const areaFor = (side: "front" | "back") => areas.find(
+    (candidate) => candidate.side === side && sameProduct(design.productId ?? "", candidate.productId),
+  );
+  const printSummary = (side: "front" | "back", probe: PrintFileProbe) => {
+    const area = areaFor(side);
+    const widthMm = area?.placementWidthMm || area?.realWidthMm || 0;
+    const heightMm = area?.placementHeightMm || area?.realHeightMm || 0;
+    if (!widthMm && !probe.widthPx) return undefined;
+    return { widthMm, heightMm, widthPx: probe.widthPx, heightPx: probe.heightPx };
+  };
+  const details: OrderDetails = {
+    productName: orderRows.find((row) => row.productName)?.productName,
+    sizes: orderRows
+      .filter((row) => row.variantTitle)
+      .map((row) => ({ label: row.variantTitle, quantity: row.quantity ?? 1 })),
+    orderedAt: orderRows.map((row) => row.createdAt).filter(Boolean).sort()[0],
+    front: frontPrintOk ? printSummary("front", frontProbe) : undefined,
+    back: backPrintOk ? printSummary("back", backProbe) : undefined,
   };
 
   // Kayıtlı dosya bozuksa ve tarafta çizilebilir görsel varsa, baskı dosyasını
@@ -85,7 +111,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const html = renderPage(verifiedDesign, frontObjects, backObjects, copy, sizeVariants, {
     front: buildRebuild(frontObjects, "front", frontPrintOk),
     back: buildRebuild(backObjects, "back", backPrintOk),
-  }, orderNumbers);
+  }, orderNumbers, details);
   return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
@@ -135,6 +161,13 @@ function myOrderCopy(lang: MyOrderLang) {
       : "This design is no longer available or the link is incorrect.",
     orderNumber: tr ? "Sipariş No" : "Order No",
     orderNumberPlural: tr ? "Sipariş No" : "Order Nos",
+    detailsTitle: tr ? "Sipariş Detayları" : "Order Details",
+    detailProduct: tr ? "Ürün" : "Product",
+    detailSizes: tr ? "Beden" : "Size",
+    detailOrderedAt: tr ? "Sipariş tarihi" : "Ordered on",
+    detailFrontPrint: tr ? "Ön yüz baskı ölçüsü" : "Front print size",
+    detailBackPrint: tr ? "Arka yüz baskı ölçüsü" : "Back print size",
+    pieces: tr ? "adet" : "pcs",
   };
 }
 
@@ -166,6 +199,60 @@ interface SizeVariant {
   backPreviewUrl?: string;
 }
 
+/** designs.product_id sade sayı, product_print_areas.product_id gid:// formatında. */
+function sameProduct(a: string, b: string): boolean {
+  const idOf = (value: string) => String(value ?? "").trim().split("/").pop() ?? "";
+  const left = idOf(a);
+  return Boolean(left) && left === idOf(b);
+}
+
+interface PrintSummary {
+  widthMm: number;
+  heightMm: number;
+  widthPx?: number;
+  heightPx?: number;
+}
+
+interface OrderDetails {
+  productName?: string;
+  sizes: Array<{ label: string; quantity: number }>;
+  orderedAt?: string;
+  front?: PrintSummary;
+  back?: PrintSummary;
+}
+
+/** mm → "28,0 × 45,0 cm" */
+function formatCm(widthMm: number, heightMm: number, lang: MyOrderLang): string {
+  const one = (mm: number) => {
+    const value = (mm / 10).toFixed(1);
+    return lang === "tr" ? value.replace(".", ",") : value;
+  };
+  return `${one(widthMm)} × ${one(heightMm)} cm`;
+}
+
+function formatDate(value: string | undefined, lang: MyOrderLang): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(lang === "tr" ? "tr-TR" : "en-GB", {
+    day: "2-digit", month: "long", year: "numeric",
+  });
+}
+
+/**
+ * Baskı ölçüsü satırı: fiziksel ebat, ardından dosyanın piksel ölçüsü ve
+ * ondan hesaplanan gerçek DPI.
+ */
+function printSummaryText(summary: PrintSummary, lang: MyOrderLang): string {
+  const parts: string[] = [];
+  if (summary.widthMm && summary.heightMm) parts.push(formatCm(summary.widthMm, summary.heightMm, lang));
+  if (summary.widthPx && summary.heightPx) {
+    const dpi = summary.widthMm ? Math.round(summary.widthPx / (summary.widthMm / 25.4)) : 0;
+    parts.push(`${summary.widthPx} × ${summary.heightPx} px${dpi ? ` · ${dpi} DPI` : ""}`);
+  }
+  return parts.join(" · ");
+}
+
 function renderPage(
   design: Design,
   frontObjs: DesignObject[],
@@ -174,11 +261,35 @@ function renderPage(
   sizeVariants: SizeVariant[] = [],
   rebuild: { front?: RebuildOption; back?: RebuildOption } = {},
   orderNumbers: string[] = [],
+  details?: OrderDetails,
 ) {
   const hasFront = design.frontPreviewUrl || frontObjs.length > 0;
   const hasBack = design.backPreviewUrl || backObjs.length > 0;
   // Birden fazla beden varsa her biri ayrı kart olarak gösterilir
   const perSize = sizeVariants.length > 1;
+
+  const detailRows: Array<[string, string]> = [];
+  if (details) {
+    if (details.productName) detailRows.push([copy.detailProduct, esc(details.productName)]);
+    if (details.sizes.length) {
+      detailRows.push([
+        copy.detailSizes,
+        details.sizes.map((s) => `${esc(s.label)} × ${s.quantity} ${copy.pieces}`).join(" · "),
+      ]);
+    }
+    const orderedAt = formatDate(details.orderedAt, copy.lang);
+    if (orderedAt) detailRows.push([copy.detailOrderedAt, orderedAt]);
+    if (details.front) detailRows.push([copy.detailFrontPrint, printSummaryText(details.front, copy.lang)]);
+    if (details.back) detailRows.push([copy.detailBackPrint, printSummaryText(details.back, copy.lang)]);
+  }
+  const detailsCard = detailRows.length
+    ? `<div class="card full-card">
+         <div class="card-header"><h2>${copy.detailsTitle}</h2></div>
+         <div class="card-body"><dl class="detail-list">${detailRows
+           .map(([label, value]) => `<div class="detail-row"><dt>${label}</dt><dd>${value}</dd></div>`)
+           .join("")}</dl></div>
+       </div>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="${copy.lang}">
@@ -196,6 +307,12 @@ function renderPage(
     .order-no { display: inline-flex; align-items: baseline; gap: 6px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 999px; padding: 4px 12px; font-size: 13px; }
     .order-no span { color: #3b82f6; font-weight: 500; }
     .order-no strong { color: #1d4ed8; font-weight: 700; }
+    .detail-list { display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px; }
+    /* display:contents — sarmalayıcı grid'e karışmasın, dt/dd doğrudan sütunlara otursun */
+    .detail-row { display: contents; }
+    @media (max-width: 480px) { .detail-list { grid-template-columns: 1fr; gap: 0; } .detail-row { display: block; margin-bottom: 10px; } }
+    .detail-list dt { font-size: 13px; color: #6b7280; }
+    .detail-list dd { font-size: 14px; color: #111827; font-weight: 500; }
     .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
@@ -240,6 +357,7 @@ function renderPage(
   </div>
   <div class="container">
     <div class="grid">
+      ${detailsCard}
       ${perSize
         ? sizeVariants.map((variant) => [
             hasFront ? renderSide(`${copy.front}${variant.label ? ` \u2014 ${esc(variant.label)}` : ""}`, variant.frontPreviewUrl || design.frontPreviewUrl, design.frontPrintUrl, copy, rebuild.front) : "",
@@ -293,22 +411,40 @@ const MIN_PRINT_DIMENSION_PX = 64;
  * Ağ hatasında dosyayı geçerli sayıyoruz: geçici bir aksaklık yüzünden çalışan
  * indirme linkini gizlemek, bozuk linki göstermekten daha kötü.
  */
-async function isUsablePrintFile(url: string | undefined): Promise<boolean> {
-  if (!isDownloadableUrl(url)) return false;
+interface PrintFileProbe {
+  usable: boolean;
+  /** PNG başlığından okunan ölçü; PNG olmayan dosyalarda bilinmiyor. */
+  widthPx?: number;
+  heightPx?: number;
+}
+
+/**
+ * Baskı dosyasının ilk 32 baytını çekip PNG başlığından ölçüsünü okur —
+ * dosyanın tamamını indirmeden hem kullanılabilirlik hem çözünürlük belli
+ * oluyor.
+ */
+async function probePrintFile(url: string | undefined): Promise<PrintFileProbe> {
+  if (!isDownloadableUrl(url)) return { usable: false };
   try {
     const res = await fetch(url, {
       headers: { Range: "bytes=0-32" },
       signal: AbortSignal.timeout(3000),
     });
-    if (!res.ok) return false;
+    if (!res.ok) return { usable: false };
     const head = Buffer.from(await res.arrayBuffer());
     // PNG değilse (JPEG/PDF vb.) boyut okuyamayız — olduğu gibi kabul et
-    if (head.length < 24 || head.subarray(12, 16).toString("latin1") !== "IHDR") return true;
-    const width = head.readUInt32BE(16);
-    const height = head.readUInt32BE(20);
-    return width >= MIN_PRINT_DIMENSION_PX && height >= MIN_PRINT_DIMENSION_PX;
+    if (head.length < 24 || head.subarray(12, 16).toString("latin1") !== "IHDR") {
+      return { usable: true };
+    }
+    const widthPx = head.readUInt32BE(16);
+    const heightPx = head.readUInt32BE(20);
+    return {
+      usable: widthPx >= MIN_PRINT_DIMENSION_PX && heightPx >= MIN_PRINT_DIMENSION_PX,
+      widthPx,
+      heightPx,
+    };
   } catch {
-    return true;
+    return { usable: true };
   }
 }
 
