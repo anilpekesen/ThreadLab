@@ -1,7 +1,6 @@
 import { type LoaderFunctionArgs } from "@remix-run/node";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
 import { getOrdersByDesignToken } from "~/models/orders.server";
-import { readPrintAreas } from "~/models/product-config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -50,39 +49,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Baskı dosyaları müşterinin tarayıcısında üretiliyor ve canvas limiti aşıldığında
   // sessizce 1x1 boş PNG olarak kaydedilebiliyor. URL geçerli görünse bile içeriği
   // doğrula — yoksa müşteri "yüksek kalite" diye boş dosya indiriyor.
-  const [frontProbe, backProbe] = await Promise.all([
-    probePrintFile(design.frontPrintUrl),
-    probePrintFile(design.backPrintUrl),
+  const [frontPrintOk, backPrintOk] = await Promise.all([
+    isUsablePrintFile(design.frontPrintUrl),
+    isUsablePrintFile(design.backPrintUrl),
   ]);
-  const frontPrintOk = frontProbe.usable;
-  const backPrintOk = backProbe.usable;
   const verifiedDesign: Design = {
     ...design,
     frontPrintUrl: frontPrintOk ? design.frontPrintUrl : undefined,
     backPrintUrl: backPrintOk ? design.backPrintUrl : undefined,
   };
 
-  // Sipariş özeti. Müşteri adı/e-postası BİLEREK dışarıda: bu sayfa token'ı
-  // olan herkese açık ve o bilgilerin burada bir işlevi yok.
-  const areas = await readPrintAreas(shop).catch(() => []);
-  const areaFor = (side: "front" | "back") => areas.find(
-    (candidate) => candidate.side === side && sameProduct(design.productId ?? "", candidate.productId),
-  );
-  const printSummary = (side: "front" | "back", probe: PrintFileProbe) => {
-    const area = areaFor(side);
-    const widthMm = area?.placementWidthMm || area?.realWidthMm || 0;
-    const heightMm = area?.placementHeightMm || area?.realHeightMm || 0;
-    if (!widthMm && !probe.widthPx) return undefined;
-    return { widthMm, heightMm, widthPx: probe.widthPx, heightPx: probe.heightPx };
-  };
+  // Sipariş özeti — müşterinin tanıyacağı bilgiler. Baskı alanı ölçüsü ve dosya
+  // çözünürlüğü BİLEREK yok: müşteriye bir şey ifade etmiyor. Müşteri adı ve
+  // e-postası da yok; bu sayfa token'ı olan herkese açık.
   const details: OrderDetails = {
     productName: orderRows.find((row) => row.productName)?.productName,
     sizes: orderRows
       .filter((row) => row.variantTitle)
       .map((row) => ({ label: row.variantTitle, quantity: row.quantity ?? 1 })),
     orderedAt: orderRows.map((row) => row.createdAt).filter(Boolean).sort()[0],
-    front: frontPrintOk ? printSummary("front", frontProbe) : undefined,
-    back: backPrintOk ? printSummary("back", backProbe) : undefined,
   };
 
   // Kayıtlı dosya bozuksa ve tarafta çizilebilir görsel varsa, baskı dosyasını
@@ -165,9 +150,6 @@ function myOrderCopy(lang: MyOrderLang) {
     detailProduct: tr ? "Ürün" : "Product",
     detailSizes: tr ? "Beden" : "Size",
     detailOrderedAt: tr ? "Sipariş tarihi" : "Ordered on",
-    detailFrontPrint: tr ? "Ön yüz baskı alanı" : "Front print area",
-    detailBackPrint: tr ? "Arka yüz baskı alanı" : "Back print area",
-    detailFile: tr ? "dosya" : "file",
     pieces: tr ? "adet" : "pcs",
   };
 }
@@ -200,35 +182,10 @@ interface SizeVariant {
   backPreviewUrl?: string;
 }
 
-/** designs.product_id sade sayı, product_print_areas.product_id gid:// formatında. */
-function sameProduct(a: string, b: string): boolean {
-  const idOf = (value: string) => String(value ?? "").trim().split("/").pop() ?? "";
-  const left = idOf(a);
-  return Boolean(left) && left === idOf(b);
-}
-
-interface PrintSummary {
-  widthMm: number;
-  heightMm: number;
-  widthPx?: number;
-  heightPx?: number;
-}
-
 interface OrderDetails {
   productName?: string;
   sizes: Array<{ label: string; quantity: number }>;
   orderedAt?: string;
-  front?: PrintSummary;
-  back?: PrintSummary;
-}
-
-/** mm → "28,0 × 45,0 cm" */
-function formatCm(widthMm: number, heightMm: number, lang: MyOrderLang): string {
-  const one = (mm: number) => {
-    const value = (mm / 10).toFixed(1);
-    return lang === "tr" ? value.replace(".", ",") : value;
-  };
-  return `${one(widthMm)} × ${one(heightMm)} cm`;
 }
 
 function formatDate(value: string | undefined, lang: MyOrderLang): string {
@@ -238,23 +195,6 @@ function formatDate(value: string | undefined, lang: MyOrderLang): string {
   return date.toLocaleDateString(lang === "tr" ? "tr-TR" : "en-GB", {
     day: "2-digit", month: "long", year: "numeric",
   });
-}
-
-/**
- * Baskı alanının fiziksel ebadı ve dosyanın piksel ölçüsü.
- *
- * Tek bir DPI değeri BİLEREK yazılmıyor: baskı dosyalarının en/boy oranı
- * kayıtlı yerleşim alanınınkiyle uyuşmuyor (ölçüm: dosya 1.566 ve 1.759, alan
- * 1.351), yani yatay ve dikey DPI birbirinden farklı çıkıyor. Tek sayı vermek
- * eksenlerden birinde yanlış olurdu.
- */
-function printSummaryText(summary: PrintSummary, copy: ReturnType<typeof myOrderCopy>): string {
-  const parts: string[] = [];
-  if (summary.widthMm && summary.heightMm) parts.push(formatCm(summary.widthMm, summary.heightMm, copy.lang));
-  if (summary.widthPx && summary.heightPx) {
-    parts.push(`${copy.detailFile} ${summary.widthPx} × ${summary.heightPx} px`);
-  }
-  return parts.join(" · ");
 }
 
 function renderPage(
@@ -283,8 +223,6 @@ function renderPage(
     }
     const orderedAt = formatDate(details.orderedAt, copy.lang);
     if (orderedAt) detailRows.push([copy.detailOrderedAt, orderedAt]);
-    if (details.front) detailRows.push([copy.detailFrontPrint, printSummaryText(details.front, copy)]);
-    if (details.back) detailRows.push([copy.detailBackPrint, printSummaryText(details.back, copy)]);
   }
   const detailsCard = detailRows.length
     ? `<div class="card full-card">
@@ -415,40 +353,22 @@ const MIN_PRINT_DIMENSION_PX = 64;
  * Ağ hatasında dosyayı geçerli sayıyoruz: geçici bir aksaklık yüzünden çalışan
  * indirme linkini gizlemek, bozuk linki göstermekten daha kötü.
  */
-interface PrintFileProbe {
-  usable: boolean;
-  /** PNG başlığından okunan ölçü; PNG olmayan dosyalarda bilinmiyor. */
-  widthPx?: number;
-  heightPx?: number;
-}
-
-/**
- * Baskı dosyasının ilk 32 baytını çekip PNG başlığından ölçüsünü okur —
- * dosyanın tamamını indirmeden hem kullanılabilirlik hem çözünürlük belli
- * oluyor.
- */
-async function probePrintFile(url: string | undefined): Promise<PrintFileProbe> {
-  if (!isDownloadableUrl(url)) return { usable: false };
+async function isUsablePrintFile(url: string | undefined): Promise<boolean> {
+  if (!isDownloadableUrl(url)) return false;
   try {
     const res = await fetch(url, {
       headers: { Range: "bytes=0-32" },
       signal: AbortSignal.timeout(3000),
     });
-    if (!res.ok) return { usable: false };
+    if (!res.ok) return false;
     const head = Buffer.from(await res.arrayBuffer());
     // PNG değilse (JPEG/PDF vb.) boyut okuyamayız — olduğu gibi kabul et
-    if (head.length < 24 || head.subarray(12, 16).toString("latin1") !== "IHDR") {
-      return { usable: true };
-    }
-    const widthPx = head.readUInt32BE(16);
-    const heightPx = head.readUInt32BE(20);
-    return {
-      usable: widthPx >= MIN_PRINT_DIMENSION_PX && heightPx >= MIN_PRINT_DIMENSION_PX,
-      widthPx,
-      heightPx,
-    };
+    if (head.length < 24 || head.subarray(12, 16).toString("latin1") !== "IHDR") return true;
+    const width = head.readUInt32BE(16);
+    const height = head.readUInt32BE(20);
+    return width >= MIN_PRINT_DIMENSION_PX && height >= MIN_PRINT_DIMENSION_PX;
   } catch {
-    return { usable: true };
+    return true;
   }
 }
 
