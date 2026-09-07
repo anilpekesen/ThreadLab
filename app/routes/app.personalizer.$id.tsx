@@ -1300,11 +1300,9 @@ function PersonalizerEditor() {
                       ]}
                       value={templateCategory}
                       onChange={(value) => {
-                        const next = value as PersonalizerCategory;
-                        setTemplateCategory(next);
-                        setLayoutMode(next === "boxer" ? "scatter" : next === "ai" ? "ai" : "mask");
+                        setTemplateCategory(value as PersonalizerCategory);
                       }}
-                      helpText="Liste gruplamasını ve bu şablon için önerilen kurulum yolunu belirler."
+                      helpText="Liste gruplamasını belirler. Kullanılan yerleşim yöntemi aşağıdaki alandan ayrıca seçilir."
                     />
                     <Select
                       label="Şablon Tipi"
@@ -1315,15 +1313,7 @@ function PersonalizerEditor() {
                         { label: "AI — fotoğraf yapay zekâ ile stilize edilir, üstüne yazı basılır", value: "ai" },
                       ]}
                       value={layoutMode}
-                      onChange={(value) => {
-                        const next = value as "mask" | "scatter" | "ai";
-                        setLayoutMode(next);
-                        if (next === "scatter") setTemplateCategory("boxer");
-                        else if (next === "ai") setTemplateCategory("ai");
-                        else if (templateCategory === "boxer" || templateCategory === "ai") {
-                          setTemplateCategory("apparel");
-                        }
-                      }}
+                      onChange={(value) => setLayoutMode(value as "mask" | "scatter" | "ai")}
                       helpText={layoutMode === "ai"
                         ? "Müşteri fotoğraf, isim ve hikâye girer; görsel ve baskı dosyası otomatik üretilir. Arka plan veya çerçeve yüklemeniz gerekmez."
                         : layoutMode === "scatter"

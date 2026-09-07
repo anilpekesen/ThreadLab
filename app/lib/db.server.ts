@@ -916,6 +916,14 @@ async function _runMigrationsLocked() {
      WHERE pt.category = 'legacy'
   `);
   await query(`ALTER TABLE personalizer_templates ALTER COLUMN category SET DEFAULT 'frame'`);
+  // Bu boxer hazır tasarım + fotoğraf deliği (mask) kullanıyor. Ürün grubu ile
+  // yerleşim motoru farklı kavramlar; mask olduğu için giyim altında kalmasın.
+  await query(`
+    UPDATE personalizer_templates
+       SET category = 'boxer'
+     WHERE id = 'fa5145a5a0b77894b53c225c'
+       AND category = 'apparel'
+  `);
 
   // ── Şablon sürümleri ──────────────────────────────────────────────────────
   // Yayındaki bir şablon değiştirilirse eski siparişlerin baskı dosyası artık
