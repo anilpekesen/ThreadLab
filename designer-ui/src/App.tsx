@@ -372,6 +372,7 @@ function normalizePrintArea(side: Side, area: Partial<PrintAreaConfig> | null | 
 function normalizePersonalizationPayload(payload: unknown): PersonalizationConfig {
   const source = payload as {
     settings?: {
+      productType?: string;
       surfaceMode?: SurfaceMode;
       pricingBands?: Record<Side, PricingBand[]>;
       volumeDiscounts?: VolumeDiscountTier[];
@@ -400,6 +401,7 @@ function normalizePersonalizationPayload(payload: unknown): PersonalizationConfi
     back: (source?.settings?.pricingBands?.back ?? base.pricingBands.back).map((band, index) => normalizeBand(band, index)),
   };
   return {
+    productType: String(source?.settings?.productType || ''),
     surfaceMode,
     printAreas: {
       front: areaMap.get('front') ?? base.printAreas.front,
@@ -1123,13 +1125,16 @@ async function persistDesignJsonImages(json: string | undefined, cache: Map<stri
   return JSON.stringify(parsed);
 }
 
-function getAutoZoom() {
+function getAutoZoom(productType?: string) {
   if (typeof window === 'undefined') return 100;
   const w = window.innerWidth;
-  if (w >= 860) return 100;
-  // Mobile: canvas area is full-width; 488 = PRINT_W (480) + card padding (8)
-  const usable = w - 32; // subtract p-4 padding on each side
-  return Math.max(50, Math.min(100, Math.floor(usable / 488 * 100)));
+  const baseZoom = w >= 860
+    ? 100
+    // Mobile: canvas area is full-width; 488 = PRINT_W (480) + card padding (8)
+    : Math.max(50, Math.min(100, Math.floor((w - 32) / 488 * 100)));
+  // Boxer mockup'ı enine yayıldığı için aynı ölçekte kadraja fazla yakın
+  // görünür. Baskı koordinatlarına dokunmadan sahneyi biraz geri al.
+  return productType === 'boxer' ? Math.max(40, Math.round(baseZoom * 0.85)) : baseZoom;
 }
 
 function isMobileViewport() {
@@ -1736,6 +1741,7 @@ export default function App() {
     file: File,
     textValues: Record<string, string>,
     choices: import('@/components/modals/TemplateScatterModal').ScatterChoices = {},
+    decorationFile?: File | null,
   ): Promise<{ url: string; quality?: { headSourcePx: number; placedPx: number; upscale: number } }> => {
     if (!config?.shop || !config?.productId) throw new Error('Ürün bilgisi yok');
     // Ham telefon fotoğrafı sunucunun sınırını aşabiliyor; üretim zaten bu
@@ -1749,6 +1755,7 @@ export default function App() {
     fd.append('variantId', String(config.selectedVariant?.id ?? ''));
     fd.append('textValues', JSON.stringify(textValues));
     fd.append('choices', JSON.stringify(choices));
+    if (decorationFile) fd.append('decoration', decorationFile, decorationFile.name || 'decoration.png');
 
     const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
     const data = await res.json() as {
@@ -2717,15 +2724,20 @@ export default function App() {
       const w = window.innerWidth;
       if (w !== prevWidth) {
         prevWidth = w;
-        setZoom(getAutoZoom());
+        setZoom(getAutoZoom(personalization.productType));
       }
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, []);
+  }, [personalization.productType]);
+
+  useEffect(() => {
+    setZoom(getAutoZoom(personalization.productType));
+    setSceneOffset({ x: 0, y: 0 });
+  }, [personalization.productType]);
 
   const resetViewport = () => {
-    setZoom(getAutoZoom());
+    setZoom(getAutoZoom(personalization.productType));
     setSceneOffset({ x: 0, y: 0 });
   };
 

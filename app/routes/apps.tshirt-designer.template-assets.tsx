@@ -52,6 +52,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Dağıtımlı şablonda tasarım dosyası yok: müşteriye yalnızca tip, metin
   // alanları ve süsleme önizlemesi gerekir. Delik taramasına gerek yok.
   if (template.layout_mode === "scatter") {
+    let decorationUrl = template.decoration_url || null;
+    if (decorationUrl) {
+      try {
+        const response = await fetch(decorationUrl, {
+          method: "HEAD",
+          signal: AbortSignal.timeout(3_000),
+        });
+        if (response.status === 404 || response.status === 410) decorationUrl = null;
+      } catch {
+        // Geçici CDN hatasında kayıtlı görseli yok sayma; kompozisyon rotası
+        // üretim sırasında tekrar deneyecek.
+      }
+    }
+    const customerOptions = {
+      ...normalizeCustomerOptions(template.customer_options),
+      decorationUpload: Number(template.scatter_config?.decorationCount ?? 0) > 0,
+    };
     return json(
       {
         templateId: template.id,
@@ -59,7 +76,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         side,
         availableSides,
         layoutMode: "scatter" as const,
-        decorationUrl: template.decoration_url || null,
+        decorationUrl,
         textFields: (template.text_fields ?? []).map((f) => ({
           id: f.id,
           label: f.label,
@@ -70,7 +87,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         // Yalnızca açık olan ayarlar gönderilir; pencere bunlara göre kontrol
         // çizer. Kapalı bir ayarın gönderilmesi sunucuda zaten yok sayılır,
         // burada gizlemek arayüzü sade tutmak için.
-        customerOptions: normalizeCustomerOptions(template.customer_options),
+        customerOptions,
       },
       { headers: { ...CORS, "Cache-Control": "public, max-age=300" } },
     );

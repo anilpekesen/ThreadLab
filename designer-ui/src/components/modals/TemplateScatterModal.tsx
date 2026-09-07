@@ -13,6 +13,7 @@ export interface ScatterCustomerOptions {
   density: boolean;
   photoSize: boolean;
   shuffle: boolean;
+  decorationUpload?: boolean;
 }
 
 export type DensityChoice = 'low' | 'medium' | 'high';
@@ -41,6 +42,7 @@ interface Props {
     file: File,
     textValues: Record<string, string>,
     choices: ScatterChoices,
+    decorationFile?: File | null,
   ) => Promise<{ url: string; quality?: { headSourcePx: number; placedPx: number; upscale: number } }>;
   onCancel: () => void;
   onConfirm: (url: string) => void;
@@ -63,7 +65,9 @@ export default function TemplateScatterModal({
   assets, isTurkish, termsUrl, onRender, onCancel, onConfirm,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const decorationFileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [decorationFile, setDecorationFile] = useState<File | null>(null);
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(
     (assets.textFields ?? []).map((field) => [field.id, field.defaultValue ?? '']),
   ));
@@ -94,7 +98,10 @@ export default function TemplateScatterModal({
         low: 'Seyrek', medium: 'Normal', high: 'Yoğun',
         small: 'Küçük', mid: 'Orta', large: 'Büyük',
         shuffleLabel: 'Başka dizilim dene',
-        shuffleUsed: 'Dizilim hakkınız doldu' }
+        shuffleUsed: 'Dizilim hakkınız doldu', decoration: 'Süsleme Görseli',
+        decorationPick: 'Süsleme seç', decorationChange: 'Süslemeyi değiştir',
+        decorationHint: 'Saydam arka planlı PNG veya WebP yükleyin.',
+        decorationRequired: 'Sabit süsleme bulunamadı; devam etmek için bir süsleme seçin.' }
     : { title: 'Create your design', pick: 'Choose Photo', change: 'Change photo',
         make: 'Create Design', again: 'Create Again', ok: 'Use This', cancel: 'Cancel',
         busy: 'Preparing… (about 5 seconds)',
@@ -106,7 +113,12 @@ export default function TemplateScatterModal({
         low: 'Sparse', medium: 'Normal', high: 'Dense',
         small: 'Small', mid: 'Medium', large: 'Large',
         shuffleLabel: 'Try another layout',
-        shuffleUsed: 'No layout tries left' };
+        shuffleUsed: 'No layout tries left', decoration: 'Decoration Image',
+        decorationPick: 'Choose decoration', decorationChange: 'Change decoration',
+        decorationHint: 'Upload a PNG or WebP with a transparent background.',
+        decorationRequired: 'The default decoration is unavailable; choose one to continue.' };
+
+  const needsDecoration = Boolean(options?.decorationUpload && !assets.decorationUrl);
 
   /**
    * Seçimlerden yalnızca şablonun açtıklarını gönderir. Sunucu da aynı
@@ -120,10 +132,11 @@ export default function TemplateScatterModal({
 
   const render = async (nextVariant = variant) => {
     if (!file) return;
+    if (needsDecoration && !decorationFile) return;
     setBusy(true);
     setError('');
     try {
-      const result = await onRender(file, values, buildChoices(nextVariant));
+      const result = await onRender(file, values, buildChoices(nextVariant), decorationFile);
       setPreview(result.url);
     } catch (err) {
       setError(String(err));
@@ -178,6 +191,41 @@ export default function TemplateScatterModal({
                 className="w-full rounded-xl border-2 border-dashed border-gray-300 px-4 py-4 text-sm font-semibold text-gray-600 transition-colors hover:border-gray-400 disabled:opacity-40">
                 {!consent ? t.needConsent : file ? `${t.chosen}: ${file.name.slice(0, 28)}` : t.pick}
               </button>
+
+              {options?.decorationUpload && (
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-xs font-semibold text-gray-600">{t.decoration}</span>
+                    {!needsDecoration && (
+                      <span className="text-[10px] text-gray-400">{isTurkish ? 'İsteğe bağlı' : 'Optional'}</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-500">
+                    {needsDecoration ? t.decorationRequired : t.decorationHint}
+                  </p>
+                  <input
+                    ref={decorationFileRef}
+                    type="file"
+                    accept="image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const next = e.target.files?.[0];
+                      if (next) {
+                        setDecorationFile(next);
+                        setPreview('');
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => decorationFileRef.current?.click()}
+                    className="w-full rounded-xl border-2 border-dashed border-gray-300 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-gray-400"
+                  >
+                    {decorationFile ? `${t.decorationChange}: ${decorationFile.name.slice(0, 24)}` : t.decorationPick}
+                  </button>
+                </div>
+              )}
 
               {fields.map((f) => (
                 <label key={f.id} className="flex flex-col gap-1">
@@ -264,7 +312,7 @@ export default function TemplateScatterModal({
               </button>
             </>
           ) : (
-            <button type="button" onClick={() => render()} disabled={!file || !consent || busy}
+            <button type="button" onClick={() => render()} disabled={!file || !consent || busy || (needsDecoration && !decorationFile)}
               className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white disabled:opacity-40">
               {busy ? t.busy : t.make}
             </button>

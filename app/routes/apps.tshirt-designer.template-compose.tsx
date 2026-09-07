@@ -74,6 +74,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const variantId = String(form.get("variantId") ?? "").split("/").pop() ?? "";
     const side = normalizeSide(form.get("side"));
     const photo = form.get("photo");
+    const customerDecoration = form.get("decoration");
 
     if (!shop || !productId) {
       return json({ error: "shop ve productId gerekli" }, { status: 400, headers: CORS });
@@ -120,7 +121,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         || shopSettings.wavespeedApiKey || globalSettings.wavespeedApiKey)?.trim();
 
       let decoration: Buffer | null = null;
-      if (template.decoration_url) {
+      if (customerDecoration instanceof File && customerDecoration.size > 0) {
+        if (!/^image\/(png|webp)$/.test(customerDecoration.type)) {
+          return json({ error: "Süsleme görseli PNG veya WebP olmalı" }, { status: 400, headers: CORS });
+        }
+        if (customerDecoration.size > 10 * 1024 * 1024) {
+          return json({ error: "Süsleme görseli en fazla 10 MB olabilir" }, { status: 400, headers: CORS });
+        }
+        decoration = await sharp(Buffer.from(await customerDecoration.arrayBuffer()))
+          .rotate()
+          .resize(1600, 1600, { fit: "inside", withoutEnlargement: true })
+          .png()
+          .toBuffer();
+      } else if (template.decoration_url) {
         const decRes = await fetch(template.decoration_url, { signal: AbortSignal.timeout(20_000) }).catch(() => null);
         if (decRes?.ok) decoration = Buffer.from(await decRes.arrayBuffer());
       }

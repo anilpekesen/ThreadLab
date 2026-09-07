@@ -101,6 +101,7 @@ export interface ConditionalRule {
 }
 
 export interface PersonalizationConfig {
+  productType?: string;
   surfaceMode: SurfaceMode;
   printAreas: Record<Side, PrintAreaConfig>;
   pricingBands: Record<Side, PricingBand[]>;
