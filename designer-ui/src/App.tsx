@@ -505,6 +505,10 @@ function markTemplateObjects(cv: fabric.Canvas, tpl: TemplateDesign | null | und
       isTemplateDesign?: boolean;
       sourceUrl?: string;
     };
+    // Görseli yüklenemeyen nesne 0x0 kalıyor ve ekranda hiç görünmüyor; onu
+    // "şablon zaten duruyor" saymak tuvali boş bırakıyordu.
+    const rect = object.getBoundingRect(true, true);
+    if (!(rect.width > 0) || !(rect.height > 0)) continue;
     if (obj.isTemplateDesign === true || obj.isTemplatePlaceholder === true) {
       found = true;
       continue;
@@ -1700,9 +1704,15 @@ export default function App() {
       // Geri yükleme loadDesign üzerinden buraya düşüyor; bayrağı olmayan eski
       // yer tutucular fiyat hesabına girmeden önce burada işaretlenir.
       markTemplateObjects(cvForSide, personalizationRef.current.templateDesign);
-      const hasTemplateDesign = cvForSide.getObjects().some(
-        (o) => (o as fabric.Object & { isTemplateDesign?: boolean }).isTemplateDesign === true,
-      );
+      // Ölçüsü olmayan nesne sayılmaz. Kayıtlı tasarımdaki görsel yüklenemezse
+      // (adres ölmüş, ağ hatası) fabric nesneyi 0x0 bırakıyor: ekranda hiçbir
+      // şey görünmüyor ama bayrak "bu yüz dolu" dediği için "Fotoğrafını ekle"
+      // çağrısı da çıkmıyordu — müşteri fotoğrafını hiç ekleyemiyordu.
+      const hasTemplateDesign = cvForSide.getObjects().some((o) => {
+        if ((o as fabric.Object & { isTemplateDesign?: boolean }).isTemplateDesign !== true) return false;
+        const rect = o.getBoundingRect(true, true);
+        return rect.width > 0 && rect.height > 0;
+      });
       setTemplateFilledSides((prev) => {
         if (hasTemplateDesign === prev.includes(side)) return prev;
         return hasTemplateDesign ? [...prev, side] : prev.filter((item) => item !== side);
