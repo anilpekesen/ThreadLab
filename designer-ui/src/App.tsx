@@ -483,6 +483,40 @@ function isPricedObject(obj: fabric.Object): boolean {
   return (obj as fabric.Object & { isTemplatePlaceholder?: boolean }).isTemplatePlaceholder !== true;
 }
 
+/** Şablon görselinin tuvale eklenirken kullandığı adres */
+function templatePlaceholderSrc(tpl: TemplateDesign | null | undefined): string {
+  return tpl?.previewUrl ? `/api/img-proxy?url=${encodeURIComponent(tpl.previewUrl)}` : '';
+}
+
+/**
+ * Tuvalde şablona ait bir nesne var mı — varsa true.
+ *
+ * Bayrağı olmayan eski kayıtları da yakalar: `isTemplatePlaceholder` bir süre
+ * serileştirilmediği için geri yüklenen yer tutucular bayrağını kaybediyor,
+ * ücretlendirilmiş bir baskı parçası sayılıyor ve fotoğraf onaylandığında
+ * silinemiyordu. Kaynak adresinden tanıyıp bayrağı geri yazıyoruz.
+ */
+function markTemplateObjects(cv: fabric.Canvas, tpl: TemplateDesign | null | undefined): boolean {
+  const src = templatePlaceholderSrc(tpl);
+  let found = false;
+  for (const object of cv.getObjects()) {
+    const obj = object as fabric.Object & {
+      isTemplatePlaceholder?: boolean;
+      isTemplateDesign?: boolean;
+      sourceUrl?: string;
+    };
+    if (obj.isTemplateDesign === true || obj.isTemplatePlaceholder === true) {
+      found = true;
+      continue;
+    }
+    if (src !== '' && obj.sourceUrl === src) {
+      obj.isTemplatePlaceholder = true;
+      found = true;
+    }
+  }
+  return found;
+}
+
 function pricingItemsForObjects(
   objects: fabric.Object[],
   area: PrintAreaConfig,
@@ -1176,8 +1210,6 @@ export default function App() {
   const configRef = useRef(config);
   const personalizationRef = useRef<PersonalizationConfig>(defaultPersonalization());
   const restoredCanvasRef = useRef<string | null>(null);
-  /** Geri yükleme bitti mi — şablon yer tutucusu ancak ondan sonra ekilebilir */
-  const [restoredCanvasKey, setRestoredCanvasKey] = useState<string | null>(null);
   const lastSelectedVariantIdRef = useRef('');
 
   const [activeTab, setActiveTab] = useState<Tab>(null);
@@ -1598,7 +1630,6 @@ export default function App() {
 
   useEffect(() => {
     restoredCanvasRef.current = null;
-    setRestoredCanvasKey(null);
     setCanvasJson('front', '');
     setCanvasJson('back', '');
   }, [productCanvasKey]);
@@ -1610,7 +1641,6 @@ export default function App() {
     const stored = readStoredCanvasState(productCanvasKey);
     if (!stored) {
       restoredCanvasRef.current = productCanvasKey;
-      setRestoredCanvasKey(productCanvasKey);
       return;
     }
     if (stored.frontJson) {
@@ -1622,7 +1652,6 @@ export default function App() {
       setCanvasJson('back', stored.backJson);
     }
     restoredCanvasRef.current = productCanvasKey;
-    setRestoredCanvasKey(productCanvasKey);
     window.setTimeout(syncLayers, 0);
   }, [personalization.surfaceMode, productCanvasKey, setCanvasJson, syncLayers]);
 
@@ -1666,6 +1695,9 @@ export default function App() {
     // sepete gidebiliyordu.
     const cvForSide = getCanvasHandle(side)?.getCanvas();
     if (cvForSide) {
+      // Geri yükleme loadDesign üzerinden buraya düşüyor; bayrağı olmayan eski
+      // yer tutucular fiyat hesabına girmeden önce burada işaretlenir.
+      markTemplateObjects(cvForSide, personalizationRef.current.templateDesign);
       const hasTemplateDesign = cvForSide.getObjects().some(
         (o) => (o as fabric.Object & { isTemplateDesign?: boolean }).isTemplateDesign === true,
       );
@@ -1906,17 +1938,16 @@ export default function App() {
     const cv = handle?.getCanvas();
     if (!handle || !cv) return;
 
-    // Geri yükleme bitmeden ekim yapılmamalı: localStorage'daki tasarım
-    // şablonu zaten taşıyor olabilir ve iki effect birbirinden habersiz
-    // çalıştığı için her sayfa yenilemesinde bir kopya daha ekleniyordu.
-    // Kopyalar ayrı birer baskı parçası sayılıp ayrı ayrı ücretlendiriliyordu.
-    if (!productCanvasKey || restoredCanvasKey !== productCanvasKey) return;
     templateSeededRef.current = true;
-    const zatenVar = cv.getObjects().some((o) => {
-      const obj = o as fabric.Object & { isTemplatePlaceholder?: boolean; isTemplateDesign?: boolean };
-      return obj.isTemplatePlaceholder === true || obj.isTemplateDesign === true;
-    });
-    if (zatenVar) return;
+
+    // localStorage'dan geri yüklenen tasarım şablonu zaten taşıyor olabilir.
+    // İki effect birbirinden habersiz aynı tuvale yazdığı için her sayfa
+    // yenilemesinde bir kopya daha biniyor, kopyalar da ayrı birer baskı
+    // parçası sayılıp ayrı ayrı ücretlendiriliyordu. Geri yüklemeyi
+    // beklemiyoruz: loadDesign tuvali sıfırdan kuruyor, yani önce ekilen yer
+    // tutucu zaten siliniyor. Beklemek, tuval hazır olmadan çalışan bir geri
+    // yükleme turunda yer tutucunun hiç eklenmemesine yol açıyordu.
+    if (markTemplateObjects(cv, personalization.templateDesign)) return;
 
     // Her iki modda da müşteri "Fotoğrafını ekle" çağrısını görmeli. Dağıtımlı
     // şablonun hazır tasarım görseli yok — tasarım fotoğraftan üretiliyor —
@@ -1928,11 +1959,8 @@ export default function App() {
     // sonradan son nesneyi işaretliyordu; o aralıkta boş çerçeve ücretlendirilmiş
     // nesne sayılıyor, arada başka bir nesne eklenirse yanlış nesne
     // işaretleniyordu.
-    handle.addImageFromUrl(
-      `/api/img-proxy?url=${encodeURIComponent(tpl.previewUrl)}`,
-      { isTemplatePlaceholder: true },
-    );
-  }, [personalization.templateDesign, productCanvasKey, restoredCanvasKey]);
+    handle.addImageFromUrl(templatePlaceholderSrc(tpl), { isTemplatePlaceholder: true });
+  }, [personalization.templateDesign]);
 
   /**
    * "Fotoğrafını ekle" çağrısı yalnızca aktif yüzde şablon varsa ve o yüz
