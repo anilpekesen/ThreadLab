@@ -1240,9 +1240,6 @@ export default function App() {
    * bu yüzden "hiçbir yüz doldurulmadı" durumuna bakar, "her yüz" değil.
    */
   const [templateFilledSides, setTemplateFilledSides] = useState<Array<'front' | 'back'>>([]);
-  const templateSeededRef = useRef(false);
-  /** Yer tutucu görseli yükleniyor — fabric asenkron ekliyor, bu arada ikinci kopya eklenmesin */
-  const templateSeedingRef = useRef(false);
   const [selectedObj, setSelectedObj] = useState<CanvasSelection | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
   const [zoom, setZoom] = useState(getAutoZoom);
@@ -1938,38 +1935,26 @@ export default function App() {
     }
   };
 
-  /**
-   * Şablonlu üründe tasarımı açılışta tişörtün üstüne koyar; kalbin içi boş
-   * kalır ve müşteri "Fotoğrafını ekle" çağrısını görür. Müşterinin panelde
-   * arama yapması gerekmez.
-   */
+  /** Eski oturumlardan kalan boş şablon görsellerini tuvalden temizler.
+   * Şablon artık açılışta tuvale eklenmez; müşteri doğrudan
+   * "Fotoğrafını ekle" çağrısıyla başlar. Fotoğrafla üretilmiş gerçek
+   * tasarımlar `isTemplateDesign` taşıdığı için korunur. */
   useEffect(() => {
     const tpl = personalization.templateDesign;
-    // Dağıtımlı ve AI şablonunun hazır tasarım görseli yok — tasarım
-    // fotoğraftan üretiliyor — o yüzden yer tutucu konmaz, müşteri doğrudan
-    // "Fotoğrafını ekle" çağrısını görür.
-    if (!tpl?.previewUrl || templateSeededRef.current) return;
-    const handle = frontCanvasRef.current;
-    const cv = handle?.getCanvas();
-    if (!handle || !cv) return;
+    if (!tpl?.previewUrl) return;
+    const cv = frontCanvasRef.current?.getCanvas();
+    if (!cv) return;
 
-    // Tuvalde şablona ait bir nesne varsa ikincisi eklenmez: iki effect
-    // birbirinden habersiz aynı tuvale yazdığı için her sayfa yenilemesinde
-    // bir kopya daha biniyordu ve kopyalar ayrı birer baskı parçası sayılıp
-    // ayrı ayrı ücretlendiriliyordu.
-    if (markTemplateObjects(cv, tpl)) {
-      templateSeedingRef.current = false;
-      return;
-    }
-    if (templateSeedingRef.current) return;
-    templateSeedingRef.current = true;
-
-    // canvasRevisions bağımlılığı geri yükleme turu için: loadDesign tuvali
-    // sıfırdan kuruyor, yani daha önce ekilen yer tutucuyu siliyor. Kayıtlı
-    // tasarım boşsa (bir hata yüzünden boş kaydedilmiş olabilir) çerçeve
-    // tamamen kayboluyordu; burada geri konur. Müşteri çerçeveyi kendisi
-    // sildiyse templateSeededRef kapanır ve geri gelmez (bkz. deleteSelected).
-    handle.addImageFromUrl(templatePlaceholderSrc(tpl), { isTemplatePlaceholder: true });
+    // Eski kayıtlarda bayrak serileştirilmemiş olabilir; kaynak adresinden
+    // tanıyıp yalnızca boş yer tutucuları kaldırıyoruz.
+    markTemplateObjects(cv, tpl);
+    const placeholders = cv.getObjects().filter(
+      (object) => (object as fabric.Object & { isTemplatePlaceholder?: boolean }).isTemplatePlaceholder === true,
+    );
+    if (placeholders.length === 0) return;
+    placeholders.forEach((object) => cv.remove(object));
+    cv.discardActiveObject();
+    cv.requestRenderAll();
   }, [personalization.templateDesign, canvasRevisions.front]);
 
   /**
@@ -2511,12 +2496,6 @@ export default function App() {
   };
 
   const deleteSelected = () => {
-    // Müşteri boş şablon çerçevesini bilerek sildiyse geri gelmemeli; ekim
-    // effect'i tuvalde şablon nesnesi görmediğinde yeniden ekliyor.
-    const secili = getActiveCanvasHandle()?.getCanvas()?.getActiveObject();
-    if ((secili as fabric.Object & { isTemplatePlaceholder?: boolean })?.isTemplatePlaceholder) {
-      templateSeededRef.current = true;
-    }
     getActiveCanvasHandle()?.deleteSelected();
     setSelectedObj(null);
     setObjState(null);
@@ -2888,9 +2867,8 @@ export default function App() {
   const surfaceMode = personalization.surfaceMode;
   const availableSides = surfaceMode === 'front_only' ? (['front'] as const) : (['front', 'back'] as const);
 
-  // Boş şablon çerçevesi bir baskı parçası değildir. Sayfa açılır açılmaz
-  // tuvale konuyor ve müşteri daha fotoğrafını eklemeden ücret satırı
-  // çıkıyordu; fotoğraf onaylanınca yerini gerçek tasarım alıyor.
+  // Eski oturumdan temizlenmeyi bekleyen boş şablon çerçevesi kısa süreliğine
+  // mevcut olsa bile baskı parçası ve ücret satırı sayılmaz.
   const frontObjects = useMemo(
     () => (frontCanvasRef.current?.getCanvas()?.getObjects() ?? []).filter(isPricedObject),
     [canvasRevisions.front],
