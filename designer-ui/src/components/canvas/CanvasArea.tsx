@@ -40,6 +40,8 @@ export interface ImageAddOptions {
   autoTrim?: boolean;
   /** Şablondan üretilen tasarım görseli — silinince "Fotoğrafını ekle" çağrısı geri gelir. */
   isTemplateDesign?: boolean;
+  /** İçi boş şablon önizlemesi — baskı parçası sayılmaz, ücretlendirilmez. */
+  isTemplatePlaceholder?: boolean;
 }
 
 export interface CanvasAreaHandle {
@@ -123,7 +125,10 @@ const MIN_EXPORT_DATA_URL_LENGTH = 2048;
 function isUsableDataUrl(dataUrl: string): boolean {
   return dataUrl.startsWith('data:image/') && dataUrl.length >= MIN_EXPORT_DATA_URL_LENGTH;
 }
-const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl', 'backgroundRemoved', 'autoTrimRect', 'printGroup', 'isTemplateDesign'];
+// isTemplatePlaceholder de saklanır: kaydedilmezse sayfa yenilendikten sonra
+// bayrak kayboluyor, fotoğraf onaylandığında boş yer tutucu silinemiyor ve
+// ayrı bir baskı parçası olarak ücretlendiriliyordu.
+const SERIALIZED_OBJECT_PROPS = ['id', 'sourceUrl', 'backgroundRemoved', 'autoTrimRect', 'printGroup', 'isTemplateDesign', 'isTemplatePlaceholder'];
 
 type SourceBackedImage = fabric.Image & {
   sourceUrl?: string;
@@ -904,6 +909,9 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
       // daha ilk olayda doğru sınıflandırsın.
       if (opts?.isTemplateDesign) {
         (img as fabric.Object & { isTemplateDesign?: boolean }).isTemplateDesign = true;
+      }
+      if (opts?.isTemplatePlaceholder) {
+        (img as fabric.Object & { isTemplatePlaceholder?: boolean }).isTemplatePlaceholder = true;
       }
       lockImageProportions(img);
       constrainObjectToArea(img, areaRect);

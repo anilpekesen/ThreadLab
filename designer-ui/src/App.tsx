@@ -478,6 +478,11 @@ function metricsFromObjects(objects: fabric.Object[], area: PrintAreaConfig): Si
   return metricsFromRect({ width: right - left, height: bottom - top }, area, objects.length);
 }
 
+/** Ücretlendirilecek nesne mi — içi boş şablon yer tutucusu sayılmaz */
+function isPricedObject(obj: fabric.Object): boolean {
+  return (obj as fabric.Object & { isTemplatePlaceholder?: boolean }).isTemplatePlaceholder !== true;
+}
+
 function pricingItemsForObjects(
   objects: fabric.Object[],
   area: PrintAreaConfig,
@@ -1171,6 +1176,8 @@ export default function App() {
   const configRef = useRef(config);
   const personalizationRef = useRef<PersonalizationConfig>(defaultPersonalization());
   const restoredCanvasRef = useRef<string | null>(null);
+  /** Geri yükleme bitti mi — şablon yer tutucusu ancak ondan sonra ekilebilir */
+  const [restoredCanvasKey, setRestoredCanvasKey] = useState<string | null>(null);
   const lastSelectedVariantIdRef = useRef('');
 
   const [activeTab, setActiveTab] = useState<Tab>(null);
@@ -1591,6 +1598,7 @@ export default function App() {
 
   useEffect(() => {
     restoredCanvasRef.current = null;
+    setRestoredCanvasKey(null);
     setCanvasJson('front', '');
     setCanvasJson('back', '');
   }, [productCanvasKey]);
@@ -1602,6 +1610,7 @@ export default function App() {
     const stored = readStoredCanvasState(productCanvasKey);
     if (!stored) {
       restoredCanvasRef.current = productCanvasKey;
+      setRestoredCanvasKey(productCanvasKey);
       return;
     }
     if (stored.frontJson) {
@@ -1613,6 +1622,7 @@ export default function App() {
       setCanvasJson('back', stored.backJson);
     }
     restoredCanvasRef.current = productCanvasKey;
+    setRestoredCanvasKey(productCanvasKey);
     window.setTimeout(syncLayers, 0);
   }, [personalization.surfaceMode, productCanvasKey, setCanvasJson, syncLayers]);
 
@@ -1893,8 +1903,20 @@ export default function App() {
     const tpl = personalization.templateDesign;
     if (!tpl || templateSeededRef.current) return;
     const handle = frontCanvasRef.current;
-    if (!handle?.getCanvas()) return;
+    const cv = handle?.getCanvas();
+    if (!handle || !cv) return;
+
+    // Geri yükleme bitmeden ekim yapılmamalı: localStorage'daki tasarım
+    // şablonu zaten taşıyor olabilir ve iki effect birbirinden habersiz
+    // çalıştığı için her sayfa yenilemesinde bir kopya daha ekleniyordu.
+    // Kopyalar ayrı birer baskı parçası sayılıp ayrı ayrı ücretlendiriliyordu.
+    if (!productCanvasKey || restoredCanvasKey !== productCanvasKey) return;
     templateSeededRef.current = true;
+    const zatenVar = cv.getObjects().some((o) => {
+      const obj = o as fabric.Object & { isTemplatePlaceholder?: boolean; isTemplateDesign?: boolean };
+      return obj.isTemplatePlaceholder === true || obj.isTemplateDesign === true;
+    });
+    if (zatenVar) return;
 
     // Her iki modda da müşteri "Fotoğrafını ekle" çağrısını görmeli. Dağıtımlı
     // şablonun hazır tasarım görseli yok — tasarım fotoğraftan üretiliyor —
@@ -1902,22 +1924,15 @@ export default function App() {
     // previewUrl boş olunca effect erken dönüyor ve buton hiç çıkmıyordu.
     if (!tpl.previewUrl) return;
 
-    handle.addImageFromUrl(`/api/img-proxy?url=${encodeURIComponent(tpl.previewUrl)}`);
-
-    // fabric görseli asenkron yüklüyor; eklenince yer tutucu olarak işaretle
-    let tries = 0;
-    const mark = window.setInterval(() => {
-      const cv = handle.getCanvas();
-      const last = cv?.getObjects().slice(-1)[0];
-      if (last) {
-        (last as fabric.Object & { isTemplatePlaceholder?: boolean }).isTemplatePlaceholder = true;
-        window.clearInterval(mark);
-      } else if (++tries > 40) {
-        window.clearInterval(mark);
-      }
-    }, 150);
-    return () => window.clearInterval(mark);
-  }, [personalization.templateDesign]);
+    // Bayrak nesne tuvale eklenmeden önce yazılır. Eskiden bir setInterval
+    // sonradan son nesneyi işaretliyordu; o aralıkta boş çerçeve ücretlendirilmiş
+    // nesne sayılıyor, arada başka bir nesne eklenirse yanlış nesne
+    // işaretleniyordu.
+    handle.addImageFromUrl(
+      `/api/img-proxy?url=${encodeURIComponent(tpl.previewUrl)}`,
+      { isTemplatePlaceholder: true },
+    );
+  }, [personalization.templateDesign, productCanvasKey, restoredCanvasKey]);
 
   /**
    * "Fotoğrafını ekle" çağrısı yalnızca aktif yüzde şablon varsa ve o yüz
@@ -2829,12 +2844,15 @@ export default function App() {
   const surfaceMode = personalization.surfaceMode;
   const availableSides = surfaceMode === 'front_only' ? (['front'] as const) : (['front', 'back'] as const);
 
+  // Boş şablon çerçevesi bir baskı parçası değildir. Sayfa açılır açılmaz
+  // tuvale konuyor ve müşteri daha fotoğrafını eklemeden ücret satırı
+  // çıkıyordu; fotoğraf onaylanınca yerini gerçek tasarım alıyor.
   const frontObjects = useMemo(
-    () => frontCanvasRef.current?.getCanvas()?.getObjects() ?? [],
+    () => (frontCanvasRef.current?.getCanvas()?.getObjects() ?? []).filter(isPricedObject),
     [canvasRevisions.front],
   );
   const backObjects = useMemo(
-    () => backCanvasRef.current?.getCanvas()?.getObjects() ?? [],
+    () => (backCanvasRef.current?.getCanvas()?.getObjects() ?? []).filter(isPricedObject),
     [canvasRevisions.back],
   );
 
