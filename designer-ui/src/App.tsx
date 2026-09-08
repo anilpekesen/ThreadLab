@@ -1237,6 +1237,8 @@ export default function App() {
    */
   const [templateFilledSides, setTemplateFilledSides] = useState<Array<'front' | 'back'>>([]);
   const templateSeededRef = useRef(false);
+  /** Yer tutucu görseli yükleniyor — fabric asenkron ekliyor, bu arada ikinci kopya eklenmesin */
+  const templateSeedingRef = useRef(false);
   const [selectedObj, setSelectedObj] = useState<CanvasSelection | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
   const [zoom, setZoom] = useState(getAutoZoom);
@@ -1933,34 +1935,32 @@ export default function App() {
    */
   useEffect(() => {
     const tpl = personalization.templateDesign;
-    if (!tpl || templateSeededRef.current) return;
+    // Dağıtımlı ve AI şablonunun hazır tasarım görseli yok — tasarım
+    // fotoğraftan üretiliyor — o yüzden yer tutucu konmaz, müşteri doğrudan
+    // "Fotoğrafını ekle" çağrısını görür.
+    if (!tpl?.previewUrl || templateSeededRef.current) return;
     const handle = frontCanvasRef.current;
     const cv = handle?.getCanvas();
     if (!handle || !cv) return;
 
-    templateSeededRef.current = true;
+    // Tuvalde şablona ait bir nesne varsa ikincisi eklenmez: iki effect
+    // birbirinden habersiz aynı tuvale yazdığı için her sayfa yenilemesinde
+    // bir kopya daha biniyordu ve kopyalar ayrı birer baskı parçası sayılıp
+    // ayrı ayrı ücretlendiriliyordu.
+    if (markTemplateObjects(cv, tpl)) {
+      templateSeedingRef.current = false;
+      return;
+    }
+    if (templateSeedingRef.current) return;
+    templateSeedingRef.current = true;
 
-    // localStorage'dan geri yüklenen tasarım şablonu zaten taşıyor olabilir.
-    // İki effect birbirinden habersiz aynı tuvale yazdığı için her sayfa
-    // yenilemesinde bir kopya daha biniyor, kopyalar da ayrı birer baskı
-    // parçası sayılıp ayrı ayrı ücretlendiriliyordu. Geri yüklemeyi
-    // beklemiyoruz: loadDesign tuvali sıfırdan kuruyor, yani önce ekilen yer
-    // tutucu zaten siliniyor. Beklemek, tuval hazır olmadan çalışan bir geri
-    // yükleme turunda yer tutucunun hiç eklenmemesine yol açıyordu.
-    if (markTemplateObjects(cv, personalization.templateDesign)) return;
-
-    // Her iki modda da müşteri "Fotoğrafını ekle" çağrısını görmeli. Dağıtımlı
-    // şablonun hazır tasarım görseli yok — tasarım fotoğraftan üretiliyor —
-    // bu yüzden yer tutucu koymadan sadece çağrıyı gösteriyoruz. Eskiden
-    // previewUrl boş olunca effect erken dönüyor ve buton hiç çıkmıyordu.
-    if (!tpl.previewUrl) return;
-
-    // Bayrak nesne tuvale eklenmeden önce yazılır. Eskiden bir setInterval
-    // sonradan son nesneyi işaretliyordu; o aralıkta boş çerçeve ücretlendirilmiş
-    // nesne sayılıyor, arada başka bir nesne eklenirse yanlış nesne
-    // işaretleniyordu.
+    // canvasRevisions bağımlılığı geri yükleme turu için: loadDesign tuvali
+    // sıfırdan kuruyor, yani daha önce ekilen yer tutucuyu siliyor. Kayıtlı
+    // tasarım boşsa (bir hata yüzünden boş kaydedilmiş olabilir) çerçeve
+    // tamamen kayboluyordu; burada geri konur. Müşteri çerçeveyi kendisi
+    // sildiyse templateSeededRef kapanır ve geri gelmez (bkz. deleteSelected).
     handle.addImageFromUrl(templatePlaceholderSrc(tpl), { isTemplatePlaceholder: true });
-  }, [personalization.templateDesign]);
+  }, [personalization.templateDesign, canvasRevisions.front]);
 
   /**
    * "Fotoğrafını ekle" çağrısı yalnızca aktif yüzde şablon varsa ve o yüz
@@ -2501,6 +2501,12 @@ export default function App() {
   };
 
   const deleteSelected = () => {
+    // Müşteri boş şablon çerçevesini bilerek sildiyse geri gelmemeli; ekim
+    // effect'i tuvalde şablon nesnesi görmediğinde yeniden ekliyor.
+    const secili = getActiveCanvasHandle()?.getCanvas()?.getActiveObject();
+    if ((secili as fabric.Object & { isTemplatePlaceholder?: boolean })?.isTemplatePlaceholder) {
+      templateSeededRef.current = true;
+    }
     getActiveCanvasHandle()?.deleteSelected();
     setSelectedObj(null);
     setObjState(null);
