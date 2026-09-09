@@ -573,7 +573,7 @@ export async function fetchShopifyProductById(
         featuredImage {
           url
         }
-        images(first: 5) {
+        images(first: 6) {
           nodes {
             url
           }
