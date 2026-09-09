@@ -178,7 +178,7 @@ export async function composeAiDesign(opts: AiComposeOptions): Promise<AiCompose
   const hasText = (opts.textFields ?? []).some((f) => (
     (opts.textValues?.[f.id] ?? "").trim() || (f.default_value ?? "").trim()
   ));
-  const prompt = buildAiPrompt(styleId, faceCount, storyContext, hasText);
+  const prompt = buildAiPrompt(styleId, faceCount, storyContext);
 
   const cacheKey = createHash("sha256")
     .update(opts.photo)
