@@ -222,54 +222,54 @@ export default function TemplateAiModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="grid min-h-full lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,.92fr)]">
-            <section className="flex min-h-[330px] flex-col bg-gray-950 p-4 sm:min-h-[430px] sm:p-6">
+            <section className="flex min-h-[330px] flex-col border-b border-gray-200 bg-white p-4 sm:min-h-[430px] sm:p-6 lg:border-b-0 lg:border-r">
               {preview ? (
                 <div className="flex min-h-0 flex-1 flex-col">
-                  <div className="mb-3 flex items-center justify-between gap-3 text-white">
+                  <div className="mb-3 flex items-center justify-between gap-3 text-gray-950">
                     <div>
                       <p className="text-sm font-bold">{t.resultTitle}</p>
-                      <p className="mt-0.5 text-[11px] text-gray-300">{t.resultHint}</p>
+                      <p className="mt-0.5 text-[11px] text-gray-600">{t.resultHint}</p>
                     </div>
-                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-white">
+                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-semibold text-rose-700">
                       <Sparkles className="h-3 w-3" aria-hidden="true" /> AI
                     </span>
                   </div>
-                  <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl bg-[linear-gradient(45deg,#20242d_25%,transparent_25%),linear-gradient(-45deg,#20242d_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#20242d_75%),linear-gradient(-45deg,transparent_75%,#20242d_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0px]">
+                  <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
                     <img src={preview} alt={t.generatedAlt} className="max-h-[54vh] w-full object-contain" />
                     {busy && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/80 px-6 text-center text-white" aria-live="polite">
-                        <LoaderCircle className="h-8 w-8 animate-spin text-rose-400" aria-hidden="true" />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/90 px-6 text-center text-gray-950" aria-live="polite">
+                        <LoaderCircle className="h-8 w-8 animate-spin text-rose-600" aria-hidden="true" />
                         <p className="mt-3 text-sm font-semibold">{t.busy}</p>
                       </div>
                     )}
                   </div>
                   <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}
-                    className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-white/10 px-3 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-40">
+                    className="mt-3 flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:opacity-40">
                     <ImageIcon className="h-4 w-4" aria-hidden="true" />
                     {t.change}
                   </button>
                 </div>
               ) : (
                 <div className="flex flex-1 flex-col justify-center">
-                  <div className="mx-auto w-full max-w-md text-center text-white">
-                    <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-rose-500/15 text-rose-400">
+                  <div className="mx-auto w-full max-w-md text-center text-gray-950">
+                    <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
                       <Upload className="h-6 w-6" aria-hidden="true" />
                     </span>
                     <h3 className="mt-4 text-base font-bold">{file ? t.chosen : t.pick}</h3>
-                    <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-gray-300">{t.photoHint}</p>
+                    <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-gray-600">{t.photoHint}</p>
                   </div>
                   <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}
-                    className="group relative mx-auto mt-5 flex min-h-48 w-full max-w-md items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-600 bg-gray-900 px-5 py-6 text-center transition-colors hover:border-rose-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-40">
+                    className="group relative mx-auto mt-5 flex min-h-48 w-full max-w-md items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-5 py-6 text-center transition-colors hover:border-rose-400 hover:bg-rose-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:opacity-40">
                     {photoUrl ? (
                       <>
                         <img src={photoUrl} alt={t.selectedPhotoAlt} className="absolute inset-0 h-full w-full object-contain" />
-                        <span className="absolute inset-x-3 bottom-3 rounded-lg bg-gray-950/85 px-3 py-2 text-xs font-semibold text-white">
+                        <span className="absolute inset-x-3 bottom-3 rounded-lg bg-white/95 px-3 py-2 text-xs font-semibold text-gray-900 shadow-sm">
                           {file?.name.slice(0, 42)}
                         </span>
                       </>
                     ) : (
-                      <span className="flex flex-col items-center gap-2 text-sm font-semibold text-gray-200">
-                        <Upload className="h-5 w-5 text-rose-400" aria-hidden="true" />
+                      <span className="flex flex-col items-center gap-2 text-sm font-semibold text-gray-700">
+                        <Upload className="h-5 w-5 text-rose-600" aria-hidden="true" />
                         {t.pick}
                       </span>
                     )}

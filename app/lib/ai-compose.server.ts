@@ -175,7 +175,10 @@ export async function composeAiDesign(opts: AiComposeOptions): Promise<AiCompose
   // yoksa 0 döner ve prompt sayısız (ama yine kimlik koruyan) hâle düşer.
   const faceCount = await countFaces(opts.photo).catch(() => 0);
   const storyContext = extractAiStoryContext(opts.textFields ?? [], opts.textValues ?? {});
-  const prompt = buildAiPrompt(styleId, faceCount, storyContext);
+  const hasText = (opts.textFields ?? []).some((f) => (
+    (opts.textValues?.[f.id] ?? "").trim() || (f.default_value ?? "").trim()
+  ));
+  const prompt = buildAiPrompt(styleId, faceCount, storyContext, hasText);
 
   const cacheKey = createHash("sha256")
     .update(opts.photo)
@@ -205,9 +208,6 @@ export async function composeAiDesign(opts: AiComposeOptions): Promise<AiCompose
 
   // Üretilen görsel tuvalin içine oranını koruyarak yerleştirilir; yazı için
   // altta yer bırakılır ki metin alanları görselin üstüne binmesin.
-  const hasText = (opts.textFields ?? []).some((f) => (
-    (opts.textValues?.[f.id] ?? "").trim() || (f.default_value ?? "").trim()
-  ));
   const artHeight = Math.round(config.canvasHeight * (hasText ? 0.78 : 1));
   const art = await sharp(generated)
     .resize(config.canvasWidth, artHeight, { fit: "inside", background: { r: 0, g: 0, b: 0, alpha: 0 } })
@@ -226,12 +226,24 @@ export async function composeAiDesign(opts: AiComposeOptions): Promise<AiCompose
   );
   if (overlay) composites.push({ input: overlay });
 
-  const buffer = await sharp({
+  const composed = await sharp({
     create: {
       width: config.canvasWidth, height: config.canvasHeight,
       channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
   }).composite(composites).png().toBuffer();
+
+  // Metin girilmediyse sabit portre tuvalinin altında kalan saydam yazı
+  // boşluğunu taşımanın anlamı yok. Gerçek içerik sınırına kırpmak, tasarımın
+  // baskı alanına daha dolu ve dengeli yerleşmesini sağlar. Metin varsa
+  // koordinat sistemi korunmalı; o durumda kesinlikle kırpılmaz.
+  const buffer = hasText
+    ? composed
+    : await sharp(composed)
+        .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
+        .png()
+        .toBuffer()
+        .catch(() => composed);
 
   return {
     buffer,
