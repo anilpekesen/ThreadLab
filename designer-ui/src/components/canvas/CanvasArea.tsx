@@ -8,6 +8,13 @@ import { ensureCanvasFontsReady, ensureFontLoaded } from '@/utils/fonts';
 
 registerCurvedText();
 
+// fabric toObject/toJSON sayıları varsayılan olarak 2 ondalığa yuvarlıyor.
+// Görsellerin ölçeği çoğu zaman 0.07 civarında olduğundan bu, kayıtlı tasarımda
+// %6'ya varan boyut kaybı demek (0.0744 → 0.07): kaydedilen tasarımdan yeniden
+// üretilen baskı dosyası, geri al ve kopyala hep bu küçülmüş ölçüyü kullanıyordu.
+// Baskı dosyası 300 DPI'da ~4500 px — 6 ondalık alt-piksel hassasiyet için yeterli.
+fabric.Object.NUM_FRACTION_DIGITS = 6;
+
 const PRINT_W = 480;
 const PRINT_H = 580;
 const BADGE_GAP = 10;      // rozetin nesneye uzaklığı
