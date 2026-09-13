@@ -14,12 +14,19 @@ const BUCKET = process.env.R2_BUCKET ?? "printlabapp-designs";
 const PUBLIC_URL = process.env.R2_PUBLIC_URL ?? "";
 const TEMP_KEY_PREFIXES = ["uploads/", "ai-gen/"];
 
-export async function uploadToR2(
+export const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
+
+export function newR2Key(folder: string, ext: string) {
+  return `${folder}/${randomBytes(16).toString("hex")}.${ext}`;
+}
+
+/** Nesneyi verilen anahtara yazar; aynı anahtara tekrar yazmak üzerine yazar. */
+export async function putR2Object(
+  key: string,
   buffer: Buffer,
   ext: string,
-  folder = "uploads"
+  cacheControl = IMMUTABLE_CACHE,
 ): Promise<string> {
-  const key = `${folder}/${randomBytes(16).toString("hex")}.${ext}`;
   await client.send(
     new PutObjectCommand({
       Bucket: BUCKET,
@@ -30,10 +37,18 @@ export async function uploadToR2(
         : ext === "jpg" ? "image/jpeg"
         : ext === "svg" ? "image/svg+xml"
         : "image/webp",
-      CacheControl: "public, max-age=31536000, immutable",
+      CacheControl: cacheControl,
     })
   );
   return `${PUBLIC_URL}/${key}`;
+}
+
+export async function uploadToR2(
+  buffer: Buffer,
+  ext: string,
+  folder = "uploads"
+): Promise<string> {
+  return putR2Object(newR2Key(folder, ext), buffer, ext);
 }
 
 export function getR2KeyFromPublicUrl(url: string, allowedPrefixes = TEMP_KEY_PREFIXES): string | null {

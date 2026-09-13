@@ -1059,16 +1059,40 @@ function writeStoredCanvasState(productKey: string, value: { frontJson: string; 
   }
 }
 
-async function uploadBlob(blob: Blob, side: string): Promise<string | null> {
+/** Sepete ekleme ölçümü: her yüklemenin boyutu, toplam süresi ve sunucuda geçen süre. */
+type UploadTrace = Array<{ side: string; kb: number; ms: number; serverMs?: number; ok: boolean }>;
+
+function createStepTimer() {
+  const startedAt = performance.now();
+  let last = startedAt;
+  const steps: Record<string, number> = {};
+  return {
+    steps,
+    mark(name: string) {
+      const now = performance.now();
+      steps[name] = Math.round(now - last);
+      last = now;
+    },
+    total: () => Math.round(performance.now() - startedAt),
+  };
+}
+
+async function uploadBlob(blob: Blob, side: string, trace?: UploadTrace): Promise<string | null> {
+  const startedAt = performance.now();
+  const record = (ok: boolean, serverMs?: number) => trace?.push({
+    side, kb: Math.round(blob.size / 1024), ms: Math.round(performance.now() - startedAt), serverMs, ok,
+  });
   try {
     const form = new FormData();
     form.append('image', blob, `${side}.png`);
     form.append('side', side);
     const res = await fetch('/apps/tshirt-designer/upload', { method: 'POST', body: form });
-    if (!res.ok) return null;
-    const data = await res.json() as { url?: string };
+    if (!res.ok) { record(false); return null; }
+    const data = await res.json() as { url?: string; serverMs?: number };
+    record(Boolean(data.url), data.serverMs);
     return data.url ?? null;
   } catch {
+    record(false);
     return null;
   }
 }
@@ -1104,10 +1128,10 @@ async function imageHasTransparentBg(blob: Blob): Promise<boolean> {
   }
 }
 
-async function dataUrlToServerUrl(dataUrl: string, side: string): Promise<string> {
+async function dataUrlToServerUrl(dataUrl: string, side: string, trace?: UploadTrace): Promise<string> {
   if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
   const blob = await fetch(dataUrl).then((r) => r.blob());
-  return (await uploadBlob(blob, side)) ?? dataUrl;
+  return (await uploadBlob(blob, side, trace)) ?? dataUrl;
 }
 
 function wait(ms: number) {
@@ -1134,7 +1158,7 @@ function isDataImageUrl(value: unknown): value is string {
   return typeof value === 'string' && /^data:image\/[a-z0-9.+-]+;base64,/i.test(value);
 }
 
-async function persistDesignJsonImages(json: string | undefined, cache: Map<string, Promise<string>>): Promise<string> {
+async function persistDesignJsonImages(json: string | undefined, cache: Map<string, Promise<string>>, trace?: UploadTrace): Promise<string> {
   if (!json) return '';
   let parsed: unknown;
   try {
@@ -1146,7 +1170,7 @@ async function persistDesignJsonImages(json: string | undefined, cache: Map<stri
   const persistUrl = (dataUrl: string) => {
     const existing = cache.get(dataUrl);
     if (existing) return existing;
-    const promise = dataUrlToServerUrl(dataUrl, 'design-source');
+    const promise = dataUrlToServerUrl(dataUrl, 'design-source', trace);
     cache.set(dataUrl, promise);
     return promise;
   };
@@ -1276,6 +1300,7 @@ export default function App() {
   const [showCartDecisionModal, setShowCartDecisionModal] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cartResponseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cartRequestStartedAtRef = useRef<number | null>(null);
   const designerStartedAtRef = useRef(Date.now());
   const designActivityTrackedRef = useRef(false);
   const cropTargetRef = useRef<fabric.Image | null>(null);
@@ -1492,6 +1517,10 @@ export default function App() {
       const payload = event.data;
       if (!payload || typeof payload.type !== 'string') return;
       if (payload.type === 'DESIGNER_CART_ADDED') {
+        if (cartRequestStartedAtRef.current !== null) {
+          console.info('[cart-timing] shopify sepet isteği', Math.round(performance.now() - cartRequestStartedAtRef.current), 'ms');
+          cartRequestStartedAtRef.current = null;
+        }
         clearCartResponseTimer();
         setIsCartLoading(false);
         setShowCartDecisionModal(false);
@@ -2232,6 +2261,8 @@ export default function App() {
     }
 
     setIsCartLoading(true);
+    const cartTimer = createStepTimer();
+    const uploadTrace: UploadTrace = [];
     try {
       const resolvedMockupConfig = config
         ? resolveDesignerMockupConfig(config, personalization, selectedColor)
@@ -2266,6 +2297,8 @@ export default function App() {
         return;
       }
 
+      cartTimer.mark('mockupWait');
+
       // Mockup gibi fontlar da export'tan önce hazır olmalı. Font sonradan
       // geldiğinde fabric'in önbellekteki ölçüsü eski kalıyor ve yazının sonu
       // hem önizlemeye hem baskı dosyasına eksik düşüyordu (bkz. utils/fonts).
@@ -2273,10 +2306,12 @@ export default function App() {
         ensureCanvasFontsReady(frontCanvasRef.current?.getCanvas() ?? null),
         ensureCanvasFontsReady(backCanvasRef.current?.getCanvas() ?? null),
       ]);
+      cartTimer.mark('fonts');
 
       // Export canvas: 3x preview (1440px+) + print at 300 DPI
       const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(3) ?? '') : '';
       const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(3) ?? '') : '';
+      cartTimer.mark('exportPreview');
       // Print dosyasını gerçek mm boyutlarında 300 DPI export et.
       // Baskı tarafında bulanıklık şikayetlerini önlemek için üretim dosyasında piksel kaybı yapmıyoruz.
       const frontPrintDataUrl = frontHas
@@ -2285,6 +2320,7 @@ export default function App() {
       const backPrintDataUrl = backHas
         ? (backCanvasRef.current?.exportPrintFile(activePrintAreas.back, 300) ?? '')
         : '';
+      cartTimer.mark('exportPrint');
 
       // exportPrintFile bozuk çıktıda boş string döner (canvas limiti aşılmış olabilir).
       // Eskiden "data:," olduğu gibi yüklenip sipariş boş baskı dosyasıyla geçiyordu —
@@ -2309,13 +2345,14 @@ export default function App() {
         compactFrontDesignJson,
         compactBackDesignJson,
       ] = await Promise.all([
-        frontPreviewDataUrl ? dataUrlToServerUrl(frontPreviewDataUrl, 'front-preview') : Promise.resolve(''),
-        backPreviewDataUrl ? dataUrlToServerUrl(backPreviewDataUrl, 'back-preview') : Promise.resolve(''),
-        frontPrintDataUrl ? dataUrlToServerUrl(frontPrintDataUrl, 'front-print') : Promise.resolve(''),
-        backPrintDataUrl ? dataUrlToServerUrl(backPrintDataUrl, 'back-print') : Promise.resolve(''),
-        persistDesignJsonImages(frontDesignJson, designSourceCache),
-        persistDesignJsonImages(backDesignJson, designSourceCache),
+        frontPreviewDataUrl ? dataUrlToServerUrl(frontPreviewDataUrl, 'front-preview', uploadTrace) : Promise.resolve(''),
+        backPreviewDataUrl ? dataUrlToServerUrl(backPreviewDataUrl, 'back-preview', uploadTrace) : Promise.resolve(''),
+        frontPrintDataUrl ? dataUrlToServerUrl(frontPrintDataUrl, 'front-print', uploadTrace) : Promise.resolve(''),
+        backPrintDataUrl ? dataUrlToServerUrl(backPrintDataUrl, 'back-print', uploadTrace) : Promise.resolve(''),
+        persistDesignJsonImages(frontDesignJson, designSourceCache, uploadTrace),
+        persistDesignJsonImages(backDesignJson, designSourceCache, uploadTrace),
       ]);
+      cartTimer.mark('uploads');
 
       // Beden başına önizleme: baskı fiziksel olarak aynı kalır, tişört
       // üzerindeki oranı bedene göre değişir. Aktif bedenin görseli yukarıda
@@ -2344,15 +2381,16 @@ export default function App() {
         const frontData = frontHas
           ? await (frontCanvasRef.current?.exportPreviewForArea(activePrintAreas.front, frontTarget, 2) ?? Promise.resolve(''))
           : '';
-        const front = frontData ? await dataUrlToServerUrl(frontData, 'front-preview') : '';
+        const front = frontData ? await dataUrlToServerUrl(frontData, 'front-preview', uploadTrace) : '';
 
         const backData = backHas
           ? await (backCanvasRef.current?.exportPreviewForArea(activePrintAreas.back, backTarget, 2) ?? Promise.resolve(''))
           : '';
-        const back = backData ? await dataUrlToServerUrl(backData, 'back-preview') : '';
+        const back = backData ? await dataUrlToServerUrl(backData, 'back-preview', uploadTrace) : '';
 
         sizePreviewUrls.set(size, { front, back });
       }
+      cartTimer.mark(`sizePreviews(${sizesToRender.length})`);
 
       for (const item of cartItems) {
         const urls = item.size ? sizePreviewUrls.get(item.size) : undefined;
@@ -2383,8 +2421,11 @@ export default function App() {
           originalImageUrls: templateOriginalUrls,
         }),
       }).then((r) => r.json());
+      cartTimer.mark('saveDesign');
 
       const token = (designRes as { token?: string }).token ?? '';
+      const cartTiming = { totalMs: cartTimer.total(), steps: cartTimer.steps, uploads: uploadTrace };
+      console.info('[cart-timing]', cartTiming);
       const customerDesignUrl = token
         ? `https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=${encodeURIComponent(config?.shop || '')}&token=${encodeURIComponent(token)}&lang=${isTurkish ? 'tr' : 'en'}`
         : '';
@@ -2397,6 +2438,7 @@ export default function App() {
           quantity: totalQuantity,
           hasFront: frontHas,
           hasBack: backHas,
+          timing: cartTiming,
         },
       });
       const properties: Record<string, string> = {
@@ -2486,6 +2528,7 @@ export default function App() {
         setIsCartLoading(false);
         showToast(t.cartProcessing, 'info');
       }, 15000);
+      cartRequestStartedAtRef.current = performance.now();
       window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token, locale: config?.locale }, '*');
     } catch (err) {
       console.error(t.errorCart, err);
