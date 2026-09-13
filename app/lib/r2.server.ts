@@ -1,4 +1,4 @@
-import { S3Client, DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomBytes } from "node:crypto";
 
 const client = new S3Client({
@@ -41,6 +41,14 @@ export async function putR2Object(
     })
   );
   return `${PUBLIC_URL}/${key}`;
+}
+
+/** Nesneyi CDN'i atlayarak doğrudan bucket'tan okur. */
+export async function getR2Object(key: string): Promise<Buffer> {
+  const res = await client.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  const bytes = await res.Body?.transformToByteArray();
+  if (!bytes) throw new Error(`R2 nesnesi boş: ${key}`);
+  return Buffer.from(bytes);
 }
 
 export async function uploadToR2(

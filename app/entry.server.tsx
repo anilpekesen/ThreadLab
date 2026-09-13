@@ -5,8 +5,12 @@ import { RemixServer } from "@remix-run/react";
 import * as Sentry from "@sentry/remix";
 import { isbot } from "isbot";
 import { renderToPipeableStream } from "react-dom/server";
+import { startPrintJobRecovery } from "~/lib/print-jobs.server";
 
 const ABORT_DELAY = 5_000;
+
+// Yeniden başlatma sırasında yarım kalan baskı dosyası işlemlerini devral
+startPrintJobRecovery();
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
