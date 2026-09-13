@@ -112,6 +112,7 @@ async function processPrintFile(buffer: Buffer, side: string) {
         `[glow-plate] ${side} plaka uygulandı — ` +
         `yumuşak alfa %${(plated.measurement.softAlphaRatio * 100).toFixed(1)}, ` +
         `opak %${(plated.measurement.opaqueRatio * 100).toFixed(1)}, ` +
+        `düşük alfa %${((plated.measurement.lowAlphaRatio ?? 0) * 100).toFixed(1)}, ` +
         `alan ${plated.rect?.width}x${plated.rect?.height} @ ${plated.rect?.left},${plated.rect?.top}`,
       );
       buffer = Buffer.from(plated.buffer);

@@ -36,6 +36,31 @@ const SOFT_ALPHA_WARN_RATIO = 0.5;
 const OPAQUE_MAX_RATIO = 0.35;
 const MIN_VISIBLE_RATIO = 0.005;
 
+/**
+ * Yukarıdaki oranlar baskı dosyasını en uzun kenarı 512 px olacak şekilde
+ * ORTALAYARAK küçültüp ölçüyor. 4500x6500'lük dosyada bu ~12 kat küçültme:
+ * ince yazı, çizgi ve akan harf gibi detaylar zeminle karışıp yarı saydam
+ * piksele dönüşüyor ve ışıma sanılıyordu. Eylül 2026 taramasında düz mavi
+ * yazıya, ince çizgili logoya ve akan harfli logoya plaka basılmıştı.
+ *
+ * İkinci test pikselleri ORTALAMADAN (en yakın komşu) örnekler ve yalnızca
+ * düşük alfa bandına bakar. Işımanın halesi pikselleri gerçekten bu banda
+ * yayar; keskin bir tasarımda buraya yalnızca kenar yumuşatması düşer.
+ * Eylül 2026'da plaka basılmış 31 dosyanın tamamı gözle etiketlendi:
+ * gerçek ışıma/hale — Audi krom logosu %64, eski neon sipariş %59. Işımasız —
+ * metalik logo %41, ince çizgili logolar %36-39, grunge fırça yazı %35,
+ * vinyetli fotoğraf %34, düz yazılar %3-5. İnce çizgiler ortalamasız
+ * örneklemede bile kenar yumuşatmasıyla %35-40'a çıkıyor; eşik iki grubun
+ * arasındaki boşluğun ortasında.
+ *
+ * Bu test ilk testin YERİNE değil YANINA konuyor: ikisi birden gerekiyor, yani
+ * önceden plaka almayan hiçbir dosya bu değişiklikle plaka almaz.
+ */
+const EXACT_SAMPLE_MAX_SIDE = 1024;
+const LOW_ALPHA_MIN = 10;
+const LOW_ALPHA_MAX = 127;
+const LOW_ALPHA_MIN_RATIO = 0.5;
+
 /** En dış saçak gözle seçilmiyor; sınıra katılınca plakaya boş kenar ekliyor. */
 const PLATE_BBOX_MIN_ALPHA = 12;
 const PLATE_PADDING_RATIO = 0.03;
@@ -47,6 +72,8 @@ const MIN_PLATE_SIDE_PX = 32;
 export interface GlowMeasurement {
   softAlphaRatio: number;
   opaqueRatio: number;
+  /** Ortalamasız örneklemede düşük alfa bandının payı; ilk test geçmezse ölçülmez */
+  lowAlphaRatio?: number;
   isGlow: boolean;
 }
 
@@ -99,11 +126,39 @@ export async function measureGlow(input: Buffer): Promise<GlowMeasurement> {
 
   const softAlphaRatio = soft / visible;
   const opaqueRatio = opaque / visible;
+  if (softAlphaRatio < SOFT_ALPHA_WARN_RATIO || opaqueRatio > OPAQUE_MAX_RATIO) {
+    return { softAlphaRatio, opaqueRatio, isGlow: false };
+  }
+
+  const lowAlphaRatio = await measureLowAlphaExact(input, meta.width, meta.height);
   return {
     softAlphaRatio,
     opaqueRatio,
-    isGlow: softAlphaRatio >= SOFT_ALPHA_WARN_RATIO && opaqueRatio <= OPAQUE_MAX_RATIO,
+    lowAlphaRatio,
+    isGlow: lowAlphaRatio >= LOW_ALPHA_MIN_RATIO,
   };
+}
+
+/** Görünür piksellerin düşük alfa bandındaki payı, piksel ortalaması yapmadan. */
+async function measureLowAlphaExact(input: Buffer, fullW: number, fullH: number): Promise<number> {
+  const scale = Math.min(1, EXACT_SAMPLE_MAX_SIDE / Math.max(fullW, fullH));
+  const w = Math.max(1, Math.round(fullW * scale));
+  const h = Math.max(1, Math.round(fullH * scale));
+  const { data } = await sharp(input, { limitInputPixels: false })
+    .resize(w, h, { fit: "fill", kernel: "nearest" })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  let visible = 0;
+  let low = 0;
+  for (let p = 0; p < w * h; p++) {
+    const a = data[p * 4 + 3];
+    if (a < VISIBLE_MIN_ALPHA) continue;
+    visible++;
+    if (a >= LOW_ALPHA_MIN && a <= LOW_ALPHA_MAX) low++;
+  }
+  return visible ? low / visible : 0;
 }
 
 /** Sanatın tuval içindeki sınırlarını küçültülmüş kopyada bulur. */
