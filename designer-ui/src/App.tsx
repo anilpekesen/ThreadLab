@@ -1084,7 +1084,7 @@ async function uploadBlob(blob: Blob, side: string, trace?: UploadTrace): Promis
   });
   try {
     const form = new FormData();
-    form.append('image', blob, `${side}.png`);
+    form.append('image', blob, `${side}.${blob.type === 'image/jpeg' ? 'jpg' : 'png'}`);
     form.append('side', side);
     const res = await fetch('/apps/tshirt-designer/upload', { method: 'POST', body: form });
     if (!res.ok) { record(false); return null; }
@@ -1132,6 +1132,38 @@ async function dataUrlToServerUrl(dataUrl: string, side: string, trace?: UploadT
   if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
   const blob = await fetch(dataUrl).then((r) => r.blob());
   return (await uploadBlob(blob, side, trace)) ?? dataUrl;
+}
+
+/**
+ * Önizlemeler mockup üzerine çizildiği için tamamen opak; PNG yerine JPEG
+ * göndermek boyutu 4–7 kat düşürüyor (1440x1740'ta ~1,8 MB → ~280 KB). Müşterinin
+ * yükleme hızı sepete eklemedeki asıl darboğaz olduğundan bu doğrudan süre
+ * kazancı. Baskı dosyası kayıpsız PNG olarak kalır.
+ */
+async function previewDataUrlToJpegBlob(dataUrl: string, quality = 0.9): Promise<Blob | null> {
+  const img = new Image();
+  img.src = dataUrl;
+  await img.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  // Olası saydam piksel JPEG'de siyaha dönmesin
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+  return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+}
+
+async function uploadPreviewDataUrl(dataUrl: string, side: string, trace?: UploadTrace): Promise<string> {
+  if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
+  const jpeg = await previewDataUrlToJpegBlob(dataUrl).catch(() => null);
+  if (jpeg) {
+    const url = await uploadBlob(jpeg, side, trace);
+    if (url) return url;
+  }
+  return dataUrlToServerUrl(dataUrl, side, trace);
 }
 
 function wait(ms: number) {
@@ -2345,8 +2377,8 @@ export default function App() {
         compactFrontDesignJson,
         compactBackDesignJson,
       ] = await Promise.all([
-        frontPreviewDataUrl ? dataUrlToServerUrl(frontPreviewDataUrl, 'front-preview', uploadTrace) : Promise.resolve(''),
-        backPreviewDataUrl ? dataUrlToServerUrl(backPreviewDataUrl, 'back-preview', uploadTrace) : Promise.resolve(''),
+        frontPreviewDataUrl ? uploadPreviewDataUrl(frontPreviewDataUrl, 'front-preview', uploadTrace) : Promise.resolve(''),
+        backPreviewDataUrl ? uploadPreviewDataUrl(backPreviewDataUrl, 'back-preview', uploadTrace) : Promise.resolve(''),
         frontPrintDataUrl ? dataUrlToServerUrl(frontPrintDataUrl, 'front-print', uploadTrace) : Promise.resolve(''),
         backPrintDataUrl ? dataUrlToServerUrl(backPrintDataUrl, 'back-print', uploadTrace) : Promise.resolve(''),
         persistDesignJsonImages(frontDesignJson, designSourceCache, uploadTrace),
@@ -2381,12 +2413,12 @@ export default function App() {
         const frontData = frontHas
           ? await (frontCanvasRef.current?.exportPreviewForArea(activePrintAreas.front, frontTarget, 2) ?? Promise.resolve(''))
           : '';
-        const front = frontData ? await dataUrlToServerUrl(frontData, 'front-preview', uploadTrace) : '';
+        const front = frontData ? await uploadPreviewDataUrl(frontData, 'front-preview', uploadTrace) : '';
 
         const backData = backHas
           ? await (backCanvasRef.current?.exportPreviewForArea(activePrintAreas.back, backTarget, 2) ?? Promise.resolve(''))
           : '';
-        const back = backData ? await dataUrlToServerUrl(backData, 'back-preview', uploadTrace) : '';
+        const back = backData ? await uploadPreviewDataUrl(backData, 'back-preview', uploadTrace) : '';
 
         sizePreviewUrls.set(size, { front, back });
       }
