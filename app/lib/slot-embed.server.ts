@@ -2,6 +2,7 @@ import { templatePieces, type PersonalizerTemplate } from "~/models/personalizer
 import { getPrintProductPublic } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
 import { isImageSlot, isTextSlot, pickMockup } from "~/lib/slots";
+import { shapeMaskUrl } from "~/lib/slot-shapes";
 import { findLibraryFont } from "~/lib/font-library";
 import { colorLabel, isLightColor } from "~/lib/text-palette";
 import { scanTemplateHoles } from "~/lib/template-hole.server";
@@ -199,6 +200,15 @@ export async function buildSlotData(
         .map((sl) => ({
           id: sl.id, rect: sl.rect, label: sl.label, order: sl.order,
           radius: sl.radius ?? 0, fit: sl.fit, allow: sl.allow,
+          rotation: sl.rotation ?? 0,
+          // Şekil maskesi sunucuda, alanın baskı pikseli oranında üretiliyor;
+          // tarayıcı yalnızca CSS maskesi olarak uyguluyor. Baskıdaki kesimle
+          // aynı yol olsun diye istemcide ayrıca hesaplanmıyor.
+          mask: sl.mask_url
+            ? `url("${sl.mask_url}")`
+            : sl.shape
+              ? shapeMaskUrl(sl.shape, sl.rect.w * canvas.canvasWidth, sl.rect.h * canvas.canvasHeight)
+              : "",
           // Bu alanı 300 dpi'da dolduran fotoğrafın olması gereken kısa kenarı
           needPx: Math.min(
             Math.round(sl.rect.w * canvas.canvasWidth),
@@ -213,6 +223,7 @@ export async function buildSlotData(
         fontSize: sl.font_size,
         fontFamily: sl.font_family,
         fontUrl: sl.font_url ?? "",
+        rotation: sl.rotation ?? 0,
         color: sl.color,
         bold: sl.bold,
         align: sl.align,
@@ -492,6 +503,9 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     background: rgba(21,23,28,.62); border-radius: 4px; padding: 1px 6px;
     pointer-events: none;
   }
+  /* Kalp, yıldız gibi şekillerde köşe maskenin dışında kalıyor ve rozet
+     görünmüyordu; şekilli alanda numara ortada, boş alanın "+" işaretinin üstünde. */
+  .slot.shaped .num { left: 50%; top: calc(50% - 30px); transform: translateX(-50%); }
   /* Canlı yazı: tasarımın üstünde, baskıdakiyle aynı kutuda */
   .tslot {
     position: absolute; z-index: 4; display: flex; align-items: center;
@@ -849,12 +863,23 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     // kenarının yarısıyla sınırlanıyor. Yüzde olarak doğrudan basınca alanın
     // kendi boyutuna göre yorumlanıyordu: köşeler baskıdakinden farklı, daire
     // ise elips görünüyordu. Aynı hesap burada da yapılıyor.
-    if (s.radius > 0) {
+    if (s.mask) {
+      el.classList.add('shaped');
+      el.style.webkitMaskImage = s.mask;
+      el.style.maskImage = s.mask;
+      el.style.webkitMaskSize = '100% 100%';
+      el.style.maskSize = '100% 100%';
+      el.style.webkitMaskRepeat = 'no-repeat';
+      el.style.maskRepeat = 'no-repeat';
+    } else if (s.radius > 0) {
       var wPx = s.rect.w * piece.canvas.width;
       var hPx = s.rect.h * piece.canvas.height;
       var rPx = Math.min(s.radius * piece.canvas.width, Math.min(wPx, hPx) / 2);
       el.style.borderRadius = (rPx / wPx * 100) + '% / ' + (rPx / hPx * 100) + '%';
     }
+    // Döndürme alanın merkezinde; tahta oranı korunarak ölçeklendiği için
+    // ekrandaki açı baskıdakiyle aynı
+    if (s.rotation) el.style.transform = 'rotate(' + s.rotation + 'deg)';
     el.dataset.slot = s.id;
 
       // Parçada tek alan varsa numara rozeti bilgi taşımıyor, sadece
@@ -962,6 +987,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         el.style.color = aktifRenk(ts);
         el.style.fontWeight = ts.bold ? '700' : '400';
         el.style.fontFamily = aktifAile(ts);
+        if (ts.rotation) el.style.transform = 'rotate(' + ts.rotation + 'deg)';
         board.appendChild(el);
         textEls[piece.id + '::' + ts.id] = { el: el, ts: ts, piece: piece };
       });

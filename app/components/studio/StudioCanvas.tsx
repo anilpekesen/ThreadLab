@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PrintCanvas } from "~/lib/print-spec";
-import { isImageSlot, isTextSlot, type Rect, type Slot } from "~/lib/slots";
+import { isImageSlot, isTextSlot, rotatedBounds, type Rect, type Slot } from "~/lib/slots";
 import {
-  canvasGuides, clampRect, slotShape, snapEdges, snapMove, type SnapLine,
+  canvasGuides, clampRect, resizeRotated, rotationFromPointer, slotShape, snapEdges, snapMove, unionRect,
+  type ResizeHandle, type SnapLine,
 } from "~/lib/frame-studio";
+import { shapeMaskUrl } from "~/lib/slot-shapes";
 import { fontPreviewFamily } from "./TextSlotSettings";
 
 /**
@@ -14,28 +16,35 @@ import { fontPreviewFamily } from "./TextSlotSettings";
  * hesaplanır. Sürükleme süresince değişiklik `onLive` ile akar, bitişte tek
  * bir geçmiş adımı olarak `onCommit` edilir; aksi hâlde her fare hareketi ayrı
  * bir "geri al" adımı olurdu.
+ *
+ * Seçim bir liste: Shift/⌘ ile tıklamak ya da boş yerden sürükleyerek
+ * çerçeve çizmek birden fazla alan seçer. Birden fazla alan seçiliyken
+ * sürükleme hepsini birlikte taşır; boyut ve açı tutamakları yalnızca tek
+ * seçimde görünür.
  */
 
-type Handle = "move" | "n" | "s" | "e" | "w" | "nw" | "ne" | "sw" | "se";
+type Handle = "move" | "rotate" | ResizeHandle;
 
-interface Drag {
-  slotId: string;
-  handle: Handle;
-  startX: number;
-  startY: number;
-  origin: Rect;
-  before: Slot[];
-  moved: boolean;
-}
+type Drag =
+  | {
+      kind: "slot";
+      ids: string[];
+      handle: Handle;
+      startX: number;
+      startY: number;
+      before: Slot[];
+      moved: boolean;
+    }
+  | { kind: "marquee"; startX: number; startY: number; x: number; y: number; additive: boolean; base: string[] };
 
-const HANDLES: Exclude<Handle, "move">[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+const HANDLES: ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 const SNAP_PX = 6;
 
 export interface StudioCanvasProps {
   canvas: PrintCanvas;
   slots: Slot[];
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
+  selectedIds: string[];
+  onSelect: (ids: string[]) => void;
   /** Sürükleme sırasında geçmişe yazmadan güncelle */
   onLive: (slots: Slot[]) => void;
   /** Sürükleme bitti; `before` geri alma için önceki hâl */
@@ -47,7 +56,7 @@ export interface StudioCanvasProps {
 }
 
 export function StudioCanvas({
-  canvas, slots, selectedId, onSelect, onLive, onCommit,
+  canvas, slots, selectedIds, onSelect, onLive, onCommit,
   backgroundUrl, overlayUrl, showOverlay, showGuides,
 }: StudioCanvasProps) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -55,6 +64,7 @@ export function StudioCanvas({
   const [boardSize, setBoardSize] = useState({ w: 0, h: 0 });
   const [drag, setDrag] = useState<Drag | null>(null);
   const [lines, setLines] = useState<SnapLine[]>([]);
+  const [angleHint, setAngleHint] = useState<number | null>(null);
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
 
@@ -64,7 +74,7 @@ export function StudioCanvas({
     const stage = stageRef.current;
     if (!stage) return;
     const fit = () => {
-      const pad = 48;
+      const pad = 56;
       const availW = Math.max(120, stage.clientWidth - pad);
       const availH = Math.max(120, stage.clientHeight - pad);
       const ratio = canvas.canvasWidth / canvas.canvasHeight;
@@ -79,16 +89,13 @@ export function StudioCanvas({
     return () => ro.disconnect();
   }, [canvas.canvasWidth, canvas.canvasHeight]);
 
+  const cw = canvas.canvasWidth;
+  const ch = canvas.canvasHeight;
   const guides = canvasGuides(canvas);
   const pct = (v: number) => `${v * 100}%`;
-  const trim = {
-    x: canvas.trim.x / canvas.canvasWidth, y: canvas.trim.y / canvas.canvasHeight,
-    w: canvas.trim.width / canvas.canvasWidth, h: canvas.trim.height / canvas.canvasHeight,
-  };
-  const safe = {
-    x: canvas.safe.x / canvas.canvasWidth, y: canvas.safe.y / canvas.canvasHeight,
-    w: canvas.safe.width / canvas.canvasWidth, h: canvas.safe.height / canvas.canvasHeight,
-  };
+  const trim = { x: canvas.trim.x / cw, y: canvas.trim.y / ch, w: canvas.trim.width / cw, h: canvas.trim.height / ch };
+  const safe = { x: canvas.safe.x / cw, y: canvas.safe.y / ch, w: canvas.safe.width / cw, h: canvas.safe.height / ch };
+  const bounds = (s: Slot) => rotatedBounds(s, cw, ch);
 
   function pointerToNorm(e: { clientX: number; clientY: number }) {
     const r = boardRef.current?.getBoundingClientRect();
@@ -96,17 +103,37 @@ export function StudioCanvas({
     return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
   }
 
-  function begin(e: React.PointerEvent, slot: Slot, handle: Handle) {
+  function beginSlot(e: React.PointerEvent, slot: Slot, handle: Handle) {
     if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
+    const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+
+    let ids = selectedIds;
+    if (handle === "move") {
+      if (additive) {
+        // Shift ile tıklamak seçime ekler/çıkarır; sürükleme başlatmaz
+        onSelect(selectedIds.includes(slot.id)
+          ? selectedIds.filter((id) => id !== slot.id)
+          : [...selectedIds, slot.id]);
+        return;
+      }
+      // Seçili gruptaki bir alandan tutulursa grup birlikte taşınır
+      if (!selectedIds.includes(slot.id)) ids = [slot.id];
+    } else {
+      ids = [slot.id];
+    }
+    onSelect(ids);
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     const p = pointerToNorm(e);
-    onSelect(slot.id);
-    setDrag({
-      slotId: slot.id, handle, startX: p.x, startY: p.y,
-      origin: { ...slot.rect }, before: slotsRef.current, moved: false,
-    });
+    setDrag({ kind: "slot", ids, handle, startX: p.x, startY: p.y, before: slotsRef.current, moved: false });
+  }
+
+  function beginMarquee(e: React.PointerEvent) {
+    if (e.button !== 0) return;
+    const p = pointerToNorm(e);
+    const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+    setDrag({ kind: "marquee", startX: p.x, startY: p.y, x: p.x, y: p.y, additive, base: additive ? selectedIds : [] });
   }
 
   useEffect(() => {
@@ -114,78 +141,99 @@ export function StudioCanvas({
 
     const move = (e: PointerEvent) => {
       const p = pointerToNorm(e);
+
+      if (drag.kind === "marquee") {
+        setDrag({ ...drag, x: p.x, y: p.y });
+        return;
+      }
+
       const dx = p.x - drag.startX;
       const dy = p.y - drag.startY;
-      const o = drag.origin;
-      const slot = drag.before.find((s) => s.id === drag.slotId);
-      if (!slot) return;
-      const others = drag.before.filter((s) => s.id !== drag.slotId).map((s) => s.rect);
       const threshold = { x: SNAP_PX / Math.max(1, boardSize.w), y: SNAP_PX / Math.max(1, boardSize.h) };
       // Alt tuşu hizalamayı geçici kapatır; iki çizgi arasında ince ayar için
       const snapOn = !e.altKey;
-      const circle = isImageSlot(slot) && slotShape(slot, canvas) === "circle";
+      const chosen = drag.before.filter((s) => drag.ids.includes(s.id));
+      if (chosen.length === 0) return;
+      const others = drag.before.filter((s) => !drag.ids.includes(s.id)).map(bounds);
 
-      let next: Rect;
+      let nextById = new Map<string, Rect>();
       let snapped: SnapLine[] = [];
+      let hint: number | null = null;
+
       if (drag.handle === "move") {
-        next = { ...o, x: o.x + dx, y: o.y + dy };
+        // Grup, sınır kutusu üzerinden hizalanır ve tuvalde tutulur
+        const box = unionRect(chosen.map(bounds));
+        let target: Rect = { ...box, x: box.x + dx, y: box.y + dy };
         if (snapOn) {
-          const r = snapMove(next, others, guides, threshold);
-          next = r.rect;
+          const r = snapMove(target, others, guides, threshold);
+          target = r.rect;
           snapped = r.lines;
         }
-        next = clampRect(next);
+        // Döndürülmemiş alanlar tuvalin tamamen içinde kalır. Döndürülmüş bir
+        // alanın köşesi bilerek taşabilir (polaroid kolaj); tamamen dışarı
+        // çıkmasın diye onda yalnızca merkez tuvalde tutuluyor.
+        const anyRotated = chosen.some((s) => s.rotation);
+        const tx = anyRotated
+          ? Math.min(1, Math.max(0, target.x + target.w / 2)) - target.w / 2
+          : Math.min(1 - box.w, Math.max(0, target.x));
+        const ty = anyRotated
+          ? Math.min(1, Math.max(0, target.y + target.h / 2)) - target.h / 2
+          : Math.min(1 - box.h, Math.max(0, target.y));
+        const mx = tx - box.x;
+        const my = ty - box.y;
+        for (const s of chosen) nextById.set(s.id, { ...s.rect, x: s.rect.x + mx, y: s.rect.y + my });
+      } else if (drag.handle === "rotate") {
+        const s = chosen[0];
+        const center = { x: (s.rect.x + s.rect.w / 2) * cw, y: (s.rect.y + s.rect.h / 2) * ch };
+        const deg = rotationFromPointer(center, { x: p.x * cw, y: p.y * ch }, e.shiftKey ? 15 : undefined);
+        hint = deg;
+        nextById = new Map();
+        onLive(drag.before.map((x) => (x.id === s.id ? { ...x, rotation: deg || undefined } : x)));
+        setAngleHint(hint);
+        if (!drag.moved) setDrag({ ...drag, moved: true });
+        return;
       } else {
+        const s = chosen[0];
+        const rotation = s.rotation ?? 0;
+        const circle = isImageSlot(s) && slotShape(s, canvas) === "circle";
         const h = drag.handle;
-        const left = h.includes("w");
-        const right = h.includes("e");
-        const top = h.includes("n");
-        const bottom = h.includes("s");
-        let x = o.x;
-        let y = o.y;
-        let w = o.w;
-        let hh = o.h;
-        if (right) w = o.w + dx;
-        if (left) { x = o.x + dx; w = o.w - dx; }
-        if (bottom) hh = o.h + dy;
-        if (top) { y = o.y + dy; hh = o.h - dy; }
-        next = { x, y, w, h: hh };
-
-        if (circle) {
-          // Daire kare kalmalı — PİKSEL olarak; tuval kare değilse normalize
-          // w ile h eşit olunca elips çıkar.
-          const wPx = next.w * canvas.canvasWidth;
-          const hPx = next.h * canvas.canvasHeight;
-          const side = (left || right) && (top || bottom)
-            ? Math.max(wPx, hPx)
-            : left || right ? wPx : hPx;
-          const nw = side / canvas.canvasWidth;
-          const nh = side / canvas.canvasHeight;
-          next = {
-            x: left ? o.x + o.w - nw : (left || right) ? o.x : o.x + (o.w - nw) / 2,
-            y: top ? o.y + o.h - nh : (top || bottom) ? o.y : o.y + (o.h - nh) / 2,
-            w: nw,
-            h: nh,
-          };
-        } else if (snapOn) {
-          const r = snapEdges(next, { left, right, top, bottom }, others, guides, threshold);
+        let next = resizeRotated(s.rect, rotation, h, { x: dx * cw, y: dy * ch }, canvas, { square: circle });
+        if (!rotation && !circle && snapOn) {
+          const r = snapEdges(next, {
+            left: h.includes("w"), right: h.includes("e"), top: h.includes("n"), bottom: h.includes("s"),
+          }, others, guides, threshold);
           next = r.rect;
           snapped = r.lines;
         }
-
-        const min = 0.02;
-        if (next.w < min) { if (left) next.x = o.x + o.w - min; next.w = min; }
-        if (next.h < min) { if (top) next.y = o.y + o.h - min; next.h = min; }
-        next = clampRect(next, min);
+        if (!rotation) next = clampRect(next, Math.min(next.w, next.h, 0.02));
+        nextById.set(s.id, next);
       }
 
       setLines(snapped);
       if (!drag.moved) setDrag({ ...drag, moved: true });
-      onLive(drag.before.map((s) => (s.id === drag.slotId ? { ...s, rect: next } : s)));
+      onLive(drag.before.map((s) => (nextById.has(s.id) ? { ...s, rect: nextById.get(s.id)! } : s)));
     };
 
     const end = () => {
+      if (drag.kind === "marquee") {
+        const box = {
+          x: Math.min(drag.startX, drag.x), y: Math.min(drag.startY, drag.y),
+          w: Math.abs(drag.x - drag.startX), h: Math.abs(drag.y - drag.startY),
+        };
+        // Tıklayıp bırakmak seçimi temizler; küçük titremeler çerçeve sayılmaz
+        if (box.w * boardSize.w < 4 && box.h * boardSize.h < 4) {
+          onSelect(drag.additive ? drag.base : []);
+        } else {
+          const hit = slotsRef.current
+            .filter((s) => intersects(bounds(s), box))
+            .map((s) => s.id);
+          onSelect([...new Set([...drag.base, ...hit])]);
+        }
+        setDrag(null);
+        return;
+      }
       setLines([]);
+      setAngleHint(null);
       if (drag.moved) onCommit(slotsRef.current, drag.before);
       setDrag(null);
     };
@@ -198,21 +246,28 @@ export function StudioCanvas({
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
     };
-    // guides/canvas her render'da yeniden hesaplanıyor ama değerleri drag
-    // boyunca sabit; bağımlılığa eklemek dinleyicileri her harekette söküyordu.
+    // guides ve canvas her çizimde yeniden hesaplanıyor ama sürükleme boyunca
+    // değişmiyor; bağımlılığa eklemek dinleyicileri her harekette söküyordu.
   }, [drag, boardSize.w, boardSize.h]);
 
-  const scale = boardSize.w / canvas.canvasWidth;
+  const scale = boardSize.w / cw;
+  const single = selectedIds.length === 1 ? slots.find((s) => s.id === selectedIds[0]) ?? null : null;
+  const group = selectedIds.length > 1 ? slots.filter((s) => selectedIds.includes(s.id)) : [];
+  const groupBox = group.length > 1 ? unionRect(group.map(bounds)) : null;
+  const marquee = drag?.kind === "marquee"
+    ? { x: Math.min(drag.startX, drag.x), y: Math.min(drag.startY, drag.y), w: Math.abs(drag.x - drag.startX), h: Math.abs(drag.y - drag.startY) }
+    : null;
+
+  const rectStyle = (r: Rect, rotation?: number): React.CSSProperties => ({
+    left: pct(r.x), top: pct(r.y), width: pct(r.w), height: pct(r.h),
+    transform: rotation ? `rotate(${rotation}deg)` : undefined,
+  });
 
   return (
-    <div
-      ref={stageRef}
-      className="fs-stage"
-      onPointerDown={() => onSelect(null)}
-    >
+    <div ref={stageRef} className="fs-stage" onPointerDown={beginMarquee}>
       <div
         ref={boardRef}
-        className={`fs-board${drag ? " is-dragging" : ""}`}
+        className={`fs-board${drag?.kind === "slot" ? " is-dragging" : ""}`}
         style={{ width: boardSize.w, height: boardSize.h }}
       >
         {backgroundUrl
@@ -221,7 +276,7 @@ export function StudioCanvas({
 
         {showGuides && (
           <>
-            {/* Taşma payı: kesimde gidecek bölge taralı değil, hafif koyu */}
+            {/* Taşma payı: kesimde gidecek bölge hafif koyu */}
             <div className="fs-bleed" style={{
               clipPath: `polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${pct(trim.x)} ${pct(trim.y)}, ${pct(trim.x)} ${pct(trim.y + trim.h)}, ${pct(trim.x + trim.w)} ${pct(trim.y + trim.h)}, ${pct(trim.x + trim.w)} ${pct(trim.y)}, ${pct(trim.x)} ${pct(trim.y)})`,
             }} />
@@ -231,30 +286,31 @@ export function StudioCanvas({
         )}
 
         {slots.map((s) => {
-          const selected = s.id === selectedId;
-          const wPx = s.rect.w * canvas.canvasWidth;
-          const hPx = s.rect.h * canvas.canvasHeight;
-          const style: React.CSSProperties = {
-            left: pct(s.rect.x), top: pct(s.rect.y), width: pct(s.rect.w), height: pct(s.rect.h),
-          };
+          const selected = selectedIds.includes(s.id);
+          const wPx = s.rect.w * cw;
+          const hPx = s.rect.h * ch;
+          const style = rectStyle(s.rect, s.rotation);
           if (isImageSlot(s)) {
-            if (s.mask_url) {
-              style.WebkitMaskImage = `url(${s.mask_url})`;
-              style.maskImage = `url(${s.mask_url})`;
+            const mask = s.mask_url ? `url("${s.mask_url}")` : s.shape ? shapeMaskUrl(s.shape, wPx, hPx) : "";
+            if (mask) {
+              style.WebkitMaskImage = mask;
+              style.maskImage = mask;
               style.WebkitMaskSize = "100% 100%";
               style.maskSize = "100% 100%";
+              style.WebkitMaskRepeat = "no-repeat";
+              style.maskRepeat = "no-repeat";
             } else if (s.radius) {
               // Render motorunun kuralı: yarıçap kısa kenarın yarısıyla sınırlı
-              const rPx = Math.min(s.radius * canvas.canvasWidth, Math.min(wPx, hPx) / 2);
+              const rPx = Math.min(s.radius * cw, Math.min(wPx, hPx) / 2);
               style.borderRadius = rPx * scale;
             }
           }
           return (
             <div
               key={s.id}
-              className={`fs-slot ${isImageSlot(s) ? "is-image" : "is-text"}${selected ? " is-selected" : ""}`}
+              className={`fs-slot ${isImageSlot(s) ? "is-image" : "is-text"}${selected ? " is-selected" : ""}${isImageSlot(s) && (s.shape || s.mask_url) ? " is-shaped" : ""}`}
               style={style}
-              onPointerDown={(e) => begin(e, s, "move")}
+              onPointerDown={(e) => beginSlot(e, s, "move")}
               role="button"
               aria-label={s.label || s.id}
               aria-pressed={selected}
@@ -284,23 +340,40 @@ export function StudioCanvas({
           <img className="fs-layer-img fs-overlay" src={overlayUrl} alt="" draggable={false} />
         )}
 
-        {/* Seçim çerçevesi üst katmanın da üstünde: kapalı bir alanı tutabilmek için */}
-        {slots.filter((s) => s.id === selectedId).map((s) => (
+        {/* Şekilli alanın dikdörtgen sınırı ince çizgiyle; şeklin nereye kadar
+            uzandığı görünmezse boyutlandırmak tahmine kalıyor */}
+        {group.map((s) => (
+          <div key={`g-${s.id}`} className="fs-group-item" style={rectStyle(s.rect, s.rotation)}
+            onPointerDown={(e) => beginSlot(e, s, "move")} />
+        ))}
+
+        {groupBox && <div className="fs-group-box" style={rectStyle(groupBox)} />}
+
+        {single && (
           <div
-            key={`sel-${s.id}`}
             className="fs-selection"
-            style={{ left: pct(s.rect.x), top: pct(s.rect.y), width: pct(s.rect.w), height: pct(s.rect.h) }}
-            onPointerDown={(e) => begin(e, s, "move")}
+            style={rectStyle(single.rect, single.rotation)}
+            onPointerDown={(e) => beginSlot(e, single, "move")}
           >
             {HANDLES.map((h) => (
-              <span
-                key={h}
-                className={`fs-handle fs-handle-${h}`}
-                onPointerDown={(e) => begin(e, s, h)}
-              />
+              <span key={h} className={`fs-handle fs-handle-${h}`} onPointerDown={(e) => beginSlot(e, single, h)} />
             ))}
+            <span className="fs-rotate-stem" aria-hidden="true" />
+            <span
+              className="fs-rotate"
+              title="Döndür (Shift ile 15°)"
+              onPointerDown={(e) => beginSlot(e, single, "rotate")}
+            />
           </div>
-        ))}
+        )}
+
+        {single && angleHint !== null && (
+          <div className="fs-angle" style={{ left: pct(single.rect.x + single.rect.w / 2), top: pct(single.rect.y + single.rect.h / 2) }}>
+            {`${angleHint}°`}
+          </div>
+        )}
+
+        {marquee && <div className="fs-marquee" style={rectStyle(marquee)} />}
 
         {lines.map((l, i) => (
           <div
@@ -312,4 +385,8 @@ export function StudioCanvas({
       </div>
     </div>
   );
+}
+
+function intersects(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }

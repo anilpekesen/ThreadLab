@@ -9,9 +9,10 @@
 
 import type { PrintCanvas } from "~/lib/print-spec";
 import {
-  buildGridSlots, isImageSlot, DEFAULT_GRID,
+  buildGridSlots, isImageSlot, rotatedBounds, DEFAULT_GRID,
   type GridConfig, type ImageSlot, type Rect, type Slot, type TemplatePiece,
 } from "~/lib/slots";
+import type { SlotShapeId } from "~/lib/slot-shapes";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Milimetre ↔ normalize
@@ -53,7 +54,7 @@ export function roundMm(v: number): number {
 // Şekil
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type SlotShape = "rect" | "rounded" | "circle" | "mask";
+export type SlotShape = "rect" | "rounded" | "circle" | "mask" | SlotShapeId;
 
 /**
  * Köşe yuvarlaması tuval GENİŞLİĞİNE oranla saklanıyor ve render motoru onu
@@ -63,6 +64,7 @@ export type SlotShape = "rect" | "rounded" | "circle" | "mask";
  */
 export function slotShape(slot: ImageSlot, canvas: PrintCanvas): SlotShape {
   if (slot.mask_url) return "mask";
+  if (slot.shape) return slot.shape;
   const radiusPx = (slot.radius ?? 0) * canvas.canvasWidth;
   if (radiusPx <= 0) return "rect";
   const wPx = slot.rect.w * canvas.canvasWidth;
@@ -340,4 +342,239 @@ export function piecesToTemplateFields(
     overlay_url: current.overlay_url,
     expected_slots: 0,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Döndürme
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ResizeHandle = "n" | "s" | "e" | "w" | "nw" | "ne" | "sw" | "se";
+
+/**
+ * Döndürülmüş bir alanı tutamaktan boyutlandırır.
+ *
+ * Hesap tuval PİKSELİNDE yapılıyor: dönme piksel uzayında tanımlı ve tuval
+ * kare değilse normalize koordinatta döndürmek alanı çarpıtırdı. İşaretçinin
+ * hareketi alanın kendi eksenine çevriliyor, karşı kenar (ya da köşe) dünyada
+ * sabit tutuluyor ve yeni merkez oradan geri hesaplanıyor. Döndürülmemiş alanda
+ * da aynı sonucu verir.
+ */
+export function resizeRotated(
+  origin: Rect,
+  rotation: number,
+  handle: ResizeHandle,
+  deltaPx: { x: number; y: number },
+  canvas: PrintCanvas,
+  options: { minPx?: number; square?: boolean } = {},
+): Rect {
+  const cw = canvas.canvasWidth;
+  const ch = canvas.canvasHeight;
+  const t = (rotation * Math.PI) / 180;
+  const cos = Math.cos(t);
+  const sin = Math.sin(t);
+  const sx = handle.includes("e") ? 1 : handle.includes("w") ? -1 : 0;
+  const sy = handle.includes("s") ? 1 : handle.includes("n") ? -1 : 0;
+  const minPx = options.minPx ?? Math.min(cw, ch) * 0.02;
+
+  const w = origin.w * cw;
+  const h = origin.h * ch;
+  const cx = (origin.x + origin.w / 2) * cw;
+  const cy = (origin.y + origin.h / 2) * ch;
+
+  // İşaretçi hareketi alanın kendi eksenlerinde
+  const lx = deltaPx.x * cos + deltaPx.y * sin;
+  const ly = -deltaPx.x * sin + deltaPx.y * cos;
+
+  let nw = sx !== 0 ? Math.max(minPx, w + sx * lx) : w;
+  let nh = sy !== 0 ? Math.max(minPx, h + sy * ly) : h;
+  if (options.square) {
+    const side = sx !== 0 && sy !== 0 ? Math.max(nw, nh) : sx !== 0 ? nw : nh;
+    nw = side;
+    nh = side;
+  }
+
+  // Sabit kalan nokta (yerel), dünyada; yeni merkez ondan geri
+  const ax = -sx * w / 2;
+  const ay = -sy * h / 2;
+  const worldAx = cx + ax * cos - ay * sin;
+  const worldAy = cy + ax * sin + ay * cos;
+  const bx = sx * nw / 2;
+  const by = sy * nh / 2;
+  const ncx = worldAx + bx * cos - by * sin;
+  const ncy = worldAy + bx * sin + by * cos;
+
+  return {
+    x: (ncx - nw / 2) / cw,
+    y: (ncy - nh / 2) / ch,
+    w: nw / cw,
+    h: nh / ch,
+  };
+}
+
+/**
+ * İşaretçinin merkeze göre açısından alanın dönüşü. Tutamak alanın üstünde
+ * durduğu için 90° ekleniyor. `step` verilirse o adıma yuvarlanır; verilmezse
+ * yalnızca 0/90/180/270'e 3° yakınlıkta yapışır.
+ */
+export function rotationFromPointer(
+  centerPx: { x: number; y: number },
+  pointerPx: { x: number; y: number },
+  step?: number,
+): number {
+  let deg = (Math.atan2(pointerPx.y - centerPx.y, pointerPx.x - centerPx.x) * 180) / Math.PI + 90;
+  deg = ((deg % 360) + 540) % 360 - 180;
+  if (step) return Math.round(deg / step) * step;
+  for (const a of [-180, -90, 0, 90, 180]) {
+    if (Math.abs(deg - a) <= 3) return a === -180 ? 180 : a;
+  }
+  return Math.round(deg * 10) / 10;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Çoklu seçim işlemleri
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function unionRect(rects: Rect[]): Rect {
+  const x0 = Math.min(...rects.map((r) => r.x));
+  const y0 = Math.min(...rects.map((r) => r.y));
+  const x1 = Math.max(...rects.map((r) => r.x + r.w));
+  const y1 = Math.max(...rects.map((r) => r.y + r.h));
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/**
+ * Seçili fotoğraf alanlarını kaplayan tek bir alana çevirir.
+ *
+ * İlk alan (okuma sırasında en öndeki) kimliğini, adını ve ayarlarını korur;
+ * diğerleri silinir. Silinen bir alanın fotoğrafını tekrarlayan alanlar kendi
+ * fotoğraflarına döner, yoksa var olmayan bir kaynağa bağlı kalırlardı.
+ */
+export function mergeImageSlots(slots: Slot[], ids: string[], canvas: PrintCanvas): { slots: Slot[]; keptId: string } | null {
+  const chosen = slots.filter((s): s is ImageSlot => isImageSlot(s) && ids.includes(s.id))
+    .sort((a, b) => a.order - b.order);
+  if (chosen.length < 2) return null;
+  const keep = chosen[0];
+  const removed = new Set(chosen.slice(1).map((s) => s.id));
+  const rect = unionRect(chosen.map((s) => rotatedBounds(s, canvas.canvasWidth, canvas.canvasHeight)));
+  const next = slots
+    .filter((s) => !removed.has(s.id))
+    .map((s) => {
+      if (s.id === keep.id) return { ...keep, rect, rotation: undefined };
+      if (isImageSlot(s) && removed.has(s.source)) return { ...s, source: s.id };
+      return s;
+    });
+  return { slots: next, keptId: keep.id };
+}
+
+/**
+ * Bir alanı eşit hücrelere böler; aralık milimetre. İlk hücre alanın
+ * kimliğini ve ayarlarını korur.
+ */
+export function splitImageSlot(
+  slot: ImageSlot,
+  cols: number,
+  rows: number,
+  gapMm: number,
+  canvas: PrintCanvas,
+  dpi: number,
+  makeId: (index: number) => string,
+): ImageSlot[] {
+  const c = Math.max(1, Math.floor(cols));
+  const r = Math.max(1, Math.floor(rows));
+  const gapPx = (gapMm / 25.4) * dpi;
+  const gx = gapPx / canvas.canvasWidth;
+  const gy = gapPx / canvas.canvasHeight;
+  const cellW = (slot.rect.w - gx * (c - 1)) / c;
+  const cellH = (slot.rect.h - gy * (r - 1)) / r;
+  if (!(cellW > 0) || !(cellH > 0)) return [slot];
+  const out: ImageSlot[] = [];
+  for (let row = 0; row < r; row++) {
+    for (let col = 0; col < c; col++) {
+      const i = out.length;
+      const id = i === 0 ? slot.id : makeId(i);
+      out.push({
+        ...slot,
+        id,
+        source: i === 0 ? slot.source : id,
+        label: i === 0 ? slot.label : `${slot.order + i}. Fotoğraf`,
+        order: slot.order + i,
+        rotation: undefined,
+        rect: {
+          x: slot.rect.x + col * (cellW + gx),
+          y: slot.rect.y + row * (cellH + gy),
+          w: cellW,
+          h: cellH,
+        },
+      });
+    }
+  }
+  return out;
+}
+
+export type AlignMode = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
+
+/**
+ * Seçili alanları ortak bir kenara ya da merkeze hizalar. Tek alan seçiliyse
+ * kesim alanına göre hizalanır: "tam ortaya al" tek alanda en sık istek.
+ */
+export function alignSlots(slots: Slot[], ids: string[], mode: AlignMode, canvas: PrintCanvas): Slot[] {
+  const chosen = slots.filter((s) => ids.includes(s.id));
+  if (chosen.length === 0) return slots;
+  const bounds = (s: Slot) => rotatedBounds(s, canvas.canvasWidth, canvas.canvasHeight);
+  const ref: Rect = chosen.length === 1
+    ? {
+        x: canvas.trim.x / canvas.canvasWidth, y: canvas.trim.y / canvas.canvasHeight,
+        w: canvas.trim.width / canvas.canvasWidth, h: canvas.trim.height / canvas.canvasHeight,
+      }
+    : unionRect(chosen.map(bounds));
+  return slots.map((s) => {
+    if (!ids.includes(s.id)) return s;
+    const b = bounds(s);
+    let dx = 0;
+    let dy = 0;
+    if (mode === "left") dx = ref.x - b.x;
+    if (mode === "right") dx = ref.x + ref.w - (b.x + b.w);
+    if (mode === "hcenter") dx = ref.x + ref.w / 2 - (b.x + b.w / 2);
+    if (mode === "top") dy = ref.y - b.y;
+    if (mode === "bottom") dy = ref.y + ref.h - (b.y + b.h);
+    if (mode === "vcenter") dy = ref.y + ref.h / 2 - (b.y + b.h / 2);
+    return { ...s, rect: { ...s.rect, x: s.rect.x + dx, y: s.rect.y + dy } };
+  });
+}
+
+/** Üç ya da daha fazla alanı aralarındaki boşluk eşit olacak şekilde dağıtır */
+export function distributeSlots(slots: Slot[], ids: string[], axis: "x" | "y", canvas: PrintCanvas): Slot[] {
+  const chosen = slots.filter((s) => ids.includes(s.id));
+  if (chosen.length < 3) return slots;
+  const withBounds = chosen
+    .map((s) => ({ s, b: rotatedBounds(s, canvas.canvasWidth, canvas.canvasHeight) }))
+    .sort((a, b) => (axis === "x" ? a.b.x - b.b.x : a.b.y - b.b.y));
+  const size = (b: Rect) => (axis === "x" ? b.w : b.h);
+  const start = axis === "x" ? withBounds[0].b.x : withBounds[0].b.y;
+  const last = withBounds[withBounds.length - 1].b;
+  const end = axis === "x" ? last.x + last.w : last.y + last.h;
+  const total = withBounds.reduce((n, item) => n + size(item.b), 0);
+  const gap = (end - start - total) / (withBounds.length - 1);
+  const moved = new Map<string, Rect>();
+  let cursor = start;
+  for (const { s, b } of withBounds) {
+    const d = cursor - (axis === "x" ? b.x : b.y);
+    moved.set(s.id, axis === "x" ? { ...s.rect, x: s.rect.x + d } : { ...s.rect, y: s.rect.y + d });
+    cursor += size(b) + gap;
+  }
+  return slots.map((s) => (moved.has(s.id) ? { ...s, rect: moved.get(s.id)! } : s));
+}
+
+/** Seçili alanları ilk seçilenin genişliğine ya da yüksekliğine eşitler (merkezleri korunur) */
+export function matchSize(slots: Slot[], ids: string[], dimension: "w" | "h"): Slot[] {
+  const first = slots.find((s) => s.id === ids[0]);
+  if (!first) return slots;
+  return slots.map((s) => {
+    if (!ids.includes(s.id) || s.id === first.id) return s;
+    const value = first.rect[dimension];
+    const rect = dimension === "w"
+      ? { ...s.rect, x: s.rect.x + (s.rect.w - value) / 2, w: value }
+      : { ...s.rect, y: s.rect.y + (s.rect.h - value) / 2, h: value };
+    return { ...s, rect };
+  });
 }

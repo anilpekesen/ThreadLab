@@ -9,7 +9,7 @@ import {
 } from "~/lib/slots";
 import {
   LAYOUT_PRESETS, SINGLE_PIECE_ID, STUDIO_DEFAULT_GRID, nextSlotId, prefixSlotIds, presetSlots, rectFromMm, rectToMm,
-  clampRect, type LayoutPreset,
+  clampRect, mergeImageSlots, splitImageSlot, type LayoutPreset,
 } from "~/lib/frame-studio";
 import { MockupEditor } from "~/components/MockupEditor";
 import { StudioCanvas } from "./StudioCanvas";
@@ -78,7 +78,8 @@ export function FrameStudio({
   });
   const pieces = history.pieces;
   const [activePieceId, setActivePieceId] = useState(initialPieces[0]?.id ?? SINGLE_PIECE_ID);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const select = (id: string | null) => setSelectedIds(id ? [id] : []);
   const [grid, setGrid] = useState<GridConfig>(() => (initialGrid ? normalizeGridConfig(initialGrid) : STUDIO_DEFAULT_GRID));
   const [mockups, setMockups] = useState<TemplateMockup[]>(initialMockups);
   const [view, setView] = useState<"design" | "mockups">("design");
@@ -98,7 +99,8 @@ export function FrameStudio({
   const product = printProducts.find((p) => p.id === active?.print_product_id) ?? null;
   const canvas = useMemo(() => (product ? printCanvas(product) : null), [product]);
   const dpi = product?.dpi ?? 300;
-  const selected = active?.slots.find((s) => s.id === selectedId) ?? null;
+  const selectedSlots = active ? active.slots.filter((s) => selectedIds.includes(s.id)) : [];
+  const selected = selectedSlots.length === 1 ? selectedSlots[0] : null;
 
   // ── Kirli durum ──────────────────────────────────────────────────────────
   const snapshot = JSON.stringify({ pieces, grid, mockups });
@@ -191,7 +193,7 @@ export function FrameStudio({
       label: `${order}. Fotoğraf`, order,
     };
     setSlots([...active.slots, slot]);
-    setSelectedId(id);
+    select(id);
   }
 
   function addTextSlot() {
@@ -216,31 +218,71 @@ export function FrameStudio({
       overflow: "shrink",
     };
     setSlots([...active.slots, slot]);
-    setSelectedId(id);
+    select(id);
   }
 
-  function deleteSlot(id: string) {
+  function deleteSlots(ids: string[]) {
     if (!active) return;
-    // Bu alanın fotoğrafını tekrarlayan alanlar kendi fotoğrafına döner
+    // Silinen alanın fotoğrafını tekrarlayan alanlar kendi fotoğrafına döner
     const slots = active.slots
-      .filter((s) => s.id !== id)
-      .map((s) => (isImageSlot(s) && s.source === id ? { ...s, source: s.id } : s));
+      .filter((s) => !ids.includes(s.id))
+      .map((s) => (isImageSlot(s) && ids.includes(s.source) ? { ...s, source: s.id } : s));
     setSlots(slots);
-    setSelectedId(null);
+    select(null);
   }
 
-  function duplicateSlot(id: string) {
+  function duplicateSlots(ids: string[]) {
     if (!active || !canvas) return;
-    const src = active.slots.find((s) => s.id === id);
-    if (!src) return;
-    const newId = nextSlotId(active, pieces, isImageSlot(src) ? "photo" : "text");
-    const offset = rectToMm(src.rect, canvas, dpi);
-    const rect = clampRect(rectFromMm({ ...offset, x: offset.x + 5, y: offset.y + 5 }, canvas, dpi));
-    const copy: Slot = isImageSlot(src)
-      ? { ...src, id: newId, source: newId, rect, order: active.slots.filter(isImageSlot).length + 1, label: `${active.slots.filter(isImageSlot).length + 1}. Fotoğraf` }
-      : { ...src, id: newId, rect, label: `${src.label} (kopya)` };
-    setSlots([...active.slots, copy]);
-    setSelectedId(newId);
+    const working: TemplatePiece = { ...active, slots: [...active.slots] };
+    const created: string[] = [];
+    for (const src of active.slots.filter((s) => ids.includes(s.id))) {
+      const newId = nextSlotId(working, pieces.map((p) => (p.id === working.id ? working : p)), isImageSlot(src) ? "photo" : "text");
+      const offset = rectToMm(src.rect, canvas, dpi);
+      const rect = clampRect(rectFromMm({ ...offset, x: offset.x + 5, y: offset.y + 5 }, canvas, dpi));
+      const imageCount = working.slots.filter(isImageSlot).length + 1;
+      const copy: Slot = isImageSlot(src)
+        ? { ...src, id: newId, source: newId, rect, order: imageCount, label: `${imageCount}. Fotoğraf` }
+        : { ...src, id: newId, rect, label: `${src.label} (kopya)` };
+      working.slots.push(copy);
+      created.push(newId);
+    }
+    setSlots(working.slots);
+    setSelectedIds(created);
+  }
+
+  function mergeSelected() {
+    if (!active || !canvas) return;
+    const result = mergeImageSlots(active.slots, selectedIds, canvas);
+    if (!result) return;
+    setSlots(result.slots);
+    select(result.keptId);
+    setNote({ tone: "success", text: "Alanlar tek alanda birleştirildi." });
+  }
+
+  function splitSelected(cols: number, rows: number, gapMm: number) {
+    if (!active || !canvas || !selected || !isImageSlot(selected)) return;
+    const working: TemplatePiece = { ...active, slots: [...active.slots] };
+    const parts = splitImageSlot(selected, cols, rows, gapMm, canvas, dpi, () => {
+      const id = nextSlotId(working, pieces.map((p) => (p.id === working.id ? working : p)), "photo");
+      // Kimlik rezerve edilsin diye geçici kayıt; aşağıda gerçek parçalarla değişiyor
+      working.slots.push({ ...selected, id, source: id });
+      return id;
+    });
+    if (parts.length < 2) {
+      setNote({ tone: "warning", text: "Alan bu aralıkla bölünemeyecek kadar küçük." });
+      return;
+    }
+    const index = active.slots.findIndex((x) => x.id === selected.id);
+    const next = [...active.slots.slice(0, index), ...parts, ...active.slots.slice(index + 1)];
+    const images = sortReadingOrder(next.filter(isImageSlot))
+      .map((x) => ({ ...x, label: /^\d+\. Fotoğraf$/.test(x.label) || !x.label ? `${x.order}. Fotoğraf` : x.label }));
+    setSlots([...images, ...next.filter((x) => !isImageSlot(x))]);
+    setSelectedIds(parts.map((x) => x.id));
+  }
+
+  function transformSelected(fn: (slots: Slot[]) => Slot[]) {
+    if (!active) return;
+    setSlots(fn(active.slots));
   }
 
   function renumber() {
@@ -262,7 +304,7 @@ export function FrameStudio({
     setSlots([...prefixSlotIds(slots, active, pieces), ...texts]);
     setGrid(nextGrid);
     setLastPreset(preset);
-    setSelectedId(null);
+    select(null);
     setNote({ tone: "success", text: `${preset.label} uygulandı. Beğenmezseniz geri alabilirsiniz.` });
   }
 
@@ -275,7 +317,7 @@ export function FrameStudio({
     }
     const texts = active.slots.filter((s) => !isImageSlot(s));
     setSlots([...prefixSlotIds(slots, active, pieces), ...texts]);
-    setSelectedId(null);
+    select(null);
   }
 
   // ── Görseller ────────────────────────────────────────────────────────────
@@ -319,7 +361,7 @@ export function FrameStudio({
       }
       const texts = active.slots.filter((s) => !isImageSlot(s));
       setSlots([...prefixSlotIds(data.slots as Slot[], active, pieces), ...texts]);
-      setSelectedId(null);
+      select(null);
       setNote({ tone: "success", text: `${data.slots.length} delik bulundu ve fotoğraf alanına çevrildi.` });
     } catch (err) {
       setNote({ tone: "critical", text: err instanceof Error ? err.message : "Tarama başarısız" });
@@ -346,7 +388,7 @@ export function FrameStudio({
     const copy = clonePiece(source, id, `${n}. Parça`, n);
     commitPieces([...list, copy]);
     setActivePieceId(id);
-    setSelectedId(null);
+    select(null);
   }
 
   function removePiece(id: string) {
@@ -359,7 +401,7 @@ export function FrameStudio({
     }
     commitPieces(rest);
     setActivePieceId(rest[0]?.id ?? SINGLE_PIECE_ID);
-    setSelectedId(null);
+    select(null);
   }
 
   // ── Ölçü ─────────────────────────────────────────────────────────────────
@@ -399,17 +441,35 @@ export function FrameStudio({
       }
       if (mod && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); return; }
       if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(); return; }
-      if (!selected || !canvas) return;
-      if (mod && e.key.toLowerCase() === "d") { e.preventDefault(); duplicateSlot(selected.id); return; }
-      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); deleteSlot(selected.id); return; }
-      if (e.key === "Escape") { setSelectedId(null); return; }
+      if (!active || !canvas) return;
+      if (mod && e.key.toLowerCase() === "a" && view === "design") {
+        e.preventDefault();
+        setSelectedIds(active.slots.map((s) => s.id));
+        return;
+      }
+      if (selectedSlots.length === 0) return;
+      if (mod && e.key.toLowerCase() === "d") { e.preventDefault(); duplicateSlots(selectedIds); return; }
+      if (mod && e.key.toLowerCase() === "g" && selectedSlots.filter(isImageSlot).length > 1) {
+        e.preventDefault();
+        mergeSelected();
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); deleteSlots(selectedIds); return; }
+      if (e.key === "Escape") { select(null); return; }
       const step = e.shiftKey ? 10 : 1;
       const delta = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
       if (delta) {
         e.preventDefault();
-        const mm = rectToMm(selected.rect, canvas, dpi);
-        const rect = clampRect(rectFromMm({ ...mm, x: mm.x + delta[0], y: mm.y + delta[1] }, canvas, dpi));
-        patchSlot(selected.id, { rect }, `nudge:${selected.id}`);
+        const dx = ((delta[0] / 25.4) * dpi) / canvas.canvasWidth;
+        const dy = ((delta[1] / 25.4) * dpi) / canvas.canvasHeight;
+        withActive((p) => ({
+          ...p,
+          slots: p.slots.map((s) => {
+            if (!selectedIds.includes(s.id)) return s;
+            const moved = { ...s.rect, x: s.rect.x + dx, y: s.rect.y + dy };
+            return { ...s, rect: s.rotation ? moved : clampRect(moved) };
+          }),
+        }), `nudge:${selectedIds.join(",")}`);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -525,7 +585,7 @@ export function FrameStudio({
               key={p.id}
               type="button"
               className={`fs-piece-tab${p.id === active.id ? " is-active" : ""}`}
-              onClick={() => { setActivePieceId(p.id); setSelectedId(null); }}
+              onClick={() => { setActivePieceId(p.id); select(null); }}
             >
               {p.name}
               <span className="fs-piece-count">{p.slots.filter(isImageSlot).length}</span>
@@ -703,8 +763,10 @@ export function FrameStudio({
                           <li key={s.id}>
                             <button
                               type="button"
-                              className={`fs-layer${s.id === selectedId ? " is-selected" : ""}`}
-                              onClick={() => setSelectedId(s.id)}
+                              className={`fs-layer${selectedIds.includes(s.id) ? " is-selected" : ""}`}
+                              onClick={(e) => setSelectedIds(e.shiftKey || e.metaKey || e.ctrlKey
+                                ? (selectedIds.includes(s.id) ? selectedIds.filter((id) => id !== s.id) : [...selectedIds, s.id])
+                                : [s.id])}
                             >
                               <span className={`fs-layer-badge ${isImageSlot(s) ? "is-image" : "is-text"}`}>
                                 {isImageSlot(s) ? s.order : "T"}
@@ -783,8 +845,8 @@ export function FrameStudio({
                 <StudioCanvas
                   canvas={canvas}
                   slots={active.slots}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
+                  selectedIds={selectedIds}
+                  onSelect={setSelectedIds}
                   onLive={(slots) => setHistory((h) => ({
                     ...h, pieces: h.pieces.map((p) => (p.id === active.id ? { ...p, slots } : p)),
                   }))}
@@ -847,11 +909,15 @@ export function FrameStudio({
                   dpi={dpi}
                   slots={active.slots}
                   selected={selected}
+                  selectedSlots={selectedSlots}
                   issues={issues}
                   onPatchSlot={patchSlot}
-                  onDelete={deleteSlot}
-                  onDuplicate={duplicateSlot}
-                  onSelect={setSelectedId}
+                  onDelete={() => deleteSlots(selectedIds)}
+                  onDuplicate={() => duplicateSlots(selectedIds)}
+                  onSelect={select}
+                  onMerge={mergeSelected}
+                  onSplit={splitSelected}
+                  onTransform={transformSelected}
                 />
               </section>
             ) : null}

@@ -12,6 +12,7 @@
  */
 
 import { isLibraryFontUrl } from "./font-library";
+import { isSlotShapeId, type SlotShapeId } from "./slot-shapes";
 import { normalizeHex } from "./text-palette";
 
 import type { PrintCanvas } from "~/lib/print-spec";
@@ -38,8 +39,15 @@ export interface ImageSlot {
   rect: Rect;
   /** Delik taramasından çıkan şekil maskesi; yoksa dikdörtgen */
   mask_url?: string;
-  /** Köşe yuvarlaması, tuval GENİŞLİĞİNE orandır (maske varsa yok sayılır) */
+  /**
+   * Hazır şekil (kalp, yıldız...). Alanın piksel ölçüsüne göre SVG olarak
+   * üretilir; `mask_url` varsa o önceliklidir.
+   */
+  shape?: SlotShapeId;
+  /** Köşe yuvarlaması, tuval GENİŞLİĞİNE orandır (maske ya da şekil varsa yok sayılır) */
   radius?: number;
+  /** Merkez etrafında saat yönünde derece; yoksa 0 */
+  rotation?: number;
   fit: "cover" | "contain";
   allow: { pan: boolean; zoom: boolean; rotate: boolean };
   label: string;
@@ -54,6 +62,8 @@ export interface TextSlot {
   id: string;
   kind: "text";
   rect: Rect;
+  /** Merkez etrafında saat yönünde derece; yoksa 0 */
+  rotation?: number;
   label: string;
   order: number;
   mode: TextMode;
@@ -569,13 +579,18 @@ export function validateSlots(
     }
     ids.add(s.id);
 
-    const { x, y, w, h } = s.rect;
-    if (!(w > 0) || !(h > 0)) {
+    if (!(s.rect.w > 0) || !(s.rect.h > 0)) {
       issues.push({ level: "error", slot_id: s.id, message: `"${s.label || s.id}" alanının ölçüsü geçersiz.` });
       continue;
     }
-    if (x < 0 || y < 0 || x + w > 1 || y + h > 1) {
-      issues.push({ level: "error", slot_id: s.id, message: `"${s.label || s.id}" tuvalin dışına taşıyor.` });
+    // Döndürülmüş alanın köşeleri tuvalden taşabilir; polaroid kolajlarda bu
+    // bilinçli bir tercih, o yüzden hata değil uyarı.
+    const { x, y, w, h } = rotatedBounds(s, canvas.canvasWidth, canvas.canvasHeight);
+    const eps = 1e-6;
+    if (x < -eps || y < -eps || x + w > 1 + eps || y + h > 1 + eps) {
+      issues.push(s.rotation
+        ? { level: "warning", slot_id: s.id, message: `"${s.label || s.id}" döndürüldüğü için köşeleri tuvalden taşıyor; taşan kısım basılmaz.` }
+        : { level: "error", slot_id: s.id, message: `"${s.label || s.id}" tuvalin dışına taşıyor.` });
       continue;
     }
 
@@ -727,6 +742,41 @@ export function slotsFromLegacyTemplate(
   return slots;
 }
 
+/**
+ * Dereceyi -180…180 aralığına indirir; sıfıra çok yakınsa alanı hiç yazmaz
+ * ki döndürülmemiş eski kayıtlarla aynı veri çıksın.
+ */
+export function normalizeRotation(raw: unknown): number | undefined {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return undefined;
+  let d = ((n % 360) + 540) % 360 - 180;
+  d = Math.round(d * 10) / 10;
+  return Math.abs(d) < 0.05 ? undefined : d;
+}
+
+/**
+ * Döndürülmüş alanın tuval üzerindeki sınır kutusu (normalize). Dönme
+ * PİKSEL uzayında olur; tuval kare değilse normalize koordinatta döndürmek
+ * alanı çarpıtırdı.
+ */
+export function rotatedBounds(slot: Pick<Slot, "rect" | "rotation">, canvasWidth: number, canvasHeight: number): Rect {
+  const deg = slot.rotation ?? 0;
+  if (!deg) return slot.rect;
+  const t = (deg * Math.PI) / 180;
+  const wPx = slot.rect.w * canvasWidth;
+  const hPx = slot.rect.h * canvasHeight;
+  const bw = Math.abs(wPx * Math.cos(t)) + Math.abs(hPx * Math.sin(t));
+  const bh = Math.abs(wPx * Math.sin(t)) + Math.abs(hPx * Math.cos(t));
+  const cx = (slot.rect.x + slot.rect.w / 2) * canvasWidth;
+  const cy = (slot.rect.y + slot.rect.h / 2) * canvasHeight;
+  return {
+    x: (cx - bw / 2) / canvasWidth,
+    y: (cy - bh / 2) / canvasHeight,
+    w: bw / canvasWidth,
+    h: bh / canvasHeight,
+  };
+}
+
 /** JSONB'den okunan ham değeri güvenli slot dizisine çevirir */
 export function normalizeSlots(raw: unknown): Slot[] {
   if (!Array.isArray(raw)) return [];
@@ -743,6 +793,7 @@ export function normalizeSlots(raw: unknown): Slot[] {
       rect: { x: rect.x, y: rect.y, w: rect.w, h: rect.h },
       label: String(s.label ?? ""),
       order: Number(s.order ?? out.length + 1),
+      rotation: normalizeRotation(s.rotation),
     };
     if (!base.id) continue;
 
@@ -777,6 +828,7 @@ export function normalizeSlots(raw: unknown): Slot[] {
         kind: "image",
         source: String(s.source ?? base.id),
         mask_url: s.mask_url ? String(s.mask_url) : undefined,
+        shape: isSlotShapeId(s.shape) ? s.shape : undefined,
         radius: typeof s.radius === "number" ? s.radius : undefined,
         fit: s.fit === "contain" ? "contain" : "cover",
         allow: {

@@ -7,6 +7,7 @@ import {
 import { loadFont, layoutText } from "~/lib/text-render.server";
 import { resolveChosenFont } from "~/lib/font-library";
 import { resolveChosenColor } from "~/lib/text-palette";
+import { shapeSvg } from "~/lib/slot-shapes";
 
 /**
  * Çoklu slot kompozisyonu — N fotoğrafı şablonun N alanına yerleştirir.
@@ -154,6 +155,13 @@ async function applySlotShape(
     return sharp(layer).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
   }
 
+  if (slot.shape) {
+    // Şekil alanın gerçek piksel ölçüsünde çiziliyor; hazır bir maske
+    // görselini büyütmek kenarları tırtıklı bırakırdı.
+    const mask = Buffer.from(shapeSvg(slot.shape, width, height));
+    return sharp(layer).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
+  }
+
   const radiusPx = slot.radius ? Math.round(slot.radius * canvasWidth) : 0;
   if (radiusPx <= 0) return layer;
 
@@ -164,6 +172,43 @@ async function applySlotShape(
      </svg>`,
   );
   return sharp(layer).composite([{ input: rounded, blend: "dest-in" }]).png().toBuffer();
+}
+
+/**
+ * Döndürülmüş bir katmanı tuvale yerleştirir.
+ *
+ * Katman alanın merkezi etrafında döndürülüyor; dönen katmanın sınır kutusu
+ * büyüdüğü için sol-üst köşe merkezden yeniden hesaplanıyor. Köşeler tuvalden
+ * taşabilir: sharp negatif konumu kabul ediyor ama tuvalden büyük katmanı
+ * reddediyor, bu yüzden katman tuvalle kesişimine kırpılıyor.
+ */
+async function placeRotated(
+  layer: Buffer,
+  degrees: number,
+  centerX: number,
+  centerY: number,
+  canvasWidth: number,
+  canvasHeight: number,
+): Promise<sharp.OverlayOptions | null> {
+  const rotated = await sharp(layer)
+    .rotate(degrees, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer({ resolveWithObject: true });
+  const rw = rotated.info.width;
+  const rh = rotated.info.height;
+  const left = Math.round(centerX - rw / 2);
+  const top = Math.round(centerY - rh / 2);
+
+  const x0 = Math.max(0, -left);
+  const y0 = Math.max(0, -top);
+  const x1 = Math.min(rw, canvasWidth - left);
+  const y1 = Math.min(rh, canvasHeight - top);
+  if (x1 <= x0 || y1 <= y0) return null;
+
+  const input = x0 === 0 && y0 === 0 && x1 === rw && y1 === rh
+    ? rotated.data
+    : await sharp(rotated.data).extract({ left: x0, top: y0, width: x1 - x0, height: y1 - y0 }).png().toBuffer();
+  return { input, left: left + x0, top: top + y0 };
 }
 
 /**
@@ -200,10 +245,13 @@ async function buildTextLayers(
     // Çıkıntılar (ğ, ş kuyrukları, İ noktası) kutunun dışına taşabilir;
     // katman kırpmasın diye her yönden pay bırakıyoruz.
     const pad = Math.ceil(fontSize * 0.6);
-    const layerW = Math.min(canvasWidth, box.width + pad * 2);
-    const layerH = Math.min(canvasHeight, box.height + pad * 2);
-    const left = Math.max(0, Math.min(canvasWidth - layerW, box.x - pad));
-    const top = Math.max(0, Math.min(canvasHeight - layerH, box.y - pad));
+    // Döndürülen yazıda katman tuvale sıkıştırılmıyor: katman merkezinden
+    // döneceği için kenara itilmiş bir katman yazıyı yanlış yere taşırdı.
+    const rotated = Boolean(slot.rotation);
+    const layerW = rotated ? box.width + pad * 2 : Math.min(canvasWidth, box.width + pad * 2);
+    const layerH = rotated ? box.height + pad * 2 : Math.min(canvasHeight, box.height + pad * 2);
+    const left = rotated ? box.x - pad : Math.max(0, Math.min(canvasWidth - layerW, box.x - pad));
+    const top = rotated ? box.y - pad : Math.max(0, Math.min(canvasHeight - layerH, box.y - pad));
 
     // Katman içi koordinatlar
     const inner = { x: box.x - left, y: box.y - top, width: box.width, height: box.height };
@@ -271,7 +319,15 @@ async function buildTextLayers(
     const svg = Buffer.from(
       `<svg xmlns="http://www.w3.org/2000/svg" width="${layerW}" height="${layerH}">${body}</svg>`,
     );
-    layers.push({ input: await sharp(svg).png().toBuffer(), left, top });
+    const png = await sharp(svg).png().toBuffer();
+    if (rotated) {
+      const placed = await placeRotated(
+        png, slot.rotation!, box.x + box.width / 2, box.y + box.height / 2, canvasWidth, canvasHeight,
+      );
+      if (placed) layers.push(placed);
+    } else {
+      layers.push({ input: png, left, top });
+    }
   }
 
   return layers;
@@ -308,7 +364,14 @@ export async function composeSlotDesign(opts: ComposeSlotsOptions): Promise<Buff
       const photo = await fetchBuffer(fill.url);
       let layer = await renderSlotPhoto(photo, slot, box.width, box.height, fill);
       layer = await applySlotShape(layer, slot, box.width, box.height, W);
-      composites.push({ input: layer, left: box.x, top: box.y });
+      if (slot.rotation) {
+        const placed = await placeRotated(
+          layer, slot.rotation, box.x + box.width / 2, box.y + box.height / 2, W, H,
+        );
+        if (placed) composites.push(placed);
+      } else {
+        composites.push({ input: layer, left: box.x, top: box.y });
+      }
     } catch (err) {
       if (opts.strict) {
         // Baskıda eksik alan sessizce geçilemez
