@@ -83,8 +83,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const url = await uploadToR2(cikti, ext, folder);
+    // Delik biz açtıysak orijinal de saklanıyor: mağaza sahibi açıklığı elle
+    // düzeltmek isterse kesim, eski deliği taşımayan görselden yapılmalı.
+    const sourceUrl = folder === "personalizer-mockup" && cikti !== buf
+      ? await uploadToR2(buf, file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png", folder)
+      : url;
     return json({
       url,
+      sourceUrl,
       width: meta.width,
       height: meta.height,
       hasAlpha: meta.hasAlpha === true,

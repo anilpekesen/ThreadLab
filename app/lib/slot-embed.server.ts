@@ -128,6 +128,7 @@ export async function buildSlotData(
     replace: isTr ? "Değiştir" : "Replace",
     clear: isTr ? "Kaldır" : "Remove",
     done: isTr ? "Tamam" : "Done",
+    rotate: isTr ? "Döndür" : "Rotate",
     // Bu metin tarayıcıda kullanılıyor; fonksiyon olarak bırakılırsa
     // JSON.stringify onu sessizce siler ve arayüz çalışmaz. Yer tutucu
     // istemcide dolduruluyor.
@@ -276,7 +277,8 @@ export async function buildSlotData(
       label: m.label,
       url: m.url,
       areas: m.areas,
-      opening: m.areas.length === 0 ? await mockupOpening(m.url) : null,
+      // Elle çizilmiş açıklık taramadan önce gelir
+      opening: m.areas.length === 0 ? (m.opening ?? await mockupOpening(m.url)) : null,
     });
   }
   const aktif = pickMockup(template.mockups, opts.optionValues ?? []);
@@ -636,6 +638,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   .crop-stage img { position: absolute; max-width: none; pointer-events: none; }
   .crop-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
   .crop-row input[type=range] { flex: 1; accent-color: var(--ink); }
+  .crop-row .btn { white-space: nowrap; }
 
   /* ── Önizleme çıktısı ───────────────────────────────────────────── */
 
@@ -738,6 +741,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       <input type="range" id="zoom" min="1" max="3" step="0.02" value="1">
     </div>
     <div class="crop-row">
+      <button class="btn btn-outline" id="cropRotate" hidden>↻ ${escapeHtml(t.rotate)}</button>
       <button class="btn btn-outline" id="cropReplace">${escapeHtml(t.replace)}</button>
       <button class="btn btn-outline" id="cropClear">${escapeHtml(t.clear)}</button>
       <button class="btn btn-primary" id="cropDone" style="margin-left:auto">${escapeHtml(t.done)}</button>
@@ -1313,15 +1317,31 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     if (!img) return;
     var W = el.clientWidth, H = el.clientHeight;
     if (!W || !H || !f.width || !f.height) return;
+    yerlestir(img, f, W, H);
+  }
 
-    var k = Math.max(W / f.width, H / f.height) * (f.scale || 1);
-    var rw = f.width * k, rh = f.height * k;
+  /**
+   * Fotoğrafı W×H kutusuna kırparak yerleştirir — alan, ürün görseli ve
+   * kırpma penceresi aynı hesabı kullanıyor, baskı motoru da (slot-compose).
+   *
+   * Müşteri fotoğrafı çeyrek çevirdiyse kırpma DÖNMÜŞ fotoğrafın ölçüsüyle
+   * yapılır; görsel ise ham yönünde boyutlanıp ortasından CSS ile döndürülür.
+   */
+  function yerlestir(img, f, W, H) {
+    var q = f.rotate || 0;
+    var yan = q === 90 || q === 270;
+    var ew = yan ? f.height : f.width;
+    var eh = yan ? f.width : f.height;
+    var k = Math.max(W / ew, H / eh) * (f.scale || 1);
+    var rw = ew * k, rh = eh * k;
     var left = -clamp((rw - W) / 2 - (f.offset_x || 0) * W, 0, rw - W);
     var top = -clamp((rh - H) / 2 - (f.offset_y || 0) * H, 0, rh - H);
-    img.style.width = rw + 'px';
-    img.style.height = rh + 'px';
-    img.style.left = left + 'px';
-    img.style.top = top + 'px';
+    var iw = yan ? rh : rw, ih = yan ? rw : rh;
+    img.style.width = iw + 'px';
+    img.style.height = ih + 'px';
+    img.style.left = (left + (rw - iw) / 2) + 'px';
+    img.style.top = (top + (rh - ih) / 2) + 'px';
+    img.style.transform = q ? 'rotate(' + q + 'deg)' : '';
   }
 
   // ── Mockup ─────────────────────────────────────────────────────────────
@@ -1395,12 +1415,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
       var W = el.clientWidth, H = el.clientHeight;
       if (!W || !H || !f.width || !f.height) return;
-      var k = Math.max(W / f.width, H / f.height) * (f.scale || 1);
-      var rw = f.width * k, rh = f.height * k;
-      img.style.width = rw + 'px';
-      img.style.height = rh + 'px';
-      img.style.left = (-clamp((rw - W) / 2 - (f.offset_x || 0) * W, 0, rw - W)) + 'px';
-      img.style.top = (-clamp((rh - H) / 2 - (f.offset_y || 0) * H, 0, rh - H)) + 'px';
+      yerlestir(img, f, W, H);
     });
   }
 
@@ -1614,12 +1629,13 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   function onSlotClick(slotId) {
     if (!fills[slotId]) return;
     var slot = slotById(slotId);
-    if (slot && !slot.allow.pan && !slot.allow.zoom) return;
+    if (slot && !slot.allow.pan && !slot.allow.zoom && !slot.allow.rotate) return;
     cropSlot = slotId;
     document.getElementById('cropTitle').textContent = T.cropTitle + ' — ' + (slot ? slot.label : '');
     var f = fills[slotId];
     zoom.value = String(f.scale || 1);
     zoom.disabled = !(slot && slot.allow.zoom);
+    document.getElementById('cropRotate').hidden = !(slot && slot.allow.rotate);
     var pc = (pieceOfSlot[slotId] || D.pieces[0]).canvas;
     stage.style.aspectRatio = (slot.rect.w * pc.width) + ' / ' + (slot.rect.h * pc.height);
     stage.innerHTML = '';
@@ -1637,11 +1653,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     if (!img) return;
     var W = stage.clientWidth, H = stage.clientHeight;
     if (!W || !H || !f.width) return;
-    var k = Math.max(W / f.width, H / f.height) * (f.scale || 1);
-    var rw = f.width * k, rh = f.height * k;
-    img.style.width = rw + 'px'; img.style.height = rh + 'px';
-    img.style.left = (-clamp((rw - W) / 2 - f.offset_x * W, 0, rw - W)) + 'px';
-    img.style.top = (-clamp((rh - H) / 2 - f.offset_y * H, 0, rh - H)) + 'px';
+    yerlestir(img, f, W, H);
   }
 
   var panning = false, lastX = 0, lastY = 0;
@@ -1681,6 +1693,15 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   document.getElementById('cropDone').addEventListener('click', function () {
     dlg.close(); paint(cropSlot); paintMockup(); updateStatus();
   });
+  // Çeyrek dönüş: kaydırma dönmüş fotoğrafa göre tutulduğu için sıfırlanıyor,
+  // yoksa eski kadraj yeni yönde anlamsız bir yere düşüyordu.
+  document.getElementById('cropRotate').addEventListener('click', function () {
+    var f = fills[cropSlot];
+    if (!f) return;
+    f.rotate = ((f.rotate || 0) + 90) % 360;
+    f.offset_x = 0; f.offset_y = 0;
+    layoutCrop();
+  });
   document.getElementById('cropReplace').addEventListener('click', function () {
     replaceTarget = cropSlot; dlg.close(); fileInput.click();
   });
@@ -1706,7 +1727,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       fills: ALL.filter(function (s) { return fills[s.id] && fills[s.id].url; })
         .map(function (s) {
           var f = fills[s.id];
-          return { slot_id: s.id, url: f.url, offset_x: f.offset_x, offset_y: f.offset_y, scale: f.scale };
+          return { slot_id: s.id, url: f.url, offset_x: f.offset_x, offset_y: f.offset_y, scale: f.scale, rotate: f.rotate || 0 };
         }),
     };
   }

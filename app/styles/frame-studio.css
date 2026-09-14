@@ -673,6 +673,68 @@
   background: var(--fs-panel);
 }
 
+/* ── Ürün görseli açıklığı ───────────────────────────────────────────── */
+
+.fs-mockup-preview {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  border-radius: 10px;
+  background: repeating-conic-gradient(#ececec 0% 25%, #ffffff 0% 50%) 50% / 16px 16px;
+}
+
+.fs-mockup-frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.fs-mockup-frame img {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  pointer-events: none;
+}
+
+.fs-mockup-frame.is-drawing { cursor: crosshair; }
+
+.fs-mockup-opening {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #005bd3;
+  background: rgba(0, 91, 211, 0.18);
+  cursor: move;
+  touch-action: none;
+}
+
+.fs-mockup-opening.is-saved {
+  border-style: dashed;
+  background: rgba(0, 91, 211, 0.08);
+  pointer-events: none;
+}
+
+.fs-mockup-handle {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #005bd3;
+  border-radius: 3px;
+  background: #ffffff;
+  cursor: nwse-resize;
+}
+
+.fs-mockup-handle::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+}
+
 .fs-mockups > * {
   max-width: 880px;
   margin: 0 auto;

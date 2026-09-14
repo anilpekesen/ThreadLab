@@ -39,6 +39,17 @@ export interface SlotFill {
   offset_y?: number;
   /** 1 = alanı tam dolduran ölçek; büyütmek yakınlaştırır */
   scale?: number;
+  /**
+   * Müşterinin fotoğrafa uyguladığı çeyrek dönüş (saat yönünde). Kaydırma ve
+   * ölçek DÖNMÜŞ fotoğrafa göredir; müşteri de kırpmayı dönmüş hâlde yapıyor.
+   */
+  rotate?: 0 | 90 | 180 | 270;
+}
+
+/** Gelen değeri geçerli çeyrek dönüşe çevirir; tanınmayan değer 0 */
+export function normalizeQuarterTurn(raw: unknown): 0 | 90 | 180 | 270 {
+  const n = ((Math.round(Number(raw) / 90) * 90) % 360 + 360) % 360;
+  return n === 90 || n === 180 || n === 270 ? n : 0;
 }
 
 export interface ComposeSlotsOptions {
@@ -103,7 +114,18 @@ async function renderSlotPhoto(
   height: number,
   fill: SlotFill,
 ): Promise<Buffer> {
-  const meta = await sharp(photo).metadata();
+  // Telefon fotoğrafları sensör yönünde kaydedilip EXIF'te "90° döndür" diye
+  // işaretleniyor. Tarayıcı bu işareti uygulayıp fotoğrafı dik gösteriyor ve
+  // müşteri kırpmayı dik hâline göre yapıyor; motor uygulamayınca dik çekilmiş
+  // fotoğraf baskıya yan gidiyordu. Önce EXIF yönü, sonra müşterinin dönüşü.
+  const turn = normalizeQuarterTurn(fill.rotate);
+  const initial = await sharp(photo).metadata();
+  if ((initial.orientation ?? 1) > 1 || turn) {
+    let pipe = sharp(photo).rotate();
+    if (turn) pipe = sharp(await pipe.toBuffer()).rotate(turn);
+    photo = await pipe.toBuffer();
+  }
+  const meta = (initial.orientation ?? 1) > 1 || turn ? await sharp(photo).metadata() : initial;
   const pw = meta.width ?? 0;
   const ph = meta.height ?? 0;
   if (!(pw > 0) || !(ph > 0)) throw new Error("Fotoğraf ölçüsü okunamadı");

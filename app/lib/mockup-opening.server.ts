@@ -126,11 +126,25 @@ export async function cutOpening(buf: Buffer, ipucu?: OpeningRect): Promise<CutR
   }
 
   if (!ipucu) return null;
+  return cutRectRaw(data, W, H, C, ipucu);
+}
 
-  const x0 = Math.max(0, Math.round(ipucu.x * W));
-  const y0 = Math.max(0, Math.round(ipucu.y * H));
-  const x1 = Math.min(W, Math.round((ipucu.x + ipucu.w) * W));
-  const y1 = Math.min(H, Math.round((ipucu.y + ipucu.h) * H));
+/**
+ * Görselde verilen dikdörtgeni şeffaf yapar — mağaza sahibinin elle çizdiği
+ * fotoğraf alanı. Taramaya hiç bakılmaz: çizilen yer neresiyse delik orası.
+ */
+export async function cutRect(buf: Buffer, rect: OpeningRect): Promise<CutResult | null> {
+  const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return cutRectRaw(data, info.width, info.height, info.channels, rect);
+}
+
+async function cutRectRaw(
+  data: Buffer, W: number, H: number, C: number, rect: OpeningRect,
+): Promise<CutResult | null> {
+  const x0 = Math.max(0, Math.round(rect.x * W));
+  const y0 = Math.max(0, Math.round(rect.y * H));
+  const x1 = Math.min(W, Math.round((rect.x + rect.w) * W));
+  const y1 = Math.min(H, Math.round((rect.y + rect.h) * H));
   if (x1 - x0 < 8 || y1 - y0 < 8) return null;
 
   const kopya = Buffer.from(data);

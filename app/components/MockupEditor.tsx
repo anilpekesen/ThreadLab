@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Card, BlockStack, InlineStack, Text, Button, Badge, Box,
-  TextField, Banner, Divider, Thumbnail,
+  TextField, Banner, Divider, Checkbox,
 } from "@shopify/polaris";
-import type { TemplateMockup } from "~/lib/slots";
+import type { MockupOpeningRect, Rect, TemplateMockup } from "~/lib/slots";
 
 /**
  * Mockup editörü — varyanta göre ürün görselleri.
@@ -12,20 +12,27 @@ import type { TemplateMockup } from "~/lib/slots";
  * gördüğü ürün. Anahtar, Shopify'daki seçenek değeriyle eşleşiyor ("Ceviz");
  * müşteri o varyantı seçtiğinde fotoğrafını o çerçevenin içinde görüyor.
  *
- * Görselin ortası şeffaf bırakılmışsa açıklık kendiliğinden bulunuyor; mağaza
- * sahibinin her renk için elle alan çizmesi gerekmiyor.
+ * Görselin ortası şeffaf bırakılmışsa açıklık kendiliğinden bulunuyor. Bulunan
+ * yer yanlışsa (beyaz çerçeve, açık iç kenar) mağaza sahibi alanı elle çiziyor;
+ * delik orijinal görselden tam o yere açılıyor.
  */
 
 export interface MockupEditorProps {
   mockups: TemplateMockup[];
   onChange: (mockups: TemplateMockup[]) => void;
+  /**
+   * Tasarım tuvalinin en/boy oranı (taşma dahil). Müşteri sayfasında tasarım
+   * açıklığın içine sığdırıldığı için açıklık bu orandan saparsa tasarım esner.
+   */
+  designAspect?: number;
 }
 
-export function MockupEditor({ mockups, onChange }: MockupEditorProps) {
+export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [uyari, setUyari] = useState("");
   const [bilgi, setBilgi] = useState("");
+  const [drawing, setDrawing] = useState<number | null>(null);
   /**
    * Başarılı bir yüklemede bulunan açıklık, görsel ölçüsüne göre saklanıyor.
    * Mağazalar aynı çekimin renk varyantlarını yüklüyor ve beyaz çerçevede iç
@@ -46,6 +53,7 @@ export function MockupEditor({ mockups, onChange }: MockupEditorProps) {
 
   function sil(i: number) {
     onChange(mockups.filter((_, k) => k !== i));
+    if (drawing === i) setDrawing(null);
   }
 
   async function yukle(file: File, i: number) {
@@ -64,18 +72,46 @@ export function MockupEditor({ mockups, onChange }: MockupEditorProps) {
       const res = await fetch("/api/personalizer/upload-image", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || "Yüklenemedi");
-      patch(i, { url: data.url });
+      // Yeni görselde eski elle çizilmiş alan geçersiz
+      patch(i, { url: data.url, source_url: data.sourceUrl || data.url, opening: undefined });
 
       if (data.opening && olcu) acikliklar.current[olcu] = data.opening;
       if (data.uyari) setUyari(data.uyari);
       else if (data.openingCut) {
         setBilgi(
           "Görselin ortası şeffaf değildi, fotoğrafın gireceği alan otomatik açıldı. "
-          + "Aşağıdaki örnekte çerçevenin içi boş görünüyorsa doğru.",
+          + "Yanlış yerdeyse \"Fotoğraf alanını çiz\" ile düzeltin.",
         );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Yüklenemedi");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function alaniKes(i: number, rect: Rect) {
+    const m = mockups[i];
+    setBusy(true);
+    setError("");
+    setBilgi("");
+    try {
+      const res = await fetch("/api/personalizer/mockup-opening", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceUrl: m.source_url || m.url, rect }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Alan kesilemedi");
+      patch(i, {
+        url: data.url,
+        source_url: m.source_url || m.url,
+        opening: data.opening as MockupOpeningRect,
+      });
+      setDrawing(null);
+      setBilgi("Fotoğraf alanı çizdiğiniz yere açıldı. Kaydetmeyi unutmayın.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Alan kesilemedi");
     } finally {
       setBusy(false);
     }
@@ -115,7 +151,7 @@ export function MockupEditor({ mockups, onChange }: MockupEditorProps) {
         <input
           ref={fileInput}
           type="file"
-          accept="image/png,image/webp"
+          accept="image/png,image/webp,image/jpeg"
           style={{ display: "none" }}
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -126,24 +162,49 @@ export function MockupEditor({ mockups, onChange }: MockupEditorProps) {
           }}
         />
 
+        {bilgi && <Banner tone="success" onDismiss={() => setBilgi("")}><p>{bilgi}</p></Banner>}
+        {uyari && <Banner tone="warning" onDismiss={() => setUyari("")}><p>{uyari}</p></Banner>}
+        {error && <Banner tone="critical" onDismiss={() => setError("")}><p>{error}</p></Banner>}
+
         {mockups.map((m, i) => (
           <Box key={i} background="bg-surface-secondary" padding="300" borderRadius="200">
             <BlockStack gap="300">
               <InlineStack gap="300" blockAlign="center" align="space-between" wrap={false}>
-                <InlineStack gap="300" blockAlign="center" wrap={false}>
-                  {m.url
-                    ? <Thumbnail source={m.url} alt={m.label || m.key} size="small" />
-                    : <Badge tone="warning">Görsel yok</Badge>}
+                <InlineStack gap="200" blockAlign="center" wrap={false}>
+                  {!m.url && <Badge tone="warning">Görsel yok</Badge>}
+                  {m.url && (
+                    m.opening
+                      ? <Badge tone="success">Fotoğraf alanı elle çizildi</Badge>
+                      : <Badge>Fotoğraf alanı otomatik</Badge>
+                  )}
                   <Button
                     size="slim"
-                    loading={busy}
+                    loading={busy && drawing === null}
                     onClick={() => { hedef.current = i; fileInput.current?.click(); }}
                   >
-                    {m.url ? "Değiştir" : "Görsel yükle"}
+                    {m.url ? "Görseli değiştir" : "Görsel yükle"}
                   </Button>
+                  {m.url && drawing !== i && (
+                    <Button size="slim" onClick={() => setDrawing(i)}>Fotoğraf alanını çiz</Button>
+                  )}
                 </InlineStack>
                 <Button tone="critical" variant="plain" onClick={() => sil(i)}>Sil</Button>
               </InlineStack>
+
+              {m.url && (
+                drawing === i ? (
+                  <OpeningDrawer
+                    imageUrl={m.source_url || m.url}
+                    initial={m.opening}
+                    designAspect={designAspect}
+                    busy={busy}
+                    onCancel={() => setDrawing(null)}
+                    onApply={(rect) => void alaniKes(i, rect)}
+                  />
+                ) : (
+                  <MockupPreview url={m.url} opening={m.opening} />
+                )
+              )}
 
               <InlineStack gap="300" wrap>
                 <Box minWidth="220px">
@@ -170,21 +231,188 @@ export function MockupEditor({ mockups, onChange }: MockupEditorProps) {
           </Box>
         ))}
 
-        {bilgi && <Banner tone="success"><p>{bilgi}</p></Banner>}
-        {uyari && <Banner tone="warning"><p>{uyari}</p></Banner>}
-        {error && <Banner tone="critical"><p>{error}</p></Banner>}
-
         {mockups.length > 0 && (
           <>
             <Divider />
             <Text as="p" variant="bodySm" tone="subdued">
-              Görselin fotoğrafın görüneceği kısmı <b>şeffaf</b> olmalı. Açıklık otomatik bulunur,
-              elle alan çizmeniz gerekmez. Paspartu baskıdan geliyorsa görselde paspartu
-              bulunmamalı — yoksa iki kez uygulanmış görünür.
+              Görselin fotoğrafın görüneceği kısmı şeffafsa alan otomatik bulunur. Bulunamazsa ya da
+              yanlış yerdeyse alanı elle çizin. Paspartu baskıdan geliyorsa görselde paspartu
+              bulunmamalı; yoksa iki kez uygulanmış görünür.
             </Text>
           </>
         )}
       </BlockStack>
     </Card>
   );
+}
+
+/** Kayıtlı görsel ve (varsa) elle çizilmiş alanı gösterir */
+function MockupPreview({ url, opening }: { url: string; opening?: MockupOpeningRect }) {
+  return (
+    <div className="fs-mockup-preview">
+      <div className="fs-mockup-frame">
+        <img src={url} alt="" draggable={false} />
+        {opening && (
+          <div
+            className="fs-mockup-opening is-saved"
+            style={{
+              left: `${opening.x * 100}%`, top: `${opening.y * 100}%`,
+              width: `${opening.w * 100}%`, height: `${opening.h * 100}%`,
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+type DragMode = { kind: "draw" | "move" | "resize"; startX: number; startY: number; origin: Rect };
+
+/**
+ * Açıklığı görselin üstünde çizdirir. Boş yerden sürüklemek yeni alan çizer,
+ * alanın içinden sürüklemek taşır, sağ alt köşe boyutlandırır. Oran kilidi
+ * açıksa yükseklik genişlikten, görselin piksel oranı hesaba katılarak türetilir.
+ */
+function OpeningDrawer({
+  imageUrl, initial, designAspect, busy, onCancel, onApply,
+}: {
+  imageUrl: string;
+  initial?: Rect;
+  designAspect?: number;
+  busy: boolean;
+  onCancel: () => void;
+  onApply: (rect: Rect) => void;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  const [lock, setLock] = useState(Boolean(designAspect));
+  const [rect, setRect] = useState<Rect | null>(initial ?? null);
+  const [drag, setDrag] = useState<DragMode | null>(null);
+
+  // Görsel yüklenince, çizilmiş alan yoksa ortada makul bir başlangıç alanı
+  useEffect(() => {
+    if (!natural || rect) return;
+    const w = 0.5;
+    const h = lock && designAspect ? heightFor(w, natural, designAspect) : 0.5;
+    setRect({ x: (1 - w) / 2, y: Math.max(0, (1 - h) / 2), w, h: Math.min(1, h) });
+  }, [natural]);
+
+  function norm(e: { clientX: number; clientY: number }) {
+    const r = boxRef.current!.getBoundingClientRect();
+    return {
+      x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
+      y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)),
+    };
+  }
+
+  function lockHeight(next: Rect): Rect {
+    if (!lock || !designAspect || !natural) return next;
+    let h = heightFor(next.w, natural, designAspect);
+    let w = next.w;
+    if (next.y + h > 1) {
+      h = 1 - next.y;
+      w = (h * natural.h * designAspect) / natural.w;
+    }
+    return { ...next, w, h };
+  }
+
+  useEffect(() => {
+    if (!drag) return;
+    const move = (e: PointerEvent) => {
+      const p = norm(e);
+      const o = drag.origin;
+      let next: Rect;
+      if (drag.kind === "move") {
+        next = {
+          ...o,
+          x: Math.min(1 - o.w, Math.max(0, o.x + p.x - drag.startX)),
+          y: Math.min(1 - o.h, Math.max(0, o.y + p.y - drag.startY)),
+        };
+      } else if (drag.kind === "resize") {
+        next = lockHeight({ ...o, w: Math.max(0.02, Math.min(1 - o.x, p.x - o.x)), h: Math.max(0.02, Math.min(1 - o.y, p.y - o.y)) });
+      } else {
+        const x = Math.min(drag.startX, p.x);
+        const y = Math.min(drag.startY, p.y);
+        next = lockHeight({ x, y, w: Math.max(0.02, Math.abs(p.x - drag.startX)), h: Math.max(0.02, Math.abs(p.y - drag.startY)) });
+      }
+      setRect(next);
+    };
+    const up = () => setDrag(null);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+  }, [drag, lock, natural, designAspect]);
+
+  function start(e: React.PointerEvent, kind: DragMode["kind"]) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const p = norm(e);
+    const origin = kind === "draw" ? { x: p.x, y: p.y, w: 0.02, h: 0.02 } : rect!;
+    if (kind === "draw") setRect(origin);
+    setDrag({ kind, startX: p.x, startY: p.y, origin });
+  }
+
+  const aspectOff = rect && natural && designAspect
+    ? Math.abs((rect.w * natural.w) / (rect.h * natural.h) - designAspect) / designAspect > 0.02
+    : false;
+
+  return (
+    <BlockStack gap="300">
+      <Text as="p" variant="bodySm">
+        Müşterinin tasarımının görüneceği alanı görselin üstünde sürükleyerek çizin. Alanın içinden
+        tutup taşıyabilir, sağ alt köşeden boyutlandırabilirsiniz.
+      </Text>
+      <div className="fs-mockup-preview">
+        <div
+          ref={boxRef}
+          className="fs-mockup-frame is-drawing"
+          onPointerDown={(e) => start(e, "draw")}
+        >
+          <img
+            src={imageUrl}
+            alt=""
+            draggable={false}
+            onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+          />
+          {rect && (
+            <div
+              className="fs-mockup-opening"
+              style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.w * 100}%`, height: `${rect.h * 100}%` }}
+              onPointerDown={(e) => start(e, "move")}
+            >
+              <span className="fs-mockup-handle" onPointerDown={(e) => start(e, "resize")} />
+            </div>
+          )}
+        </div>
+      </div>
+      {designAspect && (
+        <Checkbox
+          label="Tasarımın oranına kilitle"
+          checked={lock}
+          onChange={(v) => {
+            setLock(v);
+            if (v && rect && natural) setRect(lockHeight(rect));
+          }}
+          helpText={aspectOff
+            ? "Alanın oranı tasarımdan farklı; müşteri sayfasında tasarım bu alana esnetilerek sığdırılır."
+            : "Tasarım alanın içine esnemeden oturur."}
+        />
+      )}
+      <InlineStack gap="200">
+        <Button variant="primary" loading={busy} disabled={!rect} onClick={() => rect && onApply(rect)}>
+          Alanı uygula
+        </Button>
+        <Button onClick={onCancel} disabled={busy}>Vazgeç</Button>
+      </InlineStack>
+    </BlockStack>
+  );
+}
+
+/** Kilitli oranda, görselin piksel oranını hesaba katarak normalize yükseklik */
+function heightFor(w: number, natural: { w: number; h: number }, designAspect: number): number {
+  return (w * natural.w) / (designAspect * natural.h);
 }

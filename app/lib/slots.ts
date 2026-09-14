@@ -221,11 +221,24 @@ export interface MockupArea {
   mask_url?: string;
 }
 
+/** Çerçeve görselindeki fotoğraf açıklığı; görsele göre oran, `aspect` görselin en/boy oranı */
+export interface MockupOpeningRect extends Rect {
+  aspect: number;
+}
+
 export interface TemplateMockup {
   key: string;
   label: string;
   url: string;
   areas: MockupArea[];
+  /**
+   * Mağaza sahibinin elle çizdiği fotoğraf açıklığı. Varsa şeffaflık taraması
+   * yapılmaz: beyaz çerçevede ya da açık renkli iç kenarda tarama yanlış yeri
+   * bulabiliyordu.
+   */
+  opening?: MockupOpeningRect;
+  /** Delik açılmadan önceki orijinal görsel; açıklık yeniden çizilince buradan kesilir */
+  source_url?: string;
 }
 
 export function normalizeMockups(raw: unknown): TemplateMockup[] {
@@ -237,10 +250,23 @@ export function normalizeMockups(raw: unknown): TemplateMockup[] {
     const url = String(m.url ?? "").trim();
     if (!url) continue;
     const areas = Array.isArray(m.areas) ? m.areas : [];
+    const o = m.opening as Partial<MockupOpeningRect> | undefined;
+    const opening = o && [o.x, o.y, o.w, o.h, o.aspect].every((v) => typeof v === "number" && Number.isFinite(v))
+      && o.w! > 0 && o.h! > 0 && o.aspect! > 0
+      ? {
+          x: Math.min(1, Math.max(0, o.x!)),
+          y: Math.min(1, Math.max(0, o.y!)),
+          w: Math.min(1, o.w!),
+          h: Math.min(1, o.h!),
+          aspect: o.aspect!,
+        }
+      : undefined;
     out.push({
       key: String(m.key ?? "").trim(),
       label: String(m.label ?? m.key ?? ""),
       url,
+      opening,
+      source_url: m.source_url ? String(m.source_url) : undefined,
       areas: areas.flatMap((a) => {
         if (!a || typeof a !== "object") return [];
         const area = a as Record<string, unknown>;
@@ -463,7 +489,7 @@ export function buildGridSlots(config: GridConfig, canvas: PrintCanvas, dpi: num
         },
         radius,
         fit: "cover",
-        allow: { pan: true, zoom: true, rotate: false },
+        allow: { pan: true, zoom: true, rotate: true },
         label: `${order}. Fotoğraf`,
         order,
       });

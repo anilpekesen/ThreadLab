@@ -395,6 +395,12 @@ function ImageSettings({
           checked={slot.allow.zoom}
           onChange={(v) => onPatch(slot.id, { allow: { ...slot.allow, zoom: v } })}
         />
+        <Checkbox
+          label="Fotoğrafı 90° döndürebilir"
+          checked={slot.allow.rotate}
+          onChange={(v) => onPatch(slot.id, { allow: { ...slot.allow, rotate: v } })}
+          helpText="Telefonla yan çekilmiş fotoğrafları düzeltmek için."
+        />
       </BlockStack>
 
       {sameAs.length > 0 && (

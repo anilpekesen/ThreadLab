@@ -189,7 +189,7 @@ export function FrameStudio({
     });
     const slot: ImageSlot = {
       id, kind: "image", source: id, rect, fit: "cover",
-      allow: { pan: true, zoom: true, rotate: false },
+      allow: { pan: true, zoom: true, rotate: true },
       label: `${order}. Fotoğraf`, order,
     };
     setSlots([...active.slots, slot]);
@@ -601,7 +601,11 @@ export function FrameStudio({
 
       {view === "mockups" ? (
         <div className="fs-mockups">
-          <MockupEditor mockups={mockups} onChange={setMockups} />
+          <MockupEditor
+            mockups={mockups}
+            onChange={setMockups}
+            designAspect={canvas ? canvas.canvasWidth / canvas.canvasHeight : undefined}
+          />
         </div>
       ) : (
         <div className="fs-body">

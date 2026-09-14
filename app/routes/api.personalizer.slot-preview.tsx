@@ -6,7 +6,7 @@ import { getPersonalizerTemplatePublic, templatePieces } from "~/models/personal
 import { getPrintProductPublic } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
 import { isImageSlot, pickMockup } from "~/lib/slots";
-import { composeSlotDesign, composePreviewStrip, type SlotFill } from "~/lib/slot-compose.server";
+import { composeSlotDesign, composePreviewStrip, normalizeQuarterTurn, type SlotFill } from "~/lib/slot-compose.server";
 import { mockupOpening } from "~/lib/slot-embed.server";
 
 /**
@@ -94,6 +94,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       offset_x: clamp(Number(f.offset_x) || 0, -1, 1),
       offset_y: clamp(Number(f.offset_y) || 0, -1, 1),
       scale: clamp(Number(f.scale) || 1, 1, 4),
+      rotate: normalizeQuarterTurn(f.rotate),
     }));
 
   const filled = new Set(fills.map((f) => f.slot_id));
@@ -190,7 +191,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           Array.isArray(body.optionValues) ? body.optionValues.map(String) : [],
         );
         const opening = mockup && mockup.areas.length === 0
-          ? await mockupOpening(mockup.url)
+          ? (mockup.opening ?? await mockupOpening(mockup.url))
           : null;
         const strip = await composePreviewStrip({
           pieces: parcaGorselleri,

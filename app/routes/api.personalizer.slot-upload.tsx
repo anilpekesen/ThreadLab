@@ -66,7 +66,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (!meta.width || !meta.height) throw new Error("boyut okunamadı");
         const ext = file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png";
         const url = await uploadToR2(buf, ext, "personalizer-upload");
-        results.push({ url, width: meta.width, height: meta.height });
+        // EXIF 5–8 yan yönler: tarayıcı ve baskı motoru fotoğrafı dik gösterdiği
+        // için ölçü de dik hâlin ölçüsü olmalı; yoksa kırpma hesabı ters oranla yapılır.
+        const yan = (meta.orientation ?? 1) >= 5;
+        results.push({ url, width: yan ? meta.height : meta.width, height: yan ? meta.width : meta.height });
       } catch (err) {
         console.error("[slot-upload] dosya atlandı:", err);
         results.push({ error: msg.broken });
