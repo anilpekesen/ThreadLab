@@ -4,7 +4,7 @@ import {
 } from "@remix-run/node";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher, useNavigate, useRevalidator, useParams } from "@remix-run/react";
+import { useLoaderData, useFetcher, useNavigate, useRevalidator, useParams, useSearchParams } from "@remix-run/react";
 import {
   Page, Layout, Card, FormLayout, TextField, Select, Checkbox,
   Button, BlockStack, InlineStack, Text, Banner, Box, Badge, Thumbnail,
@@ -99,13 +99,16 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const id = params.id ?? "";
   if (id === "new") {
     const printProducts = await listPrintProducts(session.shop, true);
-    return json({ shop: session.shop, template: null, frames: [], productLinks: [], products: [], linkedAreaRatio: null, printProducts, isNew: true });
+    return json({ shop: session.shop, template: null, frames: [], productLinks: [], products: [], linkedAreaRatio: null, printProducts, isNew: true, productQuery: "", personalizerBlockUrl: "", designerBlockUrl: "" });
   }
   const template = await getPersonalizerTemplate(id, session.shop);
   if (!template) throw new Response("Şablon bulunamadı", { status: 404 });
   const frames = await listPersonalizerFrames(id);
   const productLinks = await listPersonalizerProductLinks(id);
-  const products = (await fetchShopifyProducts(admin)).map((product) => ({
+  // Liste yalnızca son güncellenen 50 ürünü getiriyor; ürünü bulamayan
+  // merchant bağlamayı bırakıyordu. Arama sorgusu Shopify'a iletiliyor.
+  const productQuery = new URL(request.url).searchParams.get("q")?.trim() ?? "";
+  const products = (await fetchShopifyProducts(admin, productQuery)).map((product) => ({
     id: normalizeShopifyNumericId(product.id),
     gid: product.id,
     title: product.title,
@@ -132,7 +135,20 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const printProducts = await listPrintProducts(session.shop, true);
 
-  return json({ shop: session.shop, template, frames, productLinks, products, linkedAreaRatio, printProducts, isNew: false });
+  // Tema düzenleyicisini bloğu eklenmiş hâlde açan bağlantılar. Kurulum
+  // rehberinde tema koduna elle liquid yapıştırmak anlatılıyordu; blok varken
+  // buna gerek yok ve merchant'lar orada takılıyordu.
+  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+  const themeBlockUrl = (handle: string) => apiKey
+    ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${handle}`)}&target=mainSection`
+    : "";
+
+  return json({
+    shop: session.shop, template, frames, productLinks, products, linkedAreaRatio, printProducts, isNew: false,
+    productQuery,
+    personalizerBlockUrl: themeBlockUrl("personalizer"),
+    designerBlockUrl: themeBlockUrl("tshirt-designer"),
+  });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -332,6 +348,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     return json({ ok: true });
   }
 
+  // ── Aktif / pasif ─────────────────────────────────────────────────────────
+  // Eskiden yalnızca şablon listesindeki ⋯ menüsündeydi; editörde kurulumu
+  // bitiren merchant şablonun pasif kaldığını fark etmiyordu.
+  if (intent === "toggle_active") {
+    if (id === "new") return json({ error: "Önce şablonu kaydedin" }, { status: 400 });
+    await updatePersonalizerTemplate(id, shop, { active: form.get("active") === "true" });
+    return json({ ok: true, toggled: true });
+  }
+
   // ── Delete frame ──────────────────────────────────────────────────────────
   if (intent === "delete_frame") {
     const frameId = String(form.get("frame_id") ?? "");
@@ -455,6 +480,7 @@ function TemplatePhotoEditor({
   holeSeed,
   onHoleSeed,
   textOnly = false,
+  startWithHole = false,
 }: {
   imageUrl: string;
   photoRect: Rect;
@@ -464,6 +490,8 @@ function TemplatePhotoEditor({
   holeSeed: { x: number; y: number };
   onHoleSeed: (x: number, y: number) => void;
   textOnly?: boolean;
+  /** Tişört tasarımlarında baskıyı boşluk noktası belirliyor, dikdörtgen değil. */
+  startWithHole?: boolean;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [holeInfo, setHoleInfo] = useState<HoleDetectResult | null>(null);
@@ -473,7 +501,7 @@ function TemplatePhotoEditor({
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [mode, setMode] = useState<EditorMode>(() => (
-    textOnly && textFields.length ? { type: "text", idx: 0 } : { type: "photo" }
+    textOnly && textFields.length ? { type: "text", idx: 0 } : startWithHole ? { type: "hole" } : { type: "photo" }
   ));
 
   function getCoords(e: React.MouseEvent) {
@@ -1037,11 +1065,163 @@ function newTextField(): TextFieldDef {
   };
 }
 
+// ── Sayfa düzeni yardımcıları ────────────────────────────────────────────────
+
+/**
+ * Editör dört farklı ürün akışını tek sayfada taşıyor ve her bölüm her
+ * şablonda açık duruyordu; merchant hangi alanın kendi ürünü için gerektiğini
+ * ayırt edemiyordu. Akış, kayıtlı yerleşim yönteminden ve ürün grubundan
+ * çıkarılıyor; bölümler buna göre sıralanıp gerisi "Gelişmiş" altına iniyor.
+ */
+type EditorFlow = "apparel" | "frame" | "boxer" | "ai";
+
+function editorFlow(
+  layoutMode: string,
+  category: string,
+  hasPhotoSlots: boolean,
+): EditorFlow {
+  if (layoutMode === "ai") return "ai";
+  if (layoutMode === "scatter") return "boxer";
+  // Maskeli yöntem ürün grubundan bağımsız: canlıdaki boxer şablonu hazır
+  // tasarım + fotoğraf deliğiyle çalışıyor. Fotoğraf alanı yoksa ve şablon
+  // açıkça çerçeve değilse tasarım + boşluk akışı gösterilir.
+  return category === "frame" || hasPhotoSlots ? "frame" : "apparel";
+}
+
+const CATEGORY_LABEL: Record<string, string> = {
+  apparel: "Tişört ve giyim",
+  frame: "Fotoğraflı çerçeve",
+  boxer: "Boxer ve tekrarlı desen",
+  ai: "AI portre",
+};
+
+const LAYOUT_LABEL: Record<string, string> = {
+  mask: "maskeli",
+  scatter: "dağıtımlı",
+  ai: "AI",
+};
+
+const FLOW_WHERE: Record<EditorFlow, string> = {
+  apparel: "Müşteri ürün sayfasındaki tasarımcıda \"Fotoğrafını ekle\" der; fotoğraf bu tasarımdaki boşluğa yerleşir.",
+  frame: "Ürün sayfasında ayrı bir kişiselleştirme kutusu açılır; müşteri fotoğraf alanlarını doldurur.",
+  boxer: "Müşteri tasarımcıda fotoğrafını yükler; yüzü kesilip baskı alanına desen olarak dağıtılır.",
+  ai: "Müşteri tasarımcıda fotoğraf ve yazı girer; seçilen stilde görsel ve baskı dosyası üretilir.",
+};
+
+function scrollToSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function SectionCard({
+  id, title, description, children, collapsible = false, defaultOpen = true,
+}: {
+  id?: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div id={id} style={{ scrollMarginTop: 16 }}>
+      <Card>
+        <BlockStack gap="400">
+          <InlineStack align="space-between" blockAlign="start" gap="300" wrap={false}>
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingMd">{title}</Text>
+              {description && <Text as="p" tone="subdued" variant="bodySm">{description}</Text>}
+            </BlockStack>
+            {collapsible && (
+              <Button variant="plain" onClick={() => setOpen((v) => !v)} ariaExpanded={open}>
+                {open ? "Gizle" : "Göster"}
+              </Button>
+            )}
+          </InlineStack>
+          {/* Kapalıyken DOM'dan çıkarılmıyor: içindeki dosya seçimleri ve adlı
+              form alanları kayıtta gönderilmeye devam etmeli. */}
+          <div hidden={collapsible && !open}>
+            <BlockStack gap="400">{children}</BlockStack>
+          </div>
+        </BlockStack>
+      </Card>
+    </div>
+  );
+}
+
+type ChecklistItem = {
+  label: string;
+  hint: string;
+  state: "done" | "todo" | "optional" | "check";
+  target?: string;
+  url?: string;
+  action?: string;
+};
+
+function SetupChecklist({ items }: { items: ChecklistItem[] }) {
+  const required = items.filter((item) => item.state === "done" || item.state === "todo");
+  const doneCount = required.filter((item) => item.state === "done").length;
+  const ready = doneCount === required.length;
+  const marks: Record<ChecklistItem["state"], { symbol: string; color: string }> = {
+    done: { symbol: "✓", color: "#29845a" },
+    todo: { symbol: "!", color: "#b28400" },
+    optional: { symbol: "○", color: "#8a8a8a" },
+    check: { symbol: "?", color: "#4a6bd6" },
+  };
+  return (
+    <BlockStack gap="300">
+      <InlineStack gap="200" blockAlign="center">
+        <Badge tone={ready ? "success" : "attention"}>
+          {ready ? "Müşteriye hazır" : `${doneCount}/${required.length} adım tamam`}
+        </Badge>
+        <Text as="span" tone="subdued" variant="bodySm">Kaydedilmiş hâle göre hesaplanır.</Text>
+      </InlineStack>
+      <BlockStack gap="0">
+        {items.map((item) => (
+          <div
+            key={item.label}
+            style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderTop: "1px solid #ebebeb" }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                flex: "0 0 22px", height: 22, borderRadius: "50%", display: "flex",
+                alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700,
+                color: item.state === "done" ? "#fff" : marks[item.state].color,
+                background: item.state === "done" ? marks.done.color : "transparent",
+                border: `1.5px solid ${marks[item.state].color}`,
+              }}
+            >
+              {marks[item.state].symbol}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Text as="p" fontWeight="semibold">{item.label}</Text>
+              <Text as="p" tone="subdued" variant="bodySm">{item.hint}</Text>
+            </div>
+            {item.action && item.state !== "done" && (item.target || item.url) && (
+              item.url
+                ? <Button size="slim" url={item.url} external>{item.action}</Button>
+                : <Button size="slim" onClick={() => scrollToSection(item.target!)}>{item.action}</Button>
+            )}
+          </div>
+        ))}
+      </BlockStack>
+    </BlockStack>
+  );
+}
+
 // ── Main Component ───────────────────────────────────────────────────────────
 
 function PersonalizerEditor() {
-  const { shop, template, frames, productLinks, products, linkedAreaRatio, printProducts, isNew } = useLoaderData<typeof loader>();
+  const {
+    shop, template, frames, productLinks, products, linkedAreaRatio, printProducts, isNew,
+    productQuery, personalizerBlockUrl, designerBlockUrl,
+  } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ error?: string; ok?: boolean; redirectTo?: string }>();
+  const statusFetcher = useFetcher<{ error?: string; toggled?: boolean }>();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [, setSearchParams] = useSearchParams();
+  const [productSearch, setProductSearch] = useState(productQuery);
   const linkFetcher = useFetcher<{
     error?: string; ok?: boolean; linked?: boolean; unlinked?: number; kutuAcilir?: boolean;
     metafieldOk?: boolean; metafieldError?: string;
@@ -1076,6 +1256,17 @@ function PersonalizerEditor() {
       revalidator.revalidate();
     }
   }, [linkFetcher.state, linkFetcher.data, revalidator]);
+
+  useEffect(() => {
+    // Seçili ürün listede yoksa (arama sonucu değişti ya da bağlı ürün son 50
+    // ürünün dışında kaldı) seçim listedeki ilk ürüne çekiliyor. Aksi hâlde
+    // gizli alanlar bir ürünün kimliğini, başlık başka bir ürünün adını
+    // taşıyıp yanlış kayıt oluşturabiliyordu.
+    if (availableProducts.length === 0) return;
+    if (!availableProducts.some((product) => product.id === selectedProductId)) {
+      setSelectedProductId(availableProducts[0].id);
+    }
+  }, [availableProducts, selectedProductId]);
 
   useEffect(() => {
     if (!selectedProduct) return;
@@ -1262,27 +1453,556 @@ function PersonalizerEditor() {
     return groups;
   }, {}));
 
+  const hasPhotoSlots = slots.length > 0 || pieces.length > 0;
+  const flow = editorFlow(layoutMode, templateCategory, hasPhotoSlots);
+  const savedHasPhotoSlots = Boolean(
+    template && ((template.slots?.length ?? 0) > 0 || (template.pieces?.length ?? 0) > 0),
+  );
+  const savedFlow = template
+    ? editorFlow(template.layout_mode, template.category, savedHasPhotoSlots)
+    : flow;
+  // Bağlama işlemi KAYITLI şablona bakarak metafield yazıyor ya da siliyor.
+  // Fotoğraf alanı eklenip kaydedilmeden ürün bağlanırsa kutu açılmıyordu.
+  const slotChangeUnsaved = !isNew && hasPhotoSlots !== savedHasPhotoSlots;
+
+  const productLinked = availableProductLinks.length > 0;
+  const checklist: ChecklistItem[] = [];
+  if (template) {
+    if (savedFlow === "apparel") {
+      checklist.push({
+        label: "Tasarım görseli yüklendi",
+        hint: "Fotoğrafın içine yerleşeceği tişört tasarımı (PNG önerilir).",
+        state: template.template_url ? "done" : "todo",
+        target: "pl-design", action: "Yükle",
+      });
+      checklist.push({
+        label: "Fotoğrafın gireceği boşluk seçildi",
+        hint: template.hole_seed_x >= 0
+          ? "Boşluk noktası işaretli."
+          : "İsteğe bağlı: seçilmezse tasarımdaki şeffaf delik otomatik aranır. Delik yoksa boşluğa tıklayın.",
+        state: template.hole_seed_x >= 0 ? "done" : "optional",
+        target: "pl-design", action: "İşaretle",
+      });
+    }
+    if (savedFlow === "frame") {
+      const piecesHavePrint = (template.pieces ?? []).some((piece) => piece.print_product_id);
+      const piecesHaveSlots = (template.pieces ?? []).some((piece) => piece.slots.length > 0);
+      checklist.push({
+        label: "Baskı ebadı seçildi",
+        hint: printProducts.length === 0
+          ? "Önce Baskı ebatları sayfasından en az bir ebat ekleyin."
+          : "Çerçevenin fiziksel ölçüsü; fotoğraf alanları bu orana göre çizilir.",
+        state: template.print_product_id || piecesHavePrint ? "done" : "todo",
+        ...(printProducts.length === 0
+          ? { url: "/app/print-products", action: "Ebat ekle" }
+          : { target: "pl-print", action: "Seç" }),
+      });
+      checklist.push({
+        label: "Fotoğraf alanları yerleştirildi",
+        hint: "Müşterinin dolduracağı kutular. Izgara üreticisiyle hızlıca oluşturabilirsiniz.",
+        state: (template.slots?.length ?? 0) > 0 || piecesHaveSlots ? "done" : "todo",
+        target: "pl-slots", action: "Yerleştir",
+      });
+    }
+    if (savedFlow === "boxer") {
+      checklist.push({
+        label: "Süsleme görseli",
+        hint: "İsteğe bağlı: kalp, yıldız gibi fotoğrafların arasına serpiştirilen saydam görsel.",
+        state: template.decoration_url ? "done" : "optional",
+        target: "pl-scatter", action: "Ekle",
+      });
+    }
+    checklist.push({
+      label: "Shopify ürününe bağlandı",
+      hint: productLinked
+        ? `${linkedProductGroups.length} ürüne bağlı.`
+        : "Şablon hangi üründe açılacağını bilmeden müşteriye görünmez.",
+      state: productLinked ? "done" : "todo",
+      target: "pl-link", action: "Ürün bağla",
+    });
+    if (savedFlow === "boxer" && productLinked) {
+      checklist.push({
+        label: "Bağlı ürünün baskı alanı tanımlı",
+        hint: linkedAreaRatio
+          ? "Desen ürünün baskı alanına göre ölçekleniyor."
+          : "Ürünler sayfasında bu ürün için baskı alanı tanımlanmamış; desen varsayılan ölçüye düşer.",
+        state: linkedAreaRatio ? "done" : "todo",
+        url: "/app/products", action: "Ürün ayarları",
+      });
+    }
+    checklist.push({
+      label: "Şablon aktif",
+      hint: template.active ? "Müşteriler bu şablonu görebilir." : "Pasif şablon ürün sayfasında açılmaz.",
+      state: template.active ? "done" : "todo",
+    });
+    const blockUrl = savedFlow === "frame" ? personalizerBlockUrl : designerBlockUrl;
+    checklist.push({
+      label: savedFlow === "frame"
+        ? "Ürün sayfasında \"PrintLab Kişiselleştirici\" bloğu var"
+        : "Ürün sayfasında \"DesignKit\" tasarımcı bloğu var",
+      hint: "Uygulama bunu otomatik göremez. Bir kez eklemeniz yeterli; tema düzenleyicide blok ekli açılır, Kaydet'e basın.",
+      state: "check",
+      url: blockUrl || undefined, action: "Tema düzenleyiciyi aç",
+    });
+  }
+
+  // ── Bölümler ─────────────────────────────────────────────────────────────
+  // Her bölüm bir kez tanımlanıp akışa göre ana sıraya ya da "Gelişmiş"
+  // altına yerleştiriliyor; aynı dosya alanı sayfada iki kez bulunmamalı.
+
+  const designUpload = (
+    <BlockStack gap="200">
+      {templatePreview && (
+        <img src={templatePreview} alt="Şablon" style={{ maxWidth: 200, maxHeight: 200, objectFit: "contain", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+      )}
+      <input type="file" name="template_image" accept="image/png,image/jpeg,image/webp" onChange={handleTemplateFileChange} />
+      <Text as="p" tone="subdued" variant="bodySm">Dosyayı seçtikten sonra sayfanın altındaki Kaydet'e basın.</Text>
+    </BlockStack>
+  );
+
+  const photoEditor = templatePreview ? (
+    <TemplatePhotoEditor
+      imageUrl={templatePreview}
+      photoRect={photoRect}
+      onPhotoRect={setPhotoRect}
+      textFields={textFields}
+      onTextPos={handleTextPos}
+      holeSeed={holeSeed}
+      onHoleSeed={(x, y) => setHoleSeed({ x, y })}
+      startWithHole={flow === "apparel"}
+    />
+  ) : null;
+
+  const overlayUpload = (
+    <BlockStack gap="200">
+      <Text as="h3" variant="headingSm">Üst katman (isteğe bağlı)</Text>
+      <Text as="p" variant="bodySm" tone="subdued">
+        Fotoğrafların <b>üstünde</b> duracak tasarım. Şeffaf delikli şablonlarda
+        tasarımın kendisini buraya da yükleyin: fotoğraf deliğin arkasından görünür,
+        çerçeve ve yazılar fotoğrafın üstünde kalır. Izgara şablonlarında gerekmez.
+      </Text>
+      {overlayPreview && (
+        <img src={overlayPreview} alt="Üst katman"
+          style={{ maxWidth: 160, maxHeight: 160, objectFit: "contain", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+      )}
+      <input type="hidden" name="existing_overlay_url" value={template?.overlay_url ?? ""} readOnly />
+      <input type="file" name="overlay_image" accept="image/png,image/webp"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) setOverlayPreview(URL.createObjectURL(f));
+        }} />
+    </BlockStack>
+  );
+
+  const printSizeSelect = printProducts.length === 0 ? (
+    <Banner tone="warning" title="Henüz baskı ebadı tanımlı değil">
+      <p>
+        Fotoğraf alanı kullanmak için önce <b>Baskı ebatları</b> sayfasından en az bir ebat ekleyin.
+      </p>
+      <div style={{ marginTop: 8 }}><Button url="/app/print-products">Baskı ebatlarını aç</Button></div>
+    </Banner>
+  ) : (
+    <Select
+      label="Ebat"
+      options={[
+        { label: "Seçilmedi", value: "" },
+        ...(printProducts as PrintProduct[]).map((p) => ({
+          label: `${p.name} — ${p.width_mm}×${p.height_mm} mm (${aspectLabel(p.width_mm / p.height_mm)})`,
+          value: p.id,
+        })),
+      ]}
+      value={printProductId}
+      onChange={setPrintProductId}
+      helpText="Fotoğraf alanları oran olarak saklanır; aynı en-boy oranındaki her ebatta çalışır."
+    />
+  );
+
+  const slotsBlock = (
+    <div id="pl-slots" style={{ scrollMarginTop: 16 }}>
+      {slotCanvas && pieces.length === 0 ? (
+        <SlotBoard
+          slots={slots}
+          onChange={setSlots}
+          canvas={slotCanvas}
+          templateUrl={templatePreview || undefined}
+          expectedSlots={expectedSlots}
+          onExpectedSlotsChange={setExpectedSlots}
+          gridConfig={gridConfig}
+          onGridConfigChange={setGridConfig}
+          dpi={activePrintProduct?.dpi ?? 300}
+        />
+      ) : !slotCanvas && pieces.length === 0 ? (
+        <Card>
+          <BlockStack gap="100">
+            <Text as="h2" variant="headingMd">Fotoğraf alanları</Text>
+            <Text as="p" tone="subdued">Fotoğraf alanlarını yerleştirmek için yukarıdan önce bir baskı ebadı seçin.</Text>
+          </BlockStack>
+        </Card>
+      ) : null}
+    </div>
+  );
+
+  const piecesBlock = (
+    <PieceEditor
+      pieces={pieces}
+      onChange={setPieces}
+      printProducts={printProducts as PrintProduct[]}
+      fallback={{
+        name: name || "Tasarım",
+        print_product_id: printProductId,
+        slots,
+        background_url: templatePreview || undefined,
+        overlay_url: overlayPreview || undefined,
+      }}
+      gridConfig={gridConfig}
+      onGridConfigChange={setGridConfig}
+    />
+  );
+
+  const mockupBlock = <MockupEditor mockups={mockups} onChange={setMockups} />;
+
+  const testBlock = slotCanvas && !isNew ? (
+    <SectionCard
+      id="pl-test"
+      title="Deneme çıktısı"
+      description="Şablonu örnek fotoğraflarla basar. Slot sırasını, kırpmayı ve yazı taşmasını müşteriden önce siz görün."
+    >
+      <InlineStack gap="200" blockAlign="center">
+        <Button
+          onClick={() =>
+            testFetcher.submit(
+              { templateId: template?.id ?? "" },
+              { method: "POST", action: "/api/personalizer/test-render", encType: "application/json" },
+            )
+          }
+          loading={testFetcher.state !== "idle"}
+        >
+          Deneme çıktısı al
+        </Button>
+        <Text as="span" variant="bodySm" tone="subdued">
+          Kaydedilmiş hâli kullanır — önce değişiklikleri kaydedin.
+        </Text>
+      </InlineStack>
+
+      {testFetcher.data?.error && (
+        <Banner tone="critical"><p>{testFetcher.data.error}</p></Banner>
+      )}
+
+      {testFetcher.data?.issues && testFetcher.data.issues.length > 0 && (
+        <Banner tone={testFetcher.data.issues.some((i) => i.level === "error") ? "critical" : "warning"}>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {testFetcher.data.issues.map((i, n) => <li key={n}>{i.message}</li>)}
+          </ul>
+        </Banner>
+      )}
+
+      {testFetcher.data?.url && (
+        <BlockStack gap="300">
+          <Text as="p" variant="bodySm" tone="subdued">
+            {testFetcher.data.photoCount} örnek fotoğraf · şablon sürümü v{testFetcher.data.version}
+            {(testFetcher.data.pieces?.length ?? 0) > 1
+              ? ` · ${testFetcher.data.pieces?.length} baskı dosyası`
+              : ""}
+          </Text>
+          <InlineStack gap="300" wrap>
+            {(testFetcher.data.pieces ?? [{ id: "main", name: "", url: testFetcher.data.url }])
+              .map((p) => (
+                <BlockStack key={p.id} gap="100">
+                  {p.name && <Text as="span" variant="bodySm" tone="subdued">{p.name}</Text>}
+                  <img
+                    src={p.url}
+                    alt={p.name || "Deneme çıktısı"}
+                    style={{ maxWidth: 260, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                  />
+                </BlockStack>
+              ))}
+          </InlineStack>
+        </BlockStack>
+      )}
+    </SectionCard>
+  ) : null;
+
+  const textFieldsEditor = (
+    <BlockStack gap="400">
+      <InlineStack align="space-between" blockAlign="center">
+        <Text as="p" tone="subdued" variant="bodySm">
+          {textFields.length === 0 ? "Henüz yazı alanı yok. Müşteriden isim, tarih gibi bir yazı alınacaksa ekleyin." : `${textFields.length} yazı alanı`}
+        </Text>
+        <Button onClick={addTextField} size="slim">+ Yazı alanı ekle</Button>
+      </InlineStack>
+      {textFields.map((f, idx) => (
+        <Box key={f.id} background="bg-surface-secondary" padding="400" borderRadius="200">
+          <BlockStack gap="300">
+            <InlineStack align="space-between">
+              <Text as="h3" variant="headingSm">T{idx + 1} — {f.label}</Text>
+              <Button tone="critical" size="slim" onClick={() => removeTextField(idx)}>Sil</Button>
+            </InlineStack>
+            <FormLayout>
+              <FormLayout.Group>
+                <TextField label="Müşterinin göreceği başlık" value={f.label} onChange={(v) => updateTextField(idx, "label", v)} autoComplete="off" />
+                <TextField label="Örnek metin (kutu boşken görünür)" value={f.placeholder} onChange={(v) => updateTextField(idx, "placeholder", v)} autoComplete="off" />
+              </FormLayout.Group>
+              <TextField label="Maksimum karakter" type="number" value={String(f.max_length)} onChange={(v) => updateTextField(idx, "max_length", parseInt(v, 10) || 30)} autoComplete="off" />
+              <TextField label="Varsayılan metin (isteğe bağlı)" value={f.default_value ?? ""} onChange={(v) => updateTextField(idx, "default_value", v)} autoComplete="off" helpText="Müşteri değiştirmezse bu metin basılır." />
+            </FormLayout>
+            <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 10 }}>
+              <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#303030" }}>
+                Yazı görünümü ve konumu
+              </summary>
+              <div style={{ marginTop: 14 }}>
+                <FormLayout>
+                  <FormLayout.Group>
+                    <TextField label="X (px)" type="number" value={String(f.x)} onChange={(v) => updateTextField(idx, "x", parseInt(v, 10) || 0)} autoComplete="off" helpText="Yerleşim editöründen de ayarlanır" />
+                    <TextField label="Y (px)" type="number" value={String(f.y)} onChange={(v) => updateTextField(idx, "y", parseInt(v, 10) || 0)} autoComplete="off" helpText="Yerleşim editöründen de ayarlanır" />
+                  </FormLayout.Group>
+                  <FormLayout.Group>
+                    <TextField label="Font büyüklüğü (px)" type="number" value={String(f.font_size)} onChange={(v) => updateTextField(idx, "font_size", parseInt(v, 10) || 60)} autoComplete="off" />
+                    <TextField label="Renk (hex)" value={f.color} onChange={(v) => updateTextField(idx, "color", v)} autoComplete="off" placeholder="#000000" />
+                  </FormLayout.Group>
+                  <Select
+                    label="Hizalama"
+                    options={[{ label: "Sol", value: "left" }, { label: "Orta", value: "center" }, { label: "Sağ", value: "right" }]}
+                    value={f.align}
+                    onChange={(v) => updateTextField(idx, "align", v as TextFieldDef["align"])}
+                  />
+                  <Checkbox label="Kalın yazı" checked={f.bold} onChange={(v) => updateTextField(idx, "bold", v)} />
+                </FormLayout>
+              </div>
+            </details>
+          </BlockStack>
+        </Box>
+      ))}
+    </BlockStack>
+  );
+
+  const aiCard = (
+    <SectionCard
+      id="pl-ai"
+      title="AI portre ayarları"
+      description="Müşteri fotoğrafını ve metinleri girer; sistem görseli ve baskı dosyasını hazırlar."
+    >
+      <FormLayout>
+        <Select
+          label="Görsel stili"
+          name="ai_style"
+          options={Object.entries(AI_STYLES).map(([k, v]) => ({ label: v.label, value: k }))}
+          value={aiStyle}
+          onChange={setAiStyle}
+          helpText={AI_STYLES[aiStyle]?.description ?? "Müşteriye başka stil açmazsanız tüm siparişlerde bu stil kullanılır."}
+        />
+        <Checkbox
+          label="Baskı dosyasını şeffaf arka planla hazırla"
+          checked={aiRemoveBg}
+          onChange={setAiRemoveBg}
+          helpText="Tişört baskısı için önerilir. Üretilen görselin düz zemini kaldırılır."
+        />
+      </FormLayout>
+
+      <BlockStack gap="200">
+        <Text as="h3" variant="headingSm">Müşterinin seçebileceği stiller</Text>
+        <Text as="p" tone="subdued" variant="bodySm">
+          Çoğu ürün için tek stil daha tutarlı sonuç verir. Hiçbirini işaretlemezseniz
+          müşteri stil seçmez, yukarıdaki stil kullanılır.
+        </Text>
+        <InlineStack gap="300" wrap>
+          {Object.entries(AI_STYLES).map(([id, def]) => (
+            <Checkbox
+              key={id}
+              label={def.label}
+              checked={optAiStyles.includes(id)}
+              onChange={() => toggleAiStyle(id)}
+            />
+          ))}
+        </InlineStack>
+      </BlockStack>
+
+      <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 12 }}>
+        <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#303030" }}>
+          Gelişmiş üretim ayarları
+        </summary>
+        <div style={{ marginTop: 16 }}>
+          <FormLayout>
+            <FormLayout.Group>
+              <Select
+                label="AI sağlayıcısı"
+                options={Object.entries(AI_PROVIDERS).map(([k, v]) => ({ label: v.label, value: k }))}
+                value={aiProvider}
+                onChange={changeProvider}
+              />
+              <Select label="Model" options={aiModelOptions} value={aiModel} onChange={setAiModel} />
+            </FormLayout.Group>
+            {aiModelNote && (
+              <Banner tone="warning">
+                <Text as="p" variant="bodySm">{aiModelNote}</Text>
+              </Banner>
+            )}
+            <FormLayout.Group>
+              <TextField label="Baskı genişliği (px)" type="number" value={aiCanvasW}
+                onChange={setAiCanvasW} autoComplete="off" />
+              <TextField label="Baskı yüksekliği (px)" type="number" value={aiCanvasH}
+                onChange={setAiCanvasH} autoComplete="off" />
+            </FormLayout.Group>
+          </FormLayout>
+        </div>
+      </details>
+
+      <input type="hidden" name="ai_config" readOnly value={JSON.stringify({
+        provider: aiProvider,
+        model: aiModel,
+        canvasWidth: parseInt(aiCanvasW, 10) || 2400,
+        canvasHeight: parseInt(aiCanvasH, 10) || 3000,
+        removeBackground: aiRemoveBg,
+      })} />
+    </SectionCard>
+  );
+
+  const scatterCard = (
+    <SectionCard
+      id="pl-scatter"
+      title="Desen ayarları"
+      description="Tasarım dosyası yüklemezsiniz. Müşterinin fotoğrafından yüz kesilir ve bu sayılarla baskı alanına dağıtılır."
+    >
+      <FormLayout>
+        <FormLayout.Group>
+          <TextField label="Kaç yüz" type="number" value={faceCount}
+            onChange={setFaceCount} autoComplete="off" helpText="Örn: 13" />
+          <TextField label="Kaç süsleme" type="number" value={decorationCount}
+            onChange={setDecorationCount} autoComplete="off" helpText="Süsleme yoksa 0" />
+        </FormLayout.Group>
+        <FormLayout.Group>
+          <TextField label="Yüz boyutu (%)" type="number" value={faceScale}
+            onChange={setFaceScale} autoComplete="off" helpText="Baskı alanı genişliğine oranı" />
+          <TextField label="Süsleme boyutu (%)" type="number" value={decorationScale}
+            onChange={setDecorationScale} autoComplete="off" />
+        </FormLayout.Group>
+        <Checkbox
+          label="Ortada yazı için yer bırak"
+          checked={reserveText}
+          onChange={setReserveText}
+          helpText="İşaretliyse parçalar ortadaki yazının üstüne binmez."
+        />
+      </FormLayout>
+
+      <BlockStack gap="200">
+        <Text as="h3" variant="headingSm">Süsleme görseli</Text>
+        <Text as="p" tone="subdued" variant="bodySm">
+          Kalp, yıldız gibi tekrarlanacak öğe. Arka planı saydam PNG olmalı.
+        </Text>
+        {decorationUrl ? (
+          <InlineStack gap="300" blockAlign="center">
+            <Thumbnail source={decorationUrl} alt="Süsleme" size="small" />
+            <Button variant="plain" tone="critical" onClick={() => setDecorationUrl("")}>Kaldır</Button>
+          </InlineStack>
+        ) : (
+          <Text as="p" tone="subdued" variant="bodySm">Henüz yüklenmedi.</Text>
+        )}
+        <input
+          type="file"
+          name="decoration_image"
+          accept="image/png,image/webp"
+          style={{ display: "block", fontSize: 13 }}
+        />
+        <Checkbox
+          label="Arka planı otomatik temizle"
+          name="decoration_remove_bg"
+          checked={decorationRemoveBg}
+          onChange={setDecorationRemoveBg}
+          helpText="Görsel zaten saydamsa atlanır ve kota harcanmaz."
+        />
+      </BlockStack>
+
+      <BlockStack gap="200">
+        <Text as="h3" variant="headingSm">Müşteriye açılan seçenekler</Text>
+        <Text as="p" tone="subdued" variant="bodySm">
+          Müşteri yukarıdaki sayıları değiştiremez — yalnızca üç kademeli bir seçim
+          yapar, sistem onu sizin değerlerinizin üstüne uygular.
+        </Text>
+        <Checkbox
+          label="Yoğunluk seçimi"
+          checked={optDensity}
+          onChange={setOptDensity}
+          helpText="Seyrek / Normal / Yoğun — parça sayısını %60 ile %150 arasında değiştirir."
+        />
+        <Checkbox
+          label="Boyut seçimi"
+          checked={optPhotoSize}
+          onChange={setOptPhotoSize}
+          helpText="Küçük / Orta / Büyük — yüz ve süslemeyi birlikte %80 ile %125 arasında ölçekler."
+        />
+        <Checkbox
+          label="Farklı dizilim deneme"
+          checked={optShuffle}
+          onChange={setOptShuffle}
+          helpText="Müşteri aynı ayarlarla en fazla 5 farklı yerleşim deneyebilir."
+        />
+      </BlockStack>
+
+      <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 12 }}>
+        <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#303030" }}>
+          Tuval ölçüsü
+        </summary>
+        <div style={{ marginTop: 16 }}>
+          <FormLayout>
+            <FormLayout.Group>
+              <TextField label="Tuval genişliği (px)" type="number" value={canvasWidth}
+                onChange={setCanvasWidth} autoComplete="off" />
+              <TextField label="Tuval yüksekliği (px)" type="number" value={canvasHeight}
+                onChange={setCanvasHeight} autoComplete="off" />
+            </FormLayout.Group>
+          </FormLayout>
+        </div>
+      </details>
+      <Banner tone={canvasRatioWarning ? "warning" : "info"}>
+        <Text as="p">
+          Tasarımın en/boy oranı: <strong>{canvasRatioLabel}</strong>.
+          {canvasRatioWarning
+            ? ` Bağlı ürünün baskı kutusu ${linkedAreaRatio?.toFixed(2)} : 1 oranında —`
+              + " ikisi eşit değilse tasarım kutuya sığar ama kenarlarda boşluk kalır."
+            : " Ürün ayarlarındaki baskı kutusu da bu oranda olmalı ki tasarım"
+              + " kenarlara kadar dolsun."}
+        </Text>
+      </Banner>
+
+      <input type="hidden" name="existing_decoration_url" value={decorationUrl} readOnly />
+      <input type="hidden" name="scatter_config" readOnly value={JSON.stringify({
+        faceCount: parseInt(faceCount, 10) || 0,
+        decorationCount: parseInt(decorationCount, 10) || 0,
+        faceScale: (parseFloat(faceScale) || 16) / 100,
+        decorationScale: (parseFloat(decorationScale) || 10) / 100,
+        sizeJitter: 0.18,
+        angleJitter: 0,
+        reserveCenter: reserveText ? { width: 0.42, height: 0.26 } : null,
+        seed: 1,
+        canvasWidth: parseInt(canvasWidth, 10) || 2400,
+        canvasHeight: parseInt(canvasHeight, 10) || 1650,
+      })} />
+    </SectionCard>
+  );
+
+  // Akışın gerektirmediği ama eski şablonlarda dolu olabilecek bölümler.
+  // Veri varsa bölüm açık başlıyor ki mevcut ayar gözden kaybolmasın.
+  const hasMultiPhotoData = hasPhotoSlots || mockups.length > 0 || Boolean(printProductId);
+  const advancedHasData = flow === "apparel"
+    ? hasMultiPhotoData || textFields.length > 0 || Boolean(overlayPreview)
+    : flow === "boxer"
+      ? hasMultiPhotoData || Boolean(templatePreview) || textFields.length > 0
+      : false;
+
   return (
     <Page
-      title={isNew ? "Yeni Personalizer Şablonu" : "Şablonu Düzenle"}
+      title={isNew ? "Yeni şablon" : (template?.name || "Şablonu düzenle")}
+      subtitle={isNew ? undefined : CATEGORY_LABEL[templateCategory]}
+      titleMetadata={template ? (
+        <Badge tone={template.active ? "success" : undefined}>{template.active ? "Aktif" : "Pasif"}</Badge>
+      ) : undefined}
       backAction={{ content: "Şablonlar", onAction: () => navigate("/app/personalizer") }}
+      primaryAction={{
+        content: isNew ? "Şablonu oluştur" : "Kaydet",
+        loading: isLoading,
+        onAction: () => formRef.current?.requestSubmit(),
+      }}
     >
       <Layout>
-        {isNew && layoutMode !== "ai" && (
-          <Layout.Section>
-            <Banner tone="warning">
-              <BlockStack gap="100">
-                <Text as="p" fontWeight="semibold">📋 Önce şablonu oluşturun, sonra çerçeveleri ekleyin</Text>
-                <Text as="p">
-                  1. Sadece <strong>adı</strong> girin ve kaydedin → 2. Açılan sayfada <strong>"+ Çerçeve Ekle"</strong> ile ahşap çerçeve/tablo resimlerinizi tek tek ekleyin
-                </Text>
-                <Text as="p">
-                  4 farklı çerçeveniz varsa: 1 şablon oluşturun, içine 4 çerçeve ekleyin. Her çerçeve ayrı şablon OLMAMALI.
-                </Text>
-              </BlockStack>
-            </Banner>
-          </Layout.Section>
-        )}
         {fetcher.data?.error && (
           <Layout.Section>
             <Banner tone="critical">{fetcher.data.error}</Banner>
@@ -1294,9 +2014,35 @@ function PersonalizerEditor() {
           </Layout.Section>
         )}
 
-        {/* ── Template form ── */}
+        {/* ── Kurulum durumu ── */}
+        {template && (
+          <Layout.Section>
+            <SectionCard
+              title="Kurulum durumu"
+              description={FLOW_WHERE[savedFlow]}
+            >
+              <SetupChecklist items={checklist} />
+              {statusFetcher.data?.error && <Banner tone="critical">{statusFetcher.data.error}</Banner>}
+              <InlineStack gap="200">
+                <Button
+                  variant={template.active ? "secondary" : "primary"}
+                  loading={statusFetcher.state !== "idle"}
+                  onClick={() => statusFetcher.submit(
+                    { intent: "toggle_active", active: String(!template.active) },
+                    { method: "POST" },
+                  )}
+                >
+                  {template.active ? "Pasife al" : "Şablonu aktifleştir"}
+                </Button>
+                <Button url="/app/personalizer/setup">Nasıl çalışır?</Button>
+              </InlineStack>
+            </SectionCard>
+          </Layout.Section>
+        )}
+
+        {/* ── Şablon formu ── */}
         <Layout.Section>
-          <form onSubmit={handleSubmit} encType="multipart/form-data">
+          <form ref={formRef} onSubmit={handleSubmit} encType="multipart/form-data">
             <input type="hidden" name="intent" value="save" />
             <input type="hidden" name="existing_template_url" value={template?.template_url ?? ""} />
             <input type="hidden" name="hole_seed_x" value={holeSeed.x} readOnly />
@@ -1315,562 +2061,195 @@ function PersonalizerEditor() {
             })} />
 
             <BlockStack gap="500">
-              {/* Temel bilgiler */}
-              <Card>
-                <BlockStack gap="400">
-                  <Text as="h2" variant="headingMd">Temel Bilgiler</Text>
-                  <FormLayout>
-                    <TextField label="Şablon Adı" name="name" value={name} onChange={setName} autoComplete="off" placeholder="Örn: Karikatür Tablo" />
-                    <TextField label="Açıklama (opsiyonel)" name="description" value={description} onChange={setDescription} multiline={2} autoComplete="off" />
-                    <Select
-                      label="Ürün grubu"
-                      name="category"
-                      options={[
-                        { label: "Tişört ve giyim", value: "apparel" },
-                        { label: "Boxer ve tekrarlı desen", value: "boxer" },
-                        { label: "Fotoğraflı çerçeve", value: "frame" },
-                        { label: "AI portre", value: "ai" },
-                      ]}
-                      value={templateCategory}
-                      onChange={(value) => {
-                        setTemplateCategory(value as PersonalizerCategory);
-                      }}
-                      helpText="Liste gruplamasını belirler. Kullanılan yerleşim yöntemi aşağıdaki alandan ayrıca seçilir."
-                    />
-                    <Select
-                      label="Şablon Tipi"
-                      name="layout_mode"
-                      options={[
-                        { label: "Maskeli — fotoğraf tasarımın boşluğuna girer (kalpli tişört)", value: "mask" },
-                        { label: "Dağıtımlı — kafa kesiti çoğaltılıp yayılır (Hepsi Benim boxer)", value: "scatter" },
-                        { label: "AI — fotoğraf yapay zekâ ile stilize edilir, üstüne yazı basılır", value: "ai" },
-                      ]}
-                      value={layoutMode}
-                      onChange={(value) => setLayoutMode(value as "mask" | "scatter" | "ai")}
-                      helpText={layoutMode === "ai"
-                        ? "Müşteri fotoğraf, isim ve hikâye girer; görsel ve baskı dosyası otomatik üretilir. Arka plan veya çerçeve yüklemeniz gerekmez."
-                        : layoutMode === "scatter"
-                          ? "Tasarım görseli yüklemezsiniz; sistem üretir. Aşağıdaki sayıları ve süsleme görselini ayarlayın."
-                          : "Tasarımı yükleyip fotoğrafın gireceği boşluğu işaretlersiniz."}
-                    />
-                    {layoutMode !== "ai" && (
-                      <Select label="AI Dönüşüm Stili" name="ai_style" options={AI_STYLE_OPTIONS}
-                        value={aiStyle} onChange={setAiStyle} />
-                    )}
-                    <TextField label="Sıralama" name="sort_order" type="number" value={sortOrder} onChange={setSortOrder} autoComplete="off" />
-                  </FormLayout>
-                </BlockStack>
-              </Card>
-
-              {layoutMode === "ai" && (
-                <Card>
-                  <BlockStack gap="400">
-                    <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
-                      <BlockStack gap="100">
-                        <Text as="h2" variant="headingMd">AI Üretim Akışı</Text>
-                        <Text as="p" tone="subdued" variant="bodySm">
-                          Müşteri fotoğrafını ve metinleri girer; sistem görseli ve baskı dosyasını hazırlar.
-                        </Text>
-                      </BlockStack>
-                      <Badge tone="success">Fotoğraf → Metin → Önizleme</Badge>
-                    </InlineStack>
-
-                    <FormLayout>
-                      <Select
-                        label="Görsel Stili"
-                        name="ai_style"
-                        options={Object.entries(AI_STYLES).map(([k, v]) => ({ label: v.label, value: k }))}
-                        value={aiStyle}
-                        onChange={setAiStyle}
-                        helpText={AI_STYLES[aiStyle]?.description ?? "Müşteriye başka stil açmazsanız tüm siparişlerde bu stil kullanılır."}
-                      />
-                      <Checkbox
-                        label="Baskı dosyasını şeffaf arka planla hazırla"
-                        checked={aiRemoveBg}
-                        onChange={setAiRemoveBg}
-                        helpText="Tişört baskısı için önerilir. Üretilen görselin düz zemini kaldırılır."
-                      />
-                    </FormLayout>
-
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm">Müşterinin Seçebileceği Stiller</Text>
-                      <Text as="p" tone="subdued" variant="bodySm">
-                        Çoğu ürün için tek stil daha tutarlı sonuç verir. Birden fazla görünüm
-                        satıyorsanız müşteriye açmak istediklerinizi işaretleyin.
-                      </Text>
-                      <InlineStack gap="300" wrap>
-                        {Object.entries(AI_STYLES).map(([id, def]) => (
-                          <Checkbox
-                            key={id}
-                            label={def.label}
-                            checked={optAiStyles.includes(id)}
-                            onChange={() => toggleAiStyle(id)}
-                          />
-                        ))}
-                      </InlineStack>
-                    </BlockStack>
-
-                    <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 12 }}>
-                      <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#303030" }}>
-                        Gelişmiş üretim ayarları
-                      </summary>
-                      <div style={{ marginTop: 16 }}>
-                        <FormLayout>
-                          <FormLayout.Group>
-                            <Select
-                              label="AI Sağlayıcısı"
-                              options={Object.entries(AI_PROVIDERS).map(([k, v]) => ({ label: v.label, value: k }))}
-                              value={aiProvider}
-                              onChange={changeProvider}
-                            />
-                            <Select label="Model" options={aiModelOptions} value={aiModel} onChange={setAiModel} />
-                          </FormLayout.Group>
-                          {aiModelNote && (
-                            <Banner tone="warning">
-                              <Text as="p" variant="bodySm">{aiModelNote}</Text>
-                            </Banner>
-                          )}
-                          <FormLayout.Group>
-                            <TextField label="Baskı genişliği (px)" type="number" value={aiCanvasW}
-                              onChange={setAiCanvasW} autoComplete="off" />
-                            <TextField label="Baskı yüksekliği (px)" type="number" value={aiCanvasH}
-                              onChange={setAiCanvasH} autoComplete="off" />
-                          </FormLayout.Group>
-                        </FormLayout>
-                      </div>
-                    </details>
-
-                    <input type="hidden" name="ai_config" readOnly value={JSON.stringify({
-                      provider: aiProvider,
-                      model: aiModel,
-                      canvasWidth: parseInt(aiCanvasW, 10) || 2400,
-                      canvasHeight: parseInt(aiCanvasH, 10) || 3000,
-                      removeBackground: aiRemoveBg,
-                    })} />
-                  </BlockStack>
-                </Card>
-              )}
-
-              {layoutMode === "scatter" && (
-                <Card>
-                  <BlockStack gap="400">
-                    <Text as="h2" variant="headingMd">Dağıtım Ayarları</Text>
-                    <Banner tone="info">
-                      <Text as="p">
-                        Bu tipte tasarım dosyası yüklemezsiniz. Müşterinin fotoğrafından kafa kesilir,
-                        aşağıdaki sayılarla baskı alanına dağıtılır. Baskı alanı ürün ayarlarından otomatik alınır.
-                      </Text>
-                    </Banner>
-
-                    <FormLayout>
-                      <FormLayout.Group>
-                        <TextField label="Kaç kafa" type="number" value={faceCount}
-                          onChange={setFaceCount} autoComplete="off" helpText="Örn: 13" />
-                        <TextField label="Kaç süsleme" type="number" value={decorationCount}
-                          onChange={setDecorationCount} autoComplete="off" helpText="Süsleme yoksa 0" />
-                      </FormLayout.Group>
-                      <FormLayout.Group>
-                        <TextField label="Kafa boyutu (%)" type="number" value={faceScale}
-                          onChange={setFaceScale} autoComplete="off" helpText="Baskı alanı genişliğine oranı" />
-                        <TextField label="Süsleme boyutu (%)" type="number" value={decorationScale}
-                          onChange={setDecorationScale} autoComplete="off" />
-                      </FormLayout.Group>
-                      <Checkbox
-                        label="Ortada yazı için yer bırak"
-                        checked={reserveText}
-                        onChange={setReserveText}
-                        helpText="İşaretliyse parçalar ortadaki yazının üstüne binmez."
-                      />
-                      <FormLayout.Group>
-                        <TextField label="Tuval genişliği (px)" type="number" value={canvasWidth}
-                          onChange={setCanvasWidth} autoComplete="off" />
-                        <TextField label="Tuval yüksekliği (px)" type="number" value={canvasHeight}
-                          onChange={setCanvasHeight} autoComplete="off" />
-                      </FormLayout.Group>
-                      <Banner tone={canvasRatioWarning ? "warning" : "info"}>
-                        <Text as="p">
-                          Tasarımın en/boy oranı: <strong>{canvasRatioLabel}</strong>.
-                          {canvasRatioWarning
-                            ? ` Bağlı ürünün baskı kutusu ${linkedAreaRatio?.toFixed(2)} : 1 oranında —`
-                              + " ikisi eşit değilse tasarım kutuya sığar ama kenarlarda boşluk kalır."
-                            : " Ürün ayarlarındaki baskı kutusu da bu oranda olmalı ki tasarım"
-                              + " kenarlara kadar dolsun."}
-                        </Text>
-                      </Banner>
-                    </FormLayout>
-
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm">Süsleme Görseli</Text>
-                      <Text as="p" tone="subdued" variant="bodySm">
-                        Kalp, yıldız gibi tekrarlanacak öğe. Arka planı saydam PNG olmalı.
-                      </Text>
-                      {decorationUrl ? (
-                        <InlineStack gap="300" blockAlign="center">
-                          <Thumbnail source={decorationUrl} alt="Süsleme" size="small" />
-                          <Button variant="plain" tone="critical" onClick={() => setDecorationUrl("")}>Kaldır</Button>
-                        </InlineStack>
-                      ) : (
-                        <Text as="p" tone="subdued" variant="bodySm">Henüz yüklenmedi.</Text>
-                      )}
-                      <input
-                        type="file"
-                        name="decoration_image"
-                        accept="image/png,image/webp"
-                        style={{ display: "block", fontSize: 13 }}
-                      />
-                      <Checkbox
-                        label="Arka planı otomatik temizle"
-                        name="decoration_remove_bg"
-                        checked={decorationRemoveBg}
-                        onChange={setDecorationRemoveBg}
-                        helpText="Görsel zaten saydamsa atlanır ve kota harcanmaz."
-                      />
-                      <Text as="p" tone="subdued" variant="bodySm">
-                        Dosya seçip aşağıdan <strong>Kaydet</strong> deyin.
-                      </Text>
-                    </BlockStack>
-
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm">Müşteriye Açılan Ayarlar</Text>
-                      <Text as="p" tone="subdued" variant="bodySm">
-                        İşaretlediğiniz ayarlar müşterinin tasarım penceresinde görünür.
-                        Müşteri yukarıdaki sayıları değiştiremez — yalnızca üç kademeli
-                        bir seçim yapar, sistem onu sizin değerlerinizin üstüne uygular.
-                      </Text>
-                      <Checkbox
-                        label="Yoğunluk seçimi"
-                        checked={optDensity}
-                        onChange={setOptDensity}
-                        helpText="Seyrek / Normal / Yoğun — parça sayısını %60 ile %150 arasında değiştirir."
-                      />
-                      <Checkbox
-                        label="Boyut seçimi"
-                        checked={optPhotoSize}
-                        onChange={setOptPhotoSize}
-                        helpText="Küçük / Orta / Büyük — kafa ve süslemeyi birlikte %80 ile %125 arasında ölçekler."
-                      />
-                      <Checkbox
-                        label="Farklı dizilim deneme"
-                        checked={optShuffle}
-                        onChange={setOptShuffle}
-                        helpText="Müşteri aynı ayarlarla en fazla 5 farklı yerleşim deneyebilir."
-                      />
-                    </BlockStack>
-
-                    <input type="hidden" name="existing_decoration_url" value={decorationUrl} readOnly />
-                    <input type="hidden" name="scatter_config" readOnly value={JSON.stringify({
-                      faceCount: parseInt(faceCount, 10) || 0,
-                      decorationCount: parseInt(decorationCount, 10) || 0,
-                      faceScale: (parseFloat(faceScale) || 16) / 100,
-                      decorationScale: (parseFloat(decorationScale) || 10) / 100,
-                      sizeJitter: 0.18,
-                      angleJitter: 0,
-                      reserveCenter: reserveText ? { width: 0.42, height: 0.26 } : null,
-                      seed: 1,
-                      canvasWidth: parseInt(canvasWidth, 10) || 2400,
-                      canvasHeight: parseInt(canvasHeight, 10) || 1650,
-                    })} />
-                  </BlockStack>
-                </Card>
-              )}
-
-              {/* Şablon görseli */}
-              {layoutMode !== "ai" && <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">Arka Plan Tasarımı (Opsiyonel)</Text>
-                  <Banner tone="info">
-                    <BlockStack gap="100">
-                      <Text as="p" fontWeight="semibold">Çerçeve bazlı kullanım için bu alanı boş bırakın.</Text>
-                      <Text as="p">
-                        Eğer sadece ahşap çerçeve veya tablo görselleri kullanıyorsanız buraya bir şey yüklemenize gerek yok.
-                        Çerçeve resimlerini aşağıdaki <strong>"Çerçeve Ekle"</strong> bölümünden ekleyin.
-                        Karikatür doğrudan seçilen çerçevenin içine yerleşecek.
-                      </Text>
-                    </BlockStack>
+              <SectionCard id="pl-basics" title="Temel bilgiler">
+                <FormLayout>
+                  <TextField label="Şablon adı" name="name" value={name} onChange={setName} autoComplete="off" placeholder="Örn: Karikatür Tablo" helpText="Yalnızca yönetim ekranında görünür." />
+                  <TextField label="Açıklama (isteğe bağlı)" name="description" value={description} onChange={setDescription} multiline={2} autoComplete="off" />
+                  <Select
+                    label="Ürün türü"
+                    name="category"
+                    options={[
+                      { label: "Tişört ve giyim — fotoğraf tasarımdaki boşluğa girer", value: "apparel" },
+                      { label: "Fotoğraflı çerçeve — bir veya birden çok fotoğraf alanı", value: "frame" },
+                      { label: "Boxer ve tekrarlı desen — yüz baskı alanına dağıtılır", value: "boxer" },
+                      { label: "AI portre — fotoğraf yapay zekâ ile çizilir", value: "ai" },
+                    ]}
+                    value={templateCategory}
+                    onChange={(value) => {
+                      const next = value as PersonalizerCategory;
+                      setTemplateCategory(next);
+                      // Tür ile yerleşim yöntemi eskiden iki ayrı seçimdi ve
+                      // uyumsuz ikili (ör. boxer + maskeli) sessizce kaydediliyordu.
+                      // Tür değişince yöntem de ona uyuyor; özel ikili gerekirse
+                      // Gelişmiş'ten ayrıca seçilebilir.
+                      setLayoutMode(next === "boxer" ? "scatter" : next === "ai" ? "ai" : "mask");
+                    }}
+                    helpText="Aşağıdaki bölümler seçtiğiniz türe göre değişir."
+                  />
+                </FormLayout>
+                {template && layoutMode !== template.layout_mode && (
+                  <Banner tone="warning" title="Yerleşim yöntemi değişecek">
+                    <p>
+                      {`Bu şablon şu an ${LAYOUT_LABEL[template.layout_mode] ?? template.layout_mode} yöntemle çalışıyor; kaydederseniz ${LAYOUT_LABEL[layoutMode]} yönteme geçer ve müşterinin gördüğü akış değişir. İstemiyorsanız türü eski hâline getirin ya da kaydetmeden çıkın.`}
+                    </p>
                   </Banner>
-                  <Text as="p" tone="subdued" variant="bodySm">
-                    İsteğe bağlı: Ayrı bir artistik tasarım şablonu (örn. "Birlikte Sonsuza Dek" yazılı arka plan) varsa buraya yükleyin.
-                  </Text>
-                  {templatePreview && (
-                    <img src={templatePreview} alt="Şablon" style={{ maxWidth: 200, maxHeight: 200, objectFit: "contain", borderRadius: 8, border: "1px solid #e5e7eb" }} />
-                  )}
-                  <input type="file" name="template_image" accept="image/png,image/jpeg,image/webp" onChange={handleTemplateFileChange} />
-                </BlockStack>
-              </Card>}
-
-              {/* Koordinat editörü */}
-              {layoutMode !== "ai" && templatePreview && (
-                <Card>
-                  <BlockStack gap="400">
-                    <Text as="h2" variant="headingMd">Fotoğraf Koordinat Editörü</Text>
-                    <TemplatePhotoEditor
-                      imageUrl={templatePreview}
-                      photoRect={photoRect}
-                      onPhotoRect={setPhotoRect}
-                      textFields={textFields}
-                      onTextPos={handleTextPos}
-                      holeSeed={holeSeed}
-                      onHoleSeed={(x, y) => setHoleSeed({ x, y })}
-                    />
-                  </BlockStack>
-                </Card>
-              )}
-
-              {/* Baskı ebadı ve çoklu fotoğraf alanları */}
-              {layoutMode !== "ai" && (
-                <Card>
-                  <BlockStack gap="400">
-                    <BlockStack gap="100">
-                      <Text as="h2" variant="headingMd">Baskı ebadı</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Fotoğraf alanları oran olarak saklanır; aynı şablon, aynı en-boy oranındaki
-                        her ebatta çalışır.
-                      </Text>
-                    </BlockStack>
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm">Üst katman (opsiyonel)</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Fotoğrafların <b>üstünde</b> duracak tasarım. Şeffaf delikli şablonlarda
-                        tasarımın kendisini buraya da yükleyin: fotoğraf deliğin arkasından görünür,
-                        çerçeve ve yazılar fotoğrafın üstünde kalır. Izgara şablonlarında gerekmez.
-                      </Text>
-                      {overlayPreview && (
-                        <img src={overlayPreview} alt="Üst katman"
-                          style={{ maxWidth: 160, maxHeight: 160, objectFit: "contain", borderRadius: 8, border: "1px solid #e5e7eb" }} />
-                      )}
-                      <input type="hidden" name="existing_overlay_url" value={template?.overlay_url ?? ""} readOnly />
-                      <input type="file" name="overlay_image" accept="image/png,image/webp"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) setOverlayPreview(URL.createObjectURL(f));
-                        }} />
-                    </BlockStack>
-
-                    {printProducts.length === 0 ? (
-                      <Banner tone="warning" title="Henüz baskı ebadı tanımlı değil">
-                        <p>
-                          Çoklu fotoğraf alanı kullanmak için önce <b>Baskı ebatları</b> sayfasından
-                          en az bir ebat ekleyin.
-                        </p>
-                      </Banner>
-                    ) : (
+                )}
+                <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 12 }}>
+                  <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#303030" }}>
+                    Gelişmiş: yerleşim yöntemi ve sıralama
+                  </summary>
+                  <div style={{ marginTop: 16 }}>
+                    <FormLayout>
                       <Select
-                        label="Ebat"
+                        label="Yerleşim yöntemi"
+                        name="layout_mode"
                         options={[
-                          { label: "Seçilmedi", value: "" },
-                          ...(printProducts as PrintProduct[]).map((p) => ({
-                            label: `${p.name} — ${p.width_mm}×${p.height_mm} mm (${aspectLabel(p.width_mm / p.height_mm)})`,
-                            value: p.id,
-                          })),
+                          { label: "Maskeli — fotoğraf tasarımın boşluğuna girer", value: "mask" },
+                          { label: "Dağıtımlı — yüz çoğaltılıp yayılır", value: "scatter" },
+                          { label: "AI — fotoğraf yapay zekâ ile stilize edilir", value: "ai" },
                         ]}
-                        value={printProductId}
-                        onChange={setPrintProductId}
+                        value={layoutMode}
+                        onChange={(value) => setLayoutMode(value as "mask" | "scatter" | "ai")}
+                        helpText="Normalde ürün türüyle birlikte otomatik ayarlanır; emin değilseniz değiştirmeyin."
                       />
-                    )}
-                  </BlockStack>
-                </Card>
+                      {layoutMode !== "ai" && (
+                        <Select label="Fotoğrafa uygulanacak AI stili (eski önizleme akışı)" name="ai_style" options={AI_STYLE_OPTIONS}
+                          value={aiStyle} onChange={setAiStyle} />
+                      )}
+                      <TextField label="Listede sıralama" name="sort_order" type="number" value={sortOrder} onChange={setSortOrder} autoComplete="off" helpText="Küçük sayı önce gelir." />
+                    </FormLayout>
+                  </div>
+                </details>
+              </SectionCard>
+
+              {flow === "ai" && aiCard}
+              {flow === "boxer" && scatterCard}
+
+              {flow === "apparel" && (
+                <SectionCard
+                  id="pl-design"
+                  title="Tasarım ve fotoğraf alanı"
+                  description="Tasarımınızı yükleyin, sonra görsel üzerinde müşterinin fotoğrafının görüneceği boş alana tıklayın."
+                >
+                  {designUpload}
+                  {photoEditor ?? (
+                    <Text as="p" tone="subdued" variant="bodySm">Görsel seçildiğinde boşluğu burada işaretleyebileceksiniz.</Text>
+                  )}
+                </SectionCard>
               )}
 
-              {layoutMode !== "ai" && slotCanvas && pieces.length === 0 && (
-                <SlotBoard
-                  slots={slots}
-                  onChange={setSlots}
-                  canvas={slotCanvas}
-                  templateUrl={templatePreview || undefined}
-                  expectedSlots={expectedSlots}
-                  onExpectedSlotsChange={setExpectedSlots}
-                  gridConfig={gridConfig}
-                  onGridConfigChange={setGridConfig}
-                  dpi={activePrintProduct?.dpi ?? 300}
-                />
-              )}
-
-              {/* Set ürünleri ve varyant görselleri */}
-              {layoutMode !== "ai" && (
-                <PieceEditor
-                  pieces={pieces}
-                  onChange={setPieces}
-                  printProducts={printProducts as PrintProduct[]}
-                  fallback={{
-                    name: name || "Tasarım",
-                    print_product_id: printProductId,
-                    slots,
-                    background_url: templatePreview || undefined,
-                    overlay_url: overlayPreview || undefined,
-                  }}
-                  gridConfig={gridConfig}
-                  onGridConfigChange={setGridConfig}
-                />
-              )}
-
-              {layoutMode !== "ai" && (
-                <MockupEditor mockups={mockups} onChange={setMockups} />
-              )}
-
-              {/* Deneme çıktısı */}
-              {layoutMode !== "ai" && slotCanvas && !isNew && (
-                <Card>
-                  <BlockStack gap="400">
-                    <BlockStack gap="100">
-                      <Text as="h2" variant="headingMd">Deneme çıktısı</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Şablonu örnek fotoğraflarla basar. Slot sırasını, kırpmayı, metin taşmasını
-                        ve font sorunlarını canlıya çıkmadan önce burada görün — şablonu ilk kez
-                        müşteri denememeli.
-                      </Text>
+              {flow === "frame" && (
+                <>
+                  <SectionCard
+                    id="pl-print"
+                    title="Baskı ebadı ve tasarım katmanları"
+                    description="Önce çerçevenin ölçüsünü seçin. Arka plan ve üst katman isteğe bağlıdır."
+                  >
+                    {printSizeSelect}
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">Arka plan tasarımı (isteğe bağlı)</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">Fotoğrafların altında kalan zemin, ör. yazılı bir tasarım.</Text>
+                      {designUpload}
                     </BlockStack>
-
-                    <InlineStack gap="200" blockAlign="center">
-                      <Button
-                        onClick={() =>
-                          testFetcher.submit(
-                            { templateId: template?.id ?? "" },
-                            { method: "POST", action: "/api/personalizer/test-render", encType: "application/json" },
-                          )
-                        }
-                        loading={testFetcher.state !== "idle"}
-                      >
-                        Deneme çıktısı al
-                      </Button>
-                      <Text as="span" variant="bodySm" tone="subdued">
-                        Kaydedilmiş hâli kullanır — önce değişiklikleri kaydedin.
-                      </Text>
-                    </InlineStack>
-
-                    {testFetcher.data?.error && (
-                      <Banner tone="critical"><p>{testFetcher.data.error}</p></Banner>
-                    )}
-
-                    {testFetcher.data?.issues && testFetcher.data.issues.length > 0 && (
-                      <Banner tone={testFetcher.data.issues.some((i) => i.level === "error") ? "critical" : "warning"}>
-                        <ul style={{ margin: 0, paddingLeft: 18 }}>
-                          {testFetcher.data.issues.map((i, n) => <li key={n}>{i.message}</li>)}
-                        </ul>
-                      </Banner>
-                    )}
-
-                    {testFetcher.data?.url && (
-                      <BlockStack gap="300">
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          {testFetcher.data.photoCount} örnek fotoğraf · şablon sürümü v{testFetcher.data.version}
-                          {(testFetcher.data.pieces?.length ?? 0) > 1
-                            ? ` · ${testFetcher.data.pieces?.length} baskı dosyası`
-                            : ""}
-                        </Text>
-                        <InlineStack gap="300" wrap>
-                          {(testFetcher.data.pieces ?? [{ id: "main", name: "", url: testFetcher.data.url }])
-                            .map((p) => (
-                              <BlockStack key={p.id} gap="100">
-                                {p.name && <Text as="span" variant="bodySm" tone="subdued">{p.name}</Text>}
-                                <img
-                                  src={p.url}
-                                  alt={p.name || "Deneme çıktısı"}
-                                  style={{ maxWidth: 260, borderRadius: 8, border: "1px solid #e5e7eb" }}
-                                />
-                              </BlockStack>
-                            ))}
-                        </InlineStack>
-                      </BlockStack>
-                    )}
-                  </BlockStack>
-                </Card>
+                    {overlayUpload}
+                  </SectionCard>
+                  {slotsBlock}
+                  {piecesBlock}
+                  <SectionCard
+                    id="pl-texts"
+                    title="Müşteriden alınacak yazılar"
+                    description="İsim, tarih gibi müşterinin yazacağı alanlar."
+                  >
+                    {textFieldsEditor}
+                  </SectionCard>
+                  {mockupBlock}
+                  {testBlock}
+                </>
               )}
 
-              {/* Metin alanları */}
-              {layoutMode !== "ai" && <Card>
-                <BlockStack gap="400">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingMd">Metin Alanları</Text>
-                    <Button onClick={addTextField} size="slim">+ Alan Ekle</Button>
-                  </InlineStack>
-                  {textFields.length === 0 && <Text as="p" tone="subdued">Henüz metin alanı eklenmedi.</Text>}
-                  {textFields.map((f, idx) => (
-                    <Box key={f.id} background="bg-surface-secondary" padding="400" borderRadius="200">
-                      <BlockStack gap="300">
-                        <InlineStack align="space-between">
-                          <Text as="h3" variant="headingSm">T{idx + 1} — {f.label}</Text>
-                          <Button tone="critical" size="slim" onClick={() => removeTextField(idx)}>Sil</Button>
-                        </InlineStack>
-                        <FormLayout>
-                          <FormLayout.Group>
-                            <TextField label="Etiket" value={f.label} onChange={(v) => updateTextField(idx, "label", v)} autoComplete="off" />
-                            <TextField label="Placeholder" value={f.placeholder} onChange={(v) => updateTextField(idx, "placeholder", v)} autoComplete="off" />
-                          </FormLayout.Group>
-                          <TextField label="Maksimum karakter" type="number" value={String(f.max_length)} onChange={(v) => updateTextField(idx, "max_length", parseInt(v, 10) || 30)} autoComplete="off" />
-                          <TextField label="Varsayılan metin (opsiyonel)" value={f.default_value ?? ""} onChange={(v) => updateTextField(idx, "default_value", v)} autoComplete="off" helpText="Müşteri değiştirmezse bu metin basılır." />
-                        </FormLayout>
-                        <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 10 }} open>
-                          <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#303030" }}>
-                            Yazı görünümü ve konumu
-                          </summary>
-                          <div style={{ marginTop: 14 }}>
-                            <FormLayout>
-                              <FormLayout.Group>
-                                <TextField label="X (px)" type="number" value={String(f.x)} onChange={(v) => updateTextField(idx, "x", parseInt(v, 10) || 0)} autoComplete="off" helpText="Yerleşim editöründen de ayarlanır" />
-                                <TextField label="Y (px)" type="number" value={String(f.y)} onChange={(v) => updateTextField(idx, "y", parseInt(v, 10) || 0)} autoComplete="off" helpText="Yerleşim editöründen de ayarlanır" />
-                              </FormLayout.Group>
-                              <FormLayout.Group>
-                                <TextField label="Font büyüklüğü (px)" type="number" value={String(f.font_size)} onChange={(v) => updateTextField(idx, "font_size", parseInt(v, 10) || 60)} autoComplete="off" />
-                                <TextField label="Renk (hex)" value={f.color} onChange={(v) => updateTextField(idx, "color", v)} autoComplete="off" placeholder="#000000" />
-                              </FormLayout.Group>
-                              <Select
-                                label="Hizalama"
-                                options={[{ label: "Sol", value: "left" }, { label: "Orta", value: "center" }, { label: "Sağ", value: "right" }]}
-                                value={f.align}
-                                onChange={(v) => updateTextField(idx, "align", v as TextFieldDef["align"])}
-                              />
-                              <Checkbox label="Kalın yazı" checked={f.bold} onChange={(v) => updateTextField(idx, "bold", v)} />
-                            </FormLayout>
-                          </div>
-                        </details>
-                      </BlockStack>
-                    </Box>
-                  ))}
-                </BlockStack>
-              </Card>}
+              {(flow === "apparel" || flow === "boxer") && (
+                <SectionCard
+                  title="Gelişmiş ayarlar"
+                  description={advancedHasData
+                    ? "Bu şablonda burada kayıtlı ayarlar var; o yüzden açık gösteriliyor."
+                    : "Çoğu şablonda gerekmez. Yazı alanları ve çoklu fotoğraf özellikleri."}
+                  collapsible
+                  defaultOpen={advancedHasData}
+                >
+                  {flow === "boxer" && (
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">Arka plan tasarımı</Text>
+                      {designUpload}
+                    </BlockStack>
+                  )}
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm">Yazı alanları</Text>
+                    {textFieldsEditor}
+                  </BlockStack>
+                  {overlayUpload}
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm">Çoklu fotoğraf / baskı ebadı</Text>
+                    {printSizeSelect}
+                  </BlockStack>
+                  {slotsBlock}
+                  {piecesBlock}
+                  {mockupBlock}
+                  {testBlock}
+                </SectionCard>
+              )}
+
+              {flow === "frame" && photoEditor && (
+                <SectionCard
+                  title="Tek fotoğraf koordinatı (eski akış)"
+                  description="Fotoğraf alanları kullanan şablonlarda gerekmez."
+                  collapsible
+                  defaultOpen={false}
+                >
+                  {photoEditor}
+                </SectionCard>
+              )}
 
               <InlineStack gap="300" align="end">
                 <Button onClick={() => navigate("/app/personalizer")}>İptal</Button>
                 <Button submit variant="primary" loading={isLoading}>
-                  {isNew
-                    ? layoutMode === "ai" ? "AI Şablonunu Oluştur" : "Şablonu Oluştur ve Çerçeve Ekle →"
-                    : "Değişiklikleri Kaydet"}
+                  {isNew ? "Şablonu oluştur" : "Değişiklikleri kaydet"}
                 </Button>
               </InlineStack>
             </BlockStack>
           </form>
         </Layout.Section>
 
-        {/* ── Frames section (only after template saved) ── */}
-        {!isNew && template && layoutMode !== "ai" && (
-          <Layout.Section>
-            <Card>
-              <FramesSection templateId={template.id} frames={frames} />
-            </Card>
-          </Layout.Section>
-        )}
-
-        {/* ── Shopify product link ── */}
+        {/* ── Shopify ürün bağlantısı ── */}
         {!isNew && template && (
           <Layout.Section>
+            <div id="pl-link" style={{ scrollMarginTop: 16 }}>
             <Card>
               <BlockStack gap="400">
                 <BlockStack gap="100">
-                  <Text as="h2" variant="headingMd">Shopify Ürün Eşleştirme</Text>
+                  <Text as="h2" variant="headingMd">Ürüne bağla</Text>
                   <Text as="p" tone="subdued" variant="bodySm">
                     {layoutMode === "ai"
-                      ? "Ürünü ve varsayılan varyantı seçin. AI şablonu ön ve arka yüze birlikte bağlanır."
-                      : "Bu şablonu Shopify ürününe bağlayın."}
+                      ? "Şablonun açılacağı Shopify ürününü seçin. AI şablonu ön ve arka yüze birlikte bağlanır."
+                      : "Şablonun açılacağı Shopify ürününü seçin. Bir ürün bağlamadan şablon müşteriye görünmez."}
                   </Text>
                 </BlockStack>
+
+                {slotChangeUnsaved && (
+                  <Banner tone="warning" title="Önce değişiklikleri kaydedin">
+                    <p>
+                      Fotoğraf alanlarında kaydedilmemiş bir değişiklik var. Ürün bağlama kayıtlı
+                      şablona bakıyor; kaydetmeden bağlarsanız ürün sayfasındaki kutu doğru açılmaz.
+                    </p>
+                  </Banner>
+                )}
 
                 {linkFetcher.data?.error && <Banner tone="critical">{linkFetcher.data.error}</Banner>}
                 {linkFetcher.data?.unlinked !== undefined && (
                   <Banner tone={linkFetcher.data.metafieldOk ? "success" : "warning"}>
                     <p>
                       {linkFetcher.data.metafieldOk
-                        ? "Bağlantı kaldırıldı ve Shopify'daki personalizer.template_id alanı silindi. Kişiselleştirme kutusu ürün sayfasında artık görünmeyecek."
-                        : `Bağlantı kaydı silindi ama Shopify'daki metafield temizlenemedi: ${linkFetcher.data.metafieldError}. Metafield dururken kutu görünmeye devam eder; Shopify yöneticisinden elle silin.`}
+                        ? "Bağlantı kaldırıldı. Bu ürünün sayfasında kişiselleştirme artık görünmeyecek."
+                        : `Bağlantı kaydı silindi ama Shopify'daki personalizer.template_id alanı temizlenemedi: ${linkFetcher.data.metafieldError}. Alan dururken kutu görünmeye devam eder; Shopify yöneticisinden elle silin.`}
                     </p>
                   </Banner>
                 )}
@@ -1878,8 +2257,8 @@ function PersonalizerEditor() {
                   <Banner tone="success">
                     <p>
                       {linkFetcher.data.kutuAcilir
-                        ? "Ürün bağlandı. Ürün sayfasında ayrı bir kişiselleştirme kutusu görünmeye başlayacak."
-                        : "Ürün bağlandı. Bu şablonun fotoğraf alanı yok, yani ayrı bir kutu açılmıyor; tasarımcının içinde \"Fotoğrafını ekle\" olarak çıkıyor."}
+                        ? "Ürün bağlandı. Ürün sayfasındaki \"PrintLab Kişiselleştirici\" bloğu bu şablonu açacak."
+                        : "Ürün bağlandı. Müşteri bu şablonu ürün sayfasındaki tasarımcıda \"Fotoğrafını ekle\" ile görecek."}
                     </p>
                   </Banner>
                 )}
@@ -1895,17 +2274,42 @@ function PersonalizerEditor() {
                     </p>
                   </Banner>
                 )}
-                {linkFetcher.data?.linked && (
-                  <Banner tone="success">
-                    {layoutMode === "ai"
-                      ? "Ürün bu AI şablonuna ön ve arka yüz için bağlandı."
-                      : "Ürün bu şablona bağlandı."}
-                  </Banner>
-                )}
+
+                <InlineStack gap="200" blockAlign="end" wrap={false}>
+                  <div style={{ flex: 1 }}>
+                    <TextField
+                      label="Ürün ara"
+                      value={productSearch}
+                      onChange={setProductSearch}
+                      autoComplete="off"
+                      placeholder="Ürün adı yazın"
+                      clearButton
+                      onClearButtonClick={() => {
+                        setProductSearch("");
+                        setSearchParams({}, { replace: true, preventScrollReset: true });
+                      }}
+                      connectedRight={(
+                        <Button
+                          onClick={() => setSearchParams(
+                            productSearch.trim() ? { q: productSearch.trim() } : {},
+                            { replace: true, preventScrollReset: true },
+                          )}
+                        >
+                          Ara
+                        </Button>
+                      )}
+                      helpText={productQuery
+                        ? `"${productQuery}" için ${availableProducts.length} aktif ürün bulundu.`
+                        : "Liste son güncellenen 50 aktif ürünü gösterir; ürününüz yoksa adıyla arayın."}
+                    />
+                  </div>
+                </InlineStack>
 
                 {availableProducts.length === 0 ? (
                   <Banner tone="warning">
-                    Aktif Shopify ürünü bulunamadı. Önce Shopify tarafında ürünü aktif hale getirin.
+                    {productQuery
+                      ? "Aramanızla eşleşen aktif ürün bulunamadı. Ürünün Shopify'da \"Aktif\" durumda olduğundan emin olun."
+                      : "Aktif Shopify ürünü bulunamadı. Önce Shopify tarafında ürünü aktif hâle getirin."}
                   </Banner>
                 ) : (
                   <linkFetcher.Form method="post" encType="multipart/form-data">
@@ -1914,26 +2318,27 @@ function PersonalizerEditor() {
                     <input type="hidden" name="product_handle" value={selectedProduct?.handle ?? ""} />
                     <FormLayout>
                       <Select
-                        label="Shopify Ürünü"
+                        label="Shopify ürünü"
                         name="product_id"
                         options={productOptions}
                         value={selectedProductId}
                         onChange={(value) => setSelectedProductId(value)}
-                        helpText="Son güncellenen 50 aktif Shopify ürünü listelenir."
                       />
                       {layoutMode !== "ai" && (
                         <BlockStack gap="150">
-                          <Text as="p" variant="bodyMd">Ürünün Hangi Yüzü</Text>
-                          <Checkbox
-                            label="Ön yüz"
-                            checked={linkSides.includes("front")}
-                            onChange={(checked) => toggleLinkSide("front", checked)}
-                          />
-                          <Checkbox
-                            label="Arka yüz"
-                            checked={linkSides.includes("back")}
-                            onChange={(checked) => toggleLinkSide("back", checked)}
-                          />
+                          <Text as="p" variant="bodyMd">Ürünün hangi yüzü</Text>
+                          <InlineStack gap="400">
+                            <Checkbox
+                              label="Ön yüz"
+                              checked={linkSides.includes("front")}
+                              onChange={(checked) => toggleLinkSide("front", checked)}
+                            />
+                            <Checkbox
+                              label="Arka yüz"
+                              checked={linkSides.includes("back")}
+                              onChange={(checked) => toggleLinkSide("back", checked)}
+                            />
+                          </InlineStack>
                           {/* Polaris Checkbox'ın form serileştirmesine güvenmek
                               yerine seçimi gizli alanlara yazıyoruz; action
                               form.getAll("side") ile okuyor. */}
@@ -1941,8 +2346,8 @@ function PersonalizerEditor() {
                             <input key={side} type="hidden" name="side" value={side} readOnly />
                           ))}
                           <Text as="p" tone="subdued" variant="bodySm">
-                            İkisini birden seçebilirsiniz. İşaretlemediğiniz yüze dokunulmaz —
-                            o yüz başka bir şablona bağlıysa öyle kalır.
+                            Çerçeve gibi tek yüzlü ürünlerde "Ön yüz" yeterli. İşaretlemediğiniz
+                            yüze dokunulmaz — o yüz başka bir şablona bağlıysa öyle kalır.
                           </Text>
                         </BlockStack>
                       )}
@@ -1963,23 +2368,11 @@ function PersonalizerEditor() {
                         helpText={
                           selectedVariantId
                             ? "Yalnızca bu varyant bu şablonu açar. Tasarım varyanta göre değişiyorsa böyle bağlayın ve her varyant için tekrarlayın."
-                            : "Ürünün bütün varyantları bu şablonu açar. Sonradan eklenen varyantlar da çalışır."
+                            : "Çoğu ürün için doğru seçim. Ürünün bütün varyantları bu şablonu açar; sonradan eklenenler de."
                         }
                       />
-                      {selectedProduct && (
-                        <Box background="bg-surface-secondary" padding="300" borderRadius="200">
-                          <BlockStack gap="100">
-                            <Text as="p" variant="bodySm" tone="subdued">
-                              {`Product ID: ${selectedProduct.id}`}
-                            </Text>
-                            <Text as="p" variant="bodySm" tone="subdued">
-                              {`Handle: ${selectedProduct.handle || "-"}`}
-                            </Text>
-                          </BlockStack>
-                        </Box>
-                      )}
                       <Button submit variant="primary" loading={linkFetcher.state !== "idle"} disabled={!selectedProductId}>
-                        {layoutMode === "ai" ? "Ürünü iki yüze bağla" : "Seçili ürüne bağla"}
+                        {layoutMode === "ai" ? "Ürünü iki yüze bağla" : "Ürüne bağla"}
                       </Button>
                     </FormLayout>
                   </linkFetcher.Form>
@@ -1987,7 +2380,7 @@ function PersonalizerEditor() {
 
                 {linkedProductGroups.length > 0 && (
                   <BlockStack gap="200">
-                    <Text as="h3" variant="headingSm">Bağlı Ürünler</Text>
+                    <Text as="h3" variant="headingSm">Bağlı ürünler</Text>
                     {linkedProductGroups.map((links) => {
                       const link = links[0];
                       const hasFront = links.some((item) => item.side === "front");
@@ -1996,32 +2389,34 @@ function PersonalizerEditor() {
                       const variantIds = [...new Set(links.map((item) => item.variant_id).filter(Boolean))];
                       return (
                       <Box key={`${link.shop}-${link.product_id}`} background="bg-surface-secondary" padding="300" borderRadius="200">
-                        <BlockStack gap="100">
-                          <InlineStack gap="200" blockAlign="center">
-                            <Text as="p" variant="bodyMd" fontWeight="semibold">
-                              {link.product_title || link.product_handle || link.product_id}
+                        <InlineStack align="space-between" blockAlign="center" gap="300">
+                          <BlockStack gap="100">
+                            <InlineStack gap="200" blockAlign="center">
+                              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                {link.product_title || link.product_handle || link.product_id}
+                              </Text>
+                              <Badge tone={hasFront && hasBack ? "success" : hasBack ? "attention" : "info"}>{sideLabel}</Badge>
+                            </InlineStack>
+                            <Text as="p" tone="subdued" variant="bodySm">
+                              {variantIds.length ? `${variantIds.length} varyanta özel` : "Tüm varyantlar"}
                             </Text>
-                            <Badge tone={hasFront && hasBack ? "success" : hasBack ? "attention" : "info"}>{sideLabel}</Badge>
-                          </InlineStack>
-                          <Text as="p" tone="subdued" variant="bodySm">
-                            {`Product ID: ${link.product_id}${variantIds.length ? `, Variant ID: ${variantIds.join(", ")}` : ""}`}
-                          </Text>
-                          {/* Bağlantıyı kaldırmanın yolu yoktu. Tema bloğu ürün
-                              metafield'ına bakıyor ve blok tema şablonuna bir kez
-                              eklendiğinde metafield'ı olan HER üründe açılıyor;
-                              sonradan başka bir akışa geçen bir üründe
-                              kişiselleştirme kutusu istenmeden görünüyordu. */}
-                          <InlineStack>
-                            {/* Form yerine programatik gönderim: bu sayfanın
-                                action'ı gövdeyi HER ZAMAN multipart olarak
-                                ayrıştırıyor, urlencoded bir form "Could not
-                                parse content as FormData" ile düşüyordu. */}
+                          </BlockStack>
+                          {/* Form yerine programatik gönderim: bu sayfanın
+                              action'ı dosya taşıyan gövdeyi multipart
+                              ayrıştırıyor, gönderim türünü açıkça veriyoruz. */}
+                          <InlineStack gap="200">
+                            {link.product_handle && (
+                              <Button size="slim" url={`https://${shop}/products/${link.product_handle}`} external>
+                                Mağazada gör
+                              </Button>
+                            )}
                             <Button
                               variant="plain"
                               tone="critical"
                               size="slim"
                               loading={linkFetcher.state !== "idle"}
                               onClick={() => {
+                                if (!confirm("Bu ürünün bağlantısı kaldırılsın mı? Ürün sayfasında kişiselleştirme görünmez olur.")) return;
                                 const fd = new FormData();
                                 fd.set("intent", "unlink_product");
                                 fd.set("product_id", link.product_id);
@@ -2031,41 +2426,59 @@ function PersonalizerEditor() {
                               Bağlantıyı kaldır
                             </Button>
                           </InlineStack>
-                        </BlockStack>
+                        </InlineStack>
                       </Box>
                       );
                     })}
                   </BlockStack>
                 )}
-
-                {productEmbedUrl && (
-                  <Box background="bg-surface-secondary" padding="300" borderRadius="200">
-                    <Text as="p" variant="bodyMd">
-                      <code style={{ fontSize: 12, wordBreak: "break-all" }}>{productEmbedUrl}</code>
-                    </Text>
-                  </Box>
-                )}
               </BlockStack>
             </Card>
+            </div>
           </Layout.Section>
         )}
 
-        {/* ── Embed URL ── */}
+        {/* ── Eski çerçeve seçim akışı ── */}
+        {!isNew && template && layoutMode !== "ai" && (
+          <Layout.Section>
+            <SectionCard
+              title="Hazır çerçeve seçenekleri (eski akış)"
+              description={frames.length > 0
+                ? `Bu şablonda ${frames.length} hazır çerçeve kayıtlı; müşteri önizlemede bunlar arasından seçer.`
+                : "Yeni şablonlarda gerekmez. Fotoğraf alanlarını yukarıdaki bölümlerden kurun."}
+              collapsible
+              defaultOpen={frames.length > 0}
+            >
+              <FramesSection templateId={template.id} frames={frames} />
+            </SectionCard>
+          </Layout.Section>
+        )}
+
+        {/* ── Geliştirici bilgileri ── */}
         {!isNew && template && (
           <Layout.Section>
-            <Card>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">Embed URL</Text>
-                <Text as="p" tone="subdued" variant="bodySm">
-                  Bu URL'yi mağazanızdaki ürün sayfasına iframe olarak ekleyin. VARIANT_ID ve SHOP değerlerini değiştirin.
-                </Text>
-                <Box background="bg-surface-secondary" padding="300" borderRadius="200">
-                  <Text as="p" variant="bodyMd">
-                    <code style={{ fontSize: 12, wordBreak: "break-all" }}>{embedUrl}</code>
-                  </Text>
-                </Box>
-              </BlockStack>
-            </Card>
+            <SectionCard
+              title="Teknik bilgiler"
+              description="Destek veya tema geliştiricisi için. Normal kurulumda gerekmez."
+              collapsible
+              defaultOpen={false}
+            >
+              <Text as="p" variant="bodySm">
+                Şablon kimliği: <code style={{ userSelect: "all" }}>{template.id}</code>
+              </Text>
+              <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodySm" tone="subdued">Embed adresi (VARIANT_ID ve SHOP değerlerini değiştirin):</Text>
+                  <code style={{ fontSize: 12, wordBreak: "break-all" }}>{embedUrl}</code>
+                  {productEmbedUrl && (
+                    <>
+                      <Text as="p" variant="bodySm" tone="subdued">Bağlı ürün üzerinden:</Text>
+                      <code style={{ fontSize: 12, wordBreak: "break-all" }}>{productEmbedUrl}</code>
+                    </>
+                  )}
+                </BlockStack>
+              </Box>
+            </SectionCard>
           </Layout.Section>
         )}
       </Layout>

@@ -141,7 +141,7 @@ export default function PersonalizerIndex() {
       subtitle="Farklı ürün gruplarındaki müşteri tasarım akışlarını tek yerden yönetin."
       primaryAction={{ content: "Yeni şablon", url: "/app/personalizer/new" }}
       secondaryActions={[
-        { content: "Kurulum rehberi", url: "/app/personalizer/setup" },
+        { content: "Nasıl kurulur?", url: "/app/personalizer/setup" },
         {
           content: "Bağlantıları denetle",
           loading: fetcher.state !== "idle",
@@ -160,6 +160,17 @@ export default function PersonalizerIndex() {
             {fetcher.data.hatalar?.length ? <p>{fetcher.data.hatalar.join(" · ")}</p> : null}
           </Banner>
         ) : null}
+
+        <Banner tone="info" title="Kişiselleştirici 4 adımda çalışır">
+          <p>
+            1) Ürün türüne göre şablon oluşturun · 2) Tasarımı kurup kaydedin · 3) Şablonu Shopify
+            ürününe bağlayın · 4) Ürün sayfasına bloğu bir kez ekleyin. Durumu "Ürüne bağlı değil"
+            olan şablonlar müşteriye görünmez.
+          </p>
+          <div style={{ marginTop: 8 }}>
+            <Button url="/app/personalizer/setup">Adım adım rehber</Button>
+          </div>
+        </Banner>
 
         {templates.length === 0 ? (
           <Card>
@@ -256,7 +267,16 @@ export default function PersonalizerIndex() {
                               </InlineStack>
                             </td>
                             <td className="pl-col-method">{methodLabel(template)}</td>
-                            <td><Badge tone={template.active ? "success" : undefined}>{template.active ? "Aktif" : "Pasif"}</Badge></td>
+                            <td>
+                              {/* "Aktif" rozeti, ürüne bağlı olmayan şablonu da hazır
+                                  gibi gösteriyordu; müşteriye görünmemesinin en sık
+                                  sebebi bu. */}
+                              {!template.active
+                                ? <Badge>Pasif</Badge>
+                                : template.product_count === 0
+                                  ? <Badge tone="attention">Ürüne bağlı değil</Badge>
+                                  : <Badge tone="success">Yayında</Badge>}
+                            </td>
                             <td className="pl-col-products">{template.product_count}</td>
                             <td className="pl-col-date">{formatDate(template.updated_at)}</td>
                             <td className="pl-resource-actions">
