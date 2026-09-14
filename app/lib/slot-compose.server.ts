@@ -8,6 +8,7 @@ import { loadFont, layoutText } from "~/lib/text-render.server";
 import { resolveChosenFont } from "~/lib/font-library";
 import { resolveChosenColor } from "~/lib/text-palette";
 import { shapeSvg } from "~/lib/slot-shapes";
+import { setPngDensity } from "~/lib/png-density.server";
 
 /**
  * Çoklu slot kompozisyonu — N fotoğrafı şablonun N alanına yerleştirir.
@@ -73,6 +74,12 @@ export interface ComposeSlotsOptions {
   overlayUrl?: string;
   outputFormat?: "png" | "jpeg";
   quality?: number;
+  /**
+   * Dosyaya yazılacak çözünürlük. Verilmezse sharp'ın varsayılanı yazılıyordu:
+   * 1000 piksel/metre, yani 25,4 DPI. 10×15 cm'lik bir baskı dosyası DPI'a
+   * bakan programlarda (Photoshop, RIP) 1,2 metre görünüyordu.
+   */
+  dpi?: number;
   /**
    * Baskı çıktısında true verilir: bir fotoğraf indirilemezse hata fırlatılır.
    *
@@ -416,9 +423,16 @@ export async function composeSlotDesign(opts: ComposeSlotsOptions): Promise<Buff
   }
 
   const out = sharp(base).composite(composites);
-  return opts.outputFormat === "jpeg"
-    ? out.jpeg({ quality: opts.quality ?? 92 }).toBuffer()
-    : out.png().toBuffer();
+  if (opts.outputFormat === "jpeg") {
+    const jpeg = out.jpeg({ quality: opts.quality ?? 92 });
+    return (opts.dpi ? jpeg.withMetadata({ density: opts.dpi }) : jpeg).toBuffer();
+  }
+  const png = await out.png().toBuffer();
+  if (!opts.dpi) return png;
+  // Görüntü yeniden sıkıştırılmadan yalnızca pHYs bloğu yazılıyor; baskı
+  // kuyruğundaki tişört dosyalarıyla aynı yöntem.
+  return setPngDensity(png, opts.dpi)
+    ?? sharp(png).withMetadata({ density: opts.dpi }).png().toBuffer();
 }
 
 /** Mockup üzerindeki şeffaf açıklık; oran cinsinden */

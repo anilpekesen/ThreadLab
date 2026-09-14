@@ -122,7 +122,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   };
   const fonts = sozluk(body.fonts);
   const colors = sozluk(body.colors);
-  const rendered: Array<{ id: string; name: string; url: string; width: number; height: number }> = [];
+  const rendered: Array<{
+    id: string; name: string; url: string; width: number; height: number;
+    /** Baskı ölçüsü; kesim çizgili PDF bunu kullanıyor, şablon sonradan değişse bile */
+    print: { width_mm: number; height_mm: number; bleed_mm: number; safe_mm: number; dpi: number };
+  }> = [];
   const parcaGorselleri: Buffer[] = [];
 
   try {
@@ -160,6 +164,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         overlayUrl: piece.overlay_url,
         outputFormat: isRender ? "png" : "jpeg",
         quality: 88,
+        dpi: isRender ? product.dpi : previewDpi(product.width_mm, product.height_mm, product.dpi),
         // Baskıda eksik fotoğraf hata; önizlemede tolere edilir
         strict: isRender,
       });
@@ -177,6 +182,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         url,
         width: canvas.canvasWidth,
         height: canvas.canvasHeight,
+        print: {
+          width_mm: product.width_mm,
+          height_mm: product.height_mm,
+          bleed_mm: product.bleed_mm,
+          safe_mm: product.safe_mm,
+          dpi: product.dpi,
+        },
       });
     }
 
@@ -229,7 +241,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             templateId: template.id,
             templateVersion: template.version,
             templateName: template.name,
-            pieces: rendered.map((r) => ({ id: r.id, name: r.name, url: r.url })),
+            pieces: rendered.map((r) => ({ id: r.id, name: r.name, url: r.url, print: r.print })),
             fills,
             texts,
             fonts,
@@ -246,7 +258,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         previewUrl,
         width: rendered[0]?.width ?? 0,
         height: rendered[0]?.height ?? 0,
-        pieces: rendered,
+        pieces: rendered.map(({ print: _print, ...r }) => r),
         missing,
         designToken,
         templateVersion: template.version,

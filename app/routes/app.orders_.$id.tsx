@@ -409,6 +409,11 @@ export default function OrderDetail() {
     return [];
   })();
   const backPrintUrl = validUrl(design?.backPrintUrl) || validUrl(order.designBackPrintUrl) || "";
+  // Kesim çizgili PDF yalnızca çerçeve/kolaj tasarımlarında: onların baskı
+  // ölçüsü ve taşma payı biliniyor. Tişört tasarımında kesim yok.
+  const kesimPdfVar = (design?.designJson as { type?: string } | undefined)?.type === "personalizer-slots";
+  const pdfUrl = (piece: number) =>
+    `/api/print-pdf?shop=${encodeURIComponent(shop)}&id=${encodeURIComponent(order.id)}&piece=${piece}`;
   const hasDesignFiles = Boolean(frontPreviewUrl || backPreviewUrl || frontPrintUrl || backPrintUrl);
 
   // İndirilen dosya adına bedeni ekle — 3 bedenin önizlemesi karışmasın
@@ -674,15 +679,31 @@ export default function OrderDetail() {
                         indirme düğmesi kalıyor. */}
                     {setDosyalari.length > 1
                       ? setDosyalari.map((u, i) => (
-                          <a key={u} href={dlUrl(u, `baski-${i + 1}.png`)} download>
-                            <Button variant="secondary" size="slim">{`${i + 1}. baskı dosyası`}</Button>
-                          </a>
+                          <InlineStack key={u} gap="100" blockAlign="center" wrap={false}>
+                            <a href={dlUrl(u, `baski-${i + 1}.png`)} download>
+                              <Button variant="secondary" size="slim">{`${i + 1}. baskı dosyası`}</Button>
+                            </a>
+                            {kesimPdfVar && (
+                              <a href={pdfUrl(i)} download>
+                                <Button variant="plain" size="slim">PDF</Button>
+                              </a>
+                            )}
+                          </InlineStack>
                         ))
                       : frontPrintUrl && (
                           <a href={dlUrl(frontPrintUrl, "on-baski.png")} download>
                             <Button variant="secondary" size="slim">{t("orderDetail.downloadPrintFile")}</Button>
                           </a>
                         )}
+                    {/* Kesim çizgili PDF: matbaa yazılımı kesim kutusunu okuyor,
+                        basılı kâğıtta da köşe işaretleri görünüyor */}
+                    {kesimPdfVar && setDosyalari.length <= 1 && frontPrintUrl && (
+                      <a href={pdfUrl(0)} download>
+                        <Button variant="secondary" size="slim">
+                          {lang === "tr" ? "Kesim çizgili PDF" : "PDF with crop marks"}
+                        </Button>
+                      </a>
+                    )}
                   </InlineStack>
                   {frontObjects.length > 0 && (
                     <BlockStack gap="300">
