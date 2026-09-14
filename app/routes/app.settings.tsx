@@ -18,6 +18,7 @@ import {
 import { useState } from "react";
 import * as Sentry from "@sentry/remix";
 import { authenticate } from "~/lib/authenticate.server";
+import { signedShopQuery } from "~/lib/signed-shop-link.server";
 import { getGlobalSettings, saveGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server";
 import {
@@ -216,6 +217,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     settings,
     saved,
     created,
+    // Drive bağlantısı yeni sekmede açılıyor; imza olmadan başlatılamaz
+    googleAuthQuery: signedShopQuery(session.shop, "/auth/google", 60 * 60),
     cartTransformStatus,
     newAppsSectionUrl,
     mainSectionUrl,
@@ -465,7 +468,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, appEmbedUrl, surchargeVariantOptions, shop, drive, gdriveConnected, gdriveError } = useLoaderData<typeof loader>();
+  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, appEmbedUrl, surchargeVariantOptions, drive, gdriveConnected, gdriveError, googleAuthQuery } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const { t, lang } = useTranslation();
   const isSaving = navigation.state === "submitting";
@@ -691,7 +694,7 @@ export default function SettingsRoute() {
                     <strong>{drive.connectedEmail || "—"}</strong>
                   </Text>
                   <InlineStack gap="200">
-                    <Button url={`/auth/google?shop=${encodeURIComponent(shop)}`} target="_blank">
+                    <Button url={`/auth/google?${googleAuthQuery}`} target="_blank">
                       {t("settings.gdriveSwitchAccount")}
                     </Button>
                     <Form method="post">
@@ -704,7 +707,7 @@ export default function SettingsRoute() {
                 </BlockStack>
               ) : (
                 <InlineStack>
-                  <Button url={`/auth/google?shop=${encodeURIComponent(shop)}`} target="_blank" variant="primary">
+                  <Button url={`/auth/google?${googleAuthQuery}`} target="_blank" variant="primary">
                     {t("settings.gdriveConnect")}
                   </Button>
                 </InlineStack>

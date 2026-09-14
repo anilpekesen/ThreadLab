@@ -9,6 +9,7 @@ import {
   Divider,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
+import { signedShopQuery } from "~/lib/signed-shop-link.server";
 import { getOrders, getTodayOrders, bulkUpdateStatus, fulfillShopifyOrders } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 import { getShopSubscription } from "~/models/billing.server";
@@ -45,7 +46,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const plan = PLANS[planKey];
   const hasActiveSubscription = sub?.subscription_status === "active" || sub?.subscription_status === "trial";
   if (!hasActiveSubscription || !plan.allowProduction) {
-    return json({ orders: [], withFile: 0, statusFilter: "", todayOnly: false, shop, locked: true });
+    return json({ orders: [], withFile: 0, statusFilter: "", todayOnly: false, shop, zipQuery: "", locked: true });
   }
 
   const url = new URL(request.url);
@@ -74,6 +75,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     statusFilter,
     todayOnly,
     shop: session.shop,
+    zipQuery: signedShopQuery(session.shop, "/api/production-zip", 8 * 60 * 60),
     locked: false,
   });
 };
@@ -125,7 +127,7 @@ const STATUSES = [
 ];
 
 export default function Production() {
-  const { orders, withFile, statusFilter, todayOnly, shop, locked } = useLoaderData<typeof loader>();
+  const { orders, withFile, statusFilter, todayOnly, zipQuery, locked } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
 
   if (locked) {
@@ -152,7 +154,7 @@ export default function Production() {
     if (!ids.length) return;
     setDownloadState("downloading");
     try {
-      const res = await fetch(`/api/production-zip?shop=${encodeURIComponent(shop)}&ids=${ids.join(",")}`);
+      const res = await fetch(`/api/production-zip?${zipQuery}&ids=${ids.join(",")}`);
       if (!res.ok) return;
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);

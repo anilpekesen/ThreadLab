@@ -11,6 +11,7 @@ import {
   Grid, TextField,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
+import { signedShopQuery } from "~/lib/signed-shop-link.server";
 import {
   getOrders,
   getOrdersPage,
@@ -110,6 +111,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     search,
     stats,
     shop: session.shop,
+    // İndirme düz gezinmeyle yapılıyor ve gömülü oturum taşımıyor; imzalı
+    // bağlantı yalnızca bu uç için ve sınırlı süre geçerli
+    zipQuery: signedShopQuery(session.shop, "/api/production-zip", 8 * 60 * 60),
     driveConnected: Boolean(driveConn),
     pagination: {
       page: currentPage,
@@ -326,7 +330,7 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
 }
 
 export default function Orders() {
-  const { orders, status, search: loadedSearch, stats, shop, driveConnected, pagination } = useLoaderData<typeof loader>();
+  const { orders, status, search: loadedSearch, stats, shop, driveConnected, pagination, zipQuery } = useLoaderData<typeof loader>();
   const [searchValue, setSearchValue] = useState(loadedSearch ?? "");
 
   const handleSearchChange = useCallback((value: string) => {
@@ -662,7 +666,7 @@ export default function Orders() {
                     const ids = secili.flatMap((g) => g.ids);
                     if (ids.length === 0) return;
                     window.location.href =
-                      `/api/production-zip?shop=${encodeURIComponent(shop)}&ids=${ids.join(",")}`;
+                      `/api/production-zip?${zipQuery}&ids=${ids.join(",")}`;
                   },
                 },
                 ...(driveConnected ? [

@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { authenticate } from "~/lib/authenticate.server";
 import { buildAuthUrl } from "~/lib/google-drive.server";
 import { createShopSession, getShopFromSession, getValidAccessToken } from "~/lib/session.server";
+import { verifySignedShopRequest } from "~/lib/signed-shop-link.server";
 
 const STATE_COOKIE = "__printlab_gdrive_state";
 
@@ -12,18 +13,18 @@ function makeStateCookie(payload: string, maxAge: number): string {
   return `${STATE_COOKIE}=${encodeURIComponent(payload)}; Max-Age=${maxAge}; Path=/; HttpOnly; SameSite=Lax${secure}`;
 }
 
-function isValidShop(shop: string): boolean {
-  return /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/.test(shop);
-}
-
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
-  const shopParam = url.searchParams.get("shop") ?? "";
 
   let shop = await getShopFromSession(request);
   let sessionCookie: string | null = null;
 
-  if (!shop && isValidShop(shopParam)) {
+  // Bağlantı yeni sekmede açılıyor ve gömülü oturum taşımıyor. Eskiden
+  // `?shop=` tek başına yetiyordu: biri kendi Google Drive'ını başka bir
+  // mağazaya bağlayıp o mağazanın sipariş dosyalarını kendine aktarabilirdi.
+  // Artık ayarlar sayfasının imzaladığı bağlantı gerekiyor.
+  const shopParam = verifySignedShopRequest(url) ?? "";
+  if (!shop && shopParam) {
     const accessToken = await getValidAccessToken(shopParam);
     if (accessToken) {
       shop = shopParam;

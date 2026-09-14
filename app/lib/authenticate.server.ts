@@ -2,10 +2,7 @@ import { redirect } from "@remix-run/node";
 import { authenticateAdmin as authenticateEmbeddedAdmin } from "~/shopify.server";
 import { createShopSession, getShopFromSession, getValidAccessToken } from "./session.server";
 import { shopifyGraphQL } from "./shopify.server";
-
-function isValidShop(shop: string): boolean {
-  return /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/.test(shop);
-}
+import { stripSignedShopParams, verifySignedShopRequest } from "./signed-shop-link.server";
 
 function hasEmbeddedSignals(request: Request): boolean {
   const url = new URL(request.url);
@@ -18,22 +15,30 @@ function hasEmbeddedSignals(request: Request): boolean {
   );
 }
 
-async function maybeBootstrapLegacySession(request: Request): Promise<never | null> {
+/**
+ * Gömülü belirteç taşımayan bir istekte oturumu sunucunun imzaladığı
+ * bağlantıdan kurar (bkz. signed-shop-link.server).
+ *
+ * Eskiden `?shop=` tek başına yetiyordu: mağaza alan adını bilen herkes o
+ * mağaza adına oturum çerezi alabiliyordu. Artık imza, yol ve süre
+ * doğrulanmadan hiçbir şey yapılmaz.
+ *
+ * Sayfa dönüşlerinde (ödeme onayı) çerez verilip temiz adrese yönlendirilir;
+ * sonraki gezinti o çerezle sürer. `/api/` altındaki indirmelerde çerez
+ * verilmez, imza yalnızca o isteği doğrular: sızan bir indirme bağlantısı
+ * yönetim paneline giriş sağlamamalı.
+ */
+async function maybeBootstrapSignedSession(request: Request): Promise<string | null> {
   const url = new URL(request.url);
-  const shop = url.searchParams.get("shop") ?? "";
-  if (!isValidShop(shop)) return null;
+  const shop = verifySignedShopRequest(url);
+  if (!shop) return null;
 
   const accessToken = await getValidAccessToken(shop);
   if (!accessToken) return null;
 
-  const cleanUrl = new URL(request.url);
-  ["shop", "host", "embedded", "hmac", "id_token", "session", "timestamp"].forEach((key) => {
-    cleanUrl.searchParams.delete(key);
-  });
+  if (url.pathname.startsWith("/api/")) return shop;
 
-  const sameTarget = cleanUrl.pathname + cleanUrl.search === url.pathname + url.search;
-  if (sameTarget) return null;
-
+  const cleanUrl = stripSignedShopParams(url);
   throw redirect(`${cleanUrl.pathname}${cleanUrl.search}`, {
     headers: {
       "Set-Cookie": await createShopSession(shop),
@@ -41,10 +46,8 @@ async function maybeBootstrapLegacySession(request: Request): Promise<never | nu
   });
 }
 
-async function authenticateWithLegacySession(request: Request) {
-  await maybeBootstrapLegacySession(request);
-
-  const shop = await getShopFromSession(request);
+async function authenticateWithLegacySession(request: Request, signedShop: string | null = null) {
+  const shop = signedShop ?? await getShopFromSession(request);
   if (!shop) {
     const url = new URL(request.url);
     const shopParam = url.searchParams.get("shop");
@@ -75,7 +78,8 @@ export async function authenticate(request: Request) {
   const hasOnlyShopReturnSignal = Boolean(url.searchParams.get("shop")) && !hasEmbeddedSignals(request);
 
   if (!legacyShop && hasOnlyShopReturnSignal) {
-    await maybeBootstrapLegacySession(request);
+    const signedShop = await maybeBootstrapSignedSession(request);
+    if (signedShop) return authenticateWithLegacySession(request, signedShop);
   }
 
   const shouldUseEmbeddedAuth = hasEmbeddedSignals(request) || !legacyShop;

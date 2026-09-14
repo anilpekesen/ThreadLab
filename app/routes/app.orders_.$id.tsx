@@ -54,6 +54,7 @@ import {
   Box, Divider, Grid, Thumbnail, Banner,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
+import { signedShopQuery } from "~/lib/signed-shop-link.server";
 import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders, setShopifyOrderDriveUpload } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
@@ -282,6 +283,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     frontObjects,
     backObjects,
     shop: session.shop,
+    zipQuery: signedShopQuery(session.shop, "/api/production-zip", 8 * 60 * 60),
+    pdfQuery: signedShopQuery(session.shop, "/api/print-pdf", 8 * 60 * 60),
     driveConnected: Boolean(driveConn),
   });
 };
@@ -362,7 +365,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function OrderDetail() {
-  const { order, siblings = [], otherProducts = [], design, frontObjects = [], backObjects = [], shop, driveConnected } = useLoaderData<typeof loader>();
+  const { order, siblings = [], otherProducts = [], design, frontObjects = [], backObjects = [], shop, driveConnected, zipQuery, pdfQuery } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const driveFetcher = useFetcher<{ ok?: boolean; error?: string; folderUrl?: string; uploaded?: number }>();
@@ -413,7 +416,7 @@ export default function OrderDetail() {
   // ölçüsü ve taşma payı biliniyor. Tişört tasarımında kesim yok.
   const kesimPdfVar = (design?.designJson as { type?: string } | undefined)?.type === "personalizer-slots";
   const pdfUrl = (piece: number) =>
-    `/api/print-pdf?shop=${encodeURIComponent(shop)}&id=${encodeURIComponent(order.id)}&piece=${piece}`;
+    `/api/print-pdf?${pdfQuery}&id=${encodeURIComponent(order.id)}&piece=${piece}`;
   const hasDesignFiles = Boolean(frontPreviewUrl || backPreviewUrl || frontPrintUrl || backPrintUrl);
 
   // İndirilen dosya adına bedeni ekle — 3 bedenin önizlemesi karışmasın
@@ -668,7 +671,7 @@ export default function OrderDetail() {
                     )}
                     {/* Üç dosyayı tek tek indirmek yerine tek arşiv */}
                     {setDosyalari.length > 1 && (
-                      <a href={`/api/production-zip?shop=${encodeURIComponent(shop)}&ids=${order.id}`} download>
+                      <a href={`/api/production-zip?${zipQuery}&ids=${order.id}`} download>
                         <Button variant="primary" size="slim">
                           {`Hepsini indir (${setDosyalari.length} dosya)`}
                         </Button>

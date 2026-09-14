@@ -1,6 +1,30 @@
 import { createCookieSessionStorage } from "@remix-run/node";
+import { createHmac } from "node:crypto";
 import { query } from "~/lib/db.server";
 import { refreshAccessToken, migrateToExpiringToken } from "~/lib/shopify.server";
+
+/**
+ * Oturum çerezinin imza anahtarı.
+ *
+ * Eskiden SESSION_SECRET tanımlı değilse kodun içindeki sabit metin
+ * kullanılıyordu ve canlıda SESSION_SECRET tanımlı değildi: anahtar depoda
+ * açıkça durduğu için herkes istediği mağaza adına geçerli bir çerez
+ * üretebilirdi. Artık tanımlı değilse gizli olan uygulama sırrından
+ * türetiliyor; o da yoksa geliştirme dışında uygulama başlamıyor.
+ *
+ * Anahtar değiştiği için eski çerezler geçersiz; gömülü uygulama belirteçle
+ * kendiliğinden yeniden oturum açıyor.
+ */
+function sessionSecret(): string {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  if (process.env.SHOPIFY_API_SECRET) {
+    return createHmac("sha256", process.env.SHOPIFY_API_SECRET).update("printlab:session-cookie:v1").digest("hex");
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET ya da SHOPIFY_API_SECRET tanımlı olmalı");
+  }
+  return "printlab-local-dev-only";
+}
 
 const sessionStorage = createCookieSessionStorage({
   cookie: {
@@ -8,7 +32,7 @@ const sessionStorage = createCookieSessionStorage({
     httpOnly: true,
     path: "/",
     sameSite: "none",
-    secrets: [process.env.SESSION_SECRET ?? "printlab-secret-key-2026"],
+    secrets: [sessionSecret()],
     secure: process.env.NODE_ENV === "production" || process.env.SHOPIFY_APP_URL?.startsWith("https://"),
     maxAge: 60 * 60 * 24 * 30,
   },

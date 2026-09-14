@@ -13,6 +13,7 @@ import { authenticate } from "~/lib/authenticate.server";
 import { shopifyGraphQL } from "~/lib/shopify.server";
 import { getValidAccessToken } from "~/lib/session.server";
 import { makeBillingReturnShopCookie } from "~/lib/billing-return-cookie.server";
+import { appendSignedShopParams } from "~/lib/signed-shop-link.server";
 import { query } from "~/lib/db.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
 import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/models/billing.server";
@@ -302,8 +303,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     try {
       const appUrl = (process.env.SHOPIFY_APP_URL ?? new URL(request.url).origin).replace(/\/$/, "");
-      const returnUrl = new URL("/app/billing", appUrl);
-      returnUrl.searchParams.set("shop", shop);
+      // Ödeme onayından dönüş Shopify çerçevesinin dışında oluyor; oturum
+      // imzalı dönüş adresinden kuruluyor. Onay ekranında beklenebileceği
+      // için süre bir gün.
+      const returnUrl = appendSignedShopParams(new URL("/app/billing", appUrl), shop, 24 * 60 * 60);
       const confirmationUrl = await createShopifySubscription(
         shop,
         accessToken,
