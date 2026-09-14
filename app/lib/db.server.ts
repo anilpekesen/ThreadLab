@@ -596,6 +596,19 @@ async function _runMigrationsLocked() {
   `);
   await query(`ALTER TABLE designs ADD COLUMN IF NOT EXISTS preview_issue BOOLEAN NOT NULL DEFAULT FALSE`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS color_mismatch BOOLEAN NOT NULL DEFAULT FALSE`);
+
+  // Arka planda yüklenen baskı dosyaları için ayrılan adresler; sipariş sorgusu
+  // eksik dosyayı bu tablodan hesaplıyor (bkz. print-reservations.server.ts)
+  await query(`
+    CREATE TABLE IF NOT EXISTS print_upload_reservations (
+      key           TEXT PRIMARY KEY,
+      side          TEXT NOT NULL,
+      design_token  TEXT,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      uploaded_at   TIMESTAMPTZ
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS print_upload_reservations_token ON print_upload_reservations (design_token)`);
   // Müşterinin yüklediği ham görsellerin URL'leri. Arka plan kaldırma
   // tasarım JSON'ındaki src'yi işlenmiş dosyayla değiştirdiği için orijinal
   // adres kayboluyordu; yeniden işleme ve müşteri talepleri için saklanıyor.

@@ -42,6 +42,8 @@ export interface Order {
   designBackPrintUrl?: string;
   previewIssue?: boolean;
   colorMismatch?: boolean;
+  /** Baskı dosyası için adres ayrıldı ama dosya hiç yüklenmedi */
+  printFileMissing?: boolean;
 }
 
 type DbRow = {
@@ -74,6 +76,7 @@ type DbRow = {
   design_back_print_url?: string | null;
   preview_issue?: boolean | null;
   color_mismatch?: boolean | null;
+  print_file_missing?: boolean | null;
 };
 
 function rowToOrder(row: DbRow): Order {
@@ -106,6 +109,7 @@ function rowToOrder(row: DbRow): Order {
     designBackPrintUrl: row.design_back_print_url || undefined,
     previewIssue: row.preview_issue ?? false,
     colorMismatch: row.color_mismatch ?? false,
+    printFileMissing: row.print_file_missing ?? false,
   };
 }
 
@@ -119,7 +123,15 @@ const ORDER_SELECT = `
     d.back_preview_url  AS design_back_preview_url,
     d.front_print_url   AS design_front_print_url,
     d.back_print_url    AS design_back_print_url,
-    d.preview_issue     AS preview_issue
+    d.preview_issue     AS preview_issue,
+    -- Baskı dosyası sepete eklendikten sonra arka planda yükleniyor; müşteri
+    -- yükleme bitmeden ayrıldıysa ayrılan adres boş kalır (print-reservations.server.ts)
+    EXISTS (
+      SELECT 1 FROM print_upload_reservations r
+       WHERE r.design_token = o.design_token
+         AND r.uploaded_at IS NULL
+         AND r.created_at < now() - interval '3 minutes'
+    ) AS print_file_missing
   FROM orders o
   -- Token global benzersiz; shop eşitliği aranmaz — üreticiye devredilen
   -- siparişlerde (PrintLabHub) tasarım başka mağazaya kayıtlıdır

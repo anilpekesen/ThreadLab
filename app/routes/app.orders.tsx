@@ -238,6 +238,7 @@ interface OrderGroup {
   hasMissingSurcharge: boolean;
   hasPreviewIssue: boolean;
   hasColorMismatch: boolean;
+  hasMissingPrintFile: boolean;
   driveFolderId: string | null;
   ids: string[];
   representativeId: string;
@@ -264,6 +265,7 @@ function groupOrders(orders: Order[]): OrderGroup[] {
         hasMissingSurcharge: false,
         hasPreviewIssue: false,
         hasColorMismatch: false,
+        hasMissingPrintFile: false,
         driveFolderId: null,
         ids: [],
         representativeId: o.id,
@@ -276,6 +278,7 @@ function groupOrders(orders: Order[]): OrderGroup[] {
     if (o.missingSurcharge) g.hasMissingSurcharge = true;
     if (o.previewIssue) g.hasPreviewIssue = true;
     if (o.colorMismatch) g.hasColorMismatch = true;
+    if (o.printFileMissing) g.hasMissingPrintFile = true;
     if (o.driveFolderId && !g.driveFolderId) g.driveFolderId = o.driveFolderId;
     if ((STATUS_PRIORITY[o.productionStatus] ?? 99) < (STATUS_PRIORITY[g.status] ?? 99)) {
       g.status = o.productionStatus;
@@ -437,6 +440,9 @@ export default function Orders() {
             )}
             {g.hasColorMismatch && (
               <Badge tone="critical">{lang === "tr" ? "Renk uyuşmazlığı" : "Color mismatch"}</Badge>
+            )}
+            {g.hasMissingPrintFile && (
+              <Badge tone="critical">{lang === "tr" ? "Baskı dosyası eksik" : "Print file missing"}</Badge>
             )}
             {g.driveFolderId && (
               <a

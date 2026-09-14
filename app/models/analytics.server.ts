@@ -14,7 +14,9 @@ export type AnalyticsEventType =
   | "design_activity"
   | "template_applied"
   | "cart_add"
-  | "background_removed";
+  | "background_removed"
+  /** Sepete eklendikten sonra arka planda yüklenen baskı dosyası (süre, boyut, başarı) */
+  | "print_upload";
 
 export async function trackAnalyticsEvent(input: {
   shop: string;

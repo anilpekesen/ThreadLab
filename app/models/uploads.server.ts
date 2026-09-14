@@ -7,6 +7,7 @@ import sharp from "sharp";
 import { getUploadsDir } from "~/lib/storage.server";
 import { newR2Key, putR2Object, uploadToR2 } from "~/lib/r2.server";
 import { schedulePrintJob } from "~/lib/print-jobs.server";
+import { canWriteReservation, markReservationUploaded } from "~/lib/print-reservations.server";
 
 const MAX_UPLOAD_BYTES = 120 * 1024 * 1024; // 120MB — 300 DPI print dosyaları için
 const MIME_TYPES: Record<string, string> = {
@@ -73,9 +74,21 @@ export async function handleDesignerUpload(request: Request) {
     const storeStart = performance.now();
     let url: string;
     if (useR2) {
-      const key = newR2Key(`uploads/${side}`, ext);
+      // Sepete ekleme dosyayı beklemeden yapıldıysa adres önceden ayrılmıştır
+      // (bkz. print-reservations.server.ts); yalnızca geçerli rezervasyona yaz.
+      const reservation = form.get("reservation");
+      let key: string;
+      if (typeof reservation === "string" && reservation) {
+        if (!(await canWriteReservation(reservation, side))) {
+          return json({ error: "Invalid or expired reservation" }, { status: 409 });
+        }
+        key = reservation;
+      } else {
+        key = newR2Key(`uploads/${side}`, ext);
+      }
       // Ham sürüm önbelleğe girmesin — birazdan işlenmiş sürüm üzerine yazılacak
       url = await putR2Object(key, buffer, ext, "no-cache");
+      if (key === reservation) await markReservationUploaded(key);
       await schedulePrintJob({ storage: "r2", location: key, side });
     } else {
       const filename = `${side}-${randomBytes(12).toString("hex")}.${ext}`;

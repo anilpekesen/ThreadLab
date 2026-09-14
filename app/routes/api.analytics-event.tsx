@@ -13,6 +13,7 @@ const EVENT_TYPES = new Set<AnalyticsEventType>([
   "template_applied",
   "cart_add",
   "background_removed",
+  "print_upload",
 ]);
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {

@@ -2,6 +2,7 @@ import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-r
 import { randomBytes } from "node:crypto";
 import { saveDesign } from "~/models/designs.server";
 import { trackAnalyticsEvent } from "~/models/analytics.server";
+import { attachReservationsToDesign } from "~/lib/print-reservations.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ ok: true, method: request.method });
@@ -38,14 +39,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       : undefined,
   });
 
-  await trackAnalyticsEvent({
+  // Baskı dosyası sepete eklendikten sonra arka planda yükleniyorsa ayrılan
+  // adresleri tasarıma bağla — yükleme tamamlanmazsa sipariş ekranı uyarır.
+  if (Array.isArray(b.printReservations)) {
+    await attachReservationsToDesign(b.printReservations as string[], token);
+  }
+
+  // Analitik müşteriyi ilgilendirmiyor; sepete eklemeyi bekletmesin.
+  void trackAnalyticsEvent({
     shop,
     eventType: "design_created",
     productId: typeof b.productId === "string" ? b.productId : undefined,
     productName: typeof b.productName === "string" ? b.productName : undefined,
     designToken: token,
     sessionId: typeof b.sessionId === "string" && b.sessionId ? b.sessionId : undefined,
-  });
+  }).catch((err) => console.error("[designs] analytics failed:", err));
 
   return json({ token });
 };

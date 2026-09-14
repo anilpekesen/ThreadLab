@@ -59,8 +59,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
   setTimeout(sendShopInit, 1500);
 
+  var pendingCheckoutUrl = null;
+  var printUploadsFinished = false;
+
   // DESIGNER_ADD_TO_CART → Draft Order → checkout yönlendirme
   function handleAddToCart(data) {
+    printUploadsFinished = false;
     var items = data.items || [];
     var firstItem = items[0] || {};
     var variantId = firstItem.variantId || firstItem.id || '';
@@ -94,6 +98,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     .then(function(res) {
       if (res.checkoutUrl) {
         frame.contentWindow.postMessage({ type: 'DESIGNER_CART_ADDED' }, appOrigin);
+        // Baskı dosyası arka planda yükleniyorsa sayfa değişince yükleme kesilir;
+        // tasarımcı bitti mesajını gönderene kadar (en fazla 5 dk) bekle.
+        if (data.printUploadsPending && !printUploadsFinished) {
+          pendingCheckoutUrl = res.checkoutUrl;
+          setTimeout(function() { if (pendingCheckoutUrl) window.location.href = pendingCheckoutUrl; }, 5 * 60 * 1000);
+          return;
+        }
         setTimeout(function() { window.location.href = res.checkoutUrl; }, 400);
       } else {
         frame.contentWindow.postMessage({ type: 'DESIGNER_CART_ERROR' }, appOrigin);
@@ -110,6 +121,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (type === 'DESIGNER_ADD_TO_CART') {
       handleAddToCart(e.data);
+      return;
+    }
+
+    if (type === 'DESIGNER_PRINT_UPLOADS_DONE' || type === 'DESIGNER_PRINT_UPLOADS_FAILED') {
+      printUploadsFinished = true;
+      if (window.parent !== window) window.parent.postMessage(e.data, '*');
+      if (pendingCheckoutUrl) {
+        var url = pendingCheckoutUrl;
+        pendingCheckoutUrl = null;
+        window.location.href = url;
+      }
       return;
     }
 

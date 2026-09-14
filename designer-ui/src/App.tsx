@@ -1,4 +1,5 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { printUploadQueue, reservePrintUploads, type PrintUploadSide } from '@/utils/backgroundPrintUpload';
 import { createPortal } from 'react-dom';
 
 function getBgSessionId(): string {
@@ -1353,7 +1354,7 @@ export default function App() {
     cartResponseTimerRef.current = null;
   }, []);
 
-  const navigateParentCart = useCallback((target: 'cart' | 'checkout') => {
+  const sendParentNavigation = useCallback((target: 'cart' | 'checkout') => {
     setShowCartDecisionModal(false);
     const type = target === 'checkout' ? 'DESIGNER_GO_TO_CHECKOUT' : 'DESIGNER_GO_TO_CART';
     try {
@@ -1362,6 +1363,56 @@ export default function App() {
       // Parent page may be inaccessible outside the Shopify embed.
     }
   }, []);
+
+  // Baskı dosyası sepete eklendikten sonra arka planda yükleniyor (bkz.
+  // utils/backgroundPrintUpload). Sayfa değişirse tarayıcı yüklemeyi keser;
+  // bu yüzden sepete/ödemeye geçiş kuyruk boşalana kadar bekletilir.
+  const printUploads = useSyncExternalStore(printUploadQueue.subscribe, printUploadQueue.getSummary);
+  const [pendingNavTarget, setPendingNavTarget] = useState<'cart' | 'checkout' | null>(null);
+
+  const navigateParentCart = useCallback((target: 'cart' | 'checkout') => {
+    const summary = printUploadQueue.getSummary();
+    if (summary.pending > 0 || summary.failed > 0) {
+      setPendingNavTarget(target);
+      return;
+    }
+    sendParentNavigation(target);
+  }, [sendParentNavigation]);
+
+  useEffect(() => {
+    if (!pendingNavTarget || printUploads.pending > 0 || printUploads.failed > 0) return;
+    const target = pendingNavTarget;
+    setPendingNavTarget(null);
+    sendParentNavigation(target);
+  }, [pendingNavTarget, printUploads.pending, printUploads.failed, sendParentNavigation]);
+
+  // Yükleme sürerken sekme kapanır ya da başka sayfaya geçilirse uyar
+  const hasUnfinishedPrintUploads = printUploads.pending > 0 || printUploads.failed > 0;
+  useEffect(() => {
+    if (!hasUnfinishedPrintUploads) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasUnfinishedPrintUploads]);
+
+  // Bağımsız embed sayfası ödeme yönlendirmesini bu mesaja kadar bekletir
+  const hadPrintUploadsRef = useRef(false);
+  useEffect(() => {
+    if (printUploads.pending > 0) {
+      hadPrintUploadsRef.current = true;
+      return;
+    }
+    if (!hadPrintUploadsRef.current) return;
+    hadPrintUploadsRef.current = false;
+    try {
+      window.parent?.postMessage({ type: printUploads.failed > 0 ? 'DESIGNER_PRINT_UPLOADS_FAILED' : 'DESIGNER_PRINT_UPLOADS_DONE' }, '*');
+    } catch {
+      // Parent page may be inaccessible outside the Shopify embed.
+    }
+  }, [printUploads.pending, printUploads.failed]);
 
   const scrollDesignerToTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const scrollOptions: ScrollToOptions = { top: 0, left: 0, behavior };
@@ -1421,6 +1472,15 @@ export default function App() {
     return `${appUrl}/api/analytics-event`;
   }, [config?.uploadEndpoint]);
 
+  useEffect(() => {
+    printUploadQueue.onItemFinished = (item) => {
+      console.info('[cart-timing] arka plan baskı yüklemesi', item);
+      trackDesignerEventRef.current?.({ eventType: 'print_upload', valueNumeric: item.ms, metadata: item });
+    };
+    return () => { printUploadQueue.onItemFinished = null; };
+  }, []);
+  const trackDesignerEventRef = useRef<((payload: Record<string, unknown>) => void) | null>(null);
+
   const trackDesignerEvent = useCallback((payload: Record<string, unknown>) => {
     const shop = config?.shop;
     if (!shop) return;
@@ -1446,6 +1506,7 @@ export default function App() {
       keepalive: true,
     }).catch(() => {});
   }, [analyticsEndpoint, config?.productHandle, config?.productId, config?.productTitle, config?.shop]);
+  trackDesignerEventRef.current = trackDesignerEvent;
 
   const trackDesignActivity = useCallback((source: string) => {
     if (designActivityTrackedRef.current) return;
@@ -2368,6 +2429,19 @@ export default function App() {
       const frontDesignJson = frontCanvasRef.current?.saveDesign() ?? '';
       const backDesignJson = backCanvasRef.current?.saveDesign() ?? '';
 
+      // Baskı dosyası için adres ayır; dosya arka planda yüklenirken ürün hemen
+      // sepete eklenir. Ayırma başarısız olursa eski bekleyen akışa dönülür.
+      const printSides: PrintUploadSide[] = [
+        ...(frontPrintDataUrl ? ['front-print' as const] : []),
+        ...(backPrintDataUrl ? ['back-print' as const] : []),
+      ];
+      const printReservations = printSides.length ? await reservePrintUploads(printSides) : null;
+      const frontPrintReservation = printReservations?.find((r) => r.side === 'front-print');
+      const backPrintReservation = printReservations?.find((r) => r.side === 'back-print');
+      if (frontPrintReservation) printUploadQueue.start(frontPrintReservation, frontPrintDataUrl);
+      if (backPrintReservation) printUploadQueue.start(backPrintReservation, backPrintDataUrl);
+      cartTimer.mark('reservePrint');
+
       // Upload all to server in parallel to get permanent URLs
       const [
         frontPreviewUrl,
@@ -2379,8 +2453,12 @@ export default function App() {
       ] = await Promise.all([
         frontPreviewDataUrl ? uploadPreviewDataUrl(frontPreviewDataUrl, 'front-preview', uploadTrace) : Promise.resolve(''),
         backPreviewDataUrl ? uploadPreviewDataUrl(backPreviewDataUrl, 'back-preview', uploadTrace) : Promise.resolve(''),
-        frontPrintDataUrl ? dataUrlToServerUrl(frontPrintDataUrl, 'front-print', uploadTrace) : Promise.resolve(''),
-        backPrintDataUrl ? dataUrlToServerUrl(backPrintDataUrl, 'back-print', uploadTrace) : Promise.resolve(''),
+        frontPrintReservation
+          ? Promise.resolve(frontPrintReservation.url)
+          : frontPrintDataUrl ? dataUrlToServerUrl(frontPrintDataUrl, 'front-print', uploadTrace) : Promise.resolve(''),
+        backPrintReservation
+          ? Promise.resolve(backPrintReservation.url)
+          : backPrintDataUrl ? dataUrlToServerUrl(backPrintDataUrl, 'back-print', uploadTrace) : Promise.resolve(''),
         persistDesignJsonImages(frontDesignJson, designSourceCache, uploadTrace),
         persistDesignJsonImages(backDesignJson, designSourceCache, uploadTrace),
       ]);
@@ -2451,12 +2529,13 @@ export default function App() {
           frontPrintUrl,
           backPrintUrl,
           originalImageUrls: templateOriginalUrls,
+          printReservations: printReservations?.map((r) => r.key) ?? [],
         }),
       }).then((r) => r.json());
       cartTimer.mark('saveDesign');
 
       const token = (designRes as { token?: string }).token ?? '';
-      const cartTiming = { totalMs: cartTimer.total(), steps: cartTimer.steps, uploads: uploadTrace };
+      const cartTiming = { totalMs: cartTimer.total(), steps: cartTimer.steps, uploads: uploadTrace, backgroundPrint: Boolean(printReservations?.length) };
       console.info('[cart-timing]', cartTiming);
       const customerDesignUrl = token
         ? `https://app.printlabapp.com/apps/tshirt-designer/my-order?shop=${encodeURIComponent(config?.shop || '')}&token=${encodeURIComponent(token)}&lang=${isTurkish ? 'tr' : 'en'}`
@@ -2561,7 +2640,10 @@ export default function App() {
         showToast(t.cartProcessing, 'info');
       }, 15000);
       cartRequestStartedAtRef.current = performance.now();
-      window.parent.postMessage({ type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token, locale: config?.locale }, '*');
+      window.parent.postMessage({
+        type: 'DESIGNER_ADD_TO_CART', items: cartItems, properties, designToken: token, locale: config?.locale,
+        printUploadsPending: printUploadQueue.getSummary().pending > 0,
+      }, '*');
     } catch (err) {
       console.error(t.errorCart, err);
       clearCartResponseTimer();
@@ -3422,37 +3504,88 @@ export default function App() {
               </div>
               <button
                 type="button"
-                onClick={() => setShowCartDecisionModal(false)}
+                onClick={() => { setPendingNavTarget(null); setShowCartDecisionModal(false); }}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800"
                 aria-label={t.btnClose}
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
+            {pendingNavTarget && (
+              <div className={cn(
+                'mb-3 rounded-xl px-3 py-2.5 text-sm',
+                printUploads.failed > 0 ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-800',
+              )}>
+                {printUploads.failed > 0 ? (
+                  <>
+                    <p className="font-semibold">{isTurkish ? 'Baskı dosyanız yüklenemedi.' : 'Your print file could not be uploaded.'}</p>
+                    <p className="mt-0.5 text-xs leading-5">{isTurkish
+                      ? 'Bağlantınızı kontrol edip tekrar deneyin. Devam ederseniz siparişiniz baskı dosyası olmadan gelebilir.'
+                      : 'Check your connection and try again. If you continue, your order may arrive without a print file.'}</p>
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" onClick={() => printUploadQueue.retryFailed()} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700">
+                        {isTurkish ? 'Tekrar dene' : 'Try again'}
+                      </button>
+                      <button type="button" onClick={() => { const target = pendingNavTarget; setPendingNavTarget(null); sendParentNavigation(target); }} className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">
+                        {isTurkish ? 'Yine de devam et' : 'Continue anyway'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold">{isTurkish ? 'Tasarımınız kaydediliyor…' : 'Saving your design…'} %{Math.round(printUploads.progress * 100)}</p>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-blue-100">
+                      <div className="h-full rounded-full bg-blue-600 transition-[width] duration-300" style={{ width: `${Math.round(printUploads.progress * 100)}%` }} />
+                    </div>
+                    <p className="mt-1.5 text-xs leading-5">{isTurkish ? 'Bitince otomatik yönlendirileceksiniz, sayfayı kapatmayın.' : 'You will be redirected automatically — please keep this page open.'}</p>
+                  </>
+                )}
+              </div>
+            )}
             <div className="grid gap-2">
               <button
                 type="button"
                 onClick={() => navigateParentCart('checkout')}
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+                disabled={pendingNavTarget !== null && printUploads.failed === 0}
+                className="disabled:opacity-60 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700"
               >
                 {t.btnCheckout}
               </button>
               <button
                 type="button"
                 onClick={() => navigateParentCart('cart')}
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition-colors hover:bg-gray-50"
+                disabled={pendingNavTarget !== null && printUploads.failed === 0}
+                className="disabled:opacity-60 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition-colors hover:bg-gray-50"
               >
                 {t.btnGoToCart}
               </button>
               <button
                 type="button"
-                onClick={handleContinueDesigning}
+                onClick={() => { setPendingNavTarget(null); handleContinueDesigning(); }}
                 className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-100"
               >
                 {t.btnContinueDesigning}
               </button>
             </div>
           </div>
+        </div>,
+        document.body,
+      )}
+      {!showCartDecisionModal && hasUnfinishedPrintUploads && createPortal(
+        <div className={cn(
+          'fixed bottom-4 left-4 z-[9999] flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold shadow-lg',
+          printUploads.failed > 0 ? 'bg-red-600 text-white' : 'bg-gray-900/90 text-white',
+        )}>
+          {printUploads.failed > 0 ? (
+            <>
+              <span>{isTurkish ? 'Baskı dosyası yüklenemedi' : 'Print file upload failed'}</span>
+              <button type="button" onClick={() => printUploadQueue.retryFailed()} className="rounded-full bg-white px-2 py-0.5 text-red-700">
+                {isTurkish ? 'Tekrar dene' : 'Retry'}
+              </button>
+            </>
+          ) : (
+            <span>{isTurkish ? 'Baskı dosyası yükleniyor' : 'Uploading print file'} %{Math.round(printUploads.progress * 100)}</span>
+          )}
         </div>,
         document.body,
       )}

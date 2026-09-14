@@ -440,6 +440,21 @@ export default function OrderDetail() {
     >
       <BlockStack gap="500">
 
+        {/* Baskı dosyası sepete eklendikten sonra arka planda yükleniyor; müşteri
+            yükleme bitmeden sayfadan ayrıldıysa dosya hiç oluşmadı */}
+        {order.printFileMissing && (
+          <Banner
+            tone="critical"
+            title={lang === "tr" ? "Baskı dosyası eksik — basmadan önce kontrol edin" : "Print file missing — check before printing"}
+          >
+            <p>
+              {lang === "tr"
+                ? "Müşteri, tasarımın baskı dosyası yüklenmeden sayfadan ayrıldı. İndirme bağlantısı çalışmayacaktır. Müşteriden tasarımı yeniden sepete eklemesini isteyin."
+                : "The customer left the page before the print file finished uploading. The download link will not work. Ask the customer to add the design to cart again."}
+            </p>
+          </Banner>
+        )}
+
         {/* Renk uyuşmazlığı uyarısı — müşterinin seçtiği renk ile sipariş edilen varyant farklı */}
         {order.colorMismatch && (
           <Banner
