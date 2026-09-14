@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { query } from "~/lib/db.server";
 import { getR2Object, putR2Object } from "~/lib/r2.server";
 import { applyGlowPlate } from "~/lib/glow-plate.server";
+import { setPngDensity } from "~/lib/png-density.server";
 
 /**
  * Baskı dosyasının ağır işlemleri (glow plaka + PNG sıkıştırma) 28–38 MP'lik
@@ -124,15 +125,22 @@ async function processPrintFile(buffer: Buffer, side: string) {
   const glowMs = performance.now() - t;
 
   t = performance.now();
-  // Lossless PNG optimizasyonu + doğru 300 DPI metadata'sı. Bu metadata aynı
-  // zamanda "işlendi" işareti: tarayıcının ürettiği ham PNG'de yoğunluk yok.
-  buffer = Buffer.from(
-    await sharp(buffer, { limitInputPixels: false })
-      .png({ compressionLevel: 6 })
-      .withMetadata({ density: PRINT_DPI })
-      .toBuffer(),
-  );
-  return { buffer, glowMs, sharpMs: performance.now() - t };
+  // 300 DPI bilgisini görüntüyü yeniden sıkıştırmadan yaz. sharp ile yeniden
+  // kodlamak tarayıcının iyi sıkıştırdığı PNG'yi %40'a kadar büyütüyordu
+  // (16 MB → 23 MB). Bu bilgi aynı zamanda "işlendi" işareti: tarayıcının
+  // ürettiği ham PNG'de yoğunluk yok.
+  let method = "pHYs";
+  let out = setPngDensity(buffer, PRINT_DPI);
+  if (!out) {
+    method = "yeniden-kodlama";
+    out = Buffer.from(
+      await sharp(buffer, { limitInputPixels: false })
+        .png({ compressionLevel: 6 })
+        .withMetadata({ density: PRINT_DPI })
+        .toBuffer(),
+    );
+  }
+  return { buffer: out, glowMs, densityMs: performance.now() - t, method };
 }
 
 async function runJob(job: PendingPrintJob) {
@@ -154,7 +162,7 @@ async function runJob(job: PendingPrintJob) {
   await query("DELETE FROM pending_print_jobs WHERE id = $1", [job.id]);
   console.log(
     `[upload] ${job.side} arka plan bitti${job.attempts > 0 ? ` (kurtarma, deneme ${job.attempts + 1})` : ""} — ` +
-    `glow=${processed.glowMs.toFixed(0)}ms sharp=${processed.sharpMs.toFixed(0)}ms ` +
+    `glow=${processed.glowMs.toFixed(0)}ms dpi(${processed.method})=${processed.densityMs.toFixed(0)}ms ` +
     `yeniden-kayıt=${(performance.now() - t).toFixed(0)}ms toplam=${(performance.now() - startedAt).toFixed(0)}ms ` +
     `${(raw.length / 1e6).toFixed(1)}MB→${(processed.buffer.length / 1e6).toFixed(1)}MB`,
   );

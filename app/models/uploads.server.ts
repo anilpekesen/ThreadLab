@@ -68,7 +68,7 @@ export async function handleDesignerUpload(request: Request) {
   const isPrintFile = ext === "png" && (side === "front-print" || side === "back-print");
 
   if (isPrintFile) {
-    // Ağır işlemler (glow plaka + sıkıştırma) arka planda, kalıcı kuyrukla
+    // Ağır işlemler (glow plaka + 300 DPI bilgisi) arka planda, kalıcı kuyrukla
     // yapılır — bkz. print-jobs.server.ts
     const inputBytes = buffer.length;
     const storeStart = performance.now();
@@ -110,7 +110,9 @@ export async function handleDesignerUpload(request: Request) {
   // (önizleme URL'si sepette hemen gösteriliyor ve kalıcı önbelleğe giriyor).
   if (ext === "png") {
     try {
-      buffer = Buffer.from(await sharp(buffer, { limitInputPixels: false }).png({ compressionLevel: 6 }).toBuffer());
+      // Yeniden sıkıştırma iyi sıkıştırılmış PNG'yi büyütebiliyor; küçük olanı sakla
+      const optimized = Buffer.from(await sharp(buffer, { limitInputPixels: false }).png({ compressionLevel: 6 }).toBuffer());
+      if (optimized.length < buffer.length) buffer = optimized;
     } catch { /* optimizasyon başarısız olursa orijinali kullan */ }
   }
 
