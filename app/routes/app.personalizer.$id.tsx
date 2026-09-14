@@ -37,14 +37,9 @@ import { uploadToR2 } from "~/lib/r2.server";
 import { removeBackgroundFromBuffer } from "~/models/background-removal.server";
 import { listPrintProducts } from "~/models/print-product.server";
 import { setProductTemplateMetafield, clearProductTemplateMetafield } from "~/lib/personalizer-metafield.server";
-import { printCanvas, aspectLabel, type PrintProduct } from "~/lib/print-spec";
-import {
-  normalizeSlots, normalizeGridConfig, normalizePieces, normalizeMockups,
-  type GridConfig, type Slot, type TemplatePiece, type TemplateMockup,
-} from "~/lib/slots";
-import { SlotBoard } from "~/components/SlotBoard";
-import { PieceEditor } from "~/components/PieceEditor";
-import { MockupEditor } from "~/components/MockupEditor";
+import type { PrintProduct } from "~/lib/print-spec";
+import { normalizeSlots, normalizePieces, normalizeMockups } from "~/lib/slots";
+import { StudioSummary } from "~/components/studio/StudioSummary";
 
 const MAX_UPLOAD = 20 * 1024 * 1024;
 const AI_STYLE_OPTIONS = [
@@ -229,7 +224,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // Fotoğrafların ÜSTÜNDE duran katman. Şeffaf delikli tasarımlarda aynı dosya
     // hem alan kaynağı hem üst katman olur: fotoğraf deliğin arkasından görünür,
     // çerçeve ve süslemeler fotoğrafın üstünde kalır.
-    let overlay_url = String(form.get("existing_overlay_url") ?? "");
+    let overlay_url: string | undefined;
     const overlayFile = form.get("overlay_image");
     if (overlayFile instanceof File && overlayFile.size > 0) {
       const buf = Buffer.from(await overlayFile.arrayBuffer());
@@ -239,36 +234,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
     const sort_order  = parseInt(String(form.get("sort_order") ?? "0"), 10);
 
-    // Çoklu fotoğraf alanları. İstemciden gelen dizi normalize ediliyor:
-    // tanınmayan alanlar ve geometrisi bozuk kayıtlar sessizce eleniyor ki
-    // eski ya da kurcalanmış bir istemci render motoruna bozuk slot sokamasın.
-    const slots = normalizeSlots((() => {
-      try { return JSON.parse(String(form.get("slots") ?? "[]")); }
-      catch { return []; }
-    })());
-    let grid_config: GridConfig | undefined;
-    try {
-      const raw = String(form.get("grid_config") ?? "");
-      if (raw) grid_config = JSON.parse(raw);
-    } catch { /* bozuk JSON — ızgara parametreleri kaydedilmez, slotlar durur */ }
-    const print_product_id = String(form.get("print_product_id") ?? "").trim();
-    const expected_slots = Math.max(0, parseInt(String(form.get("expected_slots") ?? "0"), 10) || 0);
-
-    // Parçalar ve varyant görselleri de normalize ediliyor: geometrisi bozuk
-    // ya da tanınmayan kayıtlar render motoruna geçmemeli.
-    const pieces = normalizePieces((() => {
-      try { return JSON.parse(String(form.get("pieces") ?? "[]")); } catch { return []; }
-    })());
-    const mockups = normalizeMockups((() => {
-      try { return JSON.parse(String(form.get("mockups") ?? "[]")); } catch { return []; }
-    })());
+    // Fotoğraf alanları, parçalar, ölçü ve ürün görselleri Çerçeve
+    // Stüdyosu'nun kaydıyla yazılıyor; bu form onlara dokunmuyor. Eskiden
+    // form sayfa açıldığı andaki değerleri geri gönderiyordu ve stüdyoda
+    // yapılan iş, arkada açık kalmış bir şablon sayfası kaydedilince siliniyordu.
 
     if (!name) return json({ error: "İsim gerekli" }, { status: 400 });
 
     let text_fields: TextFieldDef[] = [];
     try { text_fields = JSON.parse(String(form.get("text_fields") ?? "[]")); } catch { /* ignore */ }
 
-    let template_url = String(form.get("existing_template_url") ?? "");
+    // Görseller yalnızca yeni dosya yüklenince değişir. Sayfada kaldırma
+    // düğmesi yok; mevcut adresi geri yazmak, stüdyoda değiştirilen görseli
+    // eski sayfanın kaydıyla ezmekten başka bir şey yapmıyordu.
+    let template_url: string | undefined;
     const templateFile = form.get("template_image");
     if (templateFile instanceof File && templateFile.size > 0) {
       const buf = Buffer.from(await templateFile.arrayBuffer());
@@ -278,11 +257,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // template_url opsiyonel — sadece çerçeve bazlı kullanımda boş olabilir
 
     if (id === "new") {
-      const created = await createPersonalizerTemplate({ shop, name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url, pieces, mockups });
+      const created = await createPersonalizerTemplate({ shop, name, description, template_url: template_url ?? "", photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, sort_order, overlay_url: overlay_url ?? "" });
       // json döndür, client tarafı navigate etsin (Shopify embedded app redirect güvenilmez)
       return json({ redirectTo: `/app/personalizer/${created.id}` });
     } else {
-      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, sort_order, slots, grid_config, print_product_id, expected_slots, overlay_url, pieces, mockups });
+      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, sort_order, overlay_url });
       return json({ ok: true });
     }
   }
@@ -1291,32 +1270,13 @@ function PersonalizerEditor() {
       ?? (template?.layout_mode === "scatter" ? "boxer" : template?.layout_mode === "ai" ? "ai" : "frame"),
   );
 
-  // ── Çoklu fotoğraf alanları ────────────────────────────────────────────
-  const [slots, setSlots] = useState<Slot[]>(() => normalizeSlots(template?.slots ?? []));
-  const [gridConfig, setGridConfig] = useState<GridConfig>(
-    () => normalizeGridConfig(template?.grid_config),
-  );
-  const [printProductId, setPrintProductId] = useState(template?.print_product_id ?? "");
+  // ── Çerçeve Stüdyosu'nun alanları: burada yalnızca okunur ──────────────
+  const slots = normalizeSlots(template?.slots ?? []);
+  const printProductId = template?.print_product_id ?? "";
   const [overlayPreview, setOverlayPreview] = useState(template?.overlay_url ?? "");
-  const [expectedSlots, setExpectedSlots] = useState(template?.expected_slots ?? 0);
-  const [pieces, setPieces] = useState<TemplatePiece[]>(() => normalizePieces(template?.pieces));
-  const [mockups, setMockups] = useState<TemplateMockup[]>(() => normalizeMockups(template?.mockups));
+  const pieces = normalizePieces(template?.pieces);
+  const mockups = normalizeMockups(template?.mockups);
 
-  // Deneme çıktısı — şablonu örnek fotoğraflarla basıp gösterir.
-  // Ayrı bir fetcher: kaydetme akışına karışmamalı, kaydedilmiş şablon üstünde
-  // çalışıyor.
-  const testFetcher = useFetcher<{
-    url?: string;
-    pieces?: Array<{ id: string; name: string; url: string }>;
-    error?: string;
-    photoCount?: number;
-    version?: number;
-    issues?: Array<{ level: string; message: string }>;
-  }>();
-
-  const activePrintProduct: PrintProduct | null =
-    (printProducts as PrintProduct[]).find((p) => p.id === printProductId) ?? null;
-  const slotCanvas = activePrintProduct ? printCanvas(activePrintProduct) : null;
   const [decorationUrl, setDecorationUrl] = useState(template?.decoration_url ?? "");
   const [decorationRemoveBg, setDecorationRemoveBg] = useState(true);
   const sc = (template?.scatter_config ?? {}) as Partial<import("~/models/personalizer.server").ScatterTemplateConfig>;
@@ -1412,12 +1372,6 @@ function PersonalizerEditor() {
     fd.set("photo_y", String(photoRect.y));
     fd.set("photo_width", String(photoRect.w));
     fd.set("photo_height", String(photoRect.h));
-    fd.set("slots", JSON.stringify(slots));
-    fd.set("grid_config", JSON.stringify(gridConfig));
-    fd.set("print_product_id", printProductId);
-    fd.set("expected_slots", String(expectedSlots));
-    fd.set("pieces", JSON.stringify(pieces));
-    fd.set("mockups", JSON.stringify(mockups));
     fetcher.submit(fd, { method: "POST", encType: "multipart/form-data" });
   }
 
@@ -1490,18 +1444,16 @@ function PersonalizerEditor() {
       checklist.push({
         label: "Baskı ebadı seçildi",
         hint: printProducts.length === 0
-          ? "Önce Baskı ebatları sayfasından en az bir ebat ekleyin."
-          : "Çerçevenin fiziksel ölçüsü; fotoğraf alanları bu orana göre çizilir.",
+          ? "Stüdyoda \"Yeni ölçü tanımla\" ile çerçevenizin ölçüsünü ekleyin."
+          : "Çerçevenin fiziksel ölçüsü; fotoğraf alanları bu ölçüde çizilir.",
         state: template.print_product_id || piecesHavePrint ? "done" : "todo",
-        ...(printProducts.length === 0
-          ? { url: "/app/print-products", action: "Ebat ekle" }
-          : { target: "pl-print", action: "Seç" }),
+        url: `/app/personalizer/${template.id}/studio`, action: "Stüdyoda seç",
       });
       checklist.push({
         label: "Fotoğraf alanları yerleştirildi",
-        hint: "Müşterinin dolduracağı kutular. Izgara üreticisiyle hızlıca oluşturabilirsiniz.",
+        hint: "Müşterinin dolduracağı kutular. Stüdyoda hazır bir düzenle tek tıkla oluşturabilirsiniz.",
         state: (template.slots?.length ?? 0) > 0 || piecesHaveSlots ? "done" : "todo",
-        target: "pl-slots", action: "Yerleştir",
+        url: `/app/personalizer/${template.id}/studio`, action: "Stüdyoyu aç",
       });
     }
     if (savedFlow === "boxer") {
@@ -1585,7 +1537,6 @@ function PersonalizerEditor() {
         <img src={overlayPreview} alt="Üst katman"
           style={{ maxWidth: 160, maxHeight: 160, objectFit: "contain", borderRadius: 8, border: "1px solid #e5e7eb" }} />
       )}
-      <input type="hidden" name="existing_overlay_url" value={template?.overlay_url ?? ""} readOnly />
       <input type="file" name="overlay_image" accept="image/png,image/webp"
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -1593,134 +1544,6 @@ function PersonalizerEditor() {
         }} />
     </BlockStack>
   );
-
-  const printSizeSelect = printProducts.length === 0 ? (
-    <Banner tone="warning" title="Henüz baskı ebadı tanımlı değil">
-      <p>
-        Fotoğraf alanı kullanmak için önce <b>Baskı ebatları</b> sayfasından en az bir ebat ekleyin.
-      </p>
-      <div style={{ marginTop: 8 }}><Button url="/app/print-products">Baskı ebatlarını aç</Button></div>
-    </Banner>
-  ) : (
-    <Select
-      label="Ebat"
-      options={[
-        { label: "Seçilmedi", value: "" },
-        ...(printProducts as PrintProduct[]).map((p) => ({
-          label: `${p.name} — ${p.width_mm}×${p.height_mm} mm (${aspectLabel(p.width_mm / p.height_mm)})`,
-          value: p.id,
-        })),
-      ]}
-      value={printProductId}
-      onChange={setPrintProductId}
-      helpText="Fotoğraf alanları oran olarak saklanır; aynı en-boy oranındaki her ebatta çalışır."
-    />
-  );
-
-  const slotsBlock = (
-    <div id="pl-slots" style={{ scrollMarginTop: 16 }}>
-      {slotCanvas && pieces.length === 0 ? (
-        <SlotBoard
-          slots={slots}
-          onChange={setSlots}
-          canvas={slotCanvas}
-          templateUrl={templatePreview || undefined}
-          expectedSlots={expectedSlots}
-          onExpectedSlotsChange={setExpectedSlots}
-          gridConfig={gridConfig}
-          onGridConfigChange={setGridConfig}
-          dpi={activePrintProduct?.dpi ?? 300}
-        />
-      ) : !slotCanvas && pieces.length === 0 ? (
-        <Card>
-          <BlockStack gap="100">
-            <Text as="h2" variant="headingMd">Fotoğraf alanları</Text>
-            <Text as="p" tone="subdued">Fotoğraf alanlarını yerleştirmek için yukarıdan önce bir baskı ebadı seçin.</Text>
-          </BlockStack>
-        </Card>
-      ) : null}
-    </div>
-  );
-
-  const piecesBlock = (
-    <PieceEditor
-      pieces={pieces}
-      onChange={setPieces}
-      printProducts={printProducts as PrintProduct[]}
-      fallback={{
-        name: name || "Tasarım",
-        print_product_id: printProductId,
-        slots,
-        background_url: templatePreview || undefined,
-        overlay_url: overlayPreview || undefined,
-      }}
-      gridConfig={gridConfig}
-      onGridConfigChange={setGridConfig}
-    />
-  );
-
-  const mockupBlock = <MockupEditor mockups={mockups} onChange={setMockups} />;
-
-  const testBlock = slotCanvas && !isNew ? (
-    <SectionCard
-      id="pl-test"
-      title="Deneme çıktısı"
-      description="Şablonu örnek fotoğraflarla basar. Slot sırasını, kırpmayı ve yazı taşmasını müşteriden önce siz görün."
-    >
-      <InlineStack gap="200" blockAlign="center">
-        <Button
-          onClick={() =>
-            testFetcher.submit(
-              { templateId: template?.id ?? "" },
-              { method: "POST", action: "/api/personalizer/test-render", encType: "application/json" },
-            )
-          }
-          loading={testFetcher.state !== "idle"}
-        >
-          Deneme çıktısı al
-        </Button>
-        <Text as="span" variant="bodySm" tone="subdued">
-          Kaydedilmiş hâli kullanır — önce değişiklikleri kaydedin.
-        </Text>
-      </InlineStack>
-
-      {testFetcher.data?.error && (
-        <Banner tone="critical"><p>{testFetcher.data.error}</p></Banner>
-      )}
-
-      {testFetcher.data?.issues && testFetcher.data.issues.length > 0 && (
-        <Banner tone={testFetcher.data.issues.some((i) => i.level === "error") ? "critical" : "warning"}>
-          <ul style={{ margin: 0, paddingLeft: 18 }}>
-            {testFetcher.data.issues.map((i, n) => <li key={n}>{i.message}</li>)}
-          </ul>
-        </Banner>
-      )}
-
-      {testFetcher.data?.url && (
-        <BlockStack gap="300">
-          <Text as="p" variant="bodySm" tone="subdued">
-            {testFetcher.data.photoCount} örnek fotoğraf · şablon sürümü v{testFetcher.data.version}
-            {(testFetcher.data.pieces?.length ?? 0) > 1
-              ? ` · ${testFetcher.data.pieces?.length} baskı dosyası`
-              : ""}
-          </Text>
-          <InlineStack gap="300" wrap>
-            {(testFetcher.data.pieces ?? [{ id: "main", name: "", url: testFetcher.data.url }])
-              .map((p) => (
-                <BlockStack key={p.id} gap="100">
-                  {p.name && <Text as="span" variant="bodySm" tone="subdued">{p.name}</Text>}
-                  <img
-                    src={p.url}
-                    alt={p.name || "Deneme çıktısı"}
-                    style={{ maxWidth: 260, borderRadius: 8, border: "1px solid #e5e7eb" }}
-                  />
-                </BlockStack>
-              ))}
-          </InlineStack>
-        </BlockStack>
-      )}
-    </SectionCard>
-  ) : null;
 
   const textFieldsEditor = (
     <BlockStack gap="400">
@@ -1981,11 +1804,10 @@ function PersonalizerEditor() {
 
   // Akışın gerektirmediği ama eski şablonlarda dolu olabilecek bölümler.
   // Veri varsa bölüm açık başlıyor ki mevcut ayar gözden kaybolmasın.
-  const hasMultiPhotoData = hasPhotoSlots || mockups.length > 0 || Boolean(printProductId);
   const advancedHasData = flow === "apparel"
-    ? hasMultiPhotoData || textFields.length > 0 || Boolean(overlayPreview)
+    ? textFields.length > 0 || Boolean(overlayPreview)
     : flow === "boxer"
-      ? hasMultiPhotoData || Boolean(templatePreview) || textFields.length > 0
+      ? Boolean(templatePreview) || textFields.length > 0 || Boolean(overlayPreview)
       : false;
 
   return (
@@ -2044,7 +1866,6 @@ function PersonalizerEditor() {
         <Layout.Section>
           <form ref={formRef} onSubmit={handleSubmit} encType="multipart/form-data">
             <input type="hidden" name="intent" value="save" />
-            <input type="hidden" name="existing_template_url" value={template?.template_url ?? ""} />
             <input type="hidden" name="hole_seed_x" value={holeSeed.x} readOnly />
             <input type="hidden" name="hole_seed_y" value={holeSeed.y} readOnly />
             <input type="hidden" name="photo_x" value={photoRect.x} readOnly />
@@ -2139,32 +1960,32 @@ function PersonalizerEditor() {
               )}
 
               {flow === "frame" && (
-                <>
-                  <SectionCard
-                    id="pl-print"
-                    title="Baskı ebadı ve tasarım katmanları"
-                    description="Önce çerçevenin ölçüsünü seçin. Arka plan ve üst katman isteğe bağlıdır."
-                  >
-                    {printSizeSelect}
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm">Arka plan tasarımı (isteğe bağlı)</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">Fotoğrafların altında kalan zemin, ör. yazılı bir tasarım.</Text>
-                      {designUpload}
-                    </BlockStack>
-                    {overlayUpload}
-                  </SectionCard>
-                  {slotsBlock}
-                  {piecesBlock}
-                  <SectionCard
-                    id="pl-texts"
-                    title="Müşteriden alınacak yazılar"
-                    description="İsim, tarih gibi müşterinin yazacağı alanlar."
-                  >
-                    {textFieldsEditor}
-                  </SectionCard>
-                  {mockupBlock}
-                  {testBlock}
-                </>
+                <SectionCard
+                  id="pl-studio"
+                  title="Çerçeve tasarımı"
+                  description="Ölçü, fotoğraf alanları, yazılar, set parçaları ve ürün görselleri Çerçeve Stüdyosu'nda tek ekranda kurulur."
+                >
+                  <StudioSummary
+                    pieces={pieces.length > 0 ? pieces : [{
+                      id: "main", name: name || "Tasarım", print_product_id: printProductId, slots,
+                      background_url: templatePreview || undefined, overlay_url: overlayPreview || undefined, order: 1,
+                    }]}
+                    printProducts={printProducts as PrintProduct[]}
+                    mockupCount={mockups.length}
+                  />
+                  {isNew ? (
+                    <Text as="p" tone="subdued">Stüdyoyu açmak için önce şablonu oluşturun.</Text>
+                  ) : (
+                    <InlineStack gap="300" blockAlign="center">
+                      <Button variant="primary" url={`/app/personalizer/${template?.id}/studio`}>
+                        {hasPhotoSlots ? "Stüdyoda düzenle" : "Çerçeve Stüdyosu'nu aç"}
+                      </Button>
+                      <Text as="span" tone="subdued" variant="bodySm">
+                        Bu sayfadaki değişiklikleri önce kaydedin; stüdyo kendi kaydını ayrı yapar.
+                      </Text>
+                    </InlineStack>
+                  )}
+                </SectionCard>
               )}
 
               {(flow === "apparel" || flow === "boxer") && (
@@ -2172,7 +1993,7 @@ function PersonalizerEditor() {
                   title="Gelişmiş ayarlar"
                   description={advancedHasData
                     ? "Bu şablonda burada kayıtlı ayarlar var; o yüzden açık gösteriliyor."
-                    : "Çoğu şablonda gerekmez. Yazı alanları ve çoklu fotoğraf özellikleri."}
+                    : "Çoğu şablonda gerekmez."}
                   collapsible
                   defaultOpen={advancedHasData}
                 >
@@ -2187,25 +2008,22 @@ function PersonalizerEditor() {
                     {textFieldsEditor}
                   </BlockStack>
                   {overlayUpload}
-                  <BlockStack gap="200">
-                    <Text as="h3" variant="headingSm">Çoklu fotoğraf / baskı ebadı</Text>
-                    {printSizeSelect}
-                  </BlockStack>
-                  {slotsBlock}
-                  {piecesBlock}
-                  {mockupBlock}
-                  {testBlock}
+                  <Text as="p" tone="subdued" variant="bodySm">
+                    Birden fazla fotoğraf alanı ya da set gerekiyorsa ürün türünü "Fotoğraflı çerçeve" yapıp
+                    kaydedin; Çerçeve Stüdyosu açılır.
+                  </Text>
                 </SectionCard>
               )}
 
-              {flow === "frame" && photoEditor && (
+              {flow === "frame" && (photoEditor || textFields.length > 0) && (
                 <SectionCard
-                  title="Tek fotoğraf koordinatı (eski akış)"
-                  description="Fotoğraf alanları kullanan şablonlarda gerekmez."
+                  title="Eski tek fotoğraf ayarları"
+                  description="Fotoğraf alanları stüdyoda kurulan şablonlarda kullanılmaz. Eski önizleme akışı için duruyor."
                   collapsible
                   defaultOpen={false}
                 >
                   {photoEditor}
+                  {textFields.length > 0 && textFieldsEditor}
                 </SectionCard>
               )}
 

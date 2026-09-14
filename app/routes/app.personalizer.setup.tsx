@@ -54,7 +54,7 @@ const TYPES = [
   {
     title: "Fotoğraflı çerçeve",
     example: "6 fotoğraflı 30×40 çerçeve, 3'lü set",
-    setup: "Baskı ebadını seçin, fotoğraf alanlarını yerleştirin, isterseniz yazı alanı ekleyin.",
+    setup: "Stüdyoda ölçüyü seçin, hazır düzenle başlayıp alanları sürükleyerek ayarlayın.",
     where: "Ürün sayfasında ayrı \"PrintLab Kişiselleştirici\" kutusu",
   },
   {
@@ -109,7 +109,8 @@ export default function PersonalizerSetup() {
                     düğme sizi ilgili bölüme götürür. İşiniz bitince <b>Kaydet</b>'e basın.
                   </Text>
                   <Text as="p" tone="subdued" variant="bodySm">
-                    Çerçeve şablonlarında önce <b>Baskı ebatları</b> sayfasında ölçü tanımlı olmalı.
+                    Çerçeve şablonları <b>Çerçeve Stüdyosu</b>'nda kurulur: ölçüyü seçer ya da tanımlarsınız,
+                    hazır bir düzen seçip alanları sürükleyerek ayarlarsınız.
                   </Text>
                 </Step>
 

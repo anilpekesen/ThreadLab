@@ -845,7 +845,16 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       el.style.top = ((o.y + s.rect.y * o.h) * 100) + '%';
       el.style.width = (s.rect.w * o.w * 100) + '%';
       el.style.height = (s.rect.h * o.h * 100) + '%';
-    if (s.radius > 0) el.style.borderRadius = (s.radius * 100) + '%';
+    // Yarıçap tuval GENİŞLİĞİNE oran olarak saklanıyor ve baskıda alanın kısa
+    // kenarının yarısıyla sınırlanıyor. Yüzde olarak doğrudan basınca alanın
+    // kendi boyutuna göre yorumlanıyordu: köşeler baskıdakinden farklı, daire
+    // ise elips görünüyordu. Aynı hesap burada da yapılıyor.
+    if (s.radius > 0) {
+      var wPx = s.rect.w * piece.canvas.width;
+      var hPx = s.rect.h * piece.canvas.height;
+      var rPx = Math.min(s.radius * piece.canvas.width, Math.min(wPx, hPx) / 2);
+      el.style.borderRadius = (rPx / wPx * 100) + '% / ' + (rPx / hPx * 100) + '%';
+    }
     el.dataset.slot = s.id;
 
       // Parçada tek alan varsa numara rozeti bilgi taşımıyor, sadece

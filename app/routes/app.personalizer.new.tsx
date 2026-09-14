@@ -71,7 +71,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     sort_order: 0,
   });
 
-  return json({ redirectTo: `/app/personalizer/${template.id}` });
+  // Çerçeve şablonunun asıl kurulumu stüdyoda; araya şablon sayfasını koymak
+  // mağaza sahibini bir ekran daha dolaştırıyordu.
+  return json({
+    redirectTo: category === "frame"
+      ? `/app/personalizer/${template.id}/studio`
+      : `/app/personalizer/${template.id}`,
+  });
 };
 
 const TYPES: Array<{
@@ -109,9 +115,9 @@ const TYPES: Array<{
     description: "Tek fotoğraflı, kolaj veya birden fazla parçadan oluşan çerçeve ürünleri.",
     tags: ["Çoklu fotoğraf", "Set desteği"],
     flow: [
-      { title: "Baskı ebadını seçin", description: "Çerçevenin fiziksel ölçüsünü ve baskı oranını belirleyin." },
-      { title: "Fotoğraf alanlarını kurun", description: "Tekli, kolaj veya set parçalarındaki alanları yerleştirin." },
-      { title: "Ürün görsellerini ekleyin", description: "Renk ve varyanta göre müşteri önizlemelerini tanımlayın." },
+      { title: "Ölçüyü seçin", description: "Hazır bir ölçü seçin ya da kendi ölçünüzü (ör. 30×40 cm) tanımlayın." },
+      { title: "Düzeni kurun", description: "Hazır düzenlerden birini seçin, alanları sürükleyip boyutlandırın, yazı ekleyin." },
+      { title: "Deneyip ürüne bağlayın", description: "Deneme baskısıyla kontrol edin, sonra Shopify ürününe bağlayın." },
     ],
   },
   {
@@ -274,7 +280,7 @@ export default function NewPersonalizerTemplate() {
                     <div className="pl-review-row">
                       <span className="pl-review-label">Sonraki adım</span>
                       <span className="pl-review-value">
-                        {selected.id === "boxer" ? "Desen ve süsleme ayarları" : selected.id === "frame" ? "Baskı ebadı ve fotoğraf alanları" : selected.id === "ai" ? "Portre stili ve çıktı ayarları" : "Tasarım ve baskı alanı"}
+                        {selected.id === "boxer" ? "Desen ve süsleme ayarları" : selected.id === "frame" ? "Çerçeve Stüdyosu açılır" : selected.id === "ai" ? "Portre stili ve çıktı ayarları" : "Tasarım ve baskı alanı"}
                       </span>
                     </div>
                   </div>
