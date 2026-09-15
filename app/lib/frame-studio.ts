@@ -163,6 +163,146 @@ export function presetSlots(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Kart tabakası (pola kart, magnet, sticker…)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bir tabakaya tek tek kesilecek kartların yerleşimi.
+ *
+ * Ürün 35 pola kart olduğunda baskı 35 dosya değil, birkaç tabakadır: kartlar
+ * tabakaya diziliyor, basılıyor, kesiliyor. Her kart bir fotoğraf alanı ve
+ * (istenirse) altında bir yazı alanı demek — 12 kartlık bir tabakayı elle
+ * kurmak 24 alan çizmek olurdu.
+ *
+ * Ölçüler kesim kenarından milimetre. Kartlar tabakaya ortalanıyor; kalan pay
+ * kesim payı olarak kenarda kalıyor.
+ */
+export interface CardGridOptions {
+  /** Kesilmiş kartın ölçüsü */
+  cardWidthMm: number;
+  cardHeightMm: number;
+  /** Fotoğrafın kart kenarına boşluğu (üst ve yanlar) */
+  marginMm: number;
+  /** Altta yazıya ayrılan yükseklik; 0 ise yazı alanı üretilmiyor */
+  captionMm: number;
+  /** Kartlar arası boşluk; 0 bitişik demek (komşu kartlar aynı kesimi paylaşır) */
+  gapMm: number;
+  /** Bu tabakaya en fazla kaç kart (kalanı bir sonraki tabakaya) */
+  limit?: number;
+  /** Yazının puntosu; yoksa yazı alanının yarısı */
+  captionFontMm?: number;
+  maxLength?: number;
+  /** Kimlik ve numaralandırma buradan devam eder (ikinci tabaka 13'ten başlar) */
+  startIndex?: number;
+}
+
+export interface CardGridResult {
+  slots: Slot[];
+  cols: number;
+  rows: number;
+  /** Tabakaya sığan (ve `limit` ile sınırlanan) kart sayısı */
+  count: number;
+  /** Kesim çizgilerinin kesim kenarından mm konumu; baskı PDF'i buraya işaret koyar */
+  cuts: { x: number[]; y: number[] };
+}
+
+export function cardGridSlots(
+  options: CardGridOptions,
+  canvas: PrintCanvas,
+  dpi: number,
+): CardGridResult {
+  const pxToMm = (px: number) => (px / dpi) * 25.4;
+  const sheetW = pxToMm(canvas.trim.width);
+  const sheetH = pxToMm(canvas.trim.height);
+  const { cardWidthMm: cw, cardHeightMm: chh, gapMm: gap } = options;
+
+  const cols = Math.max(0, Math.floor((sheetW + gap) / (cw + gap)));
+  const rows = Math.max(0, Math.floor((sheetH + gap) / (chh + gap)));
+  const sigan = cols * rows;
+  const count = Math.max(0, Math.min(options.limit ?? sigan, sigan));
+  if (count === 0) return { slots: [], cols, rows, count: 0, cuts: { x: [], y: [] } };
+
+  const blokW = cols * cw + (cols - 1) * gap;
+  const blokH = rows * chh + (rows - 1) * gap;
+  const x0 = (sheetW - blokW) / 2;
+  const y0 = (sheetH - blokH) / 2;
+
+  const fontMm = options.captionFontMm ?? Math.max(3, options.captionMm * 0.45);
+  const canvasHmm = pxToMm(canvas.canvasHeight);
+  const start = options.startIndex ?? 0;
+
+  const slots: Slot[] = [];
+  const cutsX = new Set<number>();
+  const cutsY = new Set<number>();
+
+  for (let i = 0; i < count; i++) {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+    const kx = x0 + c * (cw + gap);
+    const ky = y0 + r * (chh + gap);
+    const n = start + i + 1;
+
+    cutsX.add(roundMm(kx));
+    cutsX.add(roundMm(kx + cw));
+    cutsY.add(roundMm(ky));
+    cutsY.add(roundMm(ky + chh));
+
+    const id = `photo_${n}`;
+    slots.push({
+      id,
+      kind: "image",
+      source: id,
+      rect: rectFromMm({
+        x: kx + options.marginMm,
+        y: ky + options.marginMm,
+        w: cw - options.marginMm * 2,
+        h: chh - options.marginMm - options.captionMm,
+      }, canvas, dpi),
+      fit: "cover",
+      allow: { pan: true, zoom: true, rotate: true },
+      label: `${n}. Fotoğraf`,
+      order: n,
+    });
+
+    if (options.captionMm > 0) {
+      const yaziH = Math.min(options.captionMm, fontMm * 1.6);
+      slots.push({
+        id: `text_${n}`,
+        kind: "text",
+        rect: rectFromMm({
+          x: kx + options.marginMm,
+          y: ky + chh - options.captionMm + (options.captionMm - yaziH) / 2,
+          w: cw - options.marginMm * 2,
+          h: yaziH,
+        }, canvas, dpi),
+        label: `${n}. kartın yazısı`,
+        order: 100 + n,
+        mode: "free",
+        default_value: "",
+        max_length: options.maxLength ?? 20,
+        font_size: ((fontMm / 25.4) * dpi) / canvas.canvasHeight,
+        font_family: "Arial, Helvetica, sans-serif",
+        color: "#1a1a1a",
+        bold: false,
+        align: "center",
+        overflow: "shrink",
+      });
+    }
+  }
+
+  return {
+    slots,
+    cols,
+    rows,
+    count,
+    cuts: {
+      x: [...cutsX].sort((a, b) => a - b),
+      y: [...cutsY].sort((a, b) => a - b),
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Kimlikler
 // ─────────────────────────────────────────────────────────────────────────────
 

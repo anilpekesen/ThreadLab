@@ -23,6 +23,8 @@ interface DesignPiece {
   name?: string;
   url?: string;
   print?: Partial<PrintPdfSpec>;
+  /** Kart tabakasında iç kesim çizgileri; render anında kaydediliyor */
+  cuts?: { x: number[]; y: number[] };
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -88,7 +90,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 async function resolveSpec(piece: DesignPiece, templateId: string, shop: string): Promise<PrintPdfSpec | null> {
   const p = piece.print;
   if (p && p.width_mm && p.height_mm && p.dpi) {
-    return { width_mm: p.width_mm, height_mm: p.height_mm, bleed_mm: p.bleed_mm ?? 0, dpi: p.dpi };
+    // Kesim çizgileri sipariş kaydında yoksa şablonun bugünkü ayarından
+    const cuts = piece.cuts ?? (templateId
+      ? (await getPersonalizerTemplate(templateId, shop))?.grid_config?.cut_mm
+      : undefined);
+    return { width_mm: p.width_mm, height_mm: p.height_mm, bleed_mm: p.bleed_mm ?? 0, dpi: p.dpi, cuts };
   }
   if (!templateId) return null;
   const template = await getPersonalizerTemplate(templateId, shop);
@@ -98,5 +104,9 @@ async function resolveSpec(piece: DesignPiece, templateId: string, shop: string)
   if (!match?.print_product_id) return null;
   const product = await getPrintProduct(match.print_product_id, shop);
   if (!product) return null;
-  return { width_mm: product.width_mm, height_mm: product.height_mm, bleed_mm: product.bleed_mm, dpi: product.dpi };
+  return {
+    width_mm: product.width_mm, height_mm: product.height_mm,
+    bleed_mm: product.bleed_mm, dpi: product.dpi,
+    cuts: piece.cuts ?? template.grid_config?.cut_mm,
+  };
 }

@@ -23,6 +23,12 @@ export interface PrintPdfSpec {
   height_mm: number;
   bleed_mm: number;
   dpi: number;
+  /**
+   * Tabakadan tek tek kesilen kart ürünlerinde iç kesim çizgilerinin kesim
+   * kenarından mm konumu. Kenar payına işaret konuyor: operatör 12 kartı
+   * nereden keseceğini ölçmek zorunda kalmıyor.
+   */
+  cuts?: { x: number[]; y: number[] };
 }
 
 const MM = 72 / 25.4;
@@ -67,6 +73,7 @@ export async function buildCutMarkPdf(
   page.setTrimBox(trim.x, trim.y, trim.w, trim.h);
 
   drawCropMarks(page, trim, bleed);
+  if (spec.cuts) drawCardCutMarks(page, trim, bleed, spec.cuts, spec.width_mm, spec.height_mm);
 
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const line = [
@@ -124,6 +131,40 @@ function drawCropMarks(page: PDFPage, trim: { x: number; y: number; w: number; h
       thickness,
       color,
     });
+  }
+}
+
+/**
+ * Tabaka içindeki kart kesimleri. Çizgiler kâğıdın üstüne çizilmiyor —
+ * kartların arasından geçerlerdi; işaretler kesim kenarının dışında, köşe
+ * işaretleriyle aynı mantıkta duruyor.
+ */
+function drawCardCutMarks(
+  page: PDFPage,
+  trim: { x: number; y: number; w: number; h: number },
+  bleedMm: number,
+  cuts: { x: number[]; y: number[] },
+  widthMm: number,
+  heightMm: number,
+) {
+  const offset = (bleedMm + MARK_GAP_MM) * MM;
+  const len = MARK_LEN_MM * MM;
+  const color = cmyk(0, 0, 0, 1);
+  const thickness = 0.3;
+  const kenarda = (v: number, tam: number) => v <= 0.2 || v >= tam - 0.2;
+
+  for (const mm of cuts.x) {
+    if (kenarda(mm, widthMm)) continue; // kenar zaten köşe işaretlerinde
+    const x = trim.x + mm * MM;
+    page.drawLine({ start: { x, y: trim.y - offset }, end: { x, y: trim.y - offset - len }, thickness, color });
+    page.drawLine({ start: { x, y: trim.y + trim.h + offset }, end: { x, y: trim.y + trim.h + offset + len }, thickness, color });
+  }
+  // PDF'te y aşağıdan yukarı; kesim listesi tasarımdaki gibi üstten ölçülü
+  for (const mm of cuts.y) {
+    if (kenarda(mm, heightMm)) continue;
+    const y = trim.y + trim.h - mm * MM;
+    page.drawLine({ start: { x: trim.x - offset, y }, end: { x: trim.x - offset - len, y }, thickness, color });
+    page.drawLine({ start: { x: trim.x + trim.w + offset, y }, end: { x: trim.x + trim.w + offset + len, y }, thickness, color });
   }
 }
 

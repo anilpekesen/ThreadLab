@@ -9,13 +9,14 @@ import {
 } from "~/lib/slots";
 import {
   LAYOUT_PRESETS, SINGLE_PIECE_ID, STUDIO_DEFAULT_GRID, nextSlotId, prefixSlotIds, presetSlots, rectFromMm, rectToMm,
-  clampRect, layoutLetterSlots, mergeImageSlots, splitImageSlot, type LayoutPreset,
+  cardGridSlots, clampRect, layoutLetterSlots, mergeImageSlots, splitImageSlot, type LayoutPreset,
 } from "~/lib/frame-studio";
 import { MockupEditor } from "~/components/MockupEditor";
 import { StudioCanvas } from "./StudioCanvas";
 import { StudioInspector } from "./StudioInspector";
 import { NumberField } from "./NumberField";
 import { LetterPhotoForm, type LetterPhotoOptions } from "./LetterPhotoForm";
+import { CardGridForm, type CardGridFormOptions } from "./CardGridForm";
 
 /**
  * Çerçeve Stüdyosu — bir fotoğraf ürününün baskı düzenini tek ekranda kurar.
@@ -91,6 +92,7 @@ export function FrameStudio({
   const [holeBusy, setHoleBusy] = useState(false);
   const [showGridSettings, setShowGridSettings] = useState(false);
   const [showLetters, setShowLetters] = useState(false);
+  const [showCards, setShowCards] = useState(false);
   const [lastPreset, setLastPreset] = useState<LayoutPreset | null>(null);
   const [test, setTest] = useState<{
     busy: boolean; error?: string; images?: Array<{ id: string; name: string; url: string }>;
@@ -311,6 +313,50 @@ export function FrameStudio({
     setNote(active.overlay_url
       ? { tone: "warning", text: "Harfler oluşturuldu. Bu tasarımda bir üst katman görseli var; harflerin üstünü örtüyorsa soldaki \"Tasarım görselleri\" bölümünden kaldırın." }
       : { tone: "success", text: `${numbered.length} harf şekilli fotoğraf alanı oluşturuldu. Seçiliyken birlikte taşıyabilirsiniz.` });
+  }
+
+  /**
+   * Kart tabakası: her kart için fotoğraf (ve istenirse alt yazı) alanı.
+   * Kesim çizgileri ızgara ayarına yazılıyor; baskı PDF'i işaretleri oradan
+   * koyuyor.
+   */
+  function applyCards(o: CardGridFormOptions) {
+    if (!active || !canvas) return;
+    const kalan = o.replace ? [] : active.slots;
+    const sonuc = cardGridSlots({
+      cardWidthMm: o.cardWidthMm,
+      cardHeightMm: o.cardHeightMm,
+      marginMm: o.marginMm,
+      captionMm: o.captionMm,
+      gapMm: o.gapMm,
+      limit: o.limit > 0 ? o.limit : undefined,
+      startIndex: kalan.filter(isImageSlot).length,
+    }, canvas, dpi);
+    if (sonuc.count === 0) {
+      setNote({ tone: "warning", text: "Bu ölçüdeki kart tabakaya sığmadı." });
+      return;
+    }
+    setSlots([...kalan, ...sonuc.slots]);
+    setGrid({ ...grid, cut_mm: sonuc.cuts });
+    setSelectedIds([]);
+    setShowCards(false);
+    setNote({
+      tone: "success",
+      text: `${sonuc.count} kart oluşturuldu (${sonuc.cols} × ${sonuc.rows}).`
+        + " Kesim çizgileri baskı PDF'ine işleniyor.",
+    });
+  }
+
+  function cardFit(o: CardGridFormOptions) {
+    if (!canvas) return { cols: 0, rows: 0, count: 0 };
+    const r = cardGridSlots({
+      cardWidthMm: o.cardWidthMm,
+      cardHeightMm: o.cardHeightMm,
+      marginMm: o.marginMm,
+      captionMm: o.captionMm,
+      gapMm: o.gapMm,
+    }, canvas, dpi);
+    return { cols: r.cols, rows: r.rows, count: r.cols * r.rows };
   }
 
   function transformSelected(fn: (slots: Slot[]) => Slot[]) {
@@ -786,6 +832,13 @@ export function FrameStudio({
                   ) : (
                     <Button onClick={() => setShowLetters(true)} fullWidth>
                       Harf şekilli fotoğraflar (LOVE…)
+                    </Button>
+                  )}
+                  {showCards ? (
+                    <CardGridForm fits={cardFit} onApply={applyCards} onCancel={() => setShowCards(false)} />
+                  ) : (
+                    <Button onClick={() => setShowCards(true)} fullWidth>
+                      Kart tabakası (pola kart…)
                     </Button>
                   )}
                 </section>

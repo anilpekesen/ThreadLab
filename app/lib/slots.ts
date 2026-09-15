@@ -500,6 +500,12 @@ export interface GridConfig {
    * kurulur.
    */
   merges?: GridMerge[];
+  /**
+   * Tek tek kesilecek kart ürünlerinde kesim çizgilerinin kesim kenarından mm
+   * konumu. Baskı PDF'i bu konumlara kenar payında kesim işareti koyuyor;
+   * matbaa 12 kartı tabakadan nereden keseceğini tahmin etmek zorunda kalmıyor.
+   */
+  cut_mm?: { x: number[]; y: number[] };
 }
 
 export const DEFAULT_GRID: GridConfig = {
@@ -535,7 +541,22 @@ export function normalizeGridConfig(raw: unknown): GridConfig {
     gap_y_mm: Number(g.gap_y_mm ?? legacyGap ?? 4) || 0,
     corner_radius_mm: Number(g.corner_radius_mm ?? 0) || 0,
     merges: Array.isArray(g.merges) ? (g.merges as GridMerge[]) : [],
+    cut_mm: normalizeCuts(g.cut_mm),
   };
+}
+
+/** Kesim çizgileri: yalnızca sonlu, artan sayılar; en fazla 200 çizgi */
+function normalizeCuts(raw: unknown): { x: number[]; y: number[] } | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const c = raw as { x?: unknown; y?: unknown };
+  const eksen = (v: unknown) => (Array.isArray(v) ? v : [])
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n >= 0)
+    .slice(0, 200)
+    .sort((a, b) => a - b);
+  const x = eksen(c.x);
+  const y = eksen(c.y);
+  return x.length || y.length ? { x, y } : undefined;
 }
 
 /**

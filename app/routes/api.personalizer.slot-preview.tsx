@@ -136,6 +136,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     id: string; name: string; url: string; width: number; height: number;
     /** Baskı ölçüsü; kesim çizgili PDF bunu kullanıyor, şablon sonradan değişse bile */
     print: { width_mm: number; height_mm: number; bleed_mm: number; safe_mm: number; dpi: number };
+    /** Kart tabakasında iç kesim çizgileri (kesim kenarından mm) */
+    cuts?: { x: number[]; y: number[] };
   }> = [];
   const parcaGorselleri: Buffer[] = [];
 
@@ -200,6 +202,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           safe_mm: product.safe_mm,
           dpi: product.dpi,
         },
+        // Kart tabakasında iç kesim çizgileri; kesim çizgili PDF bunları
+        // sipariş kaydından okuyor, şablon sonradan değişse bile doğru kalsın
+        cuts: template.grid_config?.cut_mm,
       });
     }
 
