@@ -323,6 +323,13 @@ export interface TemplateMockup {
   opening?: MockupOpeningRect;
   /** Delik açılmadan önceki orijinal görsel; açıklık yeniden çizilince buradan kesilir */
   source_url?: string;
+  /**
+   * Görselin tasarımın üstüne nasıl bindirileceği. Yoksa çerçeve mantığı:
+   * görselin açıklığı şeffaftır ve olduğu gibi üste konur. "multiply" kanvas ve
+   * düz yüzeyler için: görsel delinmez, çarpma karışımıyla üste konur; beyaz
+   * yüzey fotoğrafı değiştirmez, doku ve gölge fotoğrafa işlenir.
+   */
+  blend?: "multiply";
 }
 
 export function normalizeMockups(raw: unknown): TemplateMockup[] {
@@ -351,6 +358,7 @@ export function normalizeMockups(raw: unknown): TemplateMockup[] {
       url,
       opening,
       source_url: m.source_url ? String(m.source_url) : undefined,
+      blend: m.blend === "multiply" ? "multiply" : undefined,
       areas: areas.flatMap((a) => {
         if (!a || typeof a !== "object") return [];
         const area = a as Record<string, unknown>;
@@ -385,7 +393,9 @@ export function pickMockup(
     const key = m.key.trim().toLocaleLowerCase("tr");
     if (key && values.includes(key)) return m;
   }
-  return mockups.find((m) => !m.key.trim()) ?? null;
+  // Varsayılan (anahtarı boş) görsel yoksa ilki: tek görselli bir üründe
+  // seçenek değeri farklı yazıldı diye müşteri görseli hiç görmemeli
+  return mockups.find((m) => !m.key.trim()) ?? mockups[0];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

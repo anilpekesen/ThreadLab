@@ -287,6 +287,7 @@ export async function buildSlotData(
       label: m.label,
       url: m.url,
       areas: m.areas,
+      blend: m.blend ?? "",
       // Elle çizilmiş açıklık taramadan önce gelir
       opening: m.areas.length === 0 ? (m.opening ?? await mockupOpening(m.url)) : null,
     });
@@ -824,6 +825,8 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     if (!aktifMockup) {
       for (var j = 0; j < liste.length; j++) if (!liste[j].key) { aktifMockup = liste[j]; break; }
     }
+    // Sunucudaki pickMockup ile aynı: eşleşme ve varsayılan yoksa ilk görsel
+    if (!aktifMockup && liste.length) aktifMockup = liste[0];
     return aktifMockup;
   }
   mockupSec(D.activeMockupKey);
@@ -959,6 +962,9 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     if (FRAME) {
       var fr = document.createElement('img');
       fr.className = 'ov'; fr.src = FRAME.url; fr.alt = FRAME.label || '';
+      // Kanvas gibi delinmemiş yüzeylerde görsel fotoğrafın üstüne çarpılır:
+      // beyaz yüzey fotoğrafı olduğu gibi bırakır, doku ve gölge üstüne işlenir
+      if (FRAME.blend === 'multiply') fr.style.mixBlendMode = 'multiply';
       board.appendChild(fr);
     }
   });

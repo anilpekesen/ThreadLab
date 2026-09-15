@@ -455,6 +455,8 @@ export interface PreviewStripOptions {
   /** Ürün görseli (ortası şeffaf çerçeve); yoksa parçalar olduğu gibi dizilir */
   mockupUrl?: string;
   opening?: MockupOpening | null;
+  /** Kanvas gibi yüzeylerde görsel üste çarpma karışımıyla konur */
+  blend?: "multiply";
   /** Tek parçanın hedef genişliği */
   cellWidth?: number;
   gap?: number;
@@ -502,7 +504,10 @@ export async function composePreviewStrip(opts: PreviewStripOptions): Promise<Bu
       const buf = await sharp({
         create: { width: W, height: H, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
       })
-        .composite([{ input: icerik, left: ax, top: ay }, { input: cerceve }])
+        .composite([
+          { input: icerik, left: ax, top: ay },
+          opts.blend === "multiply" ? { input: cerceve, blend: "multiply" } : { input: cerceve },
+        ])
         .png()
         .toBuffer();
       hucreler.push({ buf, w: W, h: H });

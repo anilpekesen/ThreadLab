@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Card, BlockStack, InlineStack, Text, Button, Badge, Box,
-  TextField, Banner, Divider, Checkbox,
+  TextField, Banner, Divider, Checkbox, Select,
 } from "@shopify/polaris";
 import type { MockupOpeningRect, Rect, TemplateMockup } from "~/lib/slots";
 
@@ -90,8 +90,20 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
     }
   }
 
-  async function alaniKes(i: number, rect: Rect) {
+  async function alaniKes(i: number, rect: Rect, natural: { w: number; h: number }) {
     const m = mockups[i];
+    // Kanvas/düz yüzeyde görsel delinmiyor: fotoğrafın üstüne çarpma
+    // karışımıyla biniyor, dokusu ve gölgesi fotoğrafa işleniyor.
+    if (m.blend === "multiply") {
+      patch(i, {
+        url: m.source_url || m.url,
+        source_url: m.source_url || m.url,
+        opening: { ...rect, aspect: natural.w / natural.h },
+      });
+      setDrawing(null);
+      setBilgi("Fotoğraf alanı ayarlandı. Kaydetmeyi unutmayın.");
+      return;
+    }
     setBusy(true);
     setError("");
     setBilgi("");
@@ -175,7 +187,9 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
                   {m.url && (
                     m.opening
                       ? <Badge tone="success">Fotoğraf alanı elle çizildi</Badge>
-                      : <Badge>Fotoğraf alanı otomatik</Badge>
+                      : m.blend === "multiply"
+                        ? <Badge tone="warning">Fotoğraf alanı çizilmedi</Badge>
+                        : <Badge>Fotoğraf alanı otomatik</Badge>
                   )}
                   <Button
                     size="slim"
@@ -199,7 +213,7 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
                     designAspect={designAspect}
                     busy={busy}
                     onCancel={() => setDrawing(null)}
-                    onApply={(rect) => void alaniKes(i, rect)}
+                    onApply={(rect, natural) => void alaniKes(i, rect, natural)}
                   />
                 ) : (
                   <MockupPreview url={m.url} opening={m.opening} />
@@ -207,6 +221,23 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
               )}
 
               <InlineStack gap="300" wrap>
+                <Box minWidth="220px">
+                  <Select
+                    label="Görsel türü"
+                    options={[
+                      { label: "Çerçeve — ortası şeffaf, fotoğraf içine girer", value: "frame" },
+                      { label: "Kanvas / düz yüzey — doku fotoğrafın üstüne işlenir", value: "surface" },
+                    ]}
+                    value={m.blend === "multiply" ? "surface" : "frame"}
+                    onChange={(v) => patch(i, v === "surface"
+                      // Delinmiş bir görsel varsa orijinaline dönülüyor: yüzeyde delik olmamalı
+                      ? { blend: "multiply", url: m.source_url || m.url }
+                      : { blend: undefined })}
+                    helpText={m.blend === "multiply"
+                      ? "Beyaz yüzey fotoğrafı değiştirmez; keten dokusu ve kenar gölgesi fotoğrafa işlenir."
+                      : "Görselin ortası şeffaf olmalı; değilse alanı elle çizin."}
+                  />
+                </Box>
                 <Box minWidth="220px">
                   <TextField
                     label="Seçenek değeri"
@@ -281,7 +312,7 @@ function OpeningDrawer({
   designAspect?: number;
   busy: boolean;
   onCancel: () => void;
-  onApply: (rect: Rect) => void;
+  onApply: (rect: Rect, natural: { w: number; h: number }) => void;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
@@ -403,7 +434,7 @@ function OpeningDrawer({
         />
       )}
       <InlineStack gap="200">
-        <Button variant="primary" loading={busy} disabled={!rect} onClick={() => rect && onApply(rect)}>
+        <Button variant="primary" loading={busy} disabled={!rect || !natural} onClick={() => rect && natural && onApply(rect, natural)}>
           Alanı uygula
         </Button>
         <Button onClick={onCancel} disabled={busy}>Vazgeç</Button>

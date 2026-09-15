@@ -220,6 +220,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           pieces: parcaGorselleri,
           mockupUrl: opening ? mockup?.url : undefined,
           opening,
+          blend: mockup?.blend,
           cellWidth: parcaGorselleri.length > 2 ? 380 : 520,
         });
         previewUrl = await uploadToR2(strip, "jpg", "personalizer-preview");
