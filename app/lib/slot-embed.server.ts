@@ -203,6 +203,14 @@ export async function buildSlotData(
       templateUrl: piece.background_url ?? "",
       overlayUrl: piece.overlay_url ?? "",
       canvas: { width: canvas.canvasWidth, height: canvas.canvasHeight },
+      // Kesim dikdörtgeni (tuvalin oranı olarak). Yan yüzü olan üründe ön yüzde
+      // yalnızca kesim alanı görünür; taşma payı tuvalin yanına sarılır.
+      trim: {
+        x: canvas.trim.x / canvas.canvasWidth,
+        y: canvas.trim.y / canvas.canvasHeight,
+        w: canvas.trim.width / canvas.canvasWidth,
+        h: canvas.trim.height / canvas.canvasHeight,
+      },
       slots: piece.slots.filter(isImageSlot)
         .sort((a, b) => a.order - b.order)
         .map((sl) => ({
@@ -501,6 +509,9 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     object-fit: fill; pointer-events: none;
   }
   .board img.ov { z-index: 3; }
+  /* Ürünün ön yüzü: tasarım katmanları bunun içinde, dışarı taşan taşma payı
+     kırpılıyor. Çerçeve yoksa tahtanın tamamı ön yüzdür. */
+  .face { position: absolute; inset: 0; overflow: hidden; }
   /* Gerdirmeli tuvalin görünen yan yüzü: tasarımın kenar şeridi buraya
      sıkıştırılıyor, ürün görseli de üstüne binip gölgesini veriyor. */
   .wrapedge { position: absolute; overflow: hidden; z-index: 2; pointer-events: none; }
@@ -831,6 +842,9 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   var slotEls = {};
   var pieceTitles = {};
   var boardEls = {};
+  var faceEls = {};
+  /** Parça başına: tuvalin (taşma dahil) ön yüz içindeki konumu */
+  var canvasRects = {};
   var FRAME = null;
   var wrapEls = {};
 
@@ -861,6 +875,8 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     slotEls = {};
     pieceTitles = {};
     boardEls = {};
+    faceEls = {};
+    canvasRects = {};
     wrapEls = {};
     boardsEl.innerHTML = '';
     boardsEl.className = '';
@@ -905,18 +921,42 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     boardsEl.appendChild(wrap);
     boardEls[piece.id] = board;
 
+    // Ön yüz kutusu: çerçeve varsa açıklığın yeri, yoksa tahtanın tamamı
+    var face = document.createElement('div');
+    face.className = 'face';
+    if (FRAME) {
+      face.style.left = (FRAME.opening.x * 100) + '%';
+      face.style.top = (FRAME.opening.y * 100) + '%';
+      face.style.width = (FRAME.opening.w * 100) + '%';
+      face.style.height = (FRAME.opening.h * 100) + '%';
+    }
+    board.appendChild(face);
+    faceEls[piece.id] = face;
+
+    // Tuvalin ön yüz içindeki yeri. Yan yüzü olan üründe ön yüzde yalnızca
+    // kesim alanı görünür: tasarım taşma payı kadar büyür ve kenarları kırpılır,
+    // o pay tuvalin yanına sarılır. Yan yüz yoksa tasarım olduğu gibi oturur.
+    var trim = (FRAME && FRAME.wrap && piece.trim && piece.trim.w > 0 && piece.trim.h > 0)
+      ? piece.trim
+      : { x: 0, y: 0, w: 1, h: 1 };
+    var o = { x: -trim.x / trim.w, y: -trim.y / trim.h, w: 1 / trim.w, h: 1 / trim.h };
+    canvasRects[piece.id] = o;
+
     if (piece.templateUrl) {
       var bg = document.createElement('img');
       bg.className = 'bg'; bg.src = piece.templateUrl; bg.alt = '';
-      board.appendChild(bg);
+      bg.style.left = (o.x * 100) + '%';
+      bg.style.top = (o.y * 100) + '%';
+      bg.style.width = (o.w * 100) + '%';
+      bg.style.height = (o.h * 100) + '%';
+      face.appendChild(bg);
     }
 
     piece.slots.forEach(function (s) {
       var el = document.createElement('div');
       el.className = 'slot empty';
-      // Slot koordinatları baskı tuvaline göre; çerçeve varsa açıklığın içine
-      // yeniden ölçekleniyor
-      var o = FRAME ? FRAME.opening : { x: 0, y: 0, w: 1, h: 1 };
+      // Slot koordinatları baskı tuvaline göre; tuval de ön yüzün içine
+      // yerleştiriliyor
       el.style.left = ((o.x + s.rect.x * o.w) * 100) + '%';
       el.style.top = ((o.y + s.rect.y * o.h) * 100) + '%';
       el.style.width = (s.rect.w * o.w * 100) + '%';
@@ -973,14 +1013,18 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         else { replaceTarget = s.id; fileInput.click(); }
       });
 
-      board.appendChild(el);
+      face.appendChild(el);
       slotEls[s.id] = el;
     });
 
     if (piece.overlayUrl) {
       var ov = document.createElement('img');
       ov.className = 'ov'; ov.src = piece.overlayUrl; ov.alt = '';
-      board.appendChild(ov);
+      ov.style.left = (o.x * 100) + '%';
+      ov.style.top = (o.y * 100) + '%';
+      ov.style.width = (o.w * 100) + '%';
+      ov.style.height = (o.h * 100) + '%';
+      face.appendChild(ov);
     }
     if (FRAME && FRAME.wrap && FRAME.opening) {
       var we = document.createElement('div');
@@ -993,7 +1037,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       wi.className = 'wrapclone';
       we.appendChild(wi);
       board.appendChild(we);
-      wrapEls[piece.id] = { board: board, inner: wi };
+      wrapEls[piece.id] = { board: board, face: face, inner: wi };
     }
     if (FRAME) {
       var fr = document.createElement('img');
@@ -1065,13 +1109,13 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     textEls = {};
     D.pieces.forEach(function (piece) {
       (piece.textSlots || []).forEach(function (ts) {
-        var board = boardEls[piece.id];
-        if (!board) return;
+        var face = faceEls[piece.id];
+        if (!face) return;
+        var o = canvasRects[piece.id] || { x: 0, y: 0, w: 1, h: 1 };
         if (ts.fontUrl) fontYukle(ts.fontUrl, ts.fontFamily || 'PLFont-' + ts.id);
 
         var el = document.createElement('div');
         el.className = 'tslot ' + (ts.align === 'left' ? 'l' : ts.align === 'right' ? 'r' : 'c');
-        var o = FRAME ? FRAME.opening : { x: 0, y: 0, w: 1, h: 1 };
         el.style.left = ((o.x + ts.rect.x * o.w) * 100) + '%';
         el.style.top = ((o.y + ts.rect.y * o.h) * 100) + '%';
         el.style.width = (ts.rect.w * o.w * 100) + '%';
@@ -1080,7 +1124,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         el.style.fontWeight = ts.bold ? '700' : '400';
         el.style.fontFamily = aktifAile(ts);
         if (ts.rotation) el.style.transform = 'rotate(' + ts.rotation + 'deg)';
-        board.appendChild(el);
+        face.appendChild(el);
         textEls[piece.id + '::' + ts.id] = { el: el, ts: ts, piece: piece };
       });
     });
@@ -1110,7 +1154,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       if (!deger) return;
 
       var boardH = el.parentElement ? el.parentElement.clientHeight : 0;
-      var o = FRAME ? FRAME.opening : { x: 0, y: 0, w: 1, h: 1 };
+      var o = canvasRects[kayit.piece.id] || { x: 0, y: 0, w: 1, h: 1 };
       // Boyut seçimi kutuyu ve puntoyu birlikte büyütüyor; baskı da aynı kuralla
       var k = secilenBoyutlar[ts.id] || 1;
       var kutuR = boyutluKutu(ts.rect, k);
@@ -1580,30 +1624,43 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
   function paintWrap() {
     if (!FRAME || !FRAME.wrap || !FRAME.opening) return;
-    var o = FRAME.opening, wr = FRAME.wrap;
-    var s = wr.slice > 0 ? Math.min(0.5, wr.slice) : 0.05;
+    var wr = FRAME.wrap;
     var yatay = wr.side === 'left' || wr.side === 'right';
     Object.keys(wrapEls).forEach(function (pid) {
       var kayit = wrapEls[pid];
-      var bw = kayit.board.clientWidth, bh = kayit.board.clientHeight;
-      if (!bw || !bh) return;
+      var face = kayit.face;
+      var fw = face.clientWidth, fh = face.clientHeight;
+      if (!fw || !fh) return;
+      var o = canvasRects[pid] || { x: 0, y: 0, w: 1, h: 1 };
+
+      // Yana sarılan şerit tasarımın taşma payıdır: ön yüzün dışında kalan
+      // kısım. Pay tanımlı değilse ön yüzün kenarından bir şerit alınıyor —
+      // matbaa da o durumda kenarı aynalayarak sarıyor.
+      var dis = yatay
+        ? (wr.side === 'right' ? o.x + o.w - 1 : -o.x)
+        : (wr.side === 'bottom' ? o.y + o.h - 1 : -o.y);
+      var payVar = dis > 0.0005;
+      var oran = payVar ? dis : Math.min(0.5, wr.slice > 0 ? wr.slice : 0.05);
+      var sw = yatay ? oran * fw : fw;
+      var sh = yatay ? fh : oran * fh;
+      var sx = !yatay ? 0
+        : wr.side === 'right' ? (payVar ? fw : fw - sw)
+        : (payVar ? -sw : 0);
+      var sy = yatay ? 0
+        : wr.side === 'bottom' ? (payVar ? fh : fh - sh)
+        : (payVar ? -sh : 0);
+      if (!(sw > 0) || !(sh > 0)) return;
 
       var kopya = document.createElement('div');
       kopya.style.position = 'absolute';
-      kopya.style.width = bw + 'px';
-      kopya.style.height = bh + 'px';
-      for (var i = 0; i < kayit.board.children.length; i++) {
-        var ch = kayit.board.children[i];
-        if (ch.classList && (ch.classList.contains('ov') || ch.classList.contains('wrapedge'))) continue;
-        kopya.appendChild(ch.cloneNode(true));
+      kopya.style.width = fw + 'px';
+      kopya.style.height = fh + 'px';
+      for (var i = 0; i < face.children.length; i++) {
+        kopya.appendChild(face.children[i].cloneNode(true));
       }
 
-      var sliceW = yatay ? o.w * bw * s : o.w * bw;
-      var sliceH = yatay ? o.h * bh : o.h * bh * s;
-      var kx = (wr.rect.w * bw) / sliceW;
-      var ky = (wr.rect.h * bh) / sliceH;
-      var sx = (wr.side === 'right' ? o.x + o.w - o.w * s : o.x) * bw;
-      var sy = (wr.side === 'bottom' ? o.y + o.h - o.h * s : o.y) * bh;
+      var kx = (wr.rect.w * kayit.board.clientWidth) / sw;
+      var ky = (wr.rect.h * kayit.board.clientHeight) / sh;
       kopya.style.transformOrigin = '0 0';
       kopya.style.transform = 'scale(' + kx + ',' + ky + ')';
       kopya.style.left = (-sx * kx) + 'px';

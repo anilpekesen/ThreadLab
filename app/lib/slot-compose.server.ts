@@ -462,6 +462,11 @@ export interface PreviewStripOptions {
    * `slice` şeridin tasarım genişliğine (ya da yüksekliğine) oranı.
    */
   wrap?: { side: "left" | "right" | "top" | "bottom"; rect: MockupOpening; slice: number };
+  /**
+   * Kesim dikdörtgeni, parça görüntüsünün oranı olarak. Yan yüzü olan üründe
+   * ön yüze yalnızca bu alan basılır; dışında kalan taşma payı yana sarılır.
+   */
+  trim?: { x: number; y: number; w: number; h: number };
   /** Tek parçanın hedef genişliği */
   cellWidth?: number;
   gap?: number;
@@ -503,19 +508,41 @@ export async function composePreviewStrip(opts: PreviewStripOptions): Promise<Bu
       const aw = Math.max(1, Math.round(opts.opening.w * W));
       const ah = Math.max(1, Math.round(opts.opening.h * H));
 
-      const icerik = await sharp(parca).resize(aw, ah, { fit: "cover" }).png().toBuffer();
+      const parcaMeta = await sharp(parca).metadata();
+      const pw = parcaMeta.width ?? 0;
+      const ph = parcaMeta.height ?? 0;
+      // Yan yüz varsa ön yüzde yalnızca kesim alanı görünür: taşma payı
+      // tuvalin yanına sarıldığı için ön yüze girmemeli.
+      const kesim = opts.wrap && opts.trim && opts.trim.w > 0 && opts.trim.h > 0 && pw > 0 && ph > 0
+        ? {
+            left: Math.round(opts.trim.x * pw),
+            top: Math.round(opts.trim.y * ph),
+            width: Math.max(1, Math.round(opts.trim.w * pw)),
+            height: Math.max(1, Math.round(opts.trim.h * ph)),
+          }
+        : null;
+      const icerik = await (kesim ? sharp(parca).extract(kesim) : sharp(parca))
+        .resize(aw, ah, { fit: "cover" })
+        .png()
+        .toBuffer();
       const cerceve = await sharp(frame).resize(W, H, { fit: "fill" }).png().toBuffer();
 
       // Yan yüz: tasarımın kenar şeridi kırpılıp o alana sıkıştırılıyor
       const katmanlar: sharp.OverlayOptions[] = [{ input: icerik, left: ax, top: ay }];
       if (opts.wrap) {
         try {
-          const meta = await sharp(parca).metadata();
-          const pw = meta.width ?? 0;
-          const ph = meta.height ?? 0;
           const dikey = opts.wrap.side === "left" || opts.wrap.side === "right";
-          const sw = dikey ? Math.max(1, Math.round(pw * opts.wrap.slice)) : pw;
-          const sh = dikey ? ph : Math.max(1, Math.round(ph * opts.wrap.slice));
+          // Yana sarılan şerit taşma payının kendisi; pay yoksa kenardan bir
+          // şerit alınıyor (matbaa da o durumda kenarı aynalayarak sarar).
+          const pay = kesim
+            ? (opts.wrap.side === "right" ? pw - (kesim.left + kesim.width)
+              : opts.wrap.side === "left" ? kesim.left
+              : opts.wrap.side === "bottom" ? ph - (kesim.top + kesim.height)
+              : kesim.top)
+            : 0;
+          const payVar = pay > 1;
+          const sw = dikey ? Math.max(1, payVar ? pay : Math.round(pw * opts.wrap.slice)) : pw;
+          const sh = dikey ? ph : Math.max(1, payVar ? pay : Math.round(ph * opts.wrap.slice));
           const sx = opts.wrap.side === "right" ? pw - sw : 0;
           const sy = opts.wrap.side === "bottom" ? ph - sh : 0;
           const wx = Math.round(opts.wrap.rect.x * W);

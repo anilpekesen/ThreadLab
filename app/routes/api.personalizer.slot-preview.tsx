@@ -235,6 +235,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           opening,
           blend: mockup?.blend,
           wrap,
+          // Kesim alanı: yan yüz varsa ön yüze bu oturur, taşma payı yana sarılır
+          trim: ilk
+            ? (() => {
+                const c = printCanvas(ilk);
+                return {
+                  x: c.trim.x / c.canvasWidth,
+                  y: c.trim.y / c.canvasHeight,
+                  w: c.trim.width / c.canvasWidth,
+                  h: c.trim.height / c.canvasHeight,
+                };
+              })()
+            : undefined,
           cellWidth: parcaGorselleri.length > 2 ? 380 : 520,
         });
         previewUrl = await uploadToR2(strip, "jpg", "personalizer-preview");
