@@ -76,13 +76,24 @@ export function shapePath(shape: SlotShapeId, w: number, h: number): string {
   }
 }
 
-/** Yol maskesi (harf çizimi): viewBox yolun kendi kutusu, çizim alana esner */
-export function maskPathSvg(mask: { d: string; x: number; y: number; w: number; h: number }, w: number, h: number): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(w)}" height="${f(h)}" viewBox="${mask.x} ${mask.y} ${mask.w} ${mask.h}" preserveAspectRatio="none">`
-    + `<path d="${mask.d}" fill="#fff"/></svg>`;
+type MaskPathLike = { d: string; x: number; y: number; w: number; h: number; bold?: number };
+
+/**
+ * Yol maskesi (harf çizimi): viewBox yolun kutusu, çizim alana esner.
+ * Kalınlaştırma varsa yolun kenarına yuvarlak birleşimli beyaz çizgi çekilir ve
+ * viewBox her yönden yarım çizgi kadar genişletilir.
+ */
+export function maskPathSvg(mask: MaskPathLike, w: number, h: number): string {
+  const b = mask.bold && mask.bold > 0 ? mask.bold : 0;
+  // Köşeler keskin (miter) ve uçlar düz: yuvarlak uç, glif yolunun kapanış
+  // noktasındaki sıfır boylu parçaları köşelerde çıkıntı gibi basıyordu.
+  // Miter sınırı V'nin dar tepesinde uzun sivri uç oluşmasını engelliyor.
+  const stroke = b ? ` stroke="#fff" stroke-width="${f(b)}" stroke-linejoin="miter" stroke-miterlimit="2.5" stroke-linecap="butt"` : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(w)}" height="${f(h)}" viewBox="${f(mask.x - b / 2)} ${f(mask.y - b / 2)} ${f(mask.w + b)} ${f(mask.h + b)}" preserveAspectRatio="none">`
+    + `<path d="${mask.d}" fill="#fff"${stroke}/></svg>`;
 }
 
-export function maskPathUrl(mask: { d: string; x: number; y: number; w: number; h: number }, w: number, h: number): string {
+export function maskPathUrl(mask: MaskPathLike, w: number, h: number): string {
   return `url("data:image/svg+xml;utf8,${encodeURIComponent(maskPathSvg(mask, w, h))}")`;
 }
 

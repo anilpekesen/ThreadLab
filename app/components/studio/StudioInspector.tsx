@@ -8,8 +8,8 @@ import {
   type ImageSlot, type Rect, type Slot, type SlotIssue, type TextSlot,
 } from "~/lib/slots";
 import {
-  CIRCLE_RADIUS, alignSlots, distributeSlots, matchSize, radiusFromMm, radiusToMm, rectFromMm, rectToMm,
-  slotShape, squareAroundCenter, type AlignMode, type SlotShape,
+  CIRCLE_RADIUS, alignSlots, distributeSlots, letterStrokeMm, matchSize, radiusFromMm, radiusToMm, rectFromMm, rectToMm,
+  slotShape, squareAroundCenter, withLetterStroke, type AlignMode, type SlotShape,
 } from "~/lib/frame-studio";
 import { SLOT_SHAPES, shapePath } from "~/lib/slot-shapes";
 import { NumberField } from "./NumberField";
@@ -136,9 +136,10 @@ function AlignGroup({ ids, canvas, onTransform, hint }: {
   );
 }
 
-function MultiSelection({ canvas, selectedSlots, onMerge, onTransform, onDelete, onDuplicate }: StudioInspectorProps) {
+function MultiSelection({ canvas, dpi, selectedSlots, onMerge, onTransform, onDelete, onDuplicate }: StudioInspectorProps) {
   const ids = selectedSlots.map((s) => s.id);
   const imageCount = selectedSlots.filter(isImageSlot).length;
+  const letters = selectedSlots.filter((s): s is ImageSlot => isImageSlot(s) && Boolean(s.mask_path));
   return (
     <BlockStack gap="400">
       <InlineStack align="space-between" blockAlign="center" gap="200" wrap={false}>
@@ -154,6 +155,22 @@ function MultiSelection({ canvas, selectedSlots, onMerge, onTransform, onDelete,
           <Button variant="primary" onClick={onMerge}>{`${imageCount} fotoğraf alanını birleştir`}</Button>
           <Text as="p" tone="subdued" variant="bodySm">
             Seçili alanları kaplayan tek büyük alan olur; ilk alanın adı ve ayarları korunur.
+          </Text>
+        </BlockStack>
+      )}
+
+      {letters.length > 0 && (
+        <BlockStack gap="200">
+          <NumberField
+            label={`Harf kalınlığı (${letters.length} harf)`}
+            value={letterStrokeMm(letters[0], canvas, dpi)}
+            min={0}
+            onCommit={(v) => onTransform((slots) => slots.map((s) => (
+              isImageSlot(s) && s.mask_path && ids.includes(s.id) ? withLetterStroke(s, Math.min(15, v), canvas, dpi) : s
+            )))}
+          />
+          <Text as="p" tone="subdued" variant="bodySm">
+            Harfler yerinde kalır, gövdeleri kalınlaşır. Harfler birbirine değerse "Eşit aralıkla dağıt" ile açın.
           </Text>
         </BlockStack>
       )}
@@ -360,9 +377,17 @@ function ImageSettings({
           ))}
         </div>
         {shape === "letter" && (
-          <Text as="span" variant="bodySm" tone="subdued">
-            {`Harf şekli${slot.mask_label ? ` (${slot.mask_label})` : ""}. Başka bir şekil seçerseniz harf şekli kalkar.`}
-          </Text>
+          <BlockStack gap="200">
+            <Text as="span" variant="bodySm" tone="subdued">
+              {`Harf şekli${slot.mask_label ? ` (${slot.mask_label})` : ""}. Başka bir şekil seçerseniz harf şekli kalkar.`}
+            </Text>
+            <NumberField
+              label="Harf kalınlığı"
+              value={letterStrokeMm(slot, canvas, dpi)}
+              min={0}
+              onCommit={(v) => onPatch(slot.id, withLetterStroke(slot, Math.min(15, v), canvas, dpi), `stroke:${slot.id}`)}
+            />
+          </BlockStack>
         )}
         {shape === "mask" && (
           <InlineStack gap="200" blockAlign="center">

@@ -18,6 +18,7 @@ export interface LetterPhotoOptions {
   glyphs: LetterGlyph[];
   gapMm: number;
   heightRatio: number;
+  strokeMm: number;
   position: "top" | "center";
   replace: boolean;
 }
@@ -32,6 +33,10 @@ export function LetterPhotoForm({ onApply, onCancel }: {
   const [fontUrl, setFontUrl] = useState(FONT_LIBRARY.find((f) => f.id === HEAVY_FIRST[0])?.url ?? FONT_LIBRARY[0].url);
   const [uploaded, setUploaded] = useState<{ url: string; family: string } | null>(null);
   const [gapMm, setGapMm] = useState(2);
+  // Kalın font bile tek başına yetmiyor: 20x30 bir çerçevede harf gövdesi
+  // yaklaşık 1 cm kalıyor ve fotoğraf seçilmiyor. 4 mm kalınlaştırma
+  // gövdeyi ~1,4 cm'ye çıkarıyor.
+  const [strokeMm, setStrokeMm] = useState(4);
   // Sosyopix tarzı LOVE çerçevelerinde harfler kesim yüksekliğinin dörtte biri
   // kadar; daha büyüğü genişliğe dayanıp altta yazıya yer bırakmıyor
   const [heightPct, setHeightPct] = useState(25);
@@ -81,7 +86,7 @@ export function LetterPhotoForm({ onApply, onCancel }: {
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || "Harfler oluşturulamadı");
-      onApply({ glyphs: data.glyphs as LetterGlyph[], gapMm, heightRatio: heightPct / 100, position, replace });
+      onApply({ glyphs: data.glyphs as LetterGlyph[], gapMm, heightRatio: heightPct / 100, strokeMm, position, replace });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Harfler oluşturulamadı");
     } finally {
@@ -136,6 +141,15 @@ export function LetterPhotoForm({ onApply, onCancel }: {
           <NumberField label="Harf arası" value={gapMm} min={0} onCommit={setGapMm} />
           <NumberField label="Yükseklik" suffix="%" step={5} value={heightPct} min={10} onCommit={(v) => setHeightPct(Math.min(100, v))} />
         </div>
+        <NumberField
+          label="Kalınlaştır"
+          value={strokeMm}
+          min={0}
+          onCommit={(v) => setStrokeMm(Math.min(15, v))}
+        />
+        <Text as="p" variant="bodySm" tone="subdued">
+          Harf gövdesini her yönden kalınlaştırır; fotoğraf harfin içinde daha çok görünür.
+        </Text>
         <Select
           label="Konum"
           options={[

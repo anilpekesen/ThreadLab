@@ -611,6 +611,8 @@ export function layoutLetterSlots(
     marginMm: number;
     gapMm: number;
     heightRatio: number;
+    /** Harf gövdesini her yönden bunun yarısı kadar genişleten kalınlaştırma, mm */
+    strokeMm?: number;
     /** "top": kesim kenarından kenar boşluğu kadar aşağıda; altta yazılara yer kalır */
     position?: "top" | "center";
     makeId: (index: number) => string;
@@ -627,17 +629,23 @@ export function layoutLetterSlots(
 
   const availW = canvas.trim.width - mmPx(options.marginMm) * 2;
   const availH = Math.min(canvas.trim.height - mmPx(options.marginMm) * 2, canvas.trim.height * options.heightRatio);
-  const scale = Math.min((availW - totalGap) / wordW, availH / wordH);
+  // Kalınlaştırma her harfin kutusuna iki yandan yarım çizgi ekler; kelimenin
+  // toplam genişliği ve yüksekliği bu payla birlikte sığmalı
+  const strokePx = mmPx(Math.max(0, options.strokeMm ?? 0));
+  const n = glyphs.length;
+  const scale = Math.min((availW - totalGap - strokePx * n) / wordW, (availH - strokePx) / wordH);
   if (!(scale > 0)) return [];
+  const bold = strokePx / scale;
 
-  const left = canvas.trim.x + (canvas.trim.width - (wordW * scale + totalGap)) / 2;
+  const totalW = wordW * scale + totalGap + strokePx * n;
+  const left = canvas.trim.x + (canvas.trim.width - totalW) / 2;
   const top = options.position === "top"
     ? canvas.trim.y + mmPx(options.marginMm)
-    : canvas.trim.y + (canvas.trim.height - wordH * scale) / 2;
+    : canvas.trim.y + (canvas.trim.height - (wordH * scale + strokePx)) / 2;
 
   return glyphs.map((g, i) => {
     const id = options.makeId(i);
-    const x = left + (g.x - minX) * scale + gapPx * i;
+    const x = left + (g.x - minX) * scale + (gapPx + strokePx) * i;
     const y = top + (g.y - minY) * scale;
     return {
       id,
@@ -646,10 +654,10 @@ export function layoutLetterSlots(
       rect: {
         x: x / canvas.canvasWidth,
         y: y / canvas.canvasHeight,
-        w: (g.w * scale) / canvas.canvasWidth,
-        h: (g.h * scale) / canvas.canvasHeight,
+        w: (g.w * scale + strokePx) / canvas.canvasWidth,
+        h: (g.h * scale + strokePx) / canvas.canvasHeight,
       },
-      mask_path: { d: g.d, x: g.x, y: g.y, w: g.w, h: g.h },
+      mask_path: { d: g.d, x: g.x, y: g.y, w: g.w, h: g.h, ...(bold > 0 ? { bold } : {}) },
       mask_label: g.label,
       fit: "cover" as const,
       allow: { pan: true, zoom: true, rotate: true },
@@ -657,4 +665,42 @@ export function layoutLetterSlots(
       order: i + 1,
     };
   });
+}
+
+/** Harf alanının kalınlaştırması, mm (kesilmiş üründe çizgi kalınlığı) */
+export function letterStrokeMm(slot: ImageSlot, canvas: PrintCanvas, dpi: number): number {
+  const m = slot.mask_path;
+  if (!m?.bold) return 0;
+  const pxPerUnit = (slot.rect.w * canvas.canvasWidth) / (m.w + m.bold);
+  return ((m.bold * pxPerUnit) / dpi) * 25.4;
+}
+
+/**
+ * Harf alanını yeni kalınlıkla günceller. Harfin çizim ölçeği sabit kalır,
+ * kutu merkezinden kalınlık farkı kadar büyür ya da küçülür: harf yerinde
+ * durur, yalnızca gövdesi kalınlaşır.
+ */
+export function withLetterStroke(slot: ImageSlot, mm: number, canvas: PrintCanvas, dpi: number): ImageSlot {
+  const m = slot.mask_path;
+  if (!m) return slot;
+  const oldBold = m.bold ?? 0;
+  const pxPerUnitX = (slot.rect.w * canvas.canvasWidth) / (m.w + oldBold);
+  const pxPerUnitY = (slot.rect.h * canvas.canvasHeight) / (m.h + oldBold);
+  const strokePx = (Math.max(0, mm) / 25.4) * dpi;
+  const bold = strokePx / pxPerUnitX;
+  const wPx = (m.w + bold) * pxPerUnitX;
+  const hPx = (m.h + bold) * pxPerUnitY;
+  const cx = (slot.rect.x + slot.rect.w / 2) * canvas.canvasWidth;
+  const cy = (slot.rect.y + slot.rect.h / 2) * canvas.canvasHeight;
+  const { bold: _old, ...rest } = m;
+  return {
+    ...slot,
+    mask_path: bold > 0 ? { ...rest, bold } : rest,
+    rect: {
+      x: (cx - wPx / 2) / canvas.canvasWidth,
+      y: (cy - hPx / 2) / canvas.canvasHeight,
+      w: wPx / canvas.canvasWidth,
+      h: hPx / canvas.canvasHeight,
+    },
+  };
 }

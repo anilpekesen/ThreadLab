@@ -290,6 +290,7 @@ export function FrameStudio({
       marginMm: grid.margin_mm.top,
       gapMm: o.gapMm,
       heightRatio: o.heightRatio,
+      strokeMm: o.strokeMm,
       position: o.position,
       makeId: () => {
         const id = nextSlotId(working, pieces.map((p) => (p.id === working.id ? working : p)), "photo");

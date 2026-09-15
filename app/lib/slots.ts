@@ -157,6 +157,12 @@ export interface MaskPath {
   y: number;
   w: number;
   h: number;
+  /**
+   * Kalınlaştırma: yolun kenarına çizilen çizginin kalınlığı, yolun kendi
+   * biriminde. Harf gövdesini her yönden bunun yarısı kadar genişletir; alan
+   * kutusu (ve viewBox) aynı pay kadar büyür ki kenar kırpılmasın.
+   */
+  bold?: number;
 }
 
 /**
@@ -171,7 +177,11 @@ export function normalizeMaskPath(raw: unknown): MaskPath | undefined {
   const nums = [m.x, m.y, m.w, m.h].map(Number);
   if (!d || d.length > 60000 || !/^[MLHVCSQTAZmlhvcsqtaz0-9eE.,\s-]+$/.test(d)) return undefined;
   if (!nums.every(Number.isFinite) || !(nums[2] > 0) || !(nums[3] > 0)) return undefined;
-  return { d, x: nums[0], y: nums[1], w: nums[2], h: nums[3] };
+  const bold = Number(m.bold);
+  return {
+    d, x: nums[0], y: nums[1], w: nums[2], h: nums[3],
+    ...(Number.isFinite(bold) && bold > 0 ? { bold: Math.min(bold, Math.max(nums[2], nums[3])) } : {}),
+  };
 }
 
 export function isImageSlot(s: Slot): s is ImageSlot {
