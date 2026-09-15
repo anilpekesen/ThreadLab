@@ -310,6 +310,18 @@ export interface MockupOpeningRect extends Rect {
   aspect: number;
 }
 
+/**
+ * Gerdirmeli tuvalde görüntü ön yüzden taşıp yan yüze sarılıyor; görselde
+ * görünen yan yüz beyaz kalırsa ürün gerçekçi durmuyor. `rect` yan yüzün
+ * görseldeki yeri, `depth_mm` tasarımın kaç milimetrelik kenar şeridinin
+ * oraya sarıldığı (tuval kalınlığı).
+ */
+export interface MockupWrap {
+  side: "left" | "right" | "top" | "bottom";
+  rect: Rect;
+  depth_mm: number;
+}
+
 export interface TemplateMockup {
   key: string;
   label: string;
@@ -330,6 +342,24 @@ export interface TemplateMockup {
    * yüzey fotoğrafı değiştirmez, doku ve gölge fotoğrafa işlenir.
    */
   blend?: "multiply";
+  /** Görünen yan yüz; tasarımın kenar şeridi buraya yansıtılır */
+  wrap?: MockupWrap;
+}
+
+function normalizeWrap(raw: unknown): MockupWrap | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const w = raw as Record<string, unknown>;
+  const r = w.rect as Partial<Rect> | undefined;
+  const side = w.side;
+  if (side !== "left" && side !== "right" && side !== "top" && side !== "bottom") return undefined;
+  if (!r || ![r.x, r.y, r.w, r.h].every((v) => typeof v === "number" && Number.isFinite(v))) return undefined;
+  if (!(r.w! > 0) || !(r.h! > 0)) return undefined;
+  const depth = Number(w.depth_mm);
+  return {
+    side,
+    rect: { x: r.x!, y: r.y!, w: r.w!, h: r.h! },
+    depth_mm: Number.isFinite(depth) && depth > 0 ? Math.min(depth, 200) : 20,
+  };
 }
 
 export function normalizeMockups(raw: unknown): TemplateMockup[] {
@@ -359,6 +389,7 @@ export function normalizeMockups(raw: unknown): TemplateMockup[] {
       opening,
       source_url: m.source_url ? String(m.source_url) : undefined,
       blend: m.blend === "multiply" ? "multiply" : undefined,
+      wrap: normalizeWrap(m.wrap),
       areas: areas.flatMap((a) => {
         if (!a || typeof a !== "object") return [];
         const area = a as Record<string, unknown>;

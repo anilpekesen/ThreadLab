@@ -208,6 +208,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // görünür, çerçeve hiç görünmez ve siparişin doğruluğu anlaşılmaz.
     let previewUrl = "";
     if (isRender && parcaGorselleri.length > 0) {
+      // Yan yüze sarılan şerit, tasarımın (taşma dahil) genişliğine oranla
+      const ilk = pieces[0]?.print_product_id ? await getPrintProductPublic(pieces[0].print_product_id) : null;
       try {
         const mockup = pickMockup(
           template.mockups,
@@ -216,11 +218,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const opening = mockup && mockup.areas.length === 0
           ? (mockup.opening ?? await mockupOpening(mockup.url))
           : null;
+        const wrap = mockup?.wrap && ilk
+          ? {
+              side: mockup.wrap.side,
+              rect: mockup.wrap.rect,
+              slice: mockup.wrap.depth_mm / (
+                mockup.wrap.side === "left" || mockup.wrap.side === "right"
+                  ? ilk.width_mm + ilk.bleed_mm * 2
+                  : ilk.height_mm + ilk.bleed_mm * 2
+              ),
+            }
+          : undefined;
         const strip = await composePreviewStrip({
           pieces: parcaGorselleri,
           mockupUrl: opening ? mockup?.url : undefined,
           opening,
           blend: mockup?.blend,
+          wrap,
           cellWidth: parcaGorselleri.length > 2 ? 380 : 520,
         });
         previewUrl = await uploadToR2(strip, "jpg", "personalizer-preview");

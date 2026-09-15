@@ -3,7 +3,7 @@ import {
   Card, BlockStack, InlineStack, Text, Button, Badge, Box,
   TextField, Banner, Divider, Checkbox, Select,
 } from "@shopify/polaris";
-import type { MockupOpeningRect, Rect, TemplateMockup } from "~/lib/slots";
+import type { MockupOpeningRect, MockupWrap, Rect, TemplateMockup } from "~/lib/slots";
 
 /**
  * Mockup editörü — varyanta göre ürün görselleri.
@@ -33,6 +33,7 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
   const [uyari, setUyari] = useState("");
   const [bilgi, setBilgi] = useState("");
   const [drawing, setDrawing] = useState<number | null>(null);
+  const [yanCizen, setYanCizen] = useState<number | null>(null);
   /**
    * Başarılı bir yüklemede bulunan açıklık, görsel ölçüsüne göre saklanıyor.
    * Mağazalar aynı çekimin renk varyantlarını yüklüyor ve beyaz çerçevede iç
@@ -54,6 +55,20 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
   function sil(i: number) {
     onChange(mockups.filter((_, k) => k !== i));
     if (drawing === i) setDrawing(null);
+    if (yanCizen === i) setYanCizen(null);
+  }
+
+  /**
+   * Yan yüz hangi kenara ait? Mağaza sahibinden ayrıca sormaya gerek yok:
+   * çizilen şerit ön yüzün hangi tarafında duruyorsa o kenardır.
+   */
+  function yanTaraf(rect: Rect, opening: MockupOpeningRect): MockupWrap["side"] {
+    const dx = (rect.x + rect.w / 2) - (opening.x + opening.w / 2);
+    const dy = (rect.y + rect.h / 2) - (opening.y + opening.h / 2);
+    if (Math.abs(dx) / Math.max(opening.w, 0.001) >= Math.abs(dy) / Math.max(opening.h, 0.001)) {
+      return dx >= 0 ? "right" : "left";
+    }
+    return dy >= 0 ? "bottom" : "top";
   }
 
   async function yukle(file: File, i: number) {
@@ -198,9 +213,15 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
                   >
                     {m.url ? "Görseli değiştir" : "Görsel yükle"}
                   </Button>
-                  {m.url && drawing !== i && (
+                  {m.url && drawing !== i && yanCizen !== i && (
                     <Button size="slim" onClick={() => setDrawing(i)}>Fotoğraf alanını çiz</Button>
                   )}
+                  {m.url && m.opening && drawing !== i && yanCizen !== i && (
+                    <Button size="slim" onClick={() => setYanCizen(i)}>
+                      {m.wrap ? "Yan yüzü düzenle" : "Yan yüzü çiz"}
+                    </Button>
+                  )}
+                  {m.wrap && <Badge tone="success">Yan yüz çizildi</Badge>}
                 </InlineStack>
                 <Button tone="critical" variant="plain" onClick={() => sil(i)}>Sil</Button>
               </InlineStack>
@@ -215,8 +236,20 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
                     onCancel={() => setDrawing(null)}
                     onApply={(rect, natural) => void alaniKes(i, rect, natural)}
                   />
+                ) : yanCizen === i && m.opening ? (
+                  <WrapDrawer
+                    imageUrl={m.url}
+                    opening={m.opening}
+                    initial={m.wrap}
+                    onCancel={() => setYanCizen(null)}
+                    onClear={() => { patch(i, { wrap: undefined }); setYanCizen(null); }}
+                    onApply={(rect, depthMm) => {
+                      patch(i, { wrap: { side: yanTaraf(rect, m.opening!), rect, depth_mm: depthMm } });
+                      setYanCizen(null);
+                    }}
+                  />
                 ) : (
-                  <MockupPreview url={m.url} opening={m.opening} />
+                  <MockupPreview url={m.url} opening={m.opening} wrap={m.wrap} />
                 )
               )}
 
@@ -278,7 +311,7 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
 }
 
 /** Kayıtlı görsel ve (varsa) elle çizilmiş alanı gösterir */
-function MockupPreview({ url, opening }: { url: string; opening?: MockupOpeningRect }) {
+function MockupPreview({ url, opening, wrap }: { url: string; opening?: MockupOpeningRect; wrap?: MockupWrap }) {
   return (
     <div className="fs-mockup-preview">
       <div className="fs-mockup-frame">
@@ -289,6 +322,16 @@ function MockupPreview({ url, opening }: { url: string; opening?: MockupOpeningR
             style={{
               left: `${opening.x * 100}%`, top: `${opening.y * 100}%`,
               width: `${opening.w * 100}%`, height: `${opening.h * 100}%`,
+            }}
+          />
+        )}
+        {wrap && (
+          <div
+            className="fs-mockup-opening is-saved"
+            style={{
+              left: `${wrap.rect.x * 100}%`, top: `${wrap.rect.y * 100}%`,
+              width: `${wrap.rect.w * 100}%`, height: `${wrap.rect.h * 100}%`,
+              borderStyle: "dashed",
             }}
           />
         )}
@@ -446,4 +489,130 @@ function OpeningDrawer({
 /** Kilitli oranda, görselin piksel oranını hesaba katarak normalize yükseklik */
 function heightFor(w: number, natural: { w: number; h: number }, designAspect: number): number {
   return (w * natural.w) / (designAspect * natural.h);
+}
+
+/**
+ * Gerdirmeli tuvalin görünen yan yüzü. Mağaza sahibi görselde o dar şeridi
+ * çiziyor; müşteri sayfasında ve baskı önizlemesinde tasarımın o kenardaki
+ * şeridi oraya yansıyor, böylece tuvalin yanı beyaz kalmıyor.
+ *
+ * Kenarın hangisi olduğu ayrıca sorulmuyor: şerit ön yüzün hangi tarafındaysa
+ * o kenar kabul ediliyor.
+ */
+function WrapDrawer({
+  imageUrl, opening, initial, onCancel, onClear, onApply,
+}: {
+  imageUrl: string;
+  opening: MockupOpeningRect;
+  initial?: MockupWrap;
+  onCancel: () => void;
+  onClear: () => void;
+  onApply: (rect: Rect, depthMm: number) => void;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<Rect | null>(initial?.rect ?? null);
+  // Yaygın gerdirmeli tuval kalınlığı 2 cm; tasarımın o kadarlık şeridi yana sarılır
+  const [depth, setDepth] = useState(String(initial?.depth_mm ?? 20));
+  const [drag, setDrag] = useState<DragMode | null>(null);
+
+  function norm(e: { clientX: number; clientY: number }) {
+    const r = boxRef.current!.getBoundingClientRect();
+    return {
+      x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
+      y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)),
+    };
+  }
+
+  useEffect(() => {
+    if (!drag) return;
+    const move = (e: PointerEvent) => {
+      const p = norm(e);
+      const o = drag.origin;
+      if (drag.kind === "move") {
+        setRect({
+          ...o,
+          x: Math.min(1 - o.w, Math.max(0, o.x + p.x - drag.startX)),
+          y: Math.min(1 - o.h, Math.max(0, o.y + p.y - drag.startY)),
+        });
+      } else if (drag.kind === "resize") {
+        setRect({ ...o, w: Math.max(0.005, Math.min(1 - o.x, p.x - o.x)), h: Math.max(0.005, Math.min(1 - o.y, p.y - o.y)) });
+      } else {
+        setRect({
+          x: Math.min(drag.startX, p.x),
+          y: Math.min(drag.startY, p.y),
+          w: Math.max(0.005, Math.abs(p.x - drag.startX)),
+          h: Math.max(0.005, Math.abs(p.y - drag.startY)),
+        });
+      }
+    };
+    const up = () => setDrag(null);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+  }, [drag]);
+
+  function start(e: React.PointerEvent, kind: DragMode["kind"]) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const p = norm(e);
+    const origin = kind === "draw" ? { x: p.x, y: p.y, w: 0.005, h: 0.005 } : rect!;
+    if (kind === "draw") setRect(origin);
+    setDrag({ kind, startX: p.x, startY: p.y, origin });
+  }
+
+  const mm = Number(depth.replace(",", "."));
+  const gecerli = Number.isFinite(mm) && mm > 0 && mm <= 100;
+
+  return (
+    <BlockStack gap="300">
+      <Text as="p" variant="bodySm">
+        Tuvalin görselde görünen yan yüzünü sürükleyerek çizin — mavi çerçeve ön yüz.
+        Tasarımın o kenardaki şeridi bu alana yansır, tuvalin yanı beyaz kalmaz.
+      </Text>
+      <div className="fs-mockup-preview">
+        <div ref={boxRef} className="fs-mockup-frame is-drawing" onPointerDown={(e) => start(e, "draw")}>
+          <img src={imageUrl} alt="" draggable={false} />
+          <div
+            className="fs-mockup-opening is-saved"
+            style={{
+              left: `${opening.x * 100}%`, top: `${opening.y * 100}%`,
+              width: `${opening.w * 100}%`, height: `${opening.h * 100}%`,
+              pointerEvents: "none", opacity: 0.55,
+            }}
+          />
+          {rect && (
+            <div
+              className="fs-mockup-opening"
+              style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.w * 100}%`, height: `${rect.h * 100}%` }}
+              onPointerDown={(e) => start(e, "move")}
+            >
+              <span className="fs-mockup-handle" onPointerDown={(e) => start(e, "resize")} />
+            </div>
+          )}
+        </div>
+      </div>
+      <Box minWidth="220px">
+        <TextField
+          label="Tuval kalınlığı (mm)"
+          type="number"
+          autoComplete="off"
+          value={depth}
+          onChange={setDepth}
+          error={!gecerli && depth.trim() !== "" ? "1–100 mm arası bir değer girin" : undefined}
+          helpText="Tasarımın kaç milimetrelik kenarı yana sarılıyor. Gerdirmeli tuvalde genelde 20 mm."
+        />
+      </Box>
+      <InlineStack gap="200">
+        <Button variant="primary" disabled={!rect || !gecerli} onClick={() => rect && gecerli && onApply(rect, mm)}>
+          Yan yüzü uygula
+        </Button>
+        <Button onClick={onCancel}>Vazgeç</Button>
+        {initial && <Button tone="critical" variant="plain" onClick={onClear}>Yan yüzü kaldır</Button>}
+      </InlineStack>
+    </BlockStack>
+  );
 }

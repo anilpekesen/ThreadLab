@@ -457,6 +457,11 @@ export interface PreviewStripOptions {
   opening?: MockupOpening | null;
   /** Kanvas gibi yüzeylerde görsel üste çarpma karışımıyla konur */
   blend?: "multiply";
+  /**
+   * Görünen yan yüz: tasarımın o kenardaki şeridi buraya sıkıştırılıyor.
+   * `slice` şeridin tasarım genişliğine (ya da yüksekliğine) oranı.
+   */
+  wrap?: { side: "left" | "right" | "top" | "bottom"; rect: MockupOpening; slice: number };
   /** Tek parçanın hedef genişliği */
   cellWidth?: number;
   gap?: number;
@@ -501,13 +506,38 @@ export async function composePreviewStrip(opts: PreviewStripOptions): Promise<Bu
       const icerik = await sharp(parca).resize(aw, ah, { fit: "cover" }).png().toBuffer();
       const cerceve = await sharp(frame).resize(W, H, { fit: "fill" }).png().toBuffer();
 
+      // Yan yüz: tasarımın kenar şeridi kırpılıp o alana sıkıştırılıyor
+      const katmanlar: sharp.OverlayOptions[] = [{ input: icerik, left: ax, top: ay }];
+      if (opts.wrap) {
+        try {
+          const meta = await sharp(parca).metadata();
+          const pw = meta.width ?? 0;
+          const ph = meta.height ?? 0;
+          const dikey = opts.wrap.side === "left" || opts.wrap.side === "right";
+          const sw = dikey ? Math.max(1, Math.round(pw * opts.wrap.slice)) : pw;
+          const sh = dikey ? ph : Math.max(1, Math.round(ph * opts.wrap.slice));
+          const sx = opts.wrap.side === "right" ? pw - sw : 0;
+          const sy = opts.wrap.side === "bottom" ? ph - sh : 0;
+          const wx = Math.round(opts.wrap.rect.x * W);
+          const wy = Math.round(opts.wrap.rect.y * H);
+          const ww = Math.max(1, Math.round(opts.wrap.rect.w * W));
+          const wh = Math.max(1, Math.round(opts.wrap.rect.h * H));
+          const serit = await sharp(parca)
+            .extract({ left: sx, top: sy, width: sw, height: sh })
+            .resize(ww, wh, { fit: "fill" })
+            .png()
+            .toBuffer();
+          katmanlar.push({ input: serit, left: wx, top: wy });
+        } catch (err) {
+          console.error("[slot-compose] yan yüz çizilemedi:", err);
+        }
+      }
+      katmanlar.push(opts.blend === "multiply" ? { input: cerceve, blend: "multiply" } : { input: cerceve });
+
       const buf = await sharp({
         create: { width: W, height: H, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
       })
-        .composite([
-          { input: icerik, left: ax, top: ay },
-          opts.blend === "multiply" ? { input: cerceve, blend: "multiply" } : { input: cerceve },
-        ])
+        .composite(katmanlar)
         .png()
         .toBuffer();
       hucreler.push({ buf, w: W, h: H });

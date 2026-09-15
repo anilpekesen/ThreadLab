@@ -185,11 +185,16 @@ export async function buildSlotData(
   // eksik kurulmuş demektir; eski arayüze düşmek yanlış olur, çünkü o arayüz
   // slotları bilmiyor ve müşteriye tek fotoğraflık bir akış gösterirdi.
   const piecePayload = [];
+  /** İlk parçanın tasarım ölçüsü (taşma dahil, mm); yan yüz şeridi buna oranlanıyor */
+  let ilkOlcuMm: { w: number; h: number } | null = null;
   for (const piece of pieces) {
     const product = piece.print_product_id
       ? await getPrintProductPublic(piece.print_product_id)
       : null;
     if (!product) return page(t.noSize);
+    if (!ilkOlcuMm) {
+      ilkOlcuMm = { w: product.width_mm + product.bleed_mm * 2, h: product.height_mm + product.bleed_mm * 2 };
+    }
     const canvas = printCanvas(product);
 
     piecePayload.push({
@@ -288,6 +293,18 @@ export async function buildSlotData(
       url: m.url,
       areas: m.areas,
       blend: m.blend ?? "",
+      // Yan yüz: tasarımın kenar şeridi buraya yansıyor. Şeridin oranı
+      // tasarımın gerçek ölçüsüne göre, ilk parçanın tuvalinden hesaplanıyor.
+      wrap: m.wrap && ilkOlcuMm
+        ? {
+            side: m.wrap.side,
+            rect: m.wrap.rect,
+            // Şerit: tuval kalınlığının tasarım ölçüsüne oranı
+            slice: Math.min(0.5, m.wrap.depth_mm / (
+              m.wrap.side === "left" || m.wrap.side === "right" ? ilkOlcuMm.w : ilkOlcuMm.h
+            )),
+          }
+        : null,
       // Elle çizilmiş açıklık taramadan önce gelir
       opening: m.areas.length === 0 ? (m.opening ?? await mockupOpening(m.url)) : null,
     });
@@ -484,6 +501,10 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     object-fit: fill; pointer-events: none;
   }
   .board img.ov { z-index: 3; }
+  /* Gerdirmeli tuvalin görünen yan yüzü: tasarımın kenar şeridi buraya
+     sıkıştırılıyor, ürün görseli de üstüne binip gölgesini veriyor. */
+  .wrapedge { position: absolute; overflow: hidden; z-index: 2; pointer-events: none; }
+  .wrapedge .wrapclone { position: absolute; inset: 0; }
 
   /* display:none bir dosya girdisini Safari bazı sürümlerde hiç açmıyor;
      görünmez ama yerleşimde duran bir kutu güvenli. */
@@ -811,6 +832,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   var pieceTitles = {};
   var boardEls = {};
   var FRAME = null;
+  var wrapEls = {};
 
   // Seçili varyant görseli. Renk değişiminde sunucuya gidilmiyor: bütün
   // görseller açıklıklarıyla birlikte geldi, sadece hangisinin çizileceği
@@ -839,6 +861,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     slotEls = {};
     pieceTitles = {};
     boardEls = {};
+    wrapEls = {};
     boardsEl.innerHTML = '';
     boardsEl.className = '';
 
@@ -958,6 +981,19 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       var ov = document.createElement('img');
       ov.className = 'ov'; ov.src = piece.overlayUrl; ov.alt = '';
       board.appendChild(ov);
+    }
+    if (FRAME && FRAME.wrap && FRAME.opening) {
+      var we = document.createElement('div');
+      we.className = 'wrapedge';
+      we.style.left = (FRAME.wrap.rect.x * 100) + '%';
+      we.style.top = (FRAME.wrap.rect.y * 100) + '%';
+      we.style.width = (FRAME.wrap.rect.w * 100) + '%';
+      we.style.height = (FRAME.wrap.rect.h * 100) + '%';
+      var wi = document.createElement('div');
+      wi.className = 'wrapclone';
+      we.appendChild(wi);
+      board.appendChild(we);
+      wrapEls[piece.id] = { board: board, inner: wi };
     }
     if (FRAME) {
       var fr = document.createElement('img');
@@ -1098,6 +1134,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         }
       }
     });
+    planWrap();
   }
 
   function escapeText(v) {
@@ -1402,7 +1439,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     var warn = el.querySelector('.warn');
     if (warn) warn.remove();
 
-    if (!f) { el.classList.add('empty'); return; }
+    if (!f) { el.classList.add('empty'); planWrap(); return; }
     el.classList.remove('empty');
 
     var img = document.createElement('img');
@@ -1427,6 +1464,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     var W = el.clientWidth, H = el.clientHeight;
     if (!W || !H || !f.width || !f.height) return;
     yerlestir(img, f, W, H);
+    planWrap();
   }
 
   /**
@@ -1528,10 +1566,59 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     });
   }
 
+  /**
+   * Yan yüz: tahtanın kenardaki şeridinin kopyası, yan yüz alanına
+   * sıkıştırılıyor. Kopya her çizimde yenileniyor; fotoğraf değişince yan yüz
+   * de değişmeli.
+   */
+  var wrapTimer = 0;
+  /** Yan yüz tasarım her değiştiğinde tazelenir; kare başına bir kez */
+  function planWrap() {
+    if (wrapTimer) return;
+    wrapTimer = requestAnimationFrame(function () { wrapTimer = 0; paintWrap(); });
+  }
+
+  function paintWrap() {
+    if (!FRAME || !FRAME.wrap || !FRAME.opening) return;
+    var o = FRAME.opening, wr = FRAME.wrap;
+    var s = wr.slice > 0 ? Math.min(0.5, wr.slice) : 0.05;
+    var yatay = wr.side === 'left' || wr.side === 'right';
+    Object.keys(wrapEls).forEach(function (pid) {
+      var kayit = wrapEls[pid];
+      var bw = kayit.board.clientWidth, bh = kayit.board.clientHeight;
+      if (!bw || !bh) return;
+
+      var kopya = document.createElement('div');
+      kopya.style.position = 'absolute';
+      kopya.style.width = bw + 'px';
+      kopya.style.height = bh + 'px';
+      for (var i = 0; i < kayit.board.children.length; i++) {
+        var ch = kayit.board.children[i];
+        if (ch.classList && (ch.classList.contains('ov') || ch.classList.contains('wrapedge'))) continue;
+        kopya.appendChild(ch.cloneNode(true));
+      }
+
+      var sliceW = yatay ? o.w * bw * s : o.w * bw;
+      var sliceH = yatay ? o.h * bh : o.h * bh * s;
+      var kx = (wr.rect.w * bw) / sliceW;
+      var ky = (wr.rect.h * bh) / sliceH;
+      var sx = (wr.side === 'right' ? o.x + o.w - o.w * s : o.x) * bw;
+      var sy = (wr.side === 'bottom' ? o.y + o.h - o.h * s : o.y) * bh;
+      kopya.style.transformOrigin = '0 0';
+      kopya.style.transform = 'scale(' + kx + ',' + ky + ')';
+      kopya.style.left = (-sx * kx) + 'px';
+      kopya.style.top = (-sy * ky) + 'px';
+
+      kayit.inner.innerHTML = '';
+      kayit.inner.appendChild(kopya);
+    });
+  }
+
   function renderAll() {
     ALL.forEach(function (s) { paint(s.id); });
     paintTexts();
     paintMockup();
+    paintWrap();
     renderPool();
     updateStatus();
   }
@@ -1540,6 +1627,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     ALL.forEach(function (s) { layout(s.id); });
     paintTexts();
     paintMockup();
+    paintWrap();
   });
 
   function renderPool() {
@@ -1800,7 +1888,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   });
 
   document.getElementById('cropDone').addEventListener('click', function () {
-    dlg.close(); paint(cropSlot); paintMockup(); updateStatus();
+    dlg.close(); paint(cropSlot); paintMockup(); paintWrap(); updateStatus();
   });
   // Çeyrek dönüş: kaydırma dönmüş fotoğrafa göre tutulduğu için sıfırlanıyor,
   // yoksa eski kadraj yeni yönde anlamsız bir yere düşüyordu.
@@ -1817,7 +1905,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   document.getElementById('cropClear').addEventListener('click', function () {
     delete fills[cropSlot]; dlg.close(); renderAll();
   });
-  dlg.addEventListener('close', function () { paint(cropSlot); paintMockup(); updateStatus(); });
+  dlg.addEventListener('close', function () { paint(cropSlot); paintMockup(); paintWrap(); updateStatus(); });
 
   // ── Önizleme ve sepet ──────────────────────────────────────────────────
   function payload(mode) {
