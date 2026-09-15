@@ -54,7 +54,7 @@ export function roundMm(v: number): number {
 // Şekil
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type SlotShape = "rect" | "rounded" | "circle" | "mask" | SlotShapeId;
+export type SlotShape = "rect" | "rounded" | "circle" | "mask" | "letter" | SlotShapeId;
 
 /**
  * Köşe yuvarlaması tuval GENİŞLİĞİNE oranla saklanıyor ve render motoru onu
@@ -64,6 +64,7 @@ export type SlotShape = "rect" | "rounded" | "circle" | "mask" | SlotShapeId;
  */
 export function slotShape(slot: ImageSlot, canvas: PrintCanvas): SlotShape {
   if (slot.mask_url) return "mask";
+  if (slot.mask_path) return "letter";
   if (slot.shape) return slot.shape;
   const radiusPx = (slot.radius ?? 0) * canvas.canvasWidth;
   if (radiusPx <= 0) return "rect";
@@ -576,5 +577,84 @@ export function matchSize(slots: Slot[], ids: string[], dimension: "w" | "h"): S
       ? { ...s.rect, x: s.rect.x + (s.rect.w - value) / 2, w: value }
       : { ...s.rect, y: s.rect.y + (s.rect.h - value) / 2, h: value };
     return { ...s, rect };
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Harf şekilli fotoğraflar
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface LetterGlyph {
+  label: string;
+  d: string;
+  /** Glifin kelime içindeki sınır kutusu, font biriminde */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Harfleri kesim alanına yerleştirip her biri için bir fotoğraf alanı üretir.
+ *
+ * Kelime fontun kendi dizilişini korur; `gapMm` her harf arasına ek boşluk
+ * koyar (fotoğrafların birbirine değmemesi için). Kelime, kenar boşluğu
+ * bırakılarak kesim alanına en büyük hâliyle sığdırılır ve ortalanır.
+ * `heightRatio` yazının kesim yüksekliğinin en fazla ne kadarını kaplayacağı;
+ * altta isim, tarih gibi yazılara yer kalsın diye.
+ */
+export function layoutLetterSlots(
+  glyphs: LetterGlyph[],
+  canvas: PrintCanvas,
+  dpi: number,
+  options: {
+    marginMm: number;
+    gapMm: number;
+    heightRatio: number;
+    /** "top": kesim kenarından kenar boşluğu kadar aşağıda; altta yazılara yer kalır */
+    position?: "top" | "center";
+    makeId: (index: number) => string;
+  },
+): ImageSlot[] {
+  if (glyphs.length === 0) return [];
+  const mmPx = (mm: number) => (mm / 25.4) * dpi;
+  const minX = Math.min(...glyphs.map((g) => g.x));
+  const minY = Math.min(...glyphs.map((g) => g.y));
+  const wordW = Math.max(...glyphs.map((g) => g.x + g.w)) - minX;
+  const wordH = Math.max(...glyphs.map((g) => g.y + g.h)) - minY;
+  const gapPx = mmPx(Math.max(0, options.gapMm));
+  const totalGap = gapPx * (glyphs.length - 1);
+
+  const availW = canvas.trim.width - mmPx(options.marginMm) * 2;
+  const availH = Math.min(canvas.trim.height - mmPx(options.marginMm) * 2, canvas.trim.height * options.heightRatio);
+  const scale = Math.min((availW - totalGap) / wordW, availH / wordH);
+  if (!(scale > 0)) return [];
+
+  const left = canvas.trim.x + (canvas.trim.width - (wordW * scale + totalGap)) / 2;
+  const top = options.position === "top"
+    ? canvas.trim.y + mmPx(options.marginMm)
+    : canvas.trim.y + (canvas.trim.height - wordH * scale) / 2;
+
+  return glyphs.map((g, i) => {
+    const id = options.makeId(i);
+    const x = left + (g.x - minX) * scale + gapPx * i;
+    const y = top + (g.y - minY) * scale;
+    return {
+      id,
+      kind: "image" as const,
+      source: id,
+      rect: {
+        x: x / canvas.canvasWidth,
+        y: y / canvas.canvasHeight,
+        w: (g.w * scale) / canvas.canvasWidth,
+        h: (g.h * scale) / canvas.canvasHeight,
+      },
+      mask_path: { d: g.d, x: g.x, y: g.y, w: g.w, h: g.h },
+      mask_label: g.label,
+      fit: "cover" as const,
+      allow: { pan: true, zoom: true, rotate: true },
+      label: `${i + 1}. Fotoğraf (${g.label})`,
+      order: i + 1,
+    };
   });
 }

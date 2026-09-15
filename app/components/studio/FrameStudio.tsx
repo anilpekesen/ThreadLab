@@ -9,12 +9,13 @@ import {
 } from "~/lib/slots";
 import {
   LAYOUT_PRESETS, SINGLE_PIECE_ID, STUDIO_DEFAULT_GRID, nextSlotId, prefixSlotIds, presetSlots, rectFromMm, rectToMm,
-  clampRect, mergeImageSlots, splitImageSlot, type LayoutPreset,
+  clampRect, layoutLetterSlots, mergeImageSlots, splitImageSlot, type LayoutPreset,
 } from "~/lib/frame-studio";
 import { MockupEditor } from "~/components/MockupEditor";
 import { StudioCanvas } from "./StudioCanvas";
 import { StudioInspector } from "./StudioInspector";
 import { NumberField } from "./NumberField";
+import { LetterPhotoForm, type LetterPhotoOptions } from "./LetterPhotoForm";
 
 /**
  * Çerçeve Stüdyosu — bir fotoğraf ürününün baskı düzenini tek ekranda kurar.
@@ -89,6 +90,7 @@ export function FrameStudio({
   const [uploading, setUploading] = useState<"" | "background_url" | "overlay_url">("");
   const [holeBusy, setHoleBusy] = useState(false);
   const [showGridSettings, setShowGridSettings] = useState(false);
+  const [showLetters, setShowLetters] = useState(false);
   const [lastPreset, setLastPreset] = useState<LayoutPreset | null>(null);
   const [test, setTest] = useState<{
     busy: boolean; error?: string; images?: Array<{ id: string; name: string; url: string }>;
@@ -278,6 +280,36 @@ export function FrameStudio({
       .map((x) => ({ ...x, label: /^\d+\. Fotoğraf$/.test(x.label) || !x.label ? `${x.order}. Fotoğraf` : x.label }));
     setSlots([...images, ...next.filter((x) => !isImageSlot(x))]);
     setSelectedIds(parts.map((x) => x.id));
+  }
+
+  function applyLetters(o: LetterPhotoOptions) {
+    if (!active || !canvas) return;
+    const base = o.replace ? active.slots.filter((s) => !isImageSlot(s)) : active.slots;
+    const working: TemplatePiece = { ...active, slots: [...base] };
+    const letters = layoutLetterSlots(o.glyphs, canvas, dpi, {
+      marginMm: grid.margin_mm.top,
+      gapMm: o.gapMm,
+      heightRatio: o.heightRatio,
+      position: o.position,
+      makeId: () => {
+        const id = nextSlotId(working, pieces.map((p) => (p.id === working.id ? working : p)), "photo");
+        // Kimlik rezerve edilsin diye geçici kayıt; aşağıda gerçek alanlarla değişiyor
+        working.slots.push({ id, kind: "image", source: id, rect: { x: 0, y: 0, w: 0.1, h: 0.1 }, fit: "cover", allow: { pan: true, zoom: true, rotate: true }, label: "", order: 0 });
+        return id;
+      },
+    });
+    if (letters.length === 0) {
+      setNote({ tone: "warning", text: "Harfler bu ölçüye sığmadı. Kenar boşluğunu ya da harf arasını küçültün." });
+      return;
+    }
+    const start = base.filter(isImageSlot).length;
+    const numbered = letters.map((s, i) => ({ ...s, order: start + i + 1, label: `${start + i + 1}. Fotoğraf (${s.mask_label})` }));
+    setSlots([...base, ...numbered]);
+    setSelectedIds(numbered.map((s) => s.id));
+    setShowLetters(false);
+    setNote(active.overlay_url
+      ? { tone: "warning", text: "Harfler oluşturuldu. Bu tasarımda bir üst katman görseli var; harflerin üstünü örtüyorsa soldaki \"Tasarım görselleri\" bölümünden kaldırın." }
+      : { tone: "success", text: `${numbered.length} harf şekilli fotoğraf alanı oluşturuldu. Seçiliyken birlikte taşıyabilirsiniz.` });
   }
 
   function transformSelected(fn: (slots: Slot[]) => Slot[]) {
@@ -748,6 +780,13 @@ export function FrameStudio({
                     <Button onClick={addImageSlot}>Fotoğraf alanı</Button>
                     <Button onClick={addTextSlot}>Yazı alanı</Button>
                   </div>
+                  {showLetters ? (
+                    <LetterPhotoForm onApply={applyLetters} onCancel={() => setShowLetters(false)} />
+                  ) : (
+                    <Button onClick={() => setShowLetters(true)} fullWidth>
+                      Harf şekilli fotoğraflar (LOVE…)
+                    </Button>
+                  )}
                 </section>
 
                 <section className="fs-section">

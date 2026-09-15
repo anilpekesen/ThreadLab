@@ -40,6 +40,14 @@ export interface ImageSlot {
   /** Delik taramasından çıkan şekil maskesi; yoksa dikdörtgen */
   mask_url?: string;
   /**
+   * SVG yolu olarak şekil — harf şekilli fotoğraflarda fontun gerçek çizimi.
+   * `x, y, w, h` yolun viewBox'ı; yol alan kutusuna esnetilerek oturur.
+   * `mask_url`'den sonra, hazır şekilden önce gelir.
+   */
+  mask_path?: MaskPath;
+  /** Maskenin neyi temsil ettiği; yönetim ekranında gösterilir ("L") */
+  mask_label?: string;
+  /**
    * Hazır şekil (kalp, yıldız...). Alanın piksel ölçüsüne göre SVG olarak
    * üretilir; `mask_url` varsa o önceliklidir.
    */
@@ -99,6 +107,29 @@ export interface TextSlot {
 }
 
 export type Slot = ImageSlot | TextSlot;
+
+export interface MaskPath {
+  d: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Yol yalnızca düz SVG yol komutları ve sayılardan oluşabilir. Değer SVG'ye
+ * metin olarak gömülüyor (baskı motoru ve CSS maskesi); başka karakterlere izin
+ * vermek, kaydedilen veriyle SVG içine etiket sokmaya kapı açardı.
+ */
+export function normalizeMaskPath(raw: unknown): MaskPath | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const m = raw as Record<string, unknown>;
+  const d = typeof m.d === "string" ? m.d.trim() : "";
+  const nums = [m.x, m.y, m.w, m.h].map(Number);
+  if (!d || d.length > 60000 || !/^[MLHVCSQTAZmlhvcsqtaz0-9eE.,\s-]+$/.test(d)) return undefined;
+  if (!nums.every(Number.isFinite) || !(nums[2] > 0) || !(nums[3] > 0)) return undefined;
+  return { d, x: nums[0], y: nums[1], w: nums[2], h: nums[3] };
+}
 
 export function isImageSlot(s: Slot): s is ImageSlot {
   return s.kind === "image";
@@ -854,6 +885,8 @@ export function normalizeSlots(raw: unknown): Slot[] {
         kind: "image",
         source: String(s.source ?? base.id),
         mask_url: s.mask_url ? String(s.mask_url) : undefined,
+        mask_path: normalizeMaskPath(s.mask_path),
+        mask_label: typeof s.mask_label === "string" ? s.mask_label.slice(0, 8) : undefined,
         shape: isSlotShapeId(s.shape) ? s.shape : undefined,
         radius: typeof s.radius === "number" ? s.radius : undefined,
         fit: s.fit === "contain" ? "contain" : "cover",

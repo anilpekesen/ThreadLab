@@ -2,7 +2,7 @@ import { templatePieces, type PersonalizerTemplate } from "~/models/personalizer
 import { getPrintProductPublic } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
 import { isImageSlot, isTextSlot, pickMockup } from "~/lib/slots";
-import { shapeMaskUrl } from "~/lib/slot-shapes";
+import { maskPathUrl, shapeMaskUrl } from "~/lib/slot-shapes";
 import { findLibraryFont } from "~/lib/font-library";
 import { colorLabel, isLightColor } from "~/lib/text-palette";
 import { scanTemplateHoles } from "~/lib/template-hole.server";
@@ -207,7 +207,9 @@ export async function buildSlotData(
           // aynı yol olsun diye istemcide ayrıca hesaplanmıyor.
           mask: sl.mask_url
             ? `url("${sl.mask_url}")`
-            : sl.shape
+            : sl.mask_path
+              ? maskPathUrl(sl.mask_path, sl.rect.w * canvas.canvasWidth, sl.rect.h * canvas.canvasHeight)
+              : sl.shape
               ? shapeMaskUrl(sl.shape, sl.rect.w * canvas.canvasWidth, sl.rect.h * canvas.canvasHeight)
               : "",
           // Bu alanı 300 dpi'da dolduran fotoğrafın olması gereken kısa kenarı

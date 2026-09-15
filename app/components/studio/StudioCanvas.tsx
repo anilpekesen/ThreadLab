@@ -5,7 +5,7 @@ import {
   canvasGuides, clampRect, resizeRotated, rotationFromPointer, slotShape, snapEdges, snapMove, unionRect,
   type ResizeHandle, type SnapLine,
 } from "~/lib/frame-studio";
-import { shapeMaskUrl } from "~/lib/slot-shapes";
+import { maskPathUrl, shapeMaskUrl } from "~/lib/slot-shapes";
 import { fontPreviewFamily } from "./TextSlotSettings";
 
 /**
@@ -291,7 +291,11 @@ export function StudioCanvas({
           const hPx = s.rect.h * ch;
           const style = rectStyle(s.rect, s.rotation);
           if (isImageSlot(s)) {
-            const mask = s.mask_url ? `url("${s.mask_url}")` : s.shape ? shapeMaskUrl(s.shape, wPx, hPx) : "";
+            const mask = s.mask_url
+              ? `url("${s.mask_url}")`
+              : s.mask_path
+                ? maskPathUrl(s.mask_path, wPx, hPx)
+                : s.shape ? shapeMaskUrl(s.shape, wPx, hPx) : "";
             if (mask) {
               style.WebkitMaskImage = mask;
               style.maskImage = mask;
@@ -308,7 +312,7 @@ export function StudioCanvas({
           return (
             <div
               key={s.id}
-              className={`fs-slot ${isImageSlot(s) ? "is-image" : "is-text"}${selected ? " is-selected" : ""}${isImageSlot(s) && (s.shape || s.mask_url) ? " is-shaped" : ""}`}
+              className={`fs-slot ${isImageSlot(s) ? "is-image" : "is-text"}${selected ? " is-selected" : ""}${isImageSlot(s) && (s.shape || s.mask_url || s.mask_path) ? " is-shaped" : ""}`}
               style={style}
               onPointerDown={(e) => beginSlot(e, s, "move")}
               role="button"

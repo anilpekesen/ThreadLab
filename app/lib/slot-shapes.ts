@@ -76,6 +76,16 @@ export function shapePath(shape: SlotShapeId, w: number, h: number): string {
   }
 }
 
+/** Yol maskesi (harf çizimi): viewBox yolun kendi kutusu, çizim alana esner */
+export function maskPathSvg(mask: { d: string; x: number; y: number; w: number; h: number }, w: number, h: number): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(w)}" height="${f(h)}" viewBox="${mask.x} ${mask.y} ${mask.w} ${mask.h}" preserveAspectRatio="none">`
+    + `<path d="${mask.d}" fill="#fff"/></svg>`;
+}
+
+export function maskPathUrl(mask: { d: string; x: number; y: number; w: number; h: number }, w: number, h: number): string {
+  return `url("data:image/svg+xml;utf8,${encodeURIComponent(maskPathSvg(mask, w, h))}")`;
+}
+
 /** Beyaz dolgulu, kutu boyunda SVG — sunucuda `dest-in` maskesi olarak kullanılır */
 export function shapeSvg(shape: SlotShapeId, w: number, h: number): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${f(w)}" height="${f(h)}" viewBox="0 0 ${f(w)} ${f(h)}">`

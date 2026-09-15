@@ -7,7 +7,7 @@ import {
 import { loadFont, layoutText } from "~/lib/text-render.server";
 import { resolveChosenFont } from "~/lib/font-library";
 import { resolveChosenColor } from "~/lib/text-palette";
-import { shapeSvg } from "~/lib/slot-shapes";
+import { maskPathSvg, shapeSvg } from "~/lib/slot-shapes";
 import { setPngDensity } from "~/lib/png-density.server";
 
 /**
@@ -181,6 +181,11 @@ async function applySlotShape(
       .png()
       .toBuffer();
     // Maskenin şeffaf olduğu yerde fotoğraf da şeffaflaşır
+    return sharp(layer).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
+  }
+
+  if (slot.mask_path) {
+    const mask = Buffer.from(maskPathSvg(slot.mask_path, width, height));
     return sharp(layer).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
   }
 

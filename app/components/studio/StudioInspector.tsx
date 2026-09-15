@@ -286,7 +286,7 @@ function ShapeIcon({ shape }: { shape: SlotShape }) {
   if (shape === "rect") return <svg viewBox="0 0 26 26" aria-hidden="true"><rect x="3" y="5" width="20" height="16" /></svg>;
   if (shape === "rounded") return <svg viewBox="0 0 26 26" aria-hidden="true"><rect x="3" y="5" width="20" height="16" rx="5" /></svg>;
   if (shape === "circle") return <svg viewBox="0 0 26 26" aria-hidden="true"><rect x="3" y="3" width="20" height="20" rx="10" /></svg>;
-  if (shape === "mask") return <svg viewBox="0 0 26 26" aria-hidden="true"><rect x="3" y="3" width="20" height="20" rx="3" /></svg>;
+  if (shape === "mask" || shape === "letter") return <svg viewBox="0 0 26 26" aria-hidden="true"><rect x="3" y="3" width="20" height="20" rx="3" /></svg>;
   return (
     <svg viewBox="0 0 26 26" aria-hidden="true">
       <g transform="translate(3 3)"><path d={shapePath(shape, 20, 20)} /></g>
@@ -310,23 +310,24 @@ function ImageSettings({
   const [split, setSplit] = useState({ cols: 2, rows: 1, gap: 4 });
 
   function setShape(next: SlotShape) {
-    if (next === "rect") onPatch(slot.id, { radius: undefined, mask_url: undefined, shape: undefined });
+    // Hazır bir şekil seçilince harf maskesi de kalkar; ikisi birlikte olamaz
+    if (next === "rect") onPatch(slot.id, { radius: undefined, mask_url: undefined, mask_path: undefined, shape: undefined });
     else if (next === "rounded") {
       onPatch(slot.id, {
-        mask_url: undefined, shape: undefined,
+        mask_url: undefined, mask_path: undefined, shape: undefined,
         radius: radiusFromMm(shape === "rounded" ? radiusMm : 4, canvas, dpi),
       });
     } else if (next === "circle") {
       onPatch(slot.id, {
-        mask_url: undefined, shape: undefined, radius: CIRCLE_RADIUS, rect: squareAroundCenter(slot.rect, canvas),
+        mask_url: undefined, mask_path: undefined, shape: undefined, radius: CIRCLE_RADIUS, rect: squareAroundCenter(slot.rect, canvas),
       });
-    } else if (next !== "mask") {
+    } else if (next !== "mask" && next !== "letter") {
       // Kalp ve yıldız kare kutuda en doğal görünüyor; oval ve kemer mevcut
       // oranını korur, çünkü onların anlamı zaten o orandan geliyor.
       const squareFirst = (next === "heart" || next === "star" || next === "hexagon" || next === "diamond")
         && shape !== "heart" && shape !== "star" && shape !== "hexagon" && shape !== "diamond";
       onPatch(slot.id, {
-        mask_url: undefined, radius: undefined, shape: next,
+        mask_url: undefined, mask_path: undefined, radius: undefined, shape: next,
         ...(squareFirst ? { rect: squareAroundCenter(slot.rect, canvas) } : {}),
       });
     }
@@ -358,6 +359,11 @@ function ImageSettings({
             </button>
           ))}
         </div>
+        {shape === "letter" && (
+          <Text as="span" variant="bodySm" tone="subdued">
+            {`Harf şekli${slot.mask_label ? ` (${slot.mask_label})` : ""}. Başka bir şekil seçerseniz harf şekli kalkar.`}
+          </Text>
+        )}
         {shape === "mask" && (
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="bodySm" tone="subdued">Tasarımdaki delikten alınmış özel şekil.</Text>

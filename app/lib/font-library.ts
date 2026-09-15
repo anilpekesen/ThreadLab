@@ -89,6 +89,29 @@ export const FONT_LIBRARY: LibraryFont[] = [
     family: "Great Vibes",
     url: `${LIBRARY_PREFIX}great-vibes.ttf`,
   },
+  // Harf şekilli fotoğraflar için kalın aileler. Fotoğraf harfin gövdesinde
+  // göründüğü için gövde ne kadar kalınsa fotoğraftan o kadar çok şey kalır.
+  {
+    id: "montserrat-black",
+    label: "Montserrat Black",
+    role: "Çok kalın geometrik — harf içi fotoğraf için önerilen",
+    family: "Montserrat Black",
+    url: `${LIBRARY_PREFIX}montserrat-black.ttf`,
+  },
+  {
+    id: "archivo-black",
+    label: "Archivo Black",
+    role: "Çok kalın, geniş harfler — LOVE, AŞKIM gibi kısa kelimeler",
+    family: "Archivo Black",
+    url: `${LIBRARY_PREFIX}archivo-black.ttf`,
+  },
+  {
+    id: "anton",
+    label: "Anton",
+    role: "Kalın ve dar — uzun isimler dar alana sığar",
+    family: "Anton",
+    url: `${LIBRARY_PREFIX}anton.ttf`,
+  },
 ];
 
 /** Şablondaki `font_url` bir kütüphane fontuna mı işaret ediyor? */

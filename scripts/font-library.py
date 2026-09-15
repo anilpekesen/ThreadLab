@@ -5,7 +5,8 @@ Normalde çalıştırmaya gerek yok: üretilen .ttf dosyaları depoda duruyor.
 Kütüphaneye font eklemek ya da bir ağırlığı değiştirmek gerektiğinde:
 
     python3 -m venv .venv-font && .venv-font/bin/pip install fonttools brotli
-    .venv-font/bin/python scripts/font-library.py
+    .venv-font/bin/python scripts/font-library.py                 # hepsi
+    .venv-font/bin/python scripts/font-library.py anton.ttf       # yalnızca yeni font
 
 Üç işlem yapılıyor, üçü de gerçek bir sorunu çözüyor:
 
@@ -50,6 +51,11 @@ ISLER = [
     ("cormorantgaramond/CormorantGaramond%5Bwght%5D.ttf", 600, "cormorant.ttf"),
     ("dancingscript/DancingScript%5Bwght%5D.ttf",         700, "dancing-script.ttf"),
     ("greatvibes/GreatVibes-Regular.ttf",                None, "great-vibes.ttf"),
+    # Harf şekilli fotoğraflar için kalın aileler: fotoğraf harfin gövdesinde
+    # görünüyor, ince fontta yalnızca birkaç milimetrelik şerit kalıyor.
+    ("montserrat/Montserrat%5Bwght%5D.ttf",               900, "montserrat-black.ttf"),
+    ("archivoblack/ArchivoBlack-Regular.ttf",            None, "archivo-black.ttf"),
+    ("anton/Anton-Regular.ttf",                          None, "anton.ttf"),
 ]
 
 UNICODE = ",".join([
@@ -70,7 +76,12 @@ def main() -> int:
     gecici = os.path.join(HEDEF, ".ham")
     os.makedirs(gecici, exist_ok=True)
 
+    # Argüman verilirse yalnızca o çıktılar üretilir. Mevcut fontları yeniden
+    # üretmek, kaynak güncellendiyse bugünkü şablonların baskısını değiştirir.
+    secili = set(sys.argv[1:])
     for yol, agirlik, cikti in ISLER:
+        if secili and cikti not in secili:
+            continue
         ham = os.path.join(gecici, cikti)
         urllib.request.urlretrieve(f"{KAYNAK}/{yol}", ham)
 
