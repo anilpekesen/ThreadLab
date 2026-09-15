@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import type { PrintCanvas } from "~/lib/print-spec";
 import {
-  isImageSlot, isTextSlot, rectToPx,
+  isImageSlot, isTextSlot, rectToPx, resolveChosenSize, scaledTextRect,
   type ImageSlot, type Slot, type TextSlot,
 } from "~/lib/slots";
 import { loadFont, layoutText } from "~/lib/text-render.server";
@@ -68,6 +68,8 @@ export interface ComposeSlotsOptions {
   fonts?: Record<string, string>;
   /** Müşterinin seçtiği yazı renkleri; slot kimliği → #rrggbb */
   colors?: Record<string, string>;
+  /** Müşterinin seçtiği boyut kademesi; slot kimliği → çarpan (bkz. TEXT_SIZE_STEPS) */
+  sizes?: Record<string, number>;
   /** Fotoğrafların ALTINDA duran tasarım */
   backgroundUrl?: string;
   /** Fotoğrafların ÜSTÜNDE duran tasarım */
@@ -264,6 +266,7 @@ async function buildTextLayers(
   values: Record<string, string>,
   chosenFonts: Record<string, string>,
   chosenColors: Record<string, string>,
+  chosenSizes: Record<string, number>,
   canvasWidth: number,
   canvasHeight: number,
 ): Promise<sharp.OverlayOptions[]> {
@@ -273,8 +276,9 @@ async function buildTextLayers(
     const raw = (values[slot.id] ?? "").trim() || slot.default_value.trim();
     if (!raw) continue;
 
-    const box = rectToPx(slot.rect, canvasWidth, canvasHeight);
-    const fontSize = Math.max(1, Math.round(slot.font_size * canvasHeight));
+    const sizeScale = resolveChosenSize(chosenSizes[slot.id], slot.size_choices);
+    const box = rectToPx(scaledTextRect(slot.rect, sizeScale), canvasWidth, canvasHeight);
+    const fontSize = Math.max(1, Math.round(slot.font_size * sizeScale * canvasHeight));
 
     // Çıkıntılar (ğ, ş kuyrukları, İ noktası) kutunun dışına taşabilir;
     // katman kırpmasın diye her yönden pay bırakıyoruz.
@@ -294,7 +298,7 @@ async function buildTextLayers(
     const chosen = resolveChosenFont(chosenFonts[slot.id], slot.font_choices);
     const fontUrl = chosen?.url ?? slot.font_url;
     const fontFamily = chosen?.family ?? slot.font_family;
-    const color = resolveChosenColor(chosenColors[slot.id], slot.color_choices) ?? slot.color;
+    const color = resolveChosenColor(chosenColors[slot.id], slot.color_choices, slot.color_free) ?? slot.color;
     const font = fontUrl ? await loadFont(fontUrl) : null;
     let body = "";
 
@@ -422,7 +426,7 @@ export async function composeSlotDesign(opts: ComposeSlotsOptions): Promise<Buff
   }
 
   for (const layer of await buildTextLayers(
-    slots.filter(isTextSlot), opts.texts ?? {}, opts.fonts ?? {}, opts.colors ?? {}, W, H,
+    slots.filter(isTextSlot), opts.texts ?? {}, opts.fonts ?? {}, opts.colors ?? {}, opts.sizes ?? {}, W, H,
   )) {
     composites.push(layer);
   }

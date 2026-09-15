@@ -84,10 +84,13 @@ export function normalizeHex(raw: unknown): string | undefined {
 export function resolveChosenColor(
   secim: string | undefined,
   izinliler: string[] | undefined,
+  /** Mağaza serbest renk seçimini açtıysa geçerli her renk kodu kabul edilir */
+  serbest = false,
 ): string | undefined {
-  if (!izinliler?.length) return undefined;
   const hex = normalizeHex(secim);
-  if (!hex || !izinliler.includes(hex)) return undefined;
+  if (!hex) return undefined;
+  if (serbest) return hex;
+  if (!izinliler?.length || !izinliler.includes(hex)) return undefined;
   return hex;
 }
 

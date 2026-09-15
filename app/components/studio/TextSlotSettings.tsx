@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
 import {
   BlockStack, InlineStack, Text, Button, Badge, Box,
-  TextField, FormLayout, Select, Divider,
+  TextField, FormLayout, Select, Divider, Checkbox,
 } from "@shopify/polaris";
-import type { TextSlot } from "~/lib/slots";
+import { TEXT_SIZE_STEPS, type TextSlot } from "~/lib/slots";
 import type { PrintCanvas } from "~/lib/print-spec";
 import { FONT_LIBRARY, findLibraryFont, isLibraryFontUrl } from "~/lib/font-library";
 import { TEXT_PALETTE, PALETTE_GROUPS, isLightColor, normalizeHex } from "~/lib/text-palette";
@@ -263,7 +263,49 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
 
           <Divider />
 
+          {/* Boyut: mağaza hangi kademeleri açarsa müşteri o düğmeleri görür.
+              Normal her zaman seçili başlar ve listede kalır. */}
           <BlockStack gap="200">
+            <Checkbox
+              label="Müşteri yazı boyutunu değiştirebilsin"
+              checked={(slot.size_choices ?? []).length > 0}
+              onChange={(v) => onPatch({ size_choices: v ? TEXT_SIZE_STEPS.filter((st) => st.value !== 1).map((st) => st.value) : [] })}
+              helpText="Yazı büyüdükçe kutusu da ortasından büyür; yakındaki yazılarla çakışmayacak kadar yer bırakın."
+            />
+            {(slot.size_choices ?? []).length > 0 && (
+              <InlineStack gap="200" wrap>
+                {TEXT_SIZE_STEPS.map((st) => {
+                  const normal = st.value === 1;
+                  const acik = normal || (slot.size_choices ?? []).includes(st.value);
+                  return (
+                    <Button
+                      key={st.value}
+                      size="slim"
+                      pressed={acik}
+                      disabled={normal}
+                      onClick={() => {
+                        const current = slot.size_choices ?? [];
+                        const next = acik ? current.filter((v) => v !== st.value) : [...current, st.value];
+                        onPatch({ size_choices: next.sort((a, b) => a - b) });
+                      }}
+                    >
+                      {`${st.label} (%${Math.round(st.value * 100)})`}
+                    </Button>
+                  );
+                })}
+              </InlineStack>
+            )}
+          </BlockStack>
+
+          <Divider />
+
+          <BlockStack gap="200">
+            <Checkbox
+              label="Müşteri istediği rengi seçebilsin (renk seçici)"
+              checked={slot.color_free === true}
+              onChange={(v) => onPatch({ color_free: v })}
+              helpText="Aşağıdaki renklerin yanına bir renk seçici eklenir. Açık renkler beyaz zeminde okunmaz basılabilir."
+            />
             <InlineStack gap="200" blockAlign="center" wrap={false}>
               <Text as="span" variant="bodySm" fontWeight="semibold">Müşterinin seçebileceği renkler</Text>
               {musteriRenkleri.length > 0 && (

@@ -99,6 +99,16 @@ export interface TextSlot {
    * listeye karşı doğruluyor.
    */
   color_choices?: string[];
+  /**
+   * Müşteri listedeki renklerle sınırlı kalmadan renk seçiciden istediği
+   * rengi seçebilir. Açık renkler zeminde kaybolabileceği için varsayılan kapalı.
+   */
+  color_free?: boolean;
+  /**
+   * Müşterinin seçebileceği boyut kademeleri (`TEXT_SIZE_STEPS` değerleri).
+   * Boşsa boyut değiştirilemez. Normal (1) her zaman seçilebilir.
+   */
+  size_choices?: number[];
   color: string;
   bold: boolean;
   align: "left" | "center" | "right";
@@ -107,6 +117,39 @@ export interface TextSlot {
 }
 
 export type Slot = ImageSlot | TextSlot;
+
+/** Müşteriye açılabilen yazı boyutu kademeleri; değer puntonun çarpanı */
+export const TEXT_SIZE_STEPS: Array<{ value: number; label: string }> = [
+  { value: 0.8, label: "Küçük" },
+  { value: 1, label: "Normal" },
+  { value: 1.25, label: "Büyük" },
+  { value: 1.5, label: "Çok büyük" },
+];
+
+/**
+ * Müşterinin boyut seçimini doğrular. Yalnızca mağazanın açtığı kademeler
+ * kabul edilir; istemciden gelen serbest bir çarpan dev bir yazı katmanı
+ * üretmemeli.
+ */
+export function resolveChosenSize(raw: unknown, choices: number[] | undefined): number {
+  const n = Number(raw);
+  if (!choices?.length || !Number.isFinite(n)) return 1;
+  return choices.includes(n) ? n : 1;
+}
+
+/**
+ * Boyutu büyütülen yazının kutusu merkezinden aynı oranda büyür. Kutu sabit
+ * kalsaydı "taşarsa küçült" kuralı büyütülen yazıyı yine kutuya indirirdi ve
+ * seçim işe yaramazdı. Tuvalin dışına taşmaz.
+ */
+export function scaledTextRect(rect: Rect, scale: number): Rect {
+  if (scale === 1) return rect;
+  const w = Math.min(1, rect.w * scale);
+  const h = Math.min(1, rect.h * scale);
+  const x = Math.min(1 - w, Math.max(0, rect.x + (rect.w - w) / 2));
+  const y = Math.min(1 - h, Math.max(0, rect.y + (rect.h - h) / 2));
+  return { x, y, w, h };
+}
 
 export interface MaskPath {
   d: string;
@@ -872,6 +915,11 @@ export function normalizeSlots(raw: unknown): Slot[] {
           ? (s.color_choices as unknown[])
               .map(normalizeHex)
               .filter((c): c is string => Boolean(c))
+          : undefined,
+        color_free: s.color_free === true,
+        size_choices: Array.isArray(s.size_choices)
+          ? (s.size_choices as unknown[]).map(Number)
+              .filter((v) => TEXT_SIZE_STEPS.some((step) => step.value === v && v !== 1))
           : undefined,
         color: String(s.color ?? "#000000"),
         bold: s.bold === true,

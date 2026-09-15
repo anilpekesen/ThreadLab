@@ -49,6 +49,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     fonts?: Record<string, string>;
     /** Müşterinin seçtiği yazı renkleri; slot kimliği → #rrggbb */
     colors?: Record<string, string>;
+    /** Müşterinin seçtiği yazı boyutu kademesi; slot kimliği → çarpan */
+    sizes?: Record<string, number>;
     mode?: string;
     locale?: string;
     /** Sipariş önizlemesinde doğru renk çerçevesini seçmek için */
@@ -122,6 +124,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   };
   const fonts = sozluk(body.fonts);
   const colors = sozluk(body.colors);
+  // Boyut çarpanı sayı; kademe doğrulaması render motorunda slotun izin listesiyle
+  const sizes: Record<string, number> = {};
+  if (body.sizes && typeof body.sizes === "object") {
+    for (const [k, v] of Object.entries(body.sizes as Record<string, unknown>)) {
+      const n = Number(v);
+      if (Number.isFinite(n)) sizes[String(k)] = n;
+    }
+  }
   const rendered: Array<{
     id: string; name: string; url: string; width: number; height: number;
     /** Baskı ölçüsü; kesim çizgili PDF bunu kullanıyor, şablon sonradan değişse bile */
@@ -160,6 +170,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         texts,
         fonts,
         colors,
+        sizes,
         backgroundUrl: piece.background_url,
         overlayUrl: piece.overlay_url,
         outputFormat: isRender ? "png" : "jpeg",
@@ -246,6 +257,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             texts,
             fonts,
             colors,
+            sizes,
           }),
         ],
       );

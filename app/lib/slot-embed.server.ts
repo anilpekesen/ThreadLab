@@ -1,7 +1,7 @@
 import { templatePieces, type PersonalizerTemplate } from "~/models/personalizer.server";
 import { getPrintProductPublic } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
-import { isImageSlot, isTextSlot, pickMockup } from "~/lib/slots";
+import { TEXT_SIZE_STEPS, isImageSlot, isTextSlot, pickMockup } from "~/lib/slots";
 import { maskPathUrl, shapeMaskUrl } from "~/lib/slot-shapes";
 import { findLibraryFont } from "~/lib/font-library";
 import { colorLabel, isLightColor } from "~/lib/text-palette";
@@ -141,6 +141,8 @@ export async function buildSlotData(
     fontDefault: isTr ? "Varsayılan" : "Default",
     yaziRengi: isTr ? "Renk" : "Colour",
     yaziRengiVarsayilan: isTr ? "Varsayılan renk" : "Default colour",
+    yaziBoyutu: isTr ? "Boyut" : "Size",
+    digerRenk: isTr ? "Başka bir renk seç" : "Pick another colour",
     adding: isTr ? "Ekleniyor…" : "Adding…",
     added: isTr ? "Sepete eklendi" : "Added to cart",
     lowRes: isTr ? "Düşük çözünürlük" : "Low resolution",
@@ -202,6 +204,7 @@ export async function buildSlotData(
           id: sl.id, rect: sl.rect, label: sl.label, order: sl.order,
           radius: sl.radius ?? 0, fit: sl.fit, allow: sl.allow,
           rotation: sl.rotation ?? 0,
+          letter: Boolean(sl.mask_path),
           // Şekil maskesi sunucuda, alanın baskı pikseli oranında üretiliyor;
           // tarayıcı yalnızca CSS maskesi olarak uyguluyor. Baskıdaki kesimle
           // aynı yol olsun diye istemcide ayrıca hesaplanmıyor.
@@ -260,6 +263,11 @@ export async function buildSlotData(
         colorChoices: (sl.color_choices ?? []).map((c) => ({
           hex: c, label: colorLabel(c), light: isLightColor(c),
         })),
+        colorFree: sl.color_free === true,
+        // Boyut kademeleri: Normal her zaman ilk sırada, mağazanın açtıkları küçükten büyüğe
+        sizeChoices: sl.size_choices?.length
+          ? TEXT_SIZE_STEPS.filter((step) => step.value === 1 || sl.size_choices!.includes(step.value))
+          : [],
         color: sl.color,
       });
     }
@@ -509,7 +517,14 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   }
   /* Kalp, yıldız gibi şekillerde köşe maskenin dışında kalıyor ve rozet
      görünmüyordu; şekilli alanda numara ortada, boş alanın "+" işaretinin üstünde. */
+  /* Harf ve şekil alanları boşken belirgin olmalı: açık zemin rengi beyaz
+     tasarımda LOVE'ı neredeyse görünmez yapıyordu. "+" işareti harfin
+     ortası boşsa (L, O, V) maskede kayboluyor; şeklin kendisi yeterli ipucu. */
+  .slot.shaped.empty { background: #c9d0d9; border: 0; }
+  .slot.shaped.empty.missing { background: #e8b9b3; }
+  .slot.shaped.empty::after { content: none; }
   .slot.shaped .num { left: 50%; top: calc(50% - 30px); transform: translateX(-50%); }
+  .slot.letter .num { display: none; }
   /* Canlı yazı: tasarımın üstünde, baskıdakiyle aynı kutuda */
   .tslot {
     position: absolute; z-index: 4; display: flex; align-items: center;
@@ -587,7 +602,22 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   .fontsatir .renketiket {
     flex: none; font-size: 12px; font-weight: 500; color: var(--ink-2);
   }
-  .renkler { display: flex; gap: 8px; flex-wrap: wrap; }
+  .renkler { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  /* Serbest renk seçici: kutucuklarla aynı boyda, içi renk tekerleği */
+  /* ".field input" kuralı genişliği %100 yapıp kutuyu şeride çeviriyordu;
+     seçici o kuraldan daha özgül olmalı */
+  .field .renkler input.renk-serbest {
+    -webkit-appearance: none; appearance: none; flex: none;
+    width: 26px; height: 26px; min-height: 0; padding: 0; border-radius: 50%; cursor: pointer;
+    border: 1px solid rgba(0,0,0,.18); overflow: hidden;
+    background: conic-gradient(#e53935, #fdd835, #43a047, #1e88e5, #8e24aa, #e53935);
+  }
+  .field .renkler input.renk-serbest::-webkit-color-swatch-wrapper { padding: 0; }
+  .field .renkler input.renk-serbest::-webkit-color-swatch { border: 0; opacity: 0; }
+  .field .renkler input.renk-serbest::-moz-color-swatch { border: 0; opacity: 0; }
+  .field .renkler input.renk-serbest.secili { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+  .boyutlar { display: flex; gap: 6px; flex-wrap: wrap; }
+  .boyutlar .vopt { padding: 6px 10px; font-size: 13px; }
   .renk {
     width: 26px; height: 26px; padding: 0; border-radius: 50%;
     border: 1px solid rgba(0,0,0,.18); cursor: pointer;
@@ -871,6 +901,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     // ise elips görünüyordu. Aynı hesap burada da yapılıyor.
     if (s.mask) {
       el.classList.add('shaped');
+      if (s.letter) el.classList.add('letter');
       el.style.webkitMaskImage = s.mask;
       el.style.maskImage = s.mask;
       el.style.webkitMaskSize = '100% 100%';
@@ -969,6 +1000,19 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
   // Müşterinin seçtiği yazı renkleri; slot kimliği → #rrggbb
   var secilenRenkler = {};
+  /** Müşterinin seçtiği boyut çarpanı; yoksa 1 */
+  var secilenBoyutlar = {};
+
+  /** Sunucudaki scaledTextRect'in aynısı: kutu merkezinden büyür, tuvalden taşmaz */
+  function boyutluKutu(r, k) {
+    if (!k || k === 1) return r;
+    var w = Math.min(1, r.w * k), h = Math.min(1, r.h * k);
+    return {
+      x: Math.min(1 - w, Math.max(0, r.x + (r.w - w) / 2)),
+      y: Math.min(1 - h, Math.max(0, r.y + (r.h - h) / 2)),
+      w: w, h: h,
+    };
+  }
 
   /** Bu metin alanının o an geçerli rengi */
   function aktifRenk(ts) {
@@ -1025,8 +1069,15 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
 
       var boardH = el.parentElement ? el.parentElement.clientHeight : 0;
       var o = FRAME ? FRAME.opening : { x: 0, y: 0, w: 1, h: 1 };
+      // Boyut seçimi kutuyu ve puntoyu birlikte büyütüyor; baskı da aynı kuralla
+      var k = secilenBoyutlar[ts.id] || 1;
+      var kutuR = boyutluKutu(ts.rect, k);
+      el.style.left = ((o.x + kutuR.x * o.w) * 100) + '%';
+      el.style.top = ((o.y + kutuR.y * o.h) * 100) + '%';
+      el.style.width = (kutuR.w * o.w * 100) + '%';
+      el.style.height = (kutuR.h * o.h * 100) + '%';
       // Punto tuval YÜKSEKLİĞİNE oran; çerçeve varsa açıklık kadar ölçekleniyor
-      var px = ts.fontSize * boardH * o.h;
+      var px = ts.fontSize * k * boardH * o.h;
       el.style.fontSize = px + 'px';
 
       // Taşarsa küçült. Ölçüm canvas ile yapılıyor: ortalanmış bir esnek
@@ -1240,9 +1291,41 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       wrap.appendChild(fw);
     }
 
+    // Boyut seçimi: birkaç kademe, düğme olarak. Kaydırıcı telefonda hassas
+    // ayar gerektiriyor ve baskıda doğrulanamayan ara değerler üretiyordu.
+    if (f.sizeChoices && f.sizeChoices.length > 1) {
+      var bw = document.createElement('div');
+      bw.className = 'fontsatir';
+      var bl = document.createElement('span');
+      bl.className = 'renketiket';
+      bl.textContent = T.yaziBoyutu;
+      bw.appendChild(bl);
+      var bg = document.createElement('div');
+      bg.className = 'boyutlar';
+      bg.setAttribute('role', 'group');
+      bg.setAttribute('aria-label', (f.label || '') + ' ' + T.yaziBoyutu);
+      f.sizeChoices.forEach(function (c) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'vopt';
+        b.textContent = c.label;
+        b.setAttribute('aria-pressed', c.value === 1 ? 'true' : 'false');
+        b.addEventListener('click', function () {
+          [].forEach.call(bg.children, function (x) { x.setAttribute('aria-pressed', 'false'); });
+          b.setAttribute('aria-pressed', 'true');
+          if (c.value === 1) delete secilenBoyutlar[f.id];
+          else secilenBoyutlar[f.id] = c.value;
+          paintTexts();
+        });
+        bg.appendChild(b);
+      });
+      bw.appendChild(bg);
+      wrap.appendChild(bw);
+    }
+
     // Renk seçimi. Liste yerine kutucuk: renk okunacak bir şey değil,
     // görülecek bir şey — telefonda da tek dokunuşla değişiyor.
-    if (f.colorChoices && f.colorChoices.length) {
+    if ((f.colorChoices && f.colorChoices.length) || f.colorFree) {
       var rw = document.createElement('div');
       rw.className = 'fontsatir';
       var rl = document.createElement('span');
@@ -1276,6 +1359,24 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         });
         kutular.appendChild(b);
       });
+
+      // Mağaza serbest renge izin verdiyse listenin sonunda renk seçici
+      if (f.colorFree) {
+        var serbest = document.createElement('input');
+        serbest.type = 'color';
+        serbest.className = 'renk-serbest';
+        serbest.value = f.color && /^#[0-9a-f]{6}$/i.test(f.color) ? f.color : '#1a1a1a';
+        serbest.title = T.digerRenk;
+        serbest.setAttribute('aria-label', T.digerRenk);
+        serbest.addEventListener('input', function () {
+          [].forEach.call(kutular.children, function (x) { x.classList.remove('secili'); });
+          serbest.classList.add('secili');
+          serbest.style.background = serbest.value;
+          secilenRenkler[f.id] = serbest.value.toLowerCase();
+          paintTexts();
+        });
+        kutular.appendChild(serbest);
+      }
 
       rw.appendChild(kutular);
       wrap.appendChild(rw);
@@ -1724,6 +1825,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       texts: texts,
       fonts: secilenFontlar,
       colors: secilenRenkler,
+      sizes: secilenBoyutlar,
       // Sipariş önizlemesinde doğru renk çerçevesi seçilebilsin
       optionValues: URUN ? URUN.options.map(function (o) { return secim[o.name]; }) : [],
       fills: ALL.filter(function (s) { return fills[s.id] && fills[s.id].url; })
@@ -1772,9 +1874,14 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
             if (bulunan) props[f.label + ' — ' + T.fontLabel] = bulunan.label;
           }
           var renk = secilenRenkler[f.id];
-          if (renk && f.colorChoices) {
-            var rBul = f.colorChoices.filter(function (c) { return c.hex === renk; })[0];
+          if (renk) {
+            var rBul = (f.colorChoices || []).filter(function (c) { return c.hex === renk; })[0];
             props[f.label + ' — ' + T.yaziRengi] = rBul ? rBul.label : renk;
+          }
+          var boy = secilenBoyutlar[f.id];
+          if (boy && f.sizeChoices) {
+            var bBul = f.sizeChoices.filter(function (c) { return c.value === boy; })[0];
+            if (bBul) props[f.label + ' — ' + T.yaziBoyutu] = bBul.label;
           }
         });
 
