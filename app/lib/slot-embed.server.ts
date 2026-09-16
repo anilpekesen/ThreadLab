@@ -240,6 +240,8 @@ export async function buildSlotData(
       textSlots: piece.slots.filter(isTextSlot).map((sl) => ({
         id: sl.id,
         captionOf: sl.caption_of ?? "",
+        // Kart yazısı kartın üstünde yazıldığı için sınır da orada gerekiyor
+        maxLength: sl.max_length,
         rect: sl.rect,
         fontSize: sl.font_size,
         fontFamily: sl.font_family,
@@ -1040,8 +1042,9 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     el.dataset.slot = s.id;
 
       // Parçada tek alan varsa numara rozeti bilgi taşımıyor, sadece
-      // fotoğrafın üstünü kirletiyor
-      if (piece.slots.length > 1) {
+      // fotoğrafın üstünü kirletiyor. Kartlarda ise kaçıncı kart olduğu
+      // toplu yüklemede sıranın karşılığı: duruyor.
+      if (piece.slots.length > 1 || piece.card) {
         var num = document.createElement('span');
         num.className = 'num'; num.textContent = s.order;
         el.appendChild(num);
