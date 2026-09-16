@@ -1190,7 +1190,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
             if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
           });
           el.addEventListener('input', function () {
-            var v = (el.textContent || '').replace(/[\r\n]+/g, ' ');
+            var v = (el.textContent || '').split('\\n').join(' ').split('\\r').join('');
             var sinir = ts.maxLength || 40;
             if (v.length > sinir) {
               v = v.slice(0, sinir);
