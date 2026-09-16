@@ -61,6 +61,15 @@ export interface ImageSlot {
   label: string;
   /** Müşteriye gösterilen sıra; 1'den başlar */
   order: number;
+  /**
+   * Tabakadan tek tek kesilen kart ürünlerinde kartın tuvaldeki yeri.
+   *
+   * Müşteriye tabaka gösterilmez — 35 pola kart sipariş eden biri üç tabaka
+   * değil, 35 kart görmek ister. Bu dikdörtgen sayesinde müşteri sayfası
+   * tabakayı kartlara bölüp her kartı ayrı gösteriyor; baskı tarafı yine
+   * tabakayı basıyor.
+   */
+  card_rect?: Rect;
 }
 
 /** Metin slotunun müşteriye ne kadar açık olduğu */
@@ -114,6 +123,11 @@ export interface TextSlot {
   align: "left" | "center" | "right";
   /** Metin alana sığmazsa ne yapılacağı */
   overflow: "shrink" | "clip";
+  /**
+   * Bu yazı hangi fotoğraf alanının kartına ait. Doluysa müşteri yazıyı yan
+   * paneldeki listeden değil, kartın üstüne tıklayıp yazıyor.
+   */
+  caption_of?: string;
 }
 
 export type Slot = ImageSlot | TextSlot;
@@ -950,6 +964,15 @@ export function rotatedBounds(slot: Pick<Slot, "rect" | "rotation">, canvasWidth
 }
 
 /** JSONB'den okunan ham değeri güvenli slot dizisine çevirir */
+/** Kart dikdörtgeni gibi isteğe bağlı alanlar için: eksik ya da bozuksa yok sayılır */
+function normalizeRect(raw: unknown): Rect | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Partial<Rect>;
+  if (![r.x, r.y, r.w, r.h].every((v) => typeof v === "number" && Number.isFinite(v))) return undefined;
+  if (!(r.w! > 0) || !(r.h! > 0)) return undefined;
+  return { x: r.x!, y: r.y!, w: r.w!, h: r.h! };
+}
+
 export function normalizeSlots(raw: unknown): Slot[] {
   if (!Array.isArray(raw)) return [];
   const out: Slot[] = [];
@@ -997,6 +1020,7 @@ export function normalizeSlots(raw: unknown): Slot[] {
         bold: s.bold === true,
         align: (s.align === "left" || s.align === "right" ? s.align : "center") as TextSlot["align"],
         overflow: s.overflow === "clip" ? "clip" : "shrink",
+        caption_of: s.caption_of ? String(s.caption_of) : undefined,
       });
     } else {
       const allow = (s.allow ?? {}) as Record<string, unknown>;
@@ -1009,6 +1033,7 @@ export function normalizeSlots(raw: unknown): Slot[] {
         mask_label: typeof s.mask_label === "string" ? s.mask_label.slice(0, 8) : undefined,
         shape: isSlotShapeId(s.shape) ? s.shape : undefined,
         radius: typeof s.radius === "number" ? s.radius : undefined,
+        card_rect: normalizeRect(s.card_rect),
         fit: s.fit === "contain" ? "contain" : "cover",
         allow: {
           pan: allow.pan !== false,

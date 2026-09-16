@@ -248,10 +248,12 @@ export function cardGridSlots(
     cutsY.add(roundMm(ky + chh));
 
     const id = `photo_${n}`;
+    const kartRect = rectFromMm({ x: kx, y: ky, w: cw, h: chh }, canvas, dpi);
     slots.push({
       id,
       kind: "image",
       source: id,
+      card_rect: kartRect,
       rect: rectFromMm({
         x: kx + options.marginMm,
         y: ky + options.marginMm,
@@ -286,6 +288,7 @@ export function cardGridSlots(
         bold: false,
         align: "center",
         overflow: "shrink",
+        caption_of: id,
       });
     }
   }

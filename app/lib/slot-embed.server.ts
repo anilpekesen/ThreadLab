@@ -162,6 +162,7 @@ export async function buildSlotData(
     photoSection: isTr ? "Fotoğrafları ekleyin" : "Add your photos",
     textSection: isTr ? "Yazıları düzenleyin" : "Edit the text",
     setHint: isTr ? "Diğer çerçeveler için yana kaydırın" : "Swipe sideways for the other frames",
+    captionPlaceholder: isTr ? "yazı ekle" : "add text",
   };
 
   function page(message: string) {
@@ -197,7 +198,7 @@ export async function buildSlotData(
     }
     const canvas = printCanvas(product);
 
-    piecePayload.push({
+    const parcaVerisi = {
       id: piece.id,
       name: piece.name,
       templateUrl: piece.background_url ?? "",
@@ -238,6 +239,7 @@ export async function buildSlotData(
       // tasarımın üstünde görünmeli, önizleme düğmesini beklememeli.
       textSlots: piece.slots.filter(isTextSlot).map((sl) => ({
         id: sl.id,
+        captionOf: sl.caption_of ?? "",
         rect: sl.rect,
         fontSize: sl.font_size,
         fontFamily: sl.font_family,
@@ -250,7 +252,44 @@ export async function buildSlotData(
         mode: sl.mode,
         defaultValue: sl.default_value,
       })),
-    });
+    };
+
+    // Tabakadan kesilen kart ürünü: müşteriye tabaka değil kartlar gösteriliyor.
+    // Her kart kendi tuvali olan küçük bir parçaya dönüşüyor; baskı tarafı yine
+    // tabakayı basıyor, çünkü render şablonun kendi alanlarıyla yapılıyor.
+    const kartlar = piece.slots.filter(isImageSlot).filter((sl) => sl.card_rect);
+    if (kartlar.length === 0) {
+      piecePayload.push(parcaVerisi);
+      continue;
+    }
+    for (const kart of kartlar) {
+      const cr = kart.card_rect!;
+      const icerde = (r: { x: number; y: number; w: number; h: number }) => ({
+        x: (r.x - cr.x) / cr.w,
+        y: (r.y - cr.y) / cr.h,
+        w: r.w / cr.w,
+        h: r.h / cr.h,
+      });
+      const foto = parcaVerisi.slots.find((x) => x.id === kart.id);
+      if (!foto) continue;
+      const yazi = parcaVerisi.textSlots.find((x) => x.captionOf === kart.id);
+      piecePayload.push({
+        ...parcaVerisi,
+        id: `${piece.id}::${kart.id}`,
+        name: String(kart.order),
+        templateUrl: "",
+        overlayUrl: "",
+        card: true,
+        canvas: {
+          width: Math.round(cr.w * canvas.canvasWidth),
+          height: Math.round(cr.h * canvas.canvasHeight),
+        },
+        trim: { x: 0, y: 0, w: 1, h: 1 },
+        slots: [{ ...foto, rect: icerde(foto.rect) }],
+        // Punto tuval YÜKSEKLİĞİNE oran; kart tuvali tabakadan küçük
+        textSlots: yazi ? [{ ...yazi, rect: icerde(yazi.rect), fontSize: yazi.fontSize / cr.h }] : [],
+      });
+    }
   }
 
   // Metin alanları parçalardan toplanıyor; aynı kimlikli alan bir kez sorulur
@@ -258,7 +297,8 @@ export async function buildSlotData(
   const texts = [];
   for (const piece of pieces) {
     for (const sl of piece.slots) {
-      if (!isTextSlot(sl) || sl.mode === "fixed" || seenText.has(sl.id)) continue;
+      // Kart yazıları kartın üstünde yazılıyor; yan panelde 35 kutu olmaz
+      if (!isTextSlot(sl) || sl.mode === "fixed" || sl.caption_of || seenText.has(sl.id)) continue;
       seenText.add(sl.id);
       texts.push({
         id: sl.id, label: sl.label, mode: sl.mode,
@@ -487,6 +527,11 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   /* ── Çerçeveler ─────────────────────────────────────────────────── */
   #boards { display: grid; gap: 14px; }
   #boards.set { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  /* Kart ürünlerinde müşteri tabakayı değil kartları görüyor */
+  #boards.cards { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+  #boards.cards .board-outer {
+    background: #fff; box-shadow: 0 1px 3px rgba(20,24,31,.13);
+  }
   .set-hint { display: none; }
   .piece { min-width: 0; }
   .piece-title {
@@ -563,6 +608,13 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     position: absolute; z-index: 4; display: flex; align-items: center;
     pointer-events: none; overflow: hidden; line-height: 1.1;
     white-space: pre; text-wrap: nowrap;
+  }
+  /* Kartın yazısı doğrudan kartın üstünde yazılıyor */
+  .tslot.edit { pointer-events: auto; cursor: text; border-radius: 3px; }
+  .tslot.edit:hover { background: rgba(20,24,31,.05); }
+  .tslot.edit:focus { outline: 2px solid var(--focus); outline-offset: 1px; background: #fff; }
+  .tslot.edit:empty::before {
+    content: attr(data-ph); color: #b3b9c2; font-style: italic;
   }
   .tslot.l { justify-content: flex-start; }
   .tslot.c { justify-content: center; }
@@ -891,13 +943,15 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   // Çerçeve tipi mockup: ortası şeffaf tek bir ürün görseli. Her parça
   // tahtası bu çerçevenin içine çiziliyor, yani müşteri fotoğrafını seçtiği
   // renkteki gerçek çerçevede görüyor ve düzenlemesini orada yapıyor.
-  if (D.pieces.length > 1) boardsEl.className = 'set';
+  var KART_MODU = D.pieces.some(function (p) { return p.card; });
+  if (KART_MODU) boardsEl.className = 'cards';
+  else if (D.pieces.length > 1) boardsEl.className = 'set';
 
   D.pieces.forEach(function (piece, pi) {
     var wrap = document.createElement('div');
     wrap.className = 'piece';
 
-    if (D.pieces.length > 1) {
+    if (D.pieces.length > 1 && !KART_MODU) {
       var title = document.createElement('p');
       title.className = 'piece-title';
       title.innerHTML = '<span class="n">' + (pi + 1) + '</span>' + escapeText(piece.name)
@@ -1124,10 +1178,46 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         el.style.fontWeight = ts.bold ? '700' : '400';
         el.style.fontFamily = aktifAile(ts);
         if (ts.rotation) el.style.transform = 'rotate(' + ts.rotation + 'deg)';
+        // Kartın yazısı kartın üstüne tıklanarak yazılıyor: müşteri 35 kutuluk
+        // bir liste yerine hangi kartı yazdığını görerek yazıyor
+        if (piece.card && ts.mode !== 'fixed') {
+          el.className += ' edit';
+          el.contentEditable = 'true';
+          el.setAttribute('role', 'textbox');
+          el.setAttribute('aria-label', ts.label || T.captionPlaceholder);
+          el.setAttribute('data-ph', T.captionPlaceholder);
+          el.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+          });
+          el.addEventListener('input', function () {
+            var v = (el.textContent || '').replace(/[\r\n]+/g, ' ');
+            var sinir = ts.maxLength || 40;
+            if (v.length > sinir) {
+              v = v.slice(0, sinir);
+              el.textContent = v;
+              imlecSona(el);
+            }
+            texts[ts.id] = v;
+            paintTexts();
+            updateStatus();
+          });
+          el.addEventListener('blur', paintTexts);
+        }
         face.appendChild(el);
         textEls[piece.id + '::' + ts.id] = { el: el, ts: ts, piece: piece };
       });
     });
+  }
+
+  /** Yazı kırpıldığında imleç sona alınır, yoksa yazmaya baştan devam ediliyor */
+  function imlecSona(el) {
+    var aralik = document.createRange();
+    aralik.selectNodeContents(el);
+    aralik.collapse(false);
+    var sec = window.getSelection();
+    if (!sec) return;
+    sec.removeAllRanges();
+    sec.addRange(aralik);
   }
 
   var olcumCanvas = null;
@@ -1147,7 +1237,8 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       var ts = kayit.ts;
       var el = kayit.el;
       var deger = (texts[ts.id] != null ? texts[ts.id] : ts.defaultValue) || '';
-      el.textContent = deger;
+      // Yazarken metni geri yazmak imleci başa atıyor
+      if (el !== document.activeElement) el.textContent = deger;
       // Font ve renk seçimi değişmiş olabilir; ölçümden önce uygulanmalı
       el.style.fontFamily = aktifAile(ts);
       el.style.color = aktifRenk(ts);
