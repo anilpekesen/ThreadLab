@@ -48,6 +48,7 @@ import {
 import { useDesignerI18n } from './i18n';
 import { useDesignerStore } from '@/store/designerStore';
 import CanvasArea, { type CanvasAreaHandle, type ImageAddOptions } from '@/components/canvas/CanvasArea';
+import { QuantityStepper } from '@/components/QuantityStepper';
 import type { Template } from '@/components/panels/TemplatesPanel';
 import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type PricingBand, type PrintAreaConfig, type SavedDesign, type Side, type SizeChart, type SurfaceMode, type TemplateDesign, type VolumeDiscountTier } from '@/types';
 import { generateId, shrinkImageFile } from '@/utils/compress';
@@ -4872,18 +4873,12 @@ export default function App() {
                         {!inStock && <span className="ml-1 text-[9px] font-semibold normal-case no-underline" style={{ textDecoration: 'none' }}>{t.outOfStock}</span>}
                       </p>
                       {inStock && (
-                        <div className="mt-2 flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setSizeQuantity(size!, qty - 1)}
-                            className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
-                          >−</button>
-                          <span className={cn('w-5 text-center text-sm font-black tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>{qty}</span>
-                          <button
-                            type="button"
-                            onClick={() => setSizeQuantity(size!, qty + 1)}
-                            className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-sm font-bold text-gray-400 shadow-sm hover:bg-gray-100 hover:text-gray-700"
-                          >+</button>
+                        <div className="mt-2 flex items-center justify-center">
+                          <QuantityStepper
+                            value={qty}
+                            onChange={(next) => setSizeQuantity(size!, next)}
+                            label={`${size} ${t.quantityLabel}`}
+                          />
                         </div>
                       )}
                     </div>
@@ -4893,19 +4888,12 @@ export default function App() {
             ) : (
               <div className="flex items-center gap-3">
                 <p className="text-xs font-bold text-gray-500">{t.quantityLabel}</p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNoSizeQuantity(Math.max(minOrderQty, noSizeQuantity - 1))}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500 hover:bg-gray-200"
-                  >−</button>
-                  <span className="w-8 text-center text-sm font-black text-gray-700 tabular-nums">{noSizeQuantity}</span>
-                  <button
-                    type="button"
-                    onClick={() => setNoSizeQuantity(noSizeQuantity + 1)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500 hover:bg-gray-200"
-                  >+</button>
-                </div>
+                <QuantityStepper
+                  value={noSizeQuantity}
+                  onChange={setNoSizeQuantity}
+                  min={minOrderQty}
+                  label={t.quantityLabel}
+                />
                 {minOrderQty > 1 && (
                   <span className="text-xs text-gray-400">Min: {minOrderQty}</span>
                 )}
@@ -5036,18 +5024,13 @@ export default function App() {
                       {!inStock ? (
                         <span className="text-[8px] text-gray-400">{t.outOfStock}</span>
                       ) : (
-                      <div className="mt-1 flex items-center gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => setSizeQuantity(size!, qty - 1)}
-                          className="flex h-5 w-5 items-center justify-center rounded-md bg-white text-xs font-bold text-gray-400 shadow-sm hover:bg-gray-100"
-                        >−</button>
-                        <span className={cn('w-4 text-center text-xs font-bold tabular-nums', qty > 0 ? 'text-blue-700' : 'text-gray-400')}>{qty}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSizeQuantity(size!, qty + 1)}
-                          className="flex h-5 w-5 items-center justify-center rounded-md bg-white text-xs font-bold text-gray-400 shadow-sm hover:bg-gray-100"
-                        >+</button>
+                      <div className="mt-1">
+                        <QuantityStepper
+                          value={qty}
+                          onChange={(next) => setSizeQuantity(size!, next)}
+                          size="sm"
+                          label={`${size} ${t.quantityLabel}`}
+                        />
                       </div>
                       )}
                     </div>
@@ -5063,19 +5046,12 @@ export default function App() {
                   <span className="text-[9px] text-gray-400">Min: {minOrderQty}</span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setNoSizeQuantity(Math.max(minOrderQty, noSizeQuantity - 1))}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500 hover:bg-gray-200"
-                >−</button>
-                <span className="w-8 text-center text-sm font-black text-gray-700 tabular-nums">{noSizeQuantity}</span>
-                <button
-                  type="button"
-                  onClick={() => setNoSizeQuantity(noSizeQuantity + 1)}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500 hover:bg-gray-200"
-                >+</button>
-              </div>
+              <QuantityStepper
+                value={noSizeQuantity}
+                onChange={setNoSizeQuantity}
+                min={minOrderQty}
+                label={t.quantityLabel}
+              />
             </div>
           )}
 
