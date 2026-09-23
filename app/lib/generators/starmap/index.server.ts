@@ -259,14 +259,17 @@ export const starmapGenerator: GeneratorServerModule<StarmapConfig> = {
     // Büyük harf dönüşümü şablon diline göre: Türkçede i → İ, İngilizcede I
     const locale = config.language === "en" ? "en-US" : "tr-TR";
     const titleText = sans ? title.toLocaleUpperCase(locale) : title;
-    const titleSize = script ? 210 : sans ? 128 : 150;
+    // Yazılar tişörtte haritanın gölgesinde kalıyordu: 28 cm genişlikte başlık
+    // ~1 cm, tarih satırı ~4 mm basılıyor, tasarımcı önizlemesinde birkaç
+    // piksele düşüyordu. Boyutlar bu yüzden ~1,5–1,8 katına çıkarıldı.
+    const titleSize = script ? 300 : sans ? 190 : 220;
     const titleSpacing = sans ? 0.12 : script ? 0 : 0.02;
 
-    const subSize = 62;
+    const subSize = 108;
     const subLines = subtitle ? wrapText(bodyFont, subtitle, subSize, maxTextW, 2) : [];
     const meta = dateLine(config, date, time, city).toLocaleUpperCase(locale);
-    const metaSize = 46;
-    const coordSize = 40;
+    const metaSize = 76;
+    const coordSize = 62;
 
     // Satırlar yukarıdan aşağı: [taban çizgisine kadar ek, çizici]
     const blocks: Array<{ advance: number; draw: (y: number) => string }> = [];
@@ -281,23 +284,23 @@ export const starmapGenerator: GeneratorServerModule<StarmapConfig> = {
     }
     subLines.forEach((line, i) => {
       blocks.push({
-        advance: i === 0 ? (titleText ? (script ? 145 : 120) : 50) : subSize * 1.45,
+        advance: i === 0 ? (titleText ? (script ? 210 : 180) : 80) : subSize * 1.4,
         draw: (y) => textSvg({ font: bodyFont, text: line, x: cx, y, size: subSize, fill: textColor, anchor: "middle", maxWidth: maxTextW }).svg,
       });
     });
     // Ayraç çizgisi ve tarih satırı
     blocks.push({
-      advance: blocks.length ? 95 : 0,
-      draw: (y) => `<rect x="${cx - 90}" y="${y - 2}" width="180" height="4" fill="${textColor}"/>`,
+      advance: blocks.length ? 130 : 0,
+      draw: (y) => `<rect x="${cx - 130}" y="${y - 3}" width="260" height="6" fill="${textColor}"/>`,
     });
     blocks.push({
-      advance: 105,
-      draw: (y) => textSvg({ font: bodyFont, text: meta, x: cx, y, size: metaSize, fill: textColor, anchor: "middle", maxWidth: maxTextW, letterSpacing: 0.14 }).svg,
+      advance: 150,
+      draw: (y) => textSvg({ font: bodyFont, text: meta, x: cx, y, size: metaSize, fill: textColor, anchor: "middle", maxWidth: maxTextW, letterSpacing: 0.08 }).svg,
     });
     if (config.showCoordinates) {
       blocks.push({
-        advance: 78,
-        draw: (y) => textSvg({ font: bodyFont, text: coordLine(config, city), x: cx, y, size: coordSize, fill: textColor, anchor: "middle", maxWidth: maxTextW, letterSpacing: 0.1 }).svg,
+        advance: 115,
+        draw: (y) => textSvg({ font: bodyFont, text: coordLine(config, city), x: cx, y, size: coordSize, fill: textColor, anchor: "middle", maxWidth: maxTextW, letterSpacing: 0.06 }).svg,
       });
     }
     const blockH = blocks.reduce((s, b) => s + b.advance, 0);
@@ -307,7 +310,8 @@ export const starmapGenerator: GeneratorServerModule<StarmapConfig> = {
     let height: number;
     let y0: number;
     if (poster) {
-      height = POSTER_H;
+      // Uzun alt metinde yazı bloğu sabit yüksekliğe sığmazsa poster uzar
+      height = Math.max(POSTER_H, Math.ceil(discBottom + 90 + blockH + 170));
       const free = height - discBottom - 170;
       y0 = discBottom + Math.max(90, (free - blockH) / 2);
     } else {
