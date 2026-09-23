@@ -53,6 +53,8 @@ import type { Template } from '@/components/panels/TemplatesPanel';
 import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type PricingBand, type PrintAreaConfig, type SavedDesign, type Side, type SizeChart, type SurfaceMode, type TemplateDesign, type VolumeDiscountTier } from '@/types';
 import { generateId, shrinkImageFile } from '@/utils/compress';
 import { scaleAreaForSize } from '@/utils/sizeScale';
+import { GENERATOR_UI } from '@/components/modals/generators/meta';
+import type { GeneratorDraft, GeneratorChoices } from '@/components/modals/generators/types';
 import { evaluateRules, warnings, blockers, type RuleResult } from '@/utils/conditionalLogic';
 
 const ImagePanel = lazy(() => import('@/components/panels/ImagePanel'));
@@ -60,6 +62,7 @@ const TemplatePhotoModal = lazy(() => import('@/components/modals/TemplatePhotoM
 const TemplateScatterModal = lazy(() => import('@/components/modals/TemplateScatterModal'));
 const TemplateAiModal = lazy(() => import('@/components/modals/TemplateAiModal'));
 const TemplateWordArtModal = lazy(() => import('@/components/modals/TemplateWordArtModal'));
+const TemplateGeneratorModal = lazy(() => import('@/components/modals/generators/TemplateGeneratorModal'));
 const TextPanel = lazy(() => import('@/components/panels/TextPanel'));
 const TemplatesPanel = lazy(() => import('@/components/panels/TemplatesPanel'));
 const SavedPanel = lazy(() => import('@/components/panels/SavedPanel'));
@@ -1304,6 +1307,8 @@ export default function App() {
     words: string;
     choices: import('@/components/modals/TemplateWordArtModal').WordArtChoices;
   } | null>(null);
+  /** Üretici pencereleri yeniden açılınca son girilenlerle gelsin (türe göre) */
+  const generatorDraftRef = useRef<Record<string, GeneratorDraft>>({});
   /** Kelime sanatı penceresi sayfa başına yalnızca bir kez kendiliğinden açılır */
   const wordArtAutoOpenedRef = useRef(false);
   const [selectedObj, setSelectedObj] = useState<CanvasSelection | null>(null);
@@ -2001,6 +2006,7 @@ export default function App() {
   const renderWordArtDesign = async (
     words: string,
     choices: import('@/components/modals/TemplateWordArtModal').WordArtChoices,
+    photo?: File | null,
   ): Promise<{ url: string }> => {
     if (!config?.shop || !config?.productId) throw new Error('Ürün bilgisi yok');
     const fd = new FormData();
@@ -2010,6 +2016,8 @@ export default function App() {
     fd.append('variantId', String(config.selectedVariant?.id ?? ''));
     fd.append('words', words);
     fd.append('choices', JSON.stringify(choices));
+    // "Fotoğrafım" şekli: sunucu arka planı silip siluet maskesi yapar
+    if (photo) fd.append('photo', await shrinkImageFile(photo));
 
     wordArtDraftRef.current = { words, choices };
     const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
@@ -2017,6 +2025,34 @@ export default function App() {
     if (!res.ok || !data.url) {
       throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
     }
+    if (photo) void uploadTemplateOriginal(photo);   // ham fotoğraf baskı ekibi için saklanır
+    return { url: data.url };
+  };
+
+  /** Üretici şablonunda girdiyi (ve varsa fotoğrafı) gönderip tasarımı alır */
+  const renderGeneratorDesign = async (
+    fields: Record<string, string>,
+    choices: GeneratorChoices,
+    photo?: File | null,
+  ): Promise<{ url: string }> => {
+    if (!config?.shop || !config?.productId) throw new Error('Ürün bilgisi yok');
+    const kind = personalization.templateDesign?.generatorKind ?? '';
+    if (kind) generatorDraftRef.current[kind] = { fields, choices };
+    const fd = new FormData();
+    fd.append('shop', config.shop);
+    fd.append('productId', String(config.productId).split('/').pop() ?? '');
+    fd.append('side', activeSide);
+    fd.append('variantId', String(config.selectedVariant?.id ?? ''));
+    fd.append('fields', JSON.stringify(fields));
+    fd.append('choices', JSON.stringify(choices));
+    if (photo) fd.append('photo', await shrinkImageFile(photo));
+
+    const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
+    const data = await res.json() as { url?: string; error?: string };
+    if (!res.ok || !data.url) {
+      throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
+    }
+    if (photo) void uploadTemplateOriginal(photo);
     return { url: data.url };
   };
 
@@ -2042,7 +2078,7 @@ export default function App() {
       if (config.selectedVariant?.id) params.set('variantId', String(config.selectedVariant.id));
       const res = await fetch(`/apps/tshirt-designer/template-assets?${params}`);
       const data = await res.json();
-      if (!res.ok || (!data?.maskDataUrl && data?.layoutMode !== 'scatter' && data?.layoutMode !== 'ai' && data?.layoutMode !== 'wordart')) {
+      if (!res.ok || (!data?.maskDataUrl && data?.layoutMode !== 'scatter' && data?.layoutMode !== 'ai' && data?.layoutMode !== 'wordart' && data?.layoutMode !== 'generator')) {
         setTemplateError(data?.error || (isTurkish ? 'Şablon yüklenemedi' : 'Could not load the template'));
         setTemplateModalOpen(false);
         return;
@@ -2123,7 +2159,8 @@ export default function App() {
    */
   useEffect(() => {
     if (wordArtAutoOpenedRef.current) return;
-    if (personalization.templateDesign?.layoutMode !== 'wordart' || !templateAwaitingPhoto) return;
+    const autoMode = personalization.templateDesign?.layoutMode;
+    if ((autoMode !== 'wordart' && autoMode !== 'generator') || !templateAwaitingPhoto) return;
     const timer = window.setTimeout(() => {
       if (wordArtAutoOpenedRef.current) return;
       wordArtAutoOpenedRef.current = true;
@@ -4707,6 +4744,8 @@ export default function App() {
 
                 ? (isTurkish ? 'Hazırlanıyor…' : 'Preparing…')
 
+                : personalization.templateDesign?.generatorKind && GENERATOR_UI[personalization.templateDesign.generatorKind]
+                  ? (isTurkish ? GENERATOR_UI[personalization.templateDesign.generatorKind].ctaTr : GENERATOR_UI[personalization.templateDesign.generatorKind].ctaEn)
                 : personalization.templateDesign?.layoutMode === 'wordart'
                   ? (isTurkish ? 'Kelimelerini yaz' : 'Add your words')
                   : (isTurkish ? 'Fotoğrafını ekle' : 'Add your photo')}
@@ -4724,6 +4763,15 @@ export default function App() {
                   isTurkish={isTurkish}
                   termsUrl={personalization.termsUrl}
                   onRender={renderAiDesign}
+                  onCancel={() => setTemplateModalOpen(false)}
+                  onConfirm={placeTemplateDesign}
+                />
+              ) : templateAssets.layoutMode === 'generator' ? (
+                <TemplateGeneratorModal
+                  assets={templateAssets as unknown as import('@/components/modals/generators/types').GeneratorModalProps['assets']}
+                  isTurkish={isTurkish}
+                  initial={generatorDraftRef.current[String(templateAssets.generatorKind ?? '')] ?? null}
+                  onRender={renderGeneratorDesign}
                   onCancel={() => setTemplateModalOpen(false)}
                   onConfirm={placeTemplateDesign}
                 />
@@ -5040,20 +5088,26 @@ export default function App() {
               görünür. Yüz doluysa aynı kart düzenlemeye götürür. */}
           {(personalization.templateSides ?? []).includes(activeSide) && (() => {
             const isWordArt = personalization.templateDesign?.layoutMode === 'wordart';
+            const gen = personalization.templateDesign?.generatorKind
+              ? GENERATOR_UI[personalization.templateDesign.generatorKind]
+              : undefined;
             const filled = templateFilledSides.includes(activeSide);
             const sideName = activeSide === 'front'
               ? (isTurkish ? 'ön yüzde' : 'on the front')
               : (isTurkish ? 'arka yüzde' : 'on the back');
-            const title = isWordArt
+            const title = gen ? (isTurkish ? gen.titleTr : gen.titleEn) : isWordArt
               ? (isTurkish ? 'Kelime tasarımın' : 'Your word design')
               : (isTurkish ? 'Fotoğraflı tasarımın' : 'Your photo design');
             const status = filled
               ? (isTurkish ? `Tasarımın ${sideName} hazır.` : `Your design is ready ${sideName}.`)
+              : gen ? (isTurkish ? gen.hintTr : gen.hintEn)
               : isWordArt
                 ? (isTurkish ? 'Kelimelerini yaz, şekil ve renk seç; tasarım tişörte yerleşsin.' : 'Write your words, pick a shape and colours; the design goes on the shirt.')
                 : (isTurkish ? 'Fotoğrafını yükle; tasarım tişörte yerleşsin.' : 'Upload your photo; the design goes on the shirt.');
             const label = templateBusy
               ? (isTurkish ? 'Hazırlanıyor…' : 'Preparing…')
+              : gen
+                ? (filled ? (isTurkish ? gen.editTr : gen.editEn) : (isTurkish ? gen.ctaTr : gen.ctaEn))
               : isWordArt
                 ? (filled ? (isTurkish ? 'Kelimeleri düzenle' : 'Edit words') : (isTurkish ? 'Kelimelerini yaz' : 'Add your words'))
                 : (filled ? (isTurkish ? 'Fotoğrafı değiştir' : 'Change photo') : (isTurkish ? 'Fotoğrafını ekle' : 'Add your photo'));
@@ -5062,7 +5116,7 @@ export default function App() {
                 <div className={`rounded-2xl border p-3 ${filled ? 'border-emerald-100 bg-emerald-50/60' : 'border-rose-100 bg-rose-50/70'}`}>
                   <div className="flex items-start gap-2.5">
                     <span className={`flex h-8 w-8 flex-none items-center justify-center rounded-xl text-white ${filled ? 'bg-emerald-600' : 'bg-rose-600'}`}>
-                      {isWordArt ? <Type className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />}
+                      {isWordArt || gen ? <Sparkles className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />}
                     </span>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-gray-900">{title}</p>
@@ -5079,7 +5133,7 @@ export default function App() {
                         : 'bg-rose-600 text-white shadow-lg shadow-rose-500/20 hover:bg-rose-700'
                     }`}
                   >
-                    {isWordArt ? <Type className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />}
+                    {isWordArt || gen ? <Sparkles className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />}
                     {label}
                   </button>
                 </div>

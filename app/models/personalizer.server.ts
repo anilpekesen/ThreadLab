@@ -3,6 +3,8 @@ import { randomBytes } from "node:crypto";
 import { AI_STYLES, normalizeAiConfig, type AiTemplateConfig } from "~/lib/ai-styles";
 import { normalizeWordArtConfig, type WordArtTemplateConfig } from "~/lib/wordart";
 import { FONT_LIBRARY } from "~/lib/font-library";
+import { normalizeGeneratorConfig } from "~/lib/generators/configs";
+import type { GeneratorConfigBase } from "~/lib/generators/types";
 import {
   normalizeSlots, normalizePieces, normalizeMockups,
   type GridConfig, type Slot, type TemplatePiece, type TemplateMockup,
@@ -24,28 +26,29 @@ export interface TextFieldDef {
 }
 
 /** Şablonun müşteri fotoğrafını tasarıma çevirme yöntemi */
-export type TemplateLayoutMode = "mask" | "scatter" | "ai" | "wordart";
+export type TemplateLayoutMode = "mask" | "scatter" | "ai" | "wordart" | "generator";
 
 export function normalizeLayoutMode(raw: unknown): TemplateLayoutMode {
   const v = String(raw ?? "");
-  return v === "scatter" || v === "ai" || v === "wordart" ? v : "mask";
+  return v === "scatter" || v === "ai" || v === "wordart" || v === "generator" ? v : "mask";
 }
 
 /** Şablonun yönetim ekranındaki iş kolu. Yerleşim motorundan ayrı tutulur:
  * giyim ve çerçeve aynı maske motorunu kullanabilir ama kurulumları farklıdır. */
-export type PersonalizerCategory = "apparel" | "boxer" | "frame" | "ai" | "wordart";
+export type PersonalizerCategory = "apparel" | "boxer" | "frame" | "ai" | "wordart" | "generator";
 
 export function normalizePersonalizerCategory(
   raw: unknown,
   layoutMode: TemplateLayoutMode = "mask",
 ): PersonalizerCategory {
   const value = String(raw ?? "");
-  if (value === "apparel" || value === "boxer" || value === "frame" || value === "ai" || value === "wordart") {
+  if (value === "apparel" || value === "boxer" || value === "frame" || value === "ai" || value === "wordart" || value === "generator") {
     return value;
   }
   if (layoutMode === "scatter") return "boxer";
   if (layoutMode === "ai") return "ai";
   if (layoutMode === "wordart") return "wordart";
+  if (layoutMode === "generator") return "generator";
   return "frame";
 }
 
@@ -205,6 +208,8 @@ export interface PersonalizerTemplate {
   ai_config: AiTemplateConfig | Record<string, never>;
   /** Kelime sanatı ayarları; okuma anında normalize edilir, diğer tiplerde kullanılmaz */
   wordart_config: WordArtTemplateConfig;
+  /** Hazır tasarım üreticisinin ayarı (`kind` ile); üretici değilse null */
+  generator_config: GeneratorConfigBase | null;
   /**
    * Müşterinin dolduracağı alanlar, normalize (0–1) koordinatta.
    *
@@ -250,6 +255,7 @@ function mapTemplateRow(row: Row): PersonalizerTemplate {
     layout_mode: normalizeLayoutMode(row.layout_mode),
     category: normalizePersonalizerCategory(row.category, normalizeLayoutMode(row.layout_mode)),
     wordart_config: normalizeWordArtConfig(row.wordart_config, FONT_LIBRARY.map((f) => f.id)),
+    generator_config: normalizeGeneratorConfig(row.generator_config),
     slots: normalizeSlots(row.slots),
     print_product_id: String(row.print_product_id ?? ""),
     overlay_url: String(row.overlay_url ?? ""),
@@ -340,6 +346,7 @@ export interface CreatePersonalizerTemplateInput {
   customer_options?: CustomerOptionsConfig;
   ai_config?: AiTemplateConfig;
   wordart_config?: WordArtTemplateConfig;
+  generator_config?: GeneratorConfigBase;
   slots?: Slot[];
   grid_config?: GridConfig;
   print_product_id?: string;
@@ -359,9 +366,9 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
         mockup_x, mockup_y, mockup_width, mockup_height,
         text_fields, ai_style, hole_seed_x, hole_seed_y,
         layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, sort_order,
-        slots, grid_config, print_product_id, overlay_url, expected_slots, pieces, mockups, wordart_config)
+        slots, grid_config, print_product_id, overlay_url, expected_slots, pieces, mockups, wordart_config, generator_config)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,
-             $26,$27,$28,$29,$30,$31,$32,$33)
+             $26,$27,$28,$29,$30,$31,$32,$33,$34)
      RETURNING *`,
     [
       id, input.shop, input.name, input.description ?? "",
@@ -390,6 +397,7 @@ export async function createPersonalizerTemplate(input: CreatePersonalizerTempla
       JSON.stringify(input.pieces ?? []),
       JSON.stringify(input.mockups ?? []),
       JSON.stringify(input.wordart_config ?? {}),
+      JSON.stringify(input.generator_config ?? {}),
     ],
   );
   const created = mapTemplateRow(res.rows[0]);
@@ -407,6 +415,7 @@ export interface UpdatePersonalizerTemplateInput {
   customer_options?: CustomerOptionsConfig;
   ai_config?: AiTemplateConfig;
   wordart_config?: WordArtTemplateConfig;
+  generator_config?: GeneratorConfigBase;
   name?: string;
   description?: string;
   template_url?: string;
@@ -445,7 +454,7 @@ export async function updatePersonalizerTemplate(
     if (v === undefined) continue;
     sets.push(`${k} = $${i++}`);
     const isJsonColumn = k === "text_fields" || k === "scatter_config"
-      || k === "customer_options" || k === "ai_config" || k === "wordart_config"
+      || k === "customer_options" || k === "ai_config" || k === "wordart_config" || k === "generator_config"
       || k === "slots" || k === "grid_config" || k === "pieces" || k === "mockups";
     vals.push(isJsonColumn ? JSON.stringify(v) : v);
   }
@@ -556,6 +565,7 @@ export async function duplicatePersonalizerTemplate(
     customer_options: source.customer_options as CustomerOptionsConfig,
     ai_config: source.ai_config as AiTemplateConfig,
     wordart_config: source.wordart_config,
+    generator_config: source.generator_config ?? undefined,
     slots: source.slots,
     grid_config: source.grid_config as GridConfig,
     print_product_id: source.print_product_id,

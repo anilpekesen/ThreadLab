@@ -640,6 +640,10 @@ async function _runMigrationsLocked() {
   // kelime sınırları. Diğer tiplerde kullanılmaz.
   await query(`ALTER TABLE personalizer_templates
     ADD COLUMN IF NOT EXISTS wordart_config JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  // Hazır tasarım üreticileri ('generator' layout_mode): şarkı, monogram,
+  // yıldız/şehir haritası, doğum çiçeği. `kind` alanı hangisi olduğunu söyler.
+  await query(`ALTER TABLE personalizer_templates
+    ADD COLUMN IF NOT EXISTS generator_config JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await query(`
     CREATE TABLE IF NOT EXISTS cliparts (
       id          TEXT PRIMARY KEY,
@@ -925,6 +929,7 @@ async function _runMigrationsLocked() {
          WHEN pt.layout_mode = 'scatter' THEN 'boxer'
          WHEN pt.layout_mode = 'ai' THEN 'ai'
          WHEN pt.layout_mode = 'wordart' THEN 'wordart'
+         WHEN pt.layout_mode = 'generator' THEN 'generator'
          WHEN pt.slots <> '[]'::jsonb
            OR pt.pieces <> '[]'::jsonb
            OR EXISTS (SELECT 1 FROM personalizer_frames pf WHERE pf.template_id = pt.id)

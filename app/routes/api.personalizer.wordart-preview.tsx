@@ -22,7 +22,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if ("error" in resolved) return json({ error: resolved.error }, { status: 400 });
 
   try {
-    const result = await composeWordArt(resolved);
+    // Fotoğraf şekli önizlemesinde örnek bir baş-omuz silueti kullanılır
+    const samplePhoto = resolved.shape === "photo"
+      ? await sharp(Buffer.from(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1250"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4c9a8"/><stop offset="1" stop-color="#7c4a2d"/></linearGradient></defs><ellipse cx="500" cy="420" rx="260" ry="320" fill="url(#g)"/><path d="M80 1250 C100 900 300 800 500 800 C700 800 900 900 920 1250 Z" fill="#1f2a44"/></svg>`,
+        )).png().toBuffer()
+      : null;
+    const result = await composeWordArt({ ...resolved, photo: samplePhoto });
     // Önizleme koyu ve açık zeminde görülsün diye şeffaf bırakılıyor
     const small = await sharp(result.buffer).resize(900, 900, { fit: "inside" }).png().toBuffer();
     return json({

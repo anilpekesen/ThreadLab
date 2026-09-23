@@ -109,6 +109,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           // Dağıtımlı ve AI şablonunun hazır tasarım görseli yoktur; tasarımcı
           // yer tutucu koymadan doğrudan "fotoğrafını ekle" çağrısını gösterir.
           layoutMode: linkedTemplate.layout_mode,
+          // Üretici şablonunda tasarımcı düğme metnini türe göre seçer
+          generatorKind: linkedTemplate.generator_config?.kind ?? null,
         }
       : null,
     product: {

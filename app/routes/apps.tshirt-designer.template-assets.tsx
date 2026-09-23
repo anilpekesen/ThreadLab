@@ -1,6 +1,7 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { WORDART_SHAPES, wordArtShapePath, findPalette } from "~/lib/wordart";
 import { FONT_LIBRARY } from "~/lib/font-library";
+import { getGeneratorModule } from "~/lib/generators/registry.server";
 import sharp from "sharp";
 import {
   getPersonalizerTemplateByProduct,
@@ -95,6 +96,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
+  // Hazır tasarım üreticileri: yalnızca türü ve modülün müşteriye açtığı
+  // seçenekler gider (bkz. GeneratorServerModule.publicAssets).
+  if (template.layout_mode === "generator") {
+    const cfg = template.generator_config;
+    if (!cfg) {
+      return json({ error: "Şablonun üretici ayarı eksik" }, { status: 404, headers: CORS });
+    }
+    const assets = await getGeneratorModule(cfg.kind).publicAssets(cfg);
+    return json(
+      {
+        ...assets,
+        templateId: template.id,
+        templateName: template.name,
+        side,
+        availableSides,
+        layoutMode: "generator" as const,
+        generatorKind: cfg.kind,
+      },
+      { headers: { ...CORS, "Cache-Control": "public, max-age=300" } },
+    );
+  }
+
   // Kelime sanatında da tasarım dosyası yok. Müşteriye yalnızca şablonun
   // açtığı şekil, font ve paletler ile kelime sınırları gider.
   if (template.layout_mode === "wordart") {
@@ -113,7 +136,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             label: meta.label,
             labelEn: meta.labelEn,
             // Seçim düğmesindeki küçük simge; harf şekli metinle çizilir
-            path: id === "letter" ? "" : wordArtShapePath(id, 100, 100),
+            path: id === "letter" || id === "photo" ? "" : wordArtShapePath(id, 100, 100),
           };
         }),
         fonts: cfg.fonts.map((id) => {

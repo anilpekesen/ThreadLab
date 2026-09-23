@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 export interface WordArtShapeOption {
   id: string;
@@ -34,7 +34,7 @@ interface Props {
   /** Pencere daha önce kullanıldıysa son kelimeler ve seçimler */
   initial?: { words: string; choices: WordArtChoices } | null;
   /** Kelimeleri ve seçimleri sunucuya gönderip hazır tasarımın adresini alır */
-  onRender: (words: string, choices: WordArtChoices) => Promise<{ url: string }>;
+  onRender: (words: string, choices: WordArtChoices, photo?: File | null) => Promise<{ url: string }>;
   onCancel: () => void;
   onConfirm: (url: string) => void;
 }
@@ -60,6 +60,13 @@ export default function TemplateWordArtModal({ assets, isTurkish, initial, onRen
   const [font, setFont] = useState(() => pick(assets.fonts, prev?.font));
   const [palette, setPalette] = useState(() => pick(assets.palettes, prev?.palette));
   const [variant, setVariant] = useState(prev?.variant ?? 0);
+  /** "Fotoğrafım" şekli için; pencere kapanınca unutulur (dosya geri getirilemez) */
+  const [photo, setPhoto] = useState<File | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  const isPhotoShape = shape === 'photo';
+  // Fotoğraf renkleri yalnızca fotoğraf şekliyle anlamlı
+  const palettes = assets.palettes.filter((p) => p.id !== 'photo' || isPhotoShape);
+  const activePalette = palettes.some((p) => p.id === palette) ? palette : (palettes[0]?.id ?? '');
   const [preview, setPreview] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -68,17 +75,24 @@ export default function TemplateWordArtModal({ assets, isTurkish, initial, onRen
     ? { title: 'Kelime tasarımını oluştur', words: 'Kelimeler', wordsHint: 'Her satıra bir kelime ya da isim yazın. Başına * koyduğunuz kelime büyük yazılır.',
         shape: 'Şekil', letter: 'Harf', font: 'Yazı tipi', colors: 'Renkler',
         make: 'Tasarımı Oluştur', again: 'Başka dizilim', ok: 'Bunu Kullan', cancel: 'Vazgeç', edit: 'Düzenle',
-        busy: 'Hazırlanıyor…', count: 'kelime', tooMany: 'En fazla', empty: 'En az bir kelime yazın' }
+        busy: 'Hazırlanıyor…', count: 'kelime', tooMany: 'En fazla', empty: 'En az bir kelime yazın',
+        photo: 'Fotoğraf', pickPhoto: 'Fotoğraf seç', changePhoto: 'Fotoğrafı değiştir',
+        photoHint: 'Tek kişinin ya da evcil hayvanın net göründüğü bir fotoğraf seçin; arka planı otomatik silinir.',
+        needPhoto: 'Önce bir fotoğraf seçin', photoBusy: 'Hazırlanıyor… (arka plan siliniyor, ~10 sn)' }
     : { title: 'Create your word design', words: 'Words', wordsHint: 'Write one word or name per line. Put * in front of a word to make it big.',
         shape: 'Shape', letter: 'Letter', font: 'Font', colors: 'Colours',
         make: 'Create Design', again: 'Another layout', ok: 'Use This', cancel: 'Cancel', edit: 'Edit',
-        busy: 'Preparing…', count: 'words', tooMany: 'At most', empty: 'Write at least one word' };
+        busy: 'Preparing…', count: 'words', tooMany: 'At most', empty: 'Write at least one word',
+        photo: 'Photo', pickPhoto: 'Choose photo', changePhoto: 'Change photo',
+        photoHint: 'Pick a clear photo of one person or pet; the background is removed automatically.',
+        needPhoto: 'Choose a photo first', photoBusy: 'Preparing… (removing background, ~10 s)' };
 
   const lines = words.split(/\r?\n/).map((w) => w.trim()).filter(Boolean);
   const overLimit = lines.length > assets.maxWords;
 
   const render = async (nextVariant = variant) => {
     if (lines.length === 0) { setError(t.empty); return; }
+    if (isPhotoShape && !photo) { setError(t.needPhoto); return; }
     setBusy(true);
     setError('');
     try {
@@ -86,9 +100,9 @@ export default function TemplateWordArtModal({ assets, isTurkish, initial, onRen
         shape,
         letter: shape === 'letter' ? letter : undefined,
         font,
-        palette,
+        palette: activePalette,
         variant: nextVariant,
-      });
+      }, isPhotoShape ? photo : null);
       setPreview(result.url);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -149,12 +163,27 @@ export default function TemplateWordArtModal({ assets, isTurkish, initial, onRen
                         <svg width="16" height="16" viewBox="0 0 100 100" aria-hidden="true">
                           {s.path
                             ? <path d={s.path} fill="currentColor" />
-                            : <text x="50" y="84" textAnchor="middle" fontSize="92" fontWeight="900" fill="currentColor">A</text>}
+                            : s.id === 'photo'
+                              ? <path d="M50 8a20 20 0 1 1 0 40a20 20 0 0 1 0-40Zm-36 88c0-22 16-34 36-34s36 12 36 34Z" fill="currentColor" />
+                              : <text x="50" y="84" textAnchor="middle" fontSize="92" fontWeight="900" fill="currentColor">A</text>}
                         </svg>
                         {isTurkish ? s.label : s.labelEn}
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {isPhotoShape && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold text-gray-600">{t.photo}</span>
+                  <p className="text-[11px] text-gray-400">{t.photoHint}</p>
+                  <input ref={photoRef} type="file" accept="image/*" className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) setPhoto(f); e.target.value = ''; }} />
+                  <button type="button" onClick={() => photoRef.current?.click()}
+                    className="w-full rounded-xl border-2 border-dashed border-gray-300 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:border-gray-400">
+                    {photo ? `${t.changePhoto}: ${photo.name.slice(0, 24)}` : t.pickPhoto}
+                  </button>
                 </div>
               )}
 
@@ -184,13 +213,14 @@ export default function TemplateWordArtModal({ assets, isTurkish, initial, onRen
                 </div>
               )}
 
-              {assets.palettes.length > 1 && (
+              {palettes.length > 1 && (
                 <div className="flex flex-col gap-1.5">
                   <span className="text-xs font-semibold text-gray-600">{t.colors}</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {assets.palettes.map((p) => (
-                      <button key={p.id} type="button" onClick={() => setPalette(p.id)} className={pill(palette === p.id)} aria-pressed={palette === p.id}>
+                    {palettes.map((p) => (
+                      <button key={p.id} type="button" onClick={() => setPalette(p.id)} className={pill(activePalette === p.id)} aria-pressed={activePalette === p.id}>
                         <span className="flex">
+                          {p.id === 'photo' && <span className="h-3 w-7 rounded-sm border border-gray-300 bg-gradient-to-r from-orange-200 via-amber-800 to-slate-800" />}
                           {p.colors.slice(0, 5).map((c) => (
                             <span key={c} className="-mr-1 h-3 w-3 rounded-sm border border-gray-300" style={{ background: c }} />
                           ))}
@@ -230,9 +260,9 @@ export default function TemplateWordArtModal({ assets, isTurkish, initial, onRen
               </button>
             </>
           ) : (
-            <button type="button" onClick={() => render()} disabled={busy || lines.length === 0}
+            <button type="button" onClick={() => render()} disabled={busy || lines.length === 0 || (isPhotoShape && !photo)}
               className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white disabled:opacity-40">
-              {busy ? t.busy : t.make}
+              {busy ? (isPhotoShape ? t.photoBusy : t.busy) : t.make}
             </button>
           )}
         </div>

@@ -12,6 +12,8 @@ import {
   type TextFieldDef,
 } from "~/models/personalizer.server";
 import { DEFAULT_WORDART } from "~/lib/wordart";
+import { GENERATOR_CONFIGS } from "~/lib/generators/configs";
+import { GENERATOR_KINDS, isGeneratorKind, type GeneratorKind } from "~/lib/generators/types";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate(request);
@@ -41,8 +43,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const category = normalizePersonalizerCategory(form.get("category"));
   if (!name) return json({ error: "Şablon adı gerekli" }, { status: 400 });
 
+  const generatorKind = String(form.get("generator_kind") ?? "");
+  if (category === "generator" && !isGeneratorKind(generatorKind)) {
+    return json({ error: "Tasarım türü seçilmedi" }, { status: 400 });
+  }
   const layoutMode = category === "boxer" ? "scatter" : category === "ai" ? "ai"
-    : category === "wordart" ? "wordart" : "mask";
+    : category === "wordart" ? "wordart" : category === "generator" ? "generator" : "mask";
   const scatterConfig: ScatterTemplateConfig | undefined = category === "boxer" ? {
     faceCount: 13,
     decorationCount: 8,
@@ -71,6 +77,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     ai_style: "caricature",
     scatter_config: scatterConfig,
     wordart_config: category === "wordart" ? DEFAULT_WORDART : undefined,
+    generator_config: category === "generator"
+      ? GENERATOR_CONFIGS[generatorKind as GeneratorKind].defaults
+      : undefined,
     sort_order: 0,
   });
 
@@ -83,7 +92,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   });
 };
 
-const TYPES: Array<{
+const BASE_TYPES: Array<{
   id: PersonalizerCategory;
   title: string;
   description: string;
@@ -147,6 +156,24 @@ const TYPES: Array<{
   },
 ];
 
+/** Sihirbazdaki kartlar: temel türler + her hazır üretici ayrı bir kart */
+const TYPES: Array<(typeof BASE_TYPES)[number] & { key: string; generatorKind?: GeneratorKind }> = [
+  ...BASE_TYPES.map((t) => ({ ...t, key: t.id })),
+  ...GENERATOR_KINDS.map((g) => ({
+    key: `generator:${g.kind}`,
+    id: "generator" as PersonalizerCategory,
+    generatorKind: g.kind,
+    title: g.label,
+    description: g.description,
+    tags: g.tags,
+    flow: [
+      { title: "Seçenekleri belirleyin", description: "Müşteriye açılacak stilleri, renkleri ve yazı tiplerini seçin." },
+      { title: "Önizleyin", description: "Örnek bilgilerle çıktıyı yönetim ekranında görün." },
+      { title: "Ürüne bağlayın", description: "Şablonu ilgili Shopify ürününe ve yüzüne bağlayın." },
+    ],
+  })),
+];
+
 function TypeIcon({ category }: { category: PersonalizerCategory }) {
   const line = {
     fill: "none", stroke: "currentColor", strokeWidth: 1.7,
@@ -154,6 +181,7 @@ function TypeIcon({ category }: { category: PersonalizerCategory }) {
   };
   if (category === "apparel") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="m8 4-5 3 2.3 4L8 9.5V20h8V9.5l2.7 1.5L21 7l-5-3c-.7 1.4-2 2-4 2S8.7 5.4 8 4Z" /></svg>;
   if (category === "boxer") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M5 4h14l-1 16h-5l-1-9-1 9H6L5 4Zm0 4h14M9 4v4m6-4v4" /></svg>;
+  if (category === "generator") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M12 3l2.2 5.6L20 9.3l-4.4 3.8L17 19l-5-3.1L7 19l1.4-5.9L4 9.3l5.8-.7L12 3Z" /></svg>;
   if (category === "wordart") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" /><path {...line} d="M9 10h6M9.5 13h5" /></svg>;
   if (category === "ai") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M12 3v3m0 12v3M3 12h3m12 0h3M6 6l2 2m8 8 2 2m0-12-2 2M8 16l-2 2" /><circle {...line} cx="12" cy="12" r="4" /></svg>;
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect {...line} x="4" y="3" width="16" height="18" rx="1" /><path {...line} d="m7 17 4-5 3 3 2-2 2 4M9 8h.01" /></svg>;
@@ -163,11 +191,11 @@ export default function NewPersonalizerTemplate() {
   const fetcher = useFetcher<{ error?: string; redirectTo?: string }>();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
-  const [category, setCategory] = useState<PersonalizerCategory | null>(null);
+  const [category, setCategory] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [nameError, setNameError] = useState("");
-  const selected = TYPES.find((item) => item.id === category) ?? null;
+  const selected = TYPES.find((item) => item.key === category) ?? null;
 
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data?.redirectTo) navigate(fetcher.data.redirectTo);
@@ -191,6 +219,7 @@ export default function NewPersonalizerTemplate() {
       name: name.trim(),
       description: description.trim(),
       category: selected.id,
+      generator_kind: selected.generatorKind ?? "",
     }, { method: "POST" });
   }
 
@@ -234,11 +263,11 @@ export default function NewPersonalizerTemplate() {
                   <div className="pl-type-list">
                     {TYPES.map((item) => (
                       <button
-                        key={item.id}
+                        key={item.key}
                         type="button"
-                        className={`pl-type-option${category === item.id ? " is-selected" : ""}`}
-                        onClick={() => setCategory(item.id)}
-                        aria-pressed={category === item.id}
+                        className={`pl-type-option${category === item.key ? " is-selected" : ""}`}
+                        onClick={() => setCategory(item.key)}
+                        aria-pressed={category === item.key}
                       >
                         <span className="pl-type-icon"><TypeIcon category={item.id} /></span>
                         <span className="pl-type-copy">
@@ -267,7 +296,7 @@ export default function NewPersonalizerTemplate() {
                       onChange={(value) => { setName(value); if (value.trim()) setNameError(""); }}
                       error={nameError}
                       autoComplete="off"
-                      placeholder={selected?.id === "boxer" ? "Örn: Kalpli boxer deseni" : selected?.id === "frame" ? "Örn: 12 fotoğraflı 30×40 çerçeve" : selected?.id === "wordart" ? "Örn: Kalp içinde isimler" : "Örn: Anneler Günü tasarımı"}
+                      placeholder={selected?.id === "boxer" ? "Örn: Kalpli boxer deseni" : selected?.id === "frame" ? "Örn: 12 fotoğraflı 30×40 çerçeve" : selected?.id === "wordart" ? "Örn: Kalp içinde isimler" : selected?.generatorKind ? GENERATOR_KINDS.find((g) => g.kind === selected.generatorKind)?.namePlaceholder : "Örn: Anneler Günü tasarımı"}
                       helpText="Bu ad yalnızca yönetim ekranında görünür."
                     />
                     <TextField
@@ -295,7 +324,7 @@ export default function NewPersonalizerTemplate() {
                     <div className="pl-review-row">
                       <span className="pl-review-label">Sonraki adım</span>
                       <span className="pl-review-value">
-                        {selected.id === "boxer" ? "Desen ve süsleme ayarları" : selected.id === "frame" ? "Çerçeve Stüdyosu açılır" : selected.id === "ai" ? "Portre stili ve çıktı ayarları" : selected.id === "wordart" ? "Şekil, font ve renk ayarları" : "Tasarım ve baskı alanı"}
+                        {selected.id === "boxer" ? "Desen ve süsleme ayarları" : selected.id === "frame" ? "Çerçeve Stüdyosu açılır" : selected.id === "ai" ? "Portre stili ve çıktı ayarları" : selected.id === "wordart" ? "Şekil, font ve renk ayarları" : selected.id === "generator" ? "Tasarım seçenekleri ve önizleme" : "Tasarım ve baskı alanı"}
                       </span>
                     </div>
                   </div>

@@ -18,6 +18,9 @@ import { composeAiDesign, AiProviderError } from "~/lib/ai-compose.server";
 import { composeScatterDesign } from "~/lib/scatter-compose.server";
 import { composeWordArt, resolveWordArtRequest } from "~/lib/wordart-compose.server";
 import type { WordArtChoices } from "~/lib/wordart";
+import { getGeneratorModule } from "~/lib/generators/registry.server";
+import { removeBackgroundFromBuffer } from "~/models/background-removal.server";
+import { GeneratorInputError } from "~/lib/generators/types";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings } from "~/models/shop-settings.server";
 import {
@@ -86,6 +89,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ error: "Bu ürünün bu yüzüne bağlı şablon yok" }, { status: 404, headers: CORS });
     }
 
+    // ── Hazır tasarım üreticileri ────────────────────────────────────────
+    if (template.layout_mode === "generator") {
+      const cfg = template.generator_config;
+      if (!cfg) return json({ error: "Şablonun üretici ayarı eksik" }, { status: 404, headers: CORS });
+      let fields: Record<string, string> = {};
+      let genChoices: Record<string, string | number | boolean> = {};
+      try { fields = JSON.parse(String(form.get("fields") ?? "{}")); } catch { /* yoksay */ }
+      try { genChoices = JSON.parse(String(form.get("choices") ?? "{}")); } catch { /* yoksay */ }
+      if (typeof fields !== "object" || !fields) fields = {};
+      if (typeof genChoices !== "object" || !genChoices) genChoices = {};
+      const genPhoto = photo instanceof File && photo.size > 0
+        ? await sharp(Buffer.from(await photo.arrayBuffer()), { limitInputPixels: false })
+            .rotate()
+            .resize(3000, 3000, { fit: "inside", withoutEnlargement: true })
+            .toBuffer()
+        : null;
+      try {
+        const result = await getGeneratorModule(cfg.kind).compose(cfg, { fields, choices: genChoices, photo: genPhoto }, { shop });
+        const url = await uploadToR2(result.buffer, "png", "uploads/template-design");
+        console.log(`[template-compose] generator ${cfg.kind} ${template.name}: ${result.width}x${result.height} -> ${url}`);
+        return json({ url, width: result.width, height: result.height, templateName: template.name }, { headers: CORS });
+      } catch (err) {
+        if (err instanceof GeneratorInputError) {
+          return json({ error: err.message }, { status: 400, headers: CORS });
+        }
+        throw err;
+      }
+    }
+
     // ── Kelime sanatı ────────────────────────────────────────────────────
     // Fotoğraf yok: kelimeler ve seçimler gelir, sunucu yerleşimi yapar.
     if (template.layout_mode === "wordart") {
@@ -98,7 +130,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
       if ("error" in resolved) return json({ error: resolved.error }, { status: 400, headers: CORS });
 
-      const result = await composeWordArt(resolved);
+      // "Fotoğrafım" şekli: fotoğrafın arka planı silinip siluet maske olur.
+      // Silme mağazanın arka plan kotasından düşer (diğer akışlarla aynı).
+      let silhouette: Buffer | null = null;
+      if (resolved.shape === "photo") {
+        if (!(photo instanceof File) || photo.size === 0) {
+          return json({ error: "Fotoğraf şekli için bir fotoğraf seçin" }, { status: 400, headers: CORS });
+        }
+        const raw = await sharp(Buffer.from(await photo.arrayBuffer()), { limitInputPixels: false })
+          .rotate()
+          .resize(1600, 1600, { fit: "inside", withoutEnlargement: true })
+          .png()
+          .toBuffer();
+        silhouette = (await removeBackgroundFromBuffer(shop, raw, "image/png")).buffer;
+      }
+
+      const result = await composeWordArt({ ...resolved, photo: silhouette });
       const url = await uploadToR2(result.buffer, "png", "uploads/template-design");
       console.log(
         `[template-compose] wordart ${template.name}: ${resolved.shape} ${result.width}x${result.height}, `

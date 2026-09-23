@@ -6,6 +6,7 @@ import {
   wordArtShapePath,
   findPalette,
   isWordArtShape,
+  PHOTO_PALETTE_ID,
   normalizeLetter,
   parseWordArtWords,
   type WordArtChoices,
@@ -41,6 +42,13 @@ export interface ComposeWordArtOptions {
   fontId: string;
   colors: string[];
   seed: number;
+  /**
+   * "Fotoğrafım" şekli için arka planı silinmiş fotoğraf (RGBA). Siluet
+   * maske olur; `photoColors` açıksa her kelime fotoğrafta durduğu yerin
+   * rengini alır — uzaktan bakınca kelimelerden oluşmuş bir portre.
+   */
+  photo?: Buffer | null;
+  photoColors?: boolean;
 }
 
 export interface ComposeWordArtResult {
@@ -53,7 +61,7 @@ export interface ComposeWordArtResult {
 }
 
 /** Tekrarlarla birlikte yerleşecek en fazla kelime; dosya boyutu ve süre sınırı */
-const MAX_PLACEMENTS = 1400;
+const MAX_PLACEMENTS = 2600;
 /** Izgaranın uzun kenarındaki hücre sayısı */
 const GRID_LONG_SIDE = 420;
 /** Harf siluetinde kullanılan kalın font; gövdesi kalın olduğu için içi dolar */
@@ -100,9 +108,13 @@ export function resolveWordArtRequest(
   const shape = isWordArtShape(choices.shape) && config.shapes.includes(choices.shape)
     ? choices.shape : config.shapes[0];
   const fontId = choices.font && config.fonts.includes(choices.font) ? choices.font : config.fonts[0];
-  const paletteId = choices.palette && config.palettes.includes(choices.palette)
-    ? choices.palette : config.palettes[0];
-  const colors = findPalette(paletteId)?.colors ?? ["#111111"];
+  // Fotoğraf rengi paleti yalnızca fotoğraf şekliyle anlamlı; başka şekilde
+  // seçilirse ya da ilk palet oysa ilk normal palete dönülür
+  const usable = config.palettes.filter((p) => p !== PHOTO_PALETTE_ID || shape === "photo");
+  const paletteId = choices.palette && usable.includes(choices.palette)
+    ? choices.palette : (usable[0] ?? "black");
+  const photoColors = paletteId === PHOTO_PALETTE_ID;
+  const colors = photoColors ? ["#111111"] : findPalette(paletteId)?.colors ?? ["#111111"];
   const variant = Math.min(MAX_VARIANT, Math.max(0, Math.floor(Number(choices.variant) || 0)));
 
   return {
@@ -112,6 +124,7 @@ export function resolveWordArtRequest(
     letter: normalizeLetter(choices.letter) || config.defaultLetter,
     fontId,
     colors,
+    photoColors,
     seed: config.seed + variant * 977,
   };
 }
@@ -157,7 +170,7 @@ async function buildShape(
     height = canvasH;
     width = Math.round(canvasH * aspect);
   }
-  const d = wordArtShapePath(shape as Exclude<WordArtShapeId, "letter">, width, height);
+  const d = wordArtShapePath(shape as Exclude<WordArtShapeId, "letter" | "photo">, width, height);
   return { width, height, svgBody: `<path d="${d}"/>` };
 }
 
@@ -180,7 +193,20 @@ export async function composeWordArt(opts: ComposeWordArtOptions): Promise<Compo
   const font = await loadFont(libFont.url);
   if (!font) throw new Error(`Kelime sanatı fontu yüklenemedi: ${libFont.id}`);
 
-  const geo = await buildShape(opts.shape, opts.letter, config.canvasWidth, config.canvasHeight);
+  // Fotoğraf şekli: siluet, şeffaf kenarları kırpılıp tuvale oranı korunarak
+  // oturtulur. Diğer şekiller SVG yolundan gelir.
+  let photo: sharp.Sharp | null = null;
+  let geo: ShapeGeometry;
+  if (opts.shape === "photo") {
+    if (!opts.photo) throw new Error("Fotoğraf şekli için fotoğraf gerekli");
+    const trimmed = await sharp(opts.photo).ensureAlpha().trim({ threshold: 10 }).png().toBuffer();
+    const meta = await sharp(trimmed).metadata();
+    const s = Math.min(config.canvasWidth / (meta.width ?? 1), config.canvasHeight / (meta.height ?? 1));
+    geo = { width: Math.round((meta.width ?? 1) * s), height: Math.round((meta.height ?? 1) * s), svgBody: "" };
+    photo = sharp(trimmed);
+  } else {
+    geo = await buildShape(opts.shape, opts.letter, config.canvasWidth, config.canvasHeight);
+  }
   const W = geo.width;
   const H = geo.height;
 
@@ -189,23 +215,50 @@ export async function composeWordArt(opts: ComposeWordArtOptions): Promise<Compo
   const gw = Math.ceil(W / cell);
   const gh = Math.ceil(H / cell);
 
-  const maskSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${gw}" height="${gh}" viewBox="0 0 ${gw * cell} ${gh * cell}">`
-    + `<g fill="#fff">${geo.svgBody}</g></svg>`;
-  const alpha = await sharp(Buffer.from(maskSvg))
-    .ensureAlpha()
-    .extractChannel(3)
-    .raw()
-    .toBuffer();
+  // Fotoğrafta ızgara boyunda RGBA tutulur: alfa maske, RGB kelime rengi
+  let photoGrid: Buffer | null = null;
+  let alpha: Buffer;
+  if (photo) {
+    photoGrid = await photo.clone().resize(gw, gh, { fit: "fill" }).ensureAlpha().raw().toBuffer();
+    alpha = Buffer.alloc(gw * gh);
+    for (let i = 0; i < gw * gh; i++) alpha[i] = photoGrid[i * 4 + 3];
+  } else {
+    const maskSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${gw}" height="${gh}" viewBox="0 0 ${gw * cell} ${gh * cell}">`
+      + `<g fill="#fff">${geo.svgBody}</g></svg>`;
+    alpha = await sharp(Buffer.from(maskSvg))
+      .ensureAlpha()
+      .extractChannel(3)
+      .raw()
+      .toBuffer();
+  }
 
   // 1 = dolu (şeklin dışı ya da bir kelime). Kenarda yarım kalan hücreler de
   // dolu sayılıyor: harfin şeklin dışına taşmasındansa hafif boşluk yeğ.
+  // Fotoğraf silueti yumuşak kenarlı; orada yarı saydamlık eşiği daha düşük.
+  const alphaMin = photo ? 128 : 200;
   const blocked = new Uint8Array(gw * gh);
   const inside: number[] = [];
   for (let i = 0; i < gw * gh; i++) {
-    if (alpha[i] < 200) blocked[i] = 1;
+    if (alpha[i] < alphaMin) blocked[i] = 1;
     else inside.push(i);
   }
   if (inside.length === 0) throw new Error("Şekil boş çıktı");
+
+  /** Kelimenin kapladığı hücrelerin fotoğraftaki ortalama rengi */
+  const photoColorAt = (x: number, y: number, w: number, h: number): string => {
+    if (!photoGrid) return "#111111";
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let yy = y; yy < y + h; yy++) {
+      for (let xx = x; xx < x + w; xx++) {
+        const i = (yy * gw + xx) * 4;
+        if (photoGrid[i + 3] < alphaMin) continue;
+        r += photoGrid[i]; g += photoGrid[i + 1]; b += photoGrid[i + 2]; n++;
+      }
+    }
+    if (!n) return "#111111";
+    const hex = (v: number) => Math.round(v / n).toString(16).padStart(2, "0");
+    return `#${hex(r)}${hex(g)}${hex(b)}`;
+  };
 
   // Integral görüntü: dikdörtgen içindeki dolu hücre sayısı O(1)
   const iw = gw + 1;
@@ -274,7 +327,8 @@ export async function composeWordArt(opts: ComposeWordArtOptions): Promise<Compo
       // rotate(-90): (x, y) → (y, -x); kelime aşağıdan yukarı okunur
       const tx = rotated ? bx - y1 : bx - x1;
       const ty = rotated ? by + x2 : by - y1;
-      placements.push({ text, size, rotated, tx, ty, color, paths: glyphPathData(font, text, size) });
+      const fill = opts.photoColors ? photoColorAt(x, y, cw, ch) : color;
+      placements.push({ text, size, rotated, tx, ty, color: fill, paths: glyphPathData(font, text, size) });
       return true;
     }
     return false;
@@ -290,7 +344,9 @@ export async function composeWordArt(opts: ComposeWordArtOptions): Promise<Compo
   // Puntoyu çıktı ölçüsüne göre ayarla: tuvalden küçük bir şekilde (harf)
   // aynı punto oransız büyük kalırdı
   const scale = Math.max(W, H) / Math.max(config.canvasWidth, config.canvasHeight);
-  const maxSize = config.maxFontPx * scale;
+  // Fotoğraf renklerinde portre ancak çok sayıda küçük kelimeyle seçiliyor:
+  // büyük kelime yüzün ayrıntısını tek renkle örtüyor
+  const maxSize = config.maxFontPx * scale * (opts.photoColors ? 0.22 : 1);
   const minSize = config.minFontPx;
   const levels: number[] = [];
   for (let s = maxSize; s > minSize; s *= 0.9) levels.push(s);
@@ -327,7 +383,8 @@ export async function composeWordArt(opts: ComposeWordArtOptions): Promise<Compo
 
   // ── Çizim ────────────────────────────────────────────────────────────
   const f = (n: number) => Number(n.toFixed(1));
-  const bg = config.background ? `<g fill="${esc(config.background)}">${geo.svgBody}</g>` : "";
+  // Fotoğraf şeklinde zemin rengi uygulanmaz: siluetin SVG yolu yok
+  const bg = config.background && geo.svgBody ? `<g fill="${esc(config.background)}">${geo.svgBody}</g>` : "";
   const body = placements.map((p) => {
     const t = p.rotated ? `translate(${f(p.tx)} ${f(p.ty)}) rotate(-90)` : `translate(${f(p.tx)} ${f(p.ty)})`;
     return `<g transform="${t}" fill="${esc(p.color)}">${p.paths.map((d) => `<path d="${d}"/>`).join("")}</g>`;

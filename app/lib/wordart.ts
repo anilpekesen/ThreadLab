@@ -9,7 +9,7 @@
  */
 import { shapePath, type SlotShapeId } from "./slot-shapes";
 
-export type WordArtShapeId = SlotShapeId | "circle" | "square" | "letter";
+export type WordArtShapeId = SlotShapeId | "circle" | "square" | "letter" | "photo";
 
 /**
  * Hazır siluetler. `aspect` = genişlik / yükseklik: şekil tuvale esnetilmez,
@@ -27,6 +27,8 @@ export const WORDART_SHAPES: Array<{ id: WordArtShapeId; label: string; labelEn:
   { id: "arch", label: "Kemer", labelEn: "Arch", aspect: 0.8 },
   // Harf siluetinin oranı seçilen harfe göre sunucuda hesaplanır
   { id: "letter", label: "Harf", labelEn: "Letter", aspect: 1 },
+  // Müşterinin fotoğrafı: arka planı silinir, kelimeler kişinin siluetine dizilir
+  { id: "photo", label: "Fotoğrafım", labelEn: "My photo", aspect: 1 },
 ];
 
 export function isWordArtShape(v: unknown): v is WordArtShapeId {
@@ -37,7 +39,7 @@ export function isWordArtShape(v: unknown): v is WordArtShapeId {
  * Şeklin `w × h` kutudaki SVG yolu. Harf burada yok: glif yolu fonttan
  * geldiği için sunucuda üretiliyor.
  */
-export function wordArtShapePath(shape: Exclude<WordArtShapeId, "letter">, w: number, h: number): string {
+export function wordArtShapePath(shape: Exclude<WordArtShapeId, "letter" | "photo">, w: number, h: number): string {
   if (shape === "circle") return shapePath("oval", w, h);
   if (shape === "square") return `M0 0 L${w} 0 L${w} ${h} L0 ${h} Z`;
   return shapePath(shape, w, h);
@@ -55,7 +57,13 @@ export const WORDART_PALETTES: Array<{ id: string; label: string; labelEn: strin
   { id: "neon", label: "Neon", labelEn: "Neon", colors: ["#39ff14", "#ff073a", "#00f0ff", "#ffea00", "#ff00e6"] },
   { id: "gold", label: "Altın", labelEn: "Gold", colors: ["#b8860b", "#d4a017", "#8b6914", "#c9a227"] },
   { id: "mono", label: "Gri tonları", labelEn: "Greyscale", colors: ["#111111", "#424242", "#616161", "#212121"] },
+  // Her kelime fotoğrafta durduğu yerin rengini alır; yalnızca "Fotoğrafım"
+  // şekliyle anlamlı. Renkler çizim anında fotoğraftan okunur.
+  { id: "photo", label: "Fotoğrafın renkleri", labelEn: "Photo colours", colors: [] },
 ];
+
+/** Fotoğraftan renk alan palet — yalnızca fotoğraf şekliyle geçerli */
+export const PHOTO_PALETTE_ID = "photo";
 
 export function findPalette(id: string | undefined) {
   return WORDART_PALETTES.find((p) => p.id === id);

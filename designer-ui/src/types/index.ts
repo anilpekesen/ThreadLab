@@ -73,7 +73,9 @@ export interface TemplateDesign {
   description?: string;
   /** Yalnızca maskeli şablonda dolu; dağıtımlı ve AI şablonunda boştur. */
   previewUrl: string;
-  layoutMode?: 'mask' | 'scatter' | 'ai' | 'wordart';
+  layoutMode?: 'mask' | 'scatter' | 'ai' | 'wordart' | 'generator';
+  /** Üretici şablonunda türü (şarkı, monogram...) */
+  generatorKind?: 'song' | 'monogram' | 'starmap' | 'citymap' | 'birthflower' | null;
 }
 
 export interface SizeChartEntry {

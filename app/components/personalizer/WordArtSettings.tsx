@@ -91,7 +91,7 @@ export function WordArtSettings({ initial }: { initial: unknown }) {
     <BlockStack gap="500">
       <BlockStack gap="200">
         <Text as="h3" variant="headingSm">Müşteriye açılan şekiller</Text>
-        <Text as="p" tone="subdued" variant="bodySm">İlk işaretlediğiniz şekil varsayılan olur. Harf şeklinde müşteri kendi harfini seçer.</Text>
+        <Text as="p" tone="subdued" variant="bodySm">İlk işaretlediğiniz şekil varsayılan olur. Harf şeklinde müşteri kendi harfini seçer. "Fotoğrafım" şeklinde müşterinin fotoğrafının arka planı silinir ve kelimeler kişinin siluetine dizilir (arka plan silme kotanızdan düşer); "Fotoğrafın renkleri" paletiyle her kelime fotoğraftaki rengini alır.</Text>
         <InlineStack gap="200" wrap>
           {WORDART_SHAPES.map((s) => {
             const on = shapes.includes(s.id);
@@ -100,7 +100,9 @@ export function WordArtSettings({ initial }: { initial: unknown }) {
                 <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
                   {s.id === "letter"
                     ? <text x="11" y="17" textAnchor="middle" fontSize="17" fontWeight="900" fill="currentColor">A</text>
-                    : <path d={wordArtShapePath(s.id, 20, 20)} transform="translate(1 1)" fill="currentColor" />}
+                    : s.id === "photo"
+                      ? <path d="M11 3a4 4 0 1 1 0 8a4 4 0 0 1 0-8Zm-7 17c0-4 3-6.5 7-6.5s7 2.5 7 6.5Z" fill="currentColor" />
+                      : <path d={wordArtShapePath(s.id, 20, 20)} transform="translate(1 1)" fill="currentColor" />}
                 </svg>
                 {s.label}
               </button>
@@ -137,6 +139,9 @@ export function WordArtSettings({ initial }: { initial: unknown }) {
             return (
               <button key={p.id} type="button" style={chip(on)} onClick={() => toggle(palettes, setPalettes, p.id)} aria-pressed={on}>
                 <span style={{ display: "inline-flex" }}>
+                  {p.id === "photo" && (
+                    <span style={{ width: 30, height: 12, borderRadius: 3, border: "1px solid #d0d0d0", background: "linear-gradient(90deg,#f4c9a8,#7c4a2d,#1f2a44)" }} />
+                  )}
                   {p.colors.slice(0, 5).map((c) => (
                     <span key={c} style={{ width: 12, height: 12, background: c, border: "1px solid #d0d0d0", marginRight: -3, borderRadius: 3 }} />
                   ))}
