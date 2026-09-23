@@ -1,11 +1,30 @@
 /**
- * Cloudflare R2 temizlik scripti
- * Şablonlar dışındaki klasörlerden 10 günden eski dosyaları siler.
- * DB'deki sipariş ve tasarımlarda referans edilen dosyalara dokunmaz.
+ * Cloudflare R2 temizlik scripti.
+ *
+ * YALNIZCA geçici yükleme klasörlerinden (DELETABLE_PREFIXES), 10 günden eski
+ * VE veritabanının hiçbir yerinde adı geçmeyen dosyaları siler.
+ *
+ * Eskiden tersiydi: bucket'ın tamamı taranıyor, yalnızca `templates/` ve
+ * designs/orders tablolarının birkaç sütununda geçen dosyalar korunuyordu.
+ * Sonuç (Eylül 2026'da fark edildi): personalizer şablon görselleri,
+ * süslemeler, mockup'lar, müşteri clipart'ları, `designs.original_image_urls`
+ * altındaki müşteri orijinal fotoğrafları ve 10 günden eski veritabanı
+ * yedekleri her gece siliniyordu. Yeni bir özellik yeni bir klasöre ya da
+ * yeni bir sütuna dosya yazdığında bu script onu sessizce silmeye başlıyordu.
+ *
+ * Şimdiki kurallar bu hatanın tekrarlanmaması için:
+ *   1. İzin listesi: bilinmeyen bir klasöre asla dokunulmaz.
+ *   2. Referans kontrolü tablo/sütun listesiyle değil, veritabanının tam
+ *      dökümüyle yapılır: bir dosya adresi herhangi bir tablonun herhangi bir
+ *      sütununda (JSON içinde bile) geçiyorsa korunur.
+ *   3. Güvenlik sınırı: bir çalıştırmada MAX_DELETE'ten fazla dosya silinecekse
+ *      hiçbir şey silinmez; `--force` ile bilerek geçilebilir.
+ *
  * Cron: 0 2 * * * node scripts/r2-cleanup.mjs
+ * Deneme: node scripts/r2-cleanup.mjs --dry-run
  */
 import { S3Client, ListObjectsV2Command, DeleteObjectsCommand } from "@aws-sdk/client-s3";
-import pg from "pg";
+import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,77 +47,48 @@ async function loadEnv() {
 
 const KEEP_DAYS = 10;
 const DELETE_BATCH = 500;
-const PROTECTED_PREFIXES = ["templates/"];
-
-function isProtected(key) {
-  return PROTECTED_PREFIXES.some((p) => key.startsWith(p));
-}
+/**
+ * Silinebilecek klasörler: müşteri tasarımcıda çalışırken oluşan ve siparişe
+ * dönmezse işe yaramayan dosyalar. Buraya yeni bir klasör eklemeden önce o
+ * klasöre yazılan dosyanın uzun ömürlü bir kopyasının başka yerde olduğundan
+ * emin olun.
+ */
+const DELETABLE_PREFIXES = ["uploads/", "ai-gen/"];
+/** Normal bir gecede ~200-250 dosya siliniyor; bunun çok üstü bir hata işaretidir */
+const MAX_DELETE = 2000;
 
 function isOlderThan(lastModified, days) {
-  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  return lastModified < cutoff;
+  return lastModified < new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
 
-// URL'den R2 key'ini çıkar
-function urlToKey(url, publicUrl) {
-  if (!url || !publicUrl) return null;
-  try {
-    const pub = new URL(publicUrl);
-    const obj = new URL(url);
-    if (obj.origin !== pub.origin) return null;
-    const base = pub.pathname.replace(/\/+$/, "");
-    const path = decodeURIComponent(obj.pathname);
-    const key = path.slice(base.length).replace(/^\/+/, "");
-    return key || null;
-  } catch {
-    return null;
-  }
-}
-
-// JSON içindeki tüm https:// URL'leri topla
-function collectUrls(value, set) {
-  if (!value) return;
-  if (typeof value === "string") {
-    if (value.startsWith("https://")) set.add(value);
-    return;
-  }
-  if (Array.isArray(value)) { value.forEach((v) => collectUrls(v, set)); return; }
-  if (typeof value === "object") { Object.values(value).forEach((v) => collectUrls(v, set)); }
-}
-
-async function loadActiveR2Keys(pool, publicUrl) {
+/**
+ * Veritabanının tam dökümünü akış hâlinde okuyup içinde geçen tüm R2
+ * anahtarlarını toplar. Döküm 600 MB'ı aştığı için belleğe alınmıyor; parça
+ * sınırında bölünen adresler için son birkaç yüz karakter bir sonraki parçaya
+ * taşınıyor.
+ */
+async function loadReferencedKeys(databaseUrl, publicUrl) {
+  const host = new URL(publicUrl).host.replace(/\./g, "\\.");
+  const re = new RegExp(`${host}/([A-Za-z0-9_./%-]+\\.[A-Za-z0-9]{2,5})`, "g");
   const keys = new Set();
 
-  // Tasarımlar tablosu
-  const designs = await pool.query(`
-    SELECT front_preview_url, back_preview_url, front_print_url, back_print_url, design_json
-    FROM designs
-  `);
-  for (const row of designs.rows) {
-    const urls = new Set();
-    collectUrls(row.front_preview_url, urls);
-    collectUrls(row.back_preview_url, urls);
-    collectUrls(row.front_print_url, urls);
-    collectUrls(row.back_print_url, urls);
-    collectUrls(row.design_json, urls);
-    for (const url of urls) {
-      const key = urlToKey(url, publicUrl);
-      if (key) keys.add(key);
-    }
-  }
-
-  // Siparişler tablosu (sadece kendi sütunları, join yok)
-  const orders = await pool.query(`
-    SELECT preview_url, production_file_url
-    FROM orders
-  `);
-  for (const row of orders.rows) {
-    for (const val of Object.values(row)) {
-      if (!val) continue;
-      const key = urlToKey(val, publicUrl);
-      if (key) keys.add(key);
-    }
-  }
+  await new Promise((resolve, reject) => {
+    const child = spawn("pg_dump", ["--data-only", databaseUrl], { stdio: ["ignore", "pipe", "pipe"] });
+    let tail = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      const text = tail + chunk;
+      for (const m of text.matchAll(re)) keys.add(decodeURIComponent(m[1]));
+      tail = text.slice(-512);
+    });
+    child.stderr.on("data", (d) => { stderr += d; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`pg_dump ${code} ile bitti: ${stderr.trim()}`));
+    });
+  });
 
   return keys;
 }
@@ -107,6 +97,7 @@ async function main() {
   await loadEnv();
 
   const dryRun = process.argv.includes("--dry-run");
+  const force = process.argv.includes("--force");
 
   const client = new S3Client({
     region: "auto",
@@ -119,82 +110,68 @@ async function main() {
 
   const bucket = process.env.R2_BUCKET ?? "printlabapp-designs";
   const publicUrl = process.env.R2_PUBLIC_URL ?? "";
+  const databaseUrl = process.env.DATABASE_URL ?? "";
+  // Referans kontrolü yapılamıyorsa hiçbir şey silinmemeli
+  if (!publicUrl || !databaseUrl) throw new Error("R2_PUBLIC_URL ve DATABASE_URL gerekli");
 
   console.log(`[r2-cleanup] ${new Date().toISOString()} başlıyor`);
-  console.log(`[r2-cleanup] bucket=${bucket} keepDays=${KEEP_DAYS} dryRun=${dryRun}`);
+  console.log(`[r2-cleanup] bucket=${bucket} keepDays=${KEEP_DAYS} prefixes=${DELETABLE_PREFIXES.join(",")} dryRun=${dryRun}`);
 
-  // DB'den aktif R2 key'lerini yükle
-  const dbUrl = process.env.DATABASE_URL ?? "";
-  const isLocal = dbUrl.includes("localhost") || dbUrl.includes("127.0.0.1");
-  const pool = new pg.Pool({
-    connectionString: dbUrl,
-    ...(isLocal ? {} : { ssl: { rejectUnauthorized: false } }),
-  });
-
-  let activeKeys;
-  try {
-    console.log("[r2-cleanup] DB'den aktif dosyalar yükleniyor...");
-    activeKeys = await loadActiveR2Keys(pool, publicUrl);
-    console.log(`[r2-cleanup] ${activeKeys.size} aktif dosya korunacak`);
-  } finally {
-    await pool.end();
+  console.log("[r2-cleanup] veritabanı dökümünden referanslar toplanıyor...");
+  const referenced = await loadReferencedKeys(databaseUrl, publicUrl);
+  // Döküm boş ya da bozuk geldiyse her şey sahipsiz görünür; silmeye başlama
+  if (referenced.size < 1000) {
+    throw new Error(`yalnızca ${referenced.size} referans bulundu; döküm eksik olabilir, iptal`);
   }
+  console.log(`[r2-cleanup] ${referenced.size} referanslı dosya korunacak`);
 
-  let listed = 0, skippedProtected = 0, skippedRecent = 0, skippedActive = 0;
-  let toDelete = [], totalDeleted = 0, totalSize = 0;
+  let listed = 0, skippedRecent = 0, skippedActive = 0;
+  const toDelete = [];
+  let totalSize = 0;
 
-  let continuationToken;
-  do {
-    const res = await client.send(new ListObjectsV2Command({
-      Bucket: bucket,
-      ContinuationToken: continuationToken,
-    }));
-
-    for (const obj of res.Contents ?? []) {
-      listed++;
-      const key = obj.Key ?? "";
-      const lastModified = obj.LastModified ?? new Date();
-      const size = obj.Size ?? 0;
-
-      if (isProtected(key)) { skippedProtected++; continue; }
-      if (!isOlderThan(lastModified, KEEP_DAYS)) { skippedRecent++; continue; }
-      if (activeKeys.has(key)) { skippedActive++; continue; }
-
-      toDelete.push({ Key: key });
-      totalSize += size;
-
-      if (toDelete.length >= DELETE_BATCH) {
-        if (!dryRun) {
-          await client.send(new DeleteObjectsCommand({
-            Bucket: bucket,
-            Delete: { Objects: toDelete, Quiet: true },
-          }));
-        }
-        totalDeleted += toDelete.length;
-        console.log(`[r2-cleanup] ${dryRun ? "[DRY] " : ""}${toDelete.length} dosya silindi (toplam: ${totalDeleted})`);
-        toDelete = [];
-      }
-    }
-
-    continuationToken = res.NextContinuationToken;
-  } while (continuationToken);
-
-  if (toDelete.length > 0) {
-    if (!dryRun) {
-      await client.send(new DeleteObjectsCommand({
+  for (const prefix of DELETABLE_PREFIXES) {
+    let continuationToken;
+    do {
+      const res = await client.send(new ListObjectsV2Command({
         Bucket: bucket,
-        Delete: { Objects: toDelete, Quiet: true },
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
       }));
-    }
-    totalDeleted += toDelete.length;
+      for (const obj of res.Contents ?? []) {
+        listed++;
+        const key = obj.Key ?? "";
+        if (!isOlderThan(obj.LastModified ?? new Date(), KEEP_DAYS)) { skippedRecent++; continue; }
+        if (referenced.has(key)) { skippedActive++; continue; }
+        toDelete.push({ Key: key });
+        totalSize += obj.Size ?? 0;
+      }
+      continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (continuationToken);
   }
 
   const sizeMB = (totalSize / 1024 / 1024).toFixed(1);
-  console.log(`[r2-cleanup] tamamlandı`);
   console.log(`  Taranan       : ${listed}`);
-  console.log(`  Korunan şablon: ${skippedProtected}`);
   console.log(`  Korunan genç  : ${skippedRecent}`);
-  console.log(`  Korunan aktif : ${skippedActive} (sipariş/tasarım DB'de referanslı)`);
+  console.log(`  Korunan aktif : ${skippedActive} (veritabanında referanslı)`);
+
+  if (toDelete.length > MAX_DELETE && !force) {
+    console.error(`[r2-cleanup] ${toDelete.length} dosya silinecekti (sınır ${MAX_DELETE}); hiçbir şey silinmedi. Bilerek yapılıyorsa --force.`);
+    process.exit(2);
+  }
+
+  let totalDeleted = 0;
+  for (let i = 0; i < toDelete.length; i += DELETE_BATCH) {
+    const batch = toDelete.slice(i, i + DELETE_BATCH);
+    if (!dryRun) {
+      await client.send(new DeleteObjectsCommand({
+        Bucket: bucket,
+        Delete: { Objects: batch, Quiet: true },
+      }));
+    }
+    totalDeleted += batch.length;
+  }
+
+  console.log(`[r2-cleanup] tamamlandı`);
   console.log(`  ${dryRun ? "Silinecekti" : "Silindi"}: ${totalDeleted} (~${sizeMB} MB)`);
 }
 
