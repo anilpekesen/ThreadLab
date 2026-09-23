@@ -51,10 +51,10 @@ export default function BirthflowerModal({ assets: raw, isTurkish, garment, init
   const [error, setError] = useState('');
 
   const t = isTurkish
-    ? { people: 'Kişiler', name: 'İsim', month: 'Doğum ayı', pickMonth: 'Ay seçin', add: '+ Kişi ekle', remove: 'Kişiyi çıkar',
+    ? { people: 'Kişiler', name: 'İsim', month: 'Doğum ayı', pickMonth: 'Ay', add: '+ Kişi ekle', remove: 'Kişiyi çıkar',
         title: 'Başlık (isteğe bağlı)', style: 'Çizim', layout: 'Düzen', font: 'Yazı tipi', ink: 'Renk',
         singleNote: 'Tek çiçek düzeninde yalnızca ilk kişi çizilir.', needMonth: 'Her kişi için doğum ayını seçin', max: 'En fazla' }
-    : { people: 'People', name: 'Name', month: 'Birth month', pickMonth: 'Choose month', add: '+ Add person', remove: 'Remove person',
+    : { people: 'People', name: 'Name', month: 'Birth month', pickMonth: 'Month', add: '+ Add person', remove: 'Remove person',
         title: 'Title (optional)', style: 'Style', layout: 'Layout', font: 'Font', ink: 'Colour',
         singleNote: 'The single flower layout draws only the first person.', needMonth: 'Choose a birth month for everyone', max: 'At most' };
 
@@ -121,37 +121,48 @@ export default function BirthflowerModal({ assets: raw, isTurkish, garment, init
 
       <div className="flex flex-col gap-2">
         <FieldLabel label={t.people} right={isSingle ? undefined : `${rows.length}/${max}`} />
-        {rows.map((p, i) => (
-          <div key={i} className="flex items-center gap-1.5">
-            <input
-              type="text"
-              value={p.name}
-              maxLength={assets.nameMaxLength}
-              placeholder={t.name}
-              aria-label={`${t.name} ${i + 1}`}
-              onChange={(e) => update(i, { name: e.target.value })}
-              className={`${inputClass} min-w-0 flex-1`}
-            />
-            <select
-              value={p.month}
-              aria-label={`${t.month} ${i + 1}`}
-              onChange={(e) => update(i, { month: e.target.value })}
-              className={`${inputClass} w-[48%] shrink-0 bg-white pr-1 ${p.month ? '' : 'text-gray-400'}`}
-            >
-              <option value="" disabled>{t.pickMonth}</option>
-              {assets.months.map((m) => (
-                <option key={m.month} value={String(m.month)} className="text-gray-900">
-                  {isTurkish ? `${m.label} — ${m.flower}` : `${m.labelEn} — ${m.flowerEn}`}
-                </option>
-              ))}
-            </select>
-            {!isSingle && people.length > 1 && (
-              <button type="button" onClick={() => setPeople((list) => list.filter((_, j) => j !== i))}
-                aria-label={t.remove} title={t.remove}
-                className="shrink-0 rounded-lg px-1.5 py-1 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700">✕</button>
-            )}
-          </div>
-        ))}
+        {rows.map((p, i) => {
+          const m = assets.months.find((x) => String(x.month) === p.month);
+          return (
+            <div key={i} className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5">
+                {/* İsim asıl alan: geniş ve büyük; ay seçimi yalnızca ay adı kadar */}
+                <input
+                  type="text"
+                  value={p.name}
+                  maxLength={assets.nameMaxLength}
+                  placeholder={t.name}
+                  aria-label={`${t.name} ${i + 1}`}
+                  onChange={(e) => update(i, { name: e.target.value })}
+                  className="min-w-0 flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-base font-medium outline-none focus:border-gray-400"
+                />
+                <select
+                  value={p.month}
+                  aria-label={`${t.month} ${i + 1}`}
+                  onChange={(e) => update(i, { month: e.target.value })}
+                  className={`w-[7.5rem] shrink-0 rounded-xl border border-gray-200 bg-white px-2 py-2.5 text-sm outline-none focus:border-gray-400 ${p.month ? 'text-gray-900' : 'text-gray-400'}`}
+                >
+                  <option value="" disabled>{t.pickMonth}</option>
+                  {assets.months.map((mm) => (
+                    <option key={mm.month} value={String(mm.month)} className="text-gray-900">
+                      {isTurkish ? mm.label : mm.labelEn}
+                    </option>
+                  ))}
+                </select>
+                {!isSingle && people.length > 1 && (
+                  <button type="button" onClick={() => setPeople((list) => list.filter((_, j) => j !== i))}
+                    aria-label={t.remove} title={t.remove}
+                    className="shrink-0 rounded-lg px-1.5 py-1 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700">✕</button>
+                )}
+              </div>
+              {m && (
+                <span className="pl-1 text-[11px] text-gray-400">
+                  {isTurkish ? `${m.label} çiçeği: ${m.flower}` : `${m.labelEn} flower: ${m.flowerEn}`}
+                </span>
+              )}
+            </div>
+          );
+        })}
         {isSingle ? (
           people.length > 1 && <span className="text-[11px] text-gray-400">{t.singleNote}</span>
         ) : people.length < max ? (
