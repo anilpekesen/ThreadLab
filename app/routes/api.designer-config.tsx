@@ -53,7 +53,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const inferredProductType = linkedTemplate?.category === "boxer"
-    || /boxer|baksır|baksir|şort|sort/i.test(`${linkedTemplate?.name ?? ""} ${handle}`)
+    // Kelime sınırı şart: "tisort" (tişört) içinde "sort" geçiyor ve tişörtler
+    // boxer varsayılanına (10x8 cm alan) düşüyordu
+    || /boxer|baksır|baksir|(^|[^a-zçğıöşü])(şort|sort)([^a-zçğıöşü]|$)/i.test(`${linkedTemplate?.name ?? ""} ${handle}`)
     ? "boxer"
     : "apparel";
   const fallbackSettings = buildDefaultConfig({

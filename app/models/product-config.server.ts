@@ -672,10 +672,17 @@ export async function findConfigForStorefront(shop: string, productId: string, h
   const handleKey = String(handle || "").trim();
   if (!idKey && !handleKey) return null;
   const settings = await readSettingsMap(shop);
-  const entry = Object.entries(settings).find(([storedId, value]) => {
-    if (idKey && String(storedId).trim() === idKey) return true;
-    return handleKey && String(value?.productHandle || "").trim() === handleKey;
-  });
+  // Mağaza kimliği sayı olarak gönderiyor, yönetim ekranı gid olarak
+  // kaydediyor. Yalnızca birebir eşleşmeye bakılınca eşleşme handle'a
+  // kalıyordu; ürünün adresi sonradan değişince (ör. "-kopya" eki silinince)
+  // ayar bulunamıyor, ürün varsayılan alan ve fiyata düşüyordu. Önce kimliğin
+  // sayısal kısmı karşılaştırılır, handle yalnızca yedek.
+  const numericKey = idKey.split("/").pop() ?? "";
+  const entries = Object.entries(settings);
+  const entry = entries.find(([storedId]) =>
+    idKey && (String(storedId).trim() === idKey
+      || (numericKey && String(storedId).trim().split("/").pop() === numericKey)))
+    ?? entries.find(([, value]) => handleKey && String(value?.productHandle || "").trim() === handleKey);
   if (!entry) return null;
 
   const [storedProductId, storedConfig] = entry;
