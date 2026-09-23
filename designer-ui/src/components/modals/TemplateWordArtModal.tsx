@@ -31,6 +31,8 @@ export interface WordArtChoices {
 interface Props {
   assets: WordArtAssets;
   isTurkish: boolean;
+  /** Pencere daha önce kullanıldıysa son kelimeler ve seçimler */
+  initial?: { words: string; choices: WordArtChoices } | null;
   /** Kelimeleri ve seçimleri sunucuya gönderip hazır tasarımın adresini alır */
   onRender: (words: string, choices: WordArtChoices) => Promise<{ url: string }>;
   onCancel: () => void;
@@ -47,13 +49,17 @@ const MAX_VARIANT = 20;
  * sunucuda yapılır ve dönen şeffaf PNG onaylanınca ürünün üstüne konur.
  * Fotoğraf yüklenmediği için telif onayı istenmiyor.
  */
-export default function TemplateWordArtModal({ assets, isTurkish, onRender, onCancel, onConfirm }: Props) {
-  const [words, setWords] = useState(() => assets.sampleWords.join('\n'));
-  const [shape, setShape] = useState(assets.shapes[0]?.id ?? 'heart');
-  const [letter, setLetter] = useState(assets.defaultLetter || 'A');
-  const [font, setFont] = useState(assets.fonts[0]?.id ?? '');
-  const [palette, setPalette] = useState(assets.palettes[0]?.id ?? '');
-  const [variant, setVariant] = useState(0);
+export default function TemplateWordArtModal({ assets, isTurkish, initial, onRender, onCancel, onConfirm }: Props) {
+  // Önceki seçim şablonda artık kapalıysa ilk izinli değere dönülür
+  const pick = <T extends { id: string }>(list: T[], id: string | undefined) =>
+    (id && list.some((x) => x.id === id) ? id : list[0]?.id) ?? '';
+  const prev = initial?.choices;
+  const [words, setWords] = useState(() => initial?.words || assets.sampleWords.join('\n'));
+  const [shape, setShape] = useState(() => pick(assets.shapes, prev?.shape) || 'heart');
+  const [letter, setLetter] = useState(prev?.letter || assets.defaultLetter || 'A');
+  const [font, setFont] = useState(() => pick(assets.fonts, prev?.font));
+  const [palette, setPalette] = useState(() => pick(assets.palettes, prev?.palette));
+  const [variant, setVariant] = useState(prev?.variant ?? 0);
   const [preview, setPreview] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

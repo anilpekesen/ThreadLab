@@ -1299,6 +1299,13 @@ export default function App() {
    * bu yüzden "hiçbir yüz doldurulmadı" durumuna bakar, "her yüz" değil.
    */
   const [templateFilledSides, setTemplateFilledSides] = useState<Array<'front' | 'back'>>([]);
+  /** Kelime sanatı penceresi yeniden açılınca son yazılanlarla gelsin */
+  const wordArtDraftRef = useRef<{
+    words: string;
+    choices: import('@/components/modals/TemplateWordArtModal').WordArtChoices;
+  } | null>(null);
+  /** Kelime sanatı penceresi sayfa başına yalnızca bir kez kendiliğinden açılır */
+  const wordArtAutoOpenedRef = useRef(false);
   const [selectedObj, setSelectedObj] = useState<CanvasSelection | null>(null);
   const [objState, setObjState] = useState<ObjectState | null>(null);
   const [zoom, setZoom] = useState(getAutoZoom);
@@ -2004,6 +2011,7 @@ export default function App() {
     fd.append('words', words);
     fd.append('choices', JSON.stringify(choices));
 
+    wordArtDraftRef.current = { words, choices };
     const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
     const data = await res.json() as { url?: string; error?: string };
     if (!res.ok || !data.url) {
@@ -2055,15 +2063,9 @@ export default function App() {
     setTemplatePhotoFile(null);
     setTemplateBusy(true);
     try {
-      // Boş şablon yer tutucusunu kaldır — yerine fotoğraflı hali gelecek
-      const cv = getActiveCanvasHandle()?.getCanvas();
-      const placeholder = cv?.getObjects().find(
-        (o) => (o as fabric.Object & { isTemplatePlaceholder?: boolean }).isTemplatePlaceholder,
-      );
-      if (cv && placeholder) {
-        cv.remove(placeholder);
-        cv.requestRenderAll();
-      }
+      // Boş şablon yer tutucusunu ve "Fotoğrafı değiştir" ile gelindiyse
+      // aynı yüzdeki önceki tasarımı kaldır — yerine yenisi gelecek
+      removeTemplateObjects();
 
       const url = await dataUrlToServerUrl(dataUrl, 'template-design');
       // Nesne işaretlenerek eklenir: "Fotoğrafını ekle" çağrısının görünürlüğü
@@ -2113,6 +2115,25 @@ export default function App() {
     setTemplateAwaitingPhoto(sides.includes(activeSide) && !templateFilledSides.includes(activeSide));
   }, [activeSide, personalization.templateSides, templateFilledSides]);
 
+  /**
+   * Kelime sanatı ürününde sayfa açılınca pencere kendiliğinden açılır:
+   * fotoğraf gerektirmediği için müşterinin ilk yapacağı iş zaten kelime
+   * yazmak. Kayıtlı bir tasarım geri yükleniyorsa yüz kısa süre sonra dolu
+   * sayılır; bekleme bunun için — o durumda pencere açılmaz.
+   */
+  useEffect(() => {
+    if (wordArtAutoOpenedRef.current) return;
+    if (personalization.templateDesign?.layoutMode !== 'wordart' || !templateAwaitingPhoto) return;
+    const timer = window.setTimeout(() => {
+      if (wordArtAutoOpenedRef.current) return;
+      wordArtAutoOpenedRef.current = true;
+      void openTemplateModal();
+    }, 900);
+    return () => window.clearTimeout(timer);
+    // openTemplateModal her çizimde yeniden tanımlanıyor; tetikleyici değil
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalization.templateDesign?.layoutMode, templateAwaitingPhoto]);
+
   const handleAddImage = async (
     url: string,
     template?: import('@/types').ShopTemplate,
@@ -2145,6 +2166,44 @@ export default function App() {
     }
     syncLayers();
     setActiveTab(null);
+  };
+
+  /** Aktif yüzdeki şablon tasarımını ve boş yer tutucuyu kaldırır */
+  const removeTemplateObjects = () => {
+    const cv = getActiveCanvasHandle()?.getCanvas();
+    if (!cv) return;
+    const old = cv.getObjects().filter((o) => {
+      const f = o as fabric.Object & { isTemplateDesign?: boolean; isTemplatePlaceholder?: boolean };
+      return f.isTemplateDesign === true || f.isTemplatePlaceholder === true;
+    });
+    old.forEach((o) => cv.remove(o));
+    if (old.length) cv.requestRenderAll();
+  };
+
+  /**
+   * Dağıtımlı, AI ve kelime sanatı pencerelerinde onaylanan tasarımı aktif
+   * yüze koyar.
+   *
+   * Nesne `isTemplateDesign` ile işaretlenmeli: yüzün dolu sayılması bu
+   * bayraktan türetiliyor (bkz. handleDesignChange). Eskiden bu üç akış
+   * bayraksız ekliyordu; tuval ilk değiştiğinde yüz yeniden "boş" sayılıyor,
+   * "Fotoğrafını ekle" çağrısı geri geliyor ve sepete ekleme tasarım
+   * tişörtte durduğu hâlde "önce fotoğrafınızı ekleyin" diye engelleniyordu.
+   *
+   * Düzenlemeyle gelindiyse aynı yüzdeki önceki tasarım kaldırılır; aksi
+   * hâlde iki kalp üst üste basılırdı.
+   */
+  const placeTemplateDesign = async (url: string) => {
+    setTemplateModalOpen(false);
+    setTemplateBusy(true);
+    try {
+      removeTemplateObjects();
+      await handleAddImage(url, undefined, { isTemplateDesign: true });
+      setTemplateFilledSides((prev) => (prev.includes(activeSide) ? prev : [...prev, activeSide]));
+      setActiveTab(null);
+    } finally {
+      setTemplateBusy(false);
+    }
   };
 
   const handleSubmitText = () => {
@@ -4638,7 +4697,7 @@ export default function App() {
 
               disabled={templateBusy}
 
-              className="pointer-events-auto fixed bottom-28 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-2 rounded-full bg-rose-600 px-6 py-3.5 text-sm font-bold text-white shadow-2xl ring-4 ring-rose-600/20 transition hover:bg-rose-700 disabled:opacity-60 md:bottom-10"
+              className="pointer-events-auto fixed bottom-28 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-2 rounded-full bg-rose-600 layout:hidden px-6 py-3.5 text-sm font-bold text-white shadow-2xl ring-4 ring-rose-600/20 transition hover:bg-rose-700 disabled:opacity-60 md:bottom-10"
 
             >
 
@@ -4666,35 +4725,16 @@ export default function App() {
                   termsUrl={personalization.termsUrl}
                   onRender={renderAiDesign}
                   onCancel={() => setTemplateModalOpen(false)}
-                  onConfirm={async (url) => {
-                    setTemplateModalOpen(false);
-                    setTemplateBusy(true);
-                    try {
-                      await handleAddImage(url);
-                      setTemplateFilledSides((prev) => (prev.includes(activeSide) ? prev : [...prev, activeSide]));
-                      setActiveTab(null);
-                    } finally {
-                      setTemplateBusy(false);
-                    }
-                  }}
+                  onConfirm={placeTemplateDesign}
                 />
               ) : templateAssets.layoutMode === 'wordart' ? (
                 <TemplateWordArtModal
                   assets={templateAssets as unknown as import('@/components/modals/TemplateWordArtModal').WordArtAssets}
                   isTurkish={isTurkish}
+                  initial={wordArtDraftRef.current}
                   onRender={renderWordArtDesign}
                   onCancel={() => setTemplateModalOpen(false)}
-                  onConfirm={async (url) => {
-                    setTemplateModalOpen(false);
-                    setTemplateBusy(true);
-                    try {
-                      await handleAddImage(url);
-                      setTemplateFilledSides((prev) => (prev.includes(activeSide) ? prev : [...prev, activeSide]));
-                      setActiveTab(null);
-                    } finally {
-                      setTemplateBusy(false);
-                    }
-                  }}
+                  onConfirm={placeTemplateDesign}
                 />
               ) : templateAssets.layoutMode === 'scatter' ? (
                 <TemplateScatterModal
@@ -4703,17 +4743,7 @@ export default function App() {
                   termsUrl={personalization.termsUrl}
                   onRender={renderScatterDesign}
                   onCancel={() => setTemplateModalOpen(false)}
-                  onConfirm={async (url) => {
-                    setTemplateModalOpen(false);
-                    setTemplateBusy(true);
-                    try {
-                      await handleAddImage(url);
-                      setTemplateFilledSides((prev) => (prev.includes(activeSide) ? prev : [...prev, activeSide]));
-                      setActiveTab(null);
-                    } finally {
-                      setTemplateBusy(false);
-                    }
-                  }}
+                  onConfirm={placeTemplateDesign}
                 />
               ) : (
                 <TemplatePhotoModal
@@ -5004,6 +5034,58 @@ export default function App() {
               <h1 className="text-xs font-bold leading-snug text-gray-900">{config.productTitle}</h1>
             </div>
           )}
+
+          {/* Şablonlu üründe asıl iş burada başlıyor; sepet düğmesiyle aynı
+              sütunda durduğu için tuvalin altındaki yüzen düğmeden daha
+              görünür. Yüz doluysa aynı kart düzenlemeye götürür. */}
+          {(personalization.templateSides ?? []).includes(activeSide) && (() => {
+            const isWordArt = personalization.templateDesign?.layoutMode === 'wordart';
+            const filled = templateFilledSides.includes(activeSide);
+            const sideName = activeSide === 'front'
+              ? (isTurkish ? 'ön yüzde' : 'on the front')
+              : (isTurkish ? 'arka yüzde' : 'on the back');
+            const title = isWordArt
+              ? (isTurkish ? 'Kelime tasarımın' : 'Your word design')
+              : (isTurkish ? 'Fotoğraflı tasarımın' : 'Your photo design');
+            const status = filled
+              ? (isTurkish ? `Tasarımın ${sideName} hazır.` : `Your design is ready ${sideName}.`)
+              : isWordArt
+                ? (isTurkish ? 'Kelimelerini yaz, şekil ve renk seç; tasarım tişörte yerleşsin.' : 'Write your words, pick a shape and colours; the design goes on the shirt.')
+                : (isTurkish ? 'Fotoğrafını yükle; tasarım tişörte yerleşsin.' : 'Upload your photo; the design goes on the shirt.');
+            const label = templateBusy
+              ? (isTurkish ? 'Hazırlanıyor…' : 'Preparing…')
+              : isWordArt
+                ? (filled ? (isTurkish ? 'Kelimeleri düzenle' : 'Edit words') : (isTurkish ? 'Kelimelerini yaz' : 'Add your words'))
+                : (filled ? (isTurkish ? 'Fotoğrafı değiştir' : 'Change photo') : (isTurkish ? 'Fotoğrafını ekle' : 'Add your photo'));
+            return (
+              <div className="border-b border-gray-100 px-3 py-3">
+                <div className={`rounded-2xl border p-3 ${filled ? 'border-emerald-100 bg-emerald-50/60' : 'border-rose-100 bg-rose-50/70'}`}>
+                  <div className="flex items-start gap-2.5">
+                    <span className={`flex h-8 w-8 flex-none items-center justify-center rounded-xl text-white ${filled ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+                      {isWordArt ? <Type className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-gray-900">{title}</p>
+                      <p className="mt-0.5 text-[11px] leading-snug text-gray-500">{status}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openTemplateModal}
+                    disabled={templateBusy}
+                    className={`mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors disabled:opacity-60 ${
+                      filled
+                        ? 'border border-gray-200 bg-white text-gray-800 hover:bg-gray-50'
+                        : 'bg-rose-600 text-white shadow-lg shadow-rose-500/20 hover:bg-rose-700'
+                    }`}
+                  >
+                    {isWordArt ? <Type className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />}
+                    {label}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           {colorOptions.length > 0 && (
             <div className="border-b border-gray-100 px-3 py-3">
