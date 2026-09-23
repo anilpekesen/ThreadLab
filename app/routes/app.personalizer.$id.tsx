@@ -38,6 +38,9 @@ import { removeBackgroundFromBuffer } from "~/models/background-removal.server";
 import { listPrintProducts } from "~/models/print-product.server";
 import { setProductTemplateMetafield, clearProductTemplateMetafield } from "~/lib/personalizer-metafield.server";
 import type { PrintProduct } from "~/lib/print-spec";
+import { normalizeWordArtConfig } from "~/lib/wordart";
+import { FONT_LIBRARY } from "~/lib/font-library";
+import { WordArtSettings } from "~/components/personalizer/WordArtSettings";
 import { normalizeSlots, normalizePieces, normalizeMockups } from "~/lib/slots";
 import { StudioSummary } from "~/components/studio/StudioSummary";
 
@@ -190,6 +193,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       if (raw) scatter_config = JSON.parse(raw);
     } catch { /* bozuk JSON — varsayilanla devam */ }
 
+    // Yalnızca kelime sanatı kartı bu alanı gönderir; diğer tiplerde kayıtlı
+    // ayar olduğu gibi kalsın diye undefined bırakılır
+    const rawWordArt = form.get("wordart_config");
+    const wordart_config = rawWordArt ? normalizeWordArtConfig((() => {
+      try { return JSON.parse(String(rawWordArt)); }
+      catch { return {}; }
+    })(), FONT_LIBRARY.map((f) => f.id)) : undefined;
+
     const customer_options = normalizeCustomerOptions(
       (() => {
         try { return JSON.parse(String(form.get("customer_options") ?? "{}")); }
@@ -257,11 +268,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // template_url opsiyonel — sadece çerçeve bazlı kullanımda boş olabilir
 
     if (id === "new") {
-      const created = await createPersonalizerTemplate({ shop, name, description, template_url: template_url ?? "", photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, sort_order, overlay_url: overlay_url ?? "" });
+      const created = await createPersonalizerTemplate({ shop, name, description, template_url: template_url ?? "", photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, wordart_config, sort_order, overlay_url: overlay_url ?? "" });
       // json döndür, client tarafı navigate etsin (Shopify embedded app redirect güvenilmez)
       return json({ redirectTo: `/app/personalizer/${created.id}` });
     } else {
-      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, sort_order, overlay_url });
+      await updatePersonalizerTemplate(id, shop, { name, description, template_url, photo_x, photo_y, photo_width, photo_height, text_fields, ai_style, hole_seed_x, hole_seed_y, layout_mode, category, scatter_config, decoration_url, customer_options, ai_config, wordart_config, sort_order, overlay_url });
       return json({ ok: true });
     }
   }
@@ -1052,7 +1063,7 @@ function newTextField(): TextFieldDef {
  * ayırt edemiyordu. Akış, kayıtlı yerleşim yönteminden ve ürün grubundan
  * çıkarılıyor; bölümler buna göre sıralanıp gerisi "Gelişmiş" altına iniyor.
  */
-type EditorFlow = "apparel" | "frame" | "boxer" | "ai";
+type EditorFlow = "apparel" | "frame" | "boxer" | "ai" | "wordart";
 
 function editorFlow(
   layoutMode: string,
@@ -1061,6 +1072,7 @@ function editorFlow(
 ): EditorFlow {
   if (layoutMode === "ai") return "ai";
   if (layoutMode === "scatter") return "boxer";
+  if (layoutMode === "wordart") return "wordart";
   // Maskeli yöntem ürün grubundan bağımsız: canlıdaki boxer şablonu hazır
   // tasarım + fotoğraf deliğiyle çalışıyor. Fotoğraf alanı yoksa ve şablon
   // açıkça çerçeve değilse tasarım + boşluk akışı gösterilir.
@@ -1072,12 +1084,14 @@ const CATEGORY_LABEL: Record<string, string> = {
   frame: "Fotoğraflı çerçeve",
   boxer: "Boxer ve tekrarlı desen",
   ai: "AI portre",
+  wordart: "Kelime sanatı",
 };
 
 const LAYOUT_LABEL: Record<string, string> = {
   mask: "maskeli",
   scatter: "dağıtımlı",
   ai: "AI",
+  wordart: "kelime sanatı",
 };
 
 const FLOW_WHERE: Record<EditorFlow, string> = {
@@ -1085,6 +1099,7 @@ const FLOW_WHERE: Record<EditorFlow, string> = {
   frame: "Ürün sayfasında ayrı bir kişiselleştirme kutusu açılır; müşteri fotoğraf alanlarını doldurur.",
   boxer: "Müşteri tasarımcıda fotoğrafını yükler; yüzü kesilip baskı alanına desen olarak dağıtılır.",
   ai: "Müşteri tasarımcıda fotoğraf ve yazı girer; seçilen stilde görsel ve baskı dosyası üretilir.",
+  wordart: "Müşteri tasarımcıda kelimelerini yazar, şekil ve renk seçer; kelimeler şeklin içine dizilip ürüne yerleşir.",
 };
 
 function scrollToSection(id: string) {
@@ -1264,10 +1279,11 @@ function PersonalizerEditor() {
     w: template?.photo_width ?? 1600,
     h: template?.photo_height ?? 1600,
   });
-  const [layoutMode, setLayoutMode] = useState<"mask" | "scatter" | "ai">(template?.layout_mode ?? "mask");
+  const [layoutMode, setLayoutMode] = useState<"mask" | "scatter" | "ai" | "wordart">(template?.layout_mode ?? "mask");
   const [templateCategory, setTemplateCategory] = useState<PersonalizerCategory>(
     template?.category
-      ?? (template?.layout_mode === "scatter" ? "boxer" : template?.layout_mode === "ai" ? "ai" : "frame"),
+      ?? (template?.layout_mode === "scatter" ? "boxer" : template?.layout_mode === "ai" ? "ai"
+        : template?.layout_mode === "wordart" ? "wordart" : "frame"),
   );
 
   // ── Çerçeve Stüdyosu'nun alanları: burada yalnızca okunur ──────────────
@@ -1894,6 +1910,7 @@ function PersonalizerEditor() {
                       { label: "Fotoğraflı çerçeve — bir veya birden çok fotoğraf alanı", value: "frame" },
                       { label: "Boxer ve tekrarlı desen — yüz baskı alanına dağıtılır", value: "boxer" },
                       { label: "AI portre — fotoğraf yapay zekâ ile çizilir", value: "ai" },
+                      { label: "Kelime sanatı — kelimeler bir şeklin içine dizilir", value: "wordart" },
                     ]}
                     value={templateCategory}
                     onChange={(value) => {
@@ -1903,7 +1920,7 @@ function PersonalizerEditor() {
                       // uyumsuz ikili (ör. boxer + maskeli) sessizce kaydediliyordu.
                       // Tür değişince yöntem de ona uyuyor; özel ikili gerekirse
                       // Gelişmiş'ten ayrıca seçilebilir.
-                      setLayoutMode(next === "boxer" ? "scatter" : next === "ai" ? "ai" : "mask");
+                      setLayoutMode(next === "boxer" ? "scatter" : next === "ai" ? "ai" : next === "wordart" ? "wordart" : "mask");
                     }}
                     helpText="Aşağıdaki bölümler seçtiğiniz türe göre değişir."
                   />
@@ -1928,12 +1945,13 @@ function PersonalizerEditor() {
                           { label: "Maskeli — fotoğraf tasarımın boşluğuna girer", value: "mask" },
                           { label: "Dağıtımlı — yüz çoğaltılıp yayılır", value: "scatter" },
                           { label: "AI — fotoğraf yapay zekâ ile stilize edilir", value: "ai" },
+                          { label: "Kelime sanatı — fotoğrafsız, kelimeler şekle dizilir", value: "wordart" },
                         ]}
                         value={layoutMode}
-                        onChange={(value) => setLayoutMode(value as "mask" | "scatter" | "ai")}
+                        onChange={(value) => setLayoutMode(value as "mask" | "scatter" | "ai" | "wordart")}
                         helpText="Normalde ürün türüyle birlikte otomatik ayarlanır; emin değilseniz değiştirmeyin."
                       />
-                      {layoutMode !== "ai" && (
+                      {layoutMode !== "ai" && layoutMode !== "wordart" && (
                         <Select label="Fotoğrafa uygulanacak AI stili (eski önizleme akışı)" name="ai_style" options={AI_STYLE_OPTIONS}
                           value={aiStyle} onChange={setAiStyle} />
                       )}
@@ -1945,6 +1963,15 @@ function PersonalizerEditor() {
 
               {flow === "ai" && aiCard}
               {flow === "boxer" && scatterCard}
+              {flow === "wordart" && (
+                <SectionCard
+                  id="pl-wordart"
+                  title="Kelime sanatı ayarları"
+                  description="Tasarım dosyası ya da fotoğraf gerekmez. Müşterinin yazdığı kelimeler seçtiği şeklin içine üst üste binmeden dizilir."
+                >
+                  <WordArtSettings initial={template?.wordart_config} />
+                </SectionCard>
+              )}
 
               {flow === "apparel" && (
                 <SectionCard

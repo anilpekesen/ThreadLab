@@ -73,7 +73,7 @@ export interface TemplateDesign {
   description?: string;
   /** Yalnızca maskeli şablonda dolu; dağıtımlı ve AI şablonunda boştur. */
   previewUrl: string;
-  layoutMode?: 'mask' | 'scatter' | 'ai';
+  layoutMode?: 'mask' | 'scatter' | 'ai' | 'wordart';
 }
 
 export interface SizeChartEntry {

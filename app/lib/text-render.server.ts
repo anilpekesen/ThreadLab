@@ -243,6 +243,39 @@ export function layoutText(opts: LayoutOptions): TextLayout {
   return { paths, fontSize, width };
 }
 
+/**
+ * Metnin harf başına yolları, taban çizgisi başlangıcı (0,0) olacak şekilde.
+ * Çağıran konumu ve dönüşü kendi `<g transform>` ile verir. Harfler ayrı
+ * yollar: tek path'te librsvg çizimi ortada kesiyor (bkz. TextLayout.paths).
+ */
+export function glyphPathData(font: opentypeNs.Font, text: string, fontSize: number): string[] {
+  try {
+    return font
+      .getPaths(text, 0, 0, fontSize)
+      .map((p) => commandsToPathData(p.commands))
+      .filter((d) => d.length > 2);
+  } catch (err) {
+    console.error("[text-render] metin çizilemedi:", err);
+    return [];
+  }
+}
+
+/** Metnin gerçek mürekkep kutusu (taban çizgisi y=0, yukarısı negatif) */
+export function inkBox(
+  font: opentypeNs.Font,
+  text: string,
+  fontSize: number,
+): { x1: number; y1: number; x2: number; y2: number } | null {
+  try {
+    const b = font.getPath(text, 0, 0, fontSize).getBoundingBox();
+    if (![b.x1, b.y1, b.x2, b.y2].every(Number.isFinite) || b.x2 <= b.x1 || b.y2 <= b.y1) return null;
+    return { x1: b.x1, y1: b.y1, x2: b.x2, y2: b.y2 };
+  } catch (err) {
+    console.error("[text-render] metin ölçülemedi:", err);
+    return null;
+  }
+}
+
 /** 300 dpi'da 0.1 piksel gözle görülmez; veri gereksiz büyümesin */
 const PRECISION = 1;
 

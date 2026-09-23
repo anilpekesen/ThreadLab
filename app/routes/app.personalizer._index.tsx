@@ -71,6 +71,7 @@ const CATEGORY_META: Array<{
   { id: "boxer", label: "Boxer ve tekrarlı desen", description: "Fotoğraf ve süslemeden oluşan tekrar desenleri" },
   { id: "frame", label: "Fotoğraflı çerçeve", description: "Tekli, çok fotoğraflı ve set çerçeveler" },
   { id: "ai", label: "AI portre", description: "Fotoğraftan üretilen sanatsal portreler" },
+  { id: "wordart", label: "Kelime sanatı", description: "Kelimelerin bir şeklin içine dizildiği tasarımlar" },
 ];
 
 function categoryIcon(category: PersonalizerCategory) {
@@ -80,6 +81,7 @@ function categoryIcon(category: PersonalizerCategory) {
   };
   if (category === "apparel") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="m8 4-5 3 2.3 4L8 9.5V20h8V9.5l2.7 1.5L21 7l-5-3c-.7 1.4-2 2-4 2S8.7 5.4 8 4Z" /></svg>;
   if (category === "boxer") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M5 4h14l-1 16h-5l-1-9-1 9H6L5 4Zm0 4h14M9 4v4m6-4v4" /></svg>;
+  if (category === "wordart") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" /><path {...line} d="M9 10h6M9.5 13h5" /></svg>;
   if (category === "ai") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M12 3v3m0 12v3M3 12h3m12 0h3M6 6l2 2m8 8 2 2m0-12-2 2M8 16l-2 2" /><circle {...line} cx="12" cy="12" r="4" /></svg>;
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect {...line} x="4" y="3" width="16" height="18" rx="1" /><path {...line} d="m7 17 4-5 3 3 2-2 2 4M9 8h.01" /></svg>;
 }
@@ -87,6 +89,7 @@ function categoryIcon(category: PersonalizerCategory) {
 function methodLabel(template: PersonalizerTemplate) {
   if (template.category === "ai") return "AI görsel üretimi";
   if (template.category === "boxer") return "Tekrarlı desen";
+  if (template.category === "wordart") return "Şekle dizilen kelimeler";
   if (template.category === "apparel") return "Tek görsel yerleşimi";
   const count = template.pieces.reduce((total, piece) => total + piece.slots.length, 0)
     || template.slots.length || template.expected_slots;

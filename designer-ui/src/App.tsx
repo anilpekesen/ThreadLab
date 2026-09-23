@@ -59,6 +59,7 @@ const ImagePanel = lazy(() => import('@/components/panels/ImagePanel'));
 const TemplatePhotoModal = lazy(() => import('@/components/modals/TemplatePhotoModal'));
 const TemplateScatterModal = lazy(() => import('@/components/modals/TemplateScatterModal'));
 const TemplateAiModal = lazy(() => import('@/components/modals/TemplateAiModal'));
+const TemplateWordArtModal = lazy(() => import('@/components/modals/TemplateWordArtModal'));
 const TextPanel = lazy(() => import('@/components/panels/TextPanel'));
 const TemplatesPanel = lazy(() => import('@/components/panels/TemplatesPanel'));
 const SavedPanel = lazy(() => import('@/components/panels/SavedPanel'));
@@ -1989,6 +1990,28 @@ export default function App() {
     return { url: data.url, quality: data.quality };
   };
 
+  /** Kelime sanatı şablonunda kelimeleri ve seçimleri gönderip tasarımı alır */
+  const renderWordArtDesign = async (
+    words: string,
+    choices: import('@/components/modals/TemplateWordArtModal').WordArtChoices,
+  ): Promise<{ url: string }> => {
+    if (!config?.shop || !config?.productId) throw new Error('Ürün bilgisi yok');
+    const fd = new FormData();
+    fd.append('shop', config.shop);
+    fd.append('productId', String(config.productId).split('/').pop() ?? '');
+    fd.append('side', activeSide);
+    fd.append('variantId', String(config.selectedVariant?.id ?? ''));
+    fd.append('words', words);
+    fd.append('choices', JSON.stringify(choices));
+
+    const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
+    const data = await res.json() as { url?: string; error?: string };
+    if (!res.ok || !data.url) {
+      throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
+    }
+    return { url: data.url };
+  };
+
   const openTemplateModal = async () => {
     if (!config?.shop || !config?.productId) return;
     setTemplateError('');
@@ -2011,7 +2034,7 @@ export default function App() {
       if (config.selectedVariant?.id) params.set('variantId', String(config.selectedVariant.id));
       const res = await fetch(`/apps/tshirt-designer/template-assets?${params}`);
       const data = await res.json();
-      if (!res.ok || (!data?.maskDataUrl && data?.layoutMode !== 'scatter' && data?.layoutMode !== 'ai')) {
+      if (!res.ok || (!data?.maskDataUrl && data?.layoutMode !== 'scatter' && data?.layoutMode !== 'ai' && data?.layoutMode !== 'wordart')) {
         setTemplateError(data?.error || (isTurkish ? 'Şablon yüklenemedi' : 'Could not load the template'));
         setTemplateModalOpen(false);
         return;
@@ -4625,7 +4648,9 @@ export default function App() {
 
                 ? (isTurkish ? 'Hazırlanıyor…' : 'Preparing…')
 
-                : (isTurkish ? 'Fotoğrafını ekle' : 'Add your photo')}
+                : personalization.templateDesign?.layoutMode === 'wordart'
+                  ? (isTurkish ? 'Kelimelerini yaz' : 'Add your words')
+                  : (isTurkish ? 'Fotoğrafını ekle' : 'Add your photo')}
 
             </button>
 
@@ -4640,6 +4665,24 @@ export default function App() {
                   isTurkish={isTurkish}
                   termsUrl={personalization.termsUrl}
                   onRender={renderAiDesign}
+                  onCancel={() => setTemplateModalOpen(false)}
+                  onConfirm={async (url) => {
+                    setTemplateModalOpen(false);
+                    setTemplateBusy(true);
+                    try {
+                      await handleAddImage(url);
+                      setTemplateFilledSides((prev) => (prev.includes(activeSide) ? prev : [...prev, activeSide]));
+                      setActiveTab(null);
+                    } finally {
+                      setTemplateBusy(false);
+                    }
+                  }}
+                />
+              ) : templateAssets.layoutMode === 'wordart' ? (
+                <TemplateWordArtModal
+                  assets={templateAssets as unknown as import('@/components/modals/TemplateWordArtModal').WordArtAssets}
+                  isTurkish={isTurkish}
+                  onRender={renderWordArtDesign}
                   onCancel={() => setTemplateModalOpen(false)}
                   onConfirm={async (url) => {
                     setTemplateModalOpen(false);

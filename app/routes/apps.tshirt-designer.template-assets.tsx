@@ -1,4 +1,6 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
+import { WORDART_SHAPES, wordArtShapePath, findPalette } from "~/lib/wordart";
+import { FONT_LIBRARY } from "~/lib/font-library";
 import sharp from "sharp";
 import {
   getPersonalizerTemplateByProduct,
@@ -88,6 +90,44 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         // çizer. Kapalı bir ayarın gönderilmesi sunucuda zaten yok sayılır,
         // burada gizlemek arayüzü sade tutmak için.
         customerOptions,
+      },
+      { headers: { ...CORS, "Cache-Control": "public, max-age=300" } },
+    );
+  }
+
+  // Kelime sanatında da tasarım dosyası yok. Müşteriye yalnızca şablonun
+  // açtığı şekil, font ve paletler ile kelime sınırları gider.
+  if (template.layout_mode === "wordart") {
+    const cfg = template.wordart_config;
+    return json(
+      {
+        templateId: template.id,
+        templateName: template.name,
+        side,
+        availableSides,
+        layoutMode: "wordart" as const,
+        shapes: cfg.shapes.map((id) => {
+          const meta = WORDART_SHAPES.find((s) => s.id === id)!;
+          return {
+            id,
+            label: meta.label,
+            labelEn: meta.labelEn,
+            // Seçim düğmesindeki küçük simge; harf şekli metinle çizilir
+            path: id === "letter" ? "" : wordArtShapePath(id, 100, 100),
+          };
+        }),
+        fonts: cfg.fonts.map((id) => {
+          const f = FONT_LIBRARY.find((x) => x.id === id);
+          return { id, label: f?.label ?? id };
+        }),
+        palettes: cfg.palettes.map((id) => {
+          const p = findPalette(id)!;
+          return { id, label: p.label, labelEn: p.labelEn, colors: p.colors };
+        }),
+        maxWords: cfg.maxWords,
+        maxWordLength: cfg.maxWordLength,
+        sampleWords: cfg.sampleWords,
+        defaultLetter: cfg.defaultLetter,
       },
       { headers: { ...CORS, "Cache-Control": "public, max-age=300" } },
     );

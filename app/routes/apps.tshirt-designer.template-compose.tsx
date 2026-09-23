@@ -16,6 +16,8 @@ import {
 import { normalizeAiConfig } from "~/lib/ai-styles";
 import { composeAiDesign, AiProviderError } from "~/lib/ai-compose.server";
 import { composeScatterDesign } from "~/lib/scatter-compose.server";
+import { composeWordArt, resolveWordArtRequest } from "~/lib/wordart-compose.server";
+import type { WordArtChoices } from "~/lib/wordart";
 import { getGlobalSettings } from "~/models/global-settings.server";
 import { getShopSettings } from "~/models/shop-settings.server";
 import {
@@ -79,13 +81,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!shop || !productId) {
       return json({ error: "shop ve productId gerekli" }, { status: 400, headers: CORS });
     }
-    if (!(photo instanceof File) || photo.size === 0) {
-      return json({ error: "Fotoğraf yüklenmedi" }, { status: 400, headers: CORS });
-    }
-
     const template = await getPersonalizerTemplateByProduct(shop, productId, side, variantId);
     if (!template) {
       return json({ error: "Bu ürünün bu yüzüne bağlı şablon yok" }, { status: 404, headers: CORS });
+    }
+
+    // ── Kelime sanatı ────────────────────────────────────────────────────
+    // Fotoğraf yok: kelimeler ve seçimler gelir, sunucu yerleşimi yapar.
+    if (template.layout_mode === "wordart") {
+      let choices: WordArtChoices = {};
+      try { choices = JSON.parse(String(form.get("choices") ?? "{}")); } catch { /* yoksay */ }
+      const resolved = resolveWordArtRequest(
+        template.wordart_config,
+        String(form.get("words") ?? ""),
+        choices,
+      );
+      if ("error" in resolved) return json({ error: resolved.error }, { status: 400, headers: CORS });
+
+      const result = await composeWordArt(resolved);
+      const url = await uploadToR2(result.buffer, "png", "uploads/template-design");
+      console.log(
+        `[template-compose] wordart ${template.name}: ${resolved.shape} ${result.width}x${result.height}, `
+        + `${resolved.words.length} kelime, ${result.placed} yerleşim -> ${url}`,
+      );
+      return json(
+        {
+          url,
+          width: result.width,
+          height: result.height,
+          templateName: template.name,
+          placed: result.placed,
+          skipped: result.skipped,
+        },
+        { headers: CORS },
+      );
+    }
+
+    if (!(photo instanceof File) || photo.size === 0) {
+      return json({ error: "Fotoğraf yüklenmedi" }, { status: 400, headers: CORS });
     }
 
     // ── Dağıtımlı şablon ────────────────────────────────────────────────

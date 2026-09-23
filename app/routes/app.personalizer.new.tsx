@@ -11,6 +11,7 @@ import {
   type ScatterTemplateConfig,
   type TextFieldDef,
 } from "~/models/personalizer.server";
+import { DEFAULT_WORDART } from "~/lib/wordart";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate(request);
@@ -40,7 +41,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const category = normalizePersonalizerCategory(form.get("category"));
   if (!name) return json({ error: "Şablon adı gerekli" }, { status: 400 });
 
-  const layoutMode = category === "boxer" ? "scatter" : category === "ai" ? "ai" : "mask";
+  const layoutMode = category === "boxer" ? "scatter" : category === "ai" ? "ai"
+    : category === "wordart" ? "wordart" : "mask";
   const scatterConfig: ScatterTemplateConfig | undefined = category === "boxer" ? {
     faceCount: 13,
     decorationCount: 8,
@@ -68,6 +70,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     text_fields: category === "ai" ? defaultAiTextFields() : [],
     ai_style: "caricature",
     scatter_config: scatterConfig,
+    wordart_config: category === "wordart" ? DEFAULT_WORDART : undefined,
     sort_order: 0,
   });
 
@@ -121,6 +124,17 @@ const TYPES: Array<{
     ],
   },
   {
+    id: "wordart",
+    title: "Kelime sanatı",
+    description: "Müşterinin yazdığı kelimeler kalp, yıldız ya da bir harf silüetinin içine dizilir.",
+    tags: ["Fotoğrafsız", "Şekil ve renk seçimi"],
+    flow: [
+      { title: "Şekilleri seçin", description: "Müşteriye açılacak siluetleri (kalp, daire, harf...) belirleyin." },
+      { title: "Font ve renkleri seçin", description: "Kullanılabilecek yazı tiplerini ve renk paletlerini işaretleyin." },
+      { title: "Ürüne bağlayın", description: "Şablonu ilgili Shopify ürününe ve yüzüne bağlayın." },
+    ],
+  },
+  {
     id: "ai",
     title: "AI portre",
     description: "Müşteri fotoğrafından seçtiğiniz stile uygun sanatsal portre üretin.",
@@ -140,6 +154,7 @@ function TypeIcon({ category }: { category: PersonalizerCategory }) {
   };
   if (category === "apparel") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="m8 4-5 3 2.3 4L8 9.5V20h8V9.5l2.7 1.5L21 7l-5-3c-.7 1.4-2 2-4 2S8.7 5.4 8 4Z" /></svg>;
   if (category === "boxer") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M5 4h14l-1 16h-5l-1-9-1 9H6L5 4Zm0 4h14M9 4v4m6-4v4" /></svg>;
+  if (category === "wordart") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" /><path {...line} d="M9 10h6M9.5 13h5" /></svg>;
   if (category === "ai") return <svg viewBox="0 0 24 24" aria-hidden="true"><path {...line} d="M12 3v3m0 12v3M3 12h3m12 0h3M6 6l2 2m8 8 2 2m0-12-2 2M8 16l-2 2" /><circle {...line} cx="12" cy="12" r="4" /></svg>;
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect {...line} x="4" y="3" width="16" height="18" rx="1" /><path {...line} d="m7 17 4-5 3 3 2-2 2 4M9 8h.01" /></svg>;
 }
@@ -252,7 +267,7 @@ export default function NewPersonalizerTemplate() {
                       onChange={(value) => { setName(value); if (value.trim()) setNameError(""); }}
                       error={nameError}
                       autoComplete="off"
-                      placeholder={selected?.id === "boxer" ? "Örn: Kalpli boxer deseni" : selected?.id === "frame" ? "Örn: 12 fotoğraflı 30×40 çerçeve" : "Örn: Anneler Günü tasarımı"}
+                      placeholder={selected?.id === "boxer" ? "Örn: Kalpli boxer deseni" : selected?.id === "frame" ? "Örn: 12 fotoğraflı 30×40 çerçeve" : selected?.id === "wordart" ? "Örn: Kalp içinde isimler" : "Örn: Anneler Günü tasarımı"}
                       helpText="Bu ad yalnızca yönetim ekranında görünür."
                     />
                     <TextField
@@ -280,7 +295,7 @@ export default function NewPersonalizerTemplate() {
                     <div className="pl-review-row">
                       <span className="pl-review-label">Sonraki adım</span>
                       <span className="pl-review-value">
-                        {selected.id === "boxer" ? "Desen ve süsleme ayarları" : selected.id === "frame" ? "Çerçeve Stüdyosu açılır" : selected.id === "ai" ? "Portre stili ve çıktı ayarları" : "Tasarım ve baskı alanı"}
+                        {selected.id === "boxer" ? "Desen ve süsleme ayarları" : selected.id === "frame" ? "Çerçeve Stüdyosu açılır" : selected.id === "ai" ? "Portre stili ve çıktı ayarları" : selected.id === "wordart" ? "Şekil, font ve renk ayarları" : "Tasarım ve baskı alanı"}
                       </span>
                     </div>
                   </div>

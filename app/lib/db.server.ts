@@ -636,6 +636,10 @@ async function _runMigrationsLocked() {
   // kullanabildiği için bu bilgi layout_mode'dan ayrı saklanır.
   await query(`ALTER TABLE personalizer_templates
     ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'legacy'`);
+  // Kelime sanatı şablonu ('wordart' layout_mode): şekil, font, palet ve
+  // kelime sınırları. Diğer tiplerde kullanılmaz.
+  await query(`ALTER TABLE personalizer_templates
+    ADD COLUMN IF NOT EXISTS wordart_config JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await query(`
     CREATE TABLE IF NOT EXISTS cliparts (
       id          TEXT PRIMARY KEY,
@@ -920,6 +924,7 @@ async function _runMigrationsLocked() {
        SET category = CASE
          WHEN pt.layout_mode = 'scatter' THEN 'boxer'
          WHEN pt.layout_mode = 'ai' THEN 'ai'
+         WHEN pt.layout_mode = 'wordart' THEN 'wordart'
          WHEN pt.slots <> '[]'::jsonb
            OR pt.pieces <> '[]'::jsonb
            OR EXISTS (SELECT 1 FROM personalizer_frames pf WHERE pf.template_id = pt.id)
