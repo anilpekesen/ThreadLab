@@ -5,6 +5,7 @@ import { cleanText, loadLibraryFont, pickAllowed, textSvg, wrapText } from "../s
 import { GeneratorInputError } from "../types";
 import { SONG_LIMITS, SONG_STYLES, SONG_THEMES, songConfig, type SongConfig, type SongStyle, type SongTheme } from "./config";
 import { codeSvg, fetchSpotifyCode, parseSpotifyLink, type SpotifyCodeShape } from "./spotify-code.server";
+import { fetchSpotifyInfo, isSpotifyCoverUrl } from "./spotify-info.server";
 
 /**
  * Şarkı / Spotify tasarımı çizimi.
@@ -94,17 +95,51 @@ const noteIcon = (c: string) =>
   + `<path d="M38 22 L87 12 V26 L38 36 Z"/></g>`;
 
 // ── Fotoğraf ──────────────────────────────────────────────────────────────
-async function photoLayer(photo: Buffer): Promise<Buffer> {
+/** Müşterinin penceredeki kırpma ayarı: odak noktası (0–1) ve yakınlaştırma */
+interface PhotoCrop { x: number; y: number; zoom: number }
+
+function readCrop(choices: Record<string, unknown>): PhotoCrop | null {
+  const x = Number(choices.photoX);
+  const y = Number(choices.photoY);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const zoom = Number(choices.photoZoom);
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  return { x: clamp(x, 0, 1), y: clamp(y, 0, 1), zoom: clamp(Number.isFinite(zoom) ? zoom : 1, 1, 4) };
+}
+
+async function photoLayer(photo: Buffer, crop: PhotoCrop | null): Promise<Buffer> {
   const mask = Buffer.from(
     `<svg width="${PHOTO}" height="${PHOTO}"><rect width="${PHOTO}" height="${PHOTO}" rx="${PHOTO_RADIUS}" fill="#fff"/></svg>`,
   );
   try {
-    // Kırpma yüz/ilgi alanını ortada tutar (attention); tam kare girdide etkisiz
-    const square = await sharp(photo, { limitInputPixels: false })
-      .rotate()
-      .resize(PHOTO, PHOTO, { fit: "cover", position: sharp.strategy.attention })
-      .removeAlpha()
-      .toBuffer();
+    let square: Buffer;
+    if (crop) {
+      // Müşteri fotoğrafı penceredeki karede kaydırıp yakınlaştırdı: aynı
+      // hesap (kare kenarı = kısa kenar / zoom, merkez odak noktası, taşarsa
+      // kenara yaslanır) tasarımcıda önizlemeyi de çiziyor
+      const oriented = await sharp(photo, { limitInputPixels: false }).rotate().toBuffer();
+      const m = await sharp(oriented).metadata();
+      const w = m.width ?? 1;
+      const h = m.height ?? 1;
+      const side = Math.max(1, Math.min(w, h) / crop.zoom);
+      const cx = Math.min(w - side / 2, Math.max(side / 2, crop.x * w));
+      const cy = Math.min(h - side / 2, Math.max(side / 2, crop.y * h));
+      const left = Math.max(0, Math.min(w - 1, Math.round(cx - side / 2)));
+      const top = Math.max(0, Math.min(h - 1, Math.round(cy - side / 2)));
+      const size = Math.max(1, Math.min(Math.round(side), w - left, h - top));
+      square = await sharp(oriented)
+        .extract({ left, top, width: size, height: size })
+        .resize(PHOTO, PHOTO, { fit: "fill" })
+        .removeAlpha()
+        .toBuffer();
+    } else {
+      // Ayar yoksa yüz/ilgi alanı ortada tutulur (attention)
+      square = await sharp(photo, { limitInputPixels: false })
+        .rotate()
+        .resize(PHOTO, PHOTO, { fit: "cover", position: sharp.strategy.attention })
+        .removeAlpha()
+        .toBuffer();
+    }
     return await sharp(square).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
   } catch {
     throw new GeneratorInputError("Fotoğraf okunamadı; JPG ya da PNG bir fotoğraf seçin");
@@ -143,7 +178,18 @@ export const songGenerator: GeneratorServerModule<SongConfig> = {
     const total = (durationRaw && parseDuration(durationRaw)) || DEFAULT_DURATION;
     const current = Math.round(total * PROGRESS);
 
-    const photo = input.photo && input.photo.length > 0 ? input.photo : null;
+    let photo = input.photo && input.photo.length > 0 ? input.photo : null;
+    // Müşteri fotoğraf yerine albüm kapağını seçtiyse kapak Spotify'dan
+    // alınır; adres istemciden gelmez, bağlantıdan sunucu bulur
+    if (!photo && input.choices.useCover === true) {
+      const ref = parseSpotifyLink(cleanText(input.fields.link, SONG_LIMITS.link));
+      const info = ref ? await fetchSpotifyInfo(ref) : null;
+      if (info?.coverUrl && isSpotifyCoverUrl(info.coverUrl)) {
+        const res = await fetch(info.coverUrl, { signal: AbortSignal.timeout(8000) }).catch(() => null);
+        if (res?.ok) photo = Buffer.from(await res.arrayBuffer());
+      }
+      if (!photo) throw new GeneratorInputError("Albüm kapağı alınamadı; bir fotoğraf seçin");
+    }
     if (!photo && config.requirePhoto) throw new GeneratorInputError("Bir fotoğraf seçin");
 
     // Spotify kodu: yanlış bağlantı müşteriye söylenir (ödediği kod eksik
@@ -227,7 +273,7 @@ export const songGenerator: GeneratorServerModule<SongConfig> = {
     // ── Fotoğraf alanı ───────────────────────────────────────────────────
     const composites: sharp.OverlayOptions[] = [];
     if (photo) {
-      composites.push({ input: await photoLayer(photo), left: PAD, top: PAD });
+      composites.push({ input: await photoLayer(photo, readCrop(input.choices)), left: PAD, top: PAD });
     } else {
       // Kartta dolgulu kutu; şeffaf stilde kumaşa büyük bir mürekkep bloğu
       // basmamak için yalnızca çerçeve
