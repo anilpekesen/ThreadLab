@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
+import { garmentWarning, inkVisible, pickForGarment } from './garment';
 
 /** Sunucunun publicAssets çıktısı (app/lib/generators/starmap/index.server.ts) */
 interface StarmapAssets {
@@ -10,6 +11,7 @@ interface StarmapAssets {
   constellationsDefault: boolean;
   allowGridToggle: boolean;
   gridDefault: boolean;
+  fillCanvas?: boolean;
   defaultTitle: string;
   defaultSubtitle: string;
   titleMax: number;
@@ -31,7 +33,7 @@ const fold = (s: string) =>
  * Yıldız haritası penceresi. Müşteri tarih, saat ve şehir seçer, başlık ve
  * notunu yazar; gökyüzü sunucuda hesaplanıp çizilir.
  */
-export default function StarmapModal({ assets: raw, isTurkish, initial, onRender, onCancel, onConfirm }: GeneratorModalProps) {
+export default function StarmapModal({ assets: raw, isTurkish, garment, initial, onRender, onCancel, onConfirm }: GeneratorModalProps) {
   const assets = raw as unknown as StarmapAssets & { templateName: string };
   const f = initial?.fields;
   const c = initial?.choices;
@@ -46,7 +48,11 @@ export default function StarmapModal({ assets: raw, isTurkish, initial, onRender
   const [cityId, setCityId] = useState(() => pick(assets.cities, f?.city ?? assets.defaultCity));
   const [cityQuery, setCityQuery] = useState('');
   const [cityOpen, setCityOpen] = useState(false);
-  const [theme, setTheme] = useState(() => pick(assets.themes, c?.theme));
+  // Temanın tişörte düşen yazı rengi: şeffaf temalarda mürekkep, dolgulu
+  // temalarda (poster değilse) yazılar zemin renginde basılıyor
+  const themeInk = (x?: { id: string; swatch: { bg: string; ink: string } }) =>
+    !x || assets.fillCanvas ? null : x.id.startsWith('transparent') ? x.swatch.ink : x.swatch.bg;
+  const [theme, setTheme] = useState(() => pickForGarment(assets.themes, c?.theme, themeInk, garment));
   const [font, setFont] = useState(() => pick(assets.fonts, c?.font));
   const [constellations, setConstellations] = useState(
     typeof c?.constellations === 'boolean' ? c.constellations : assets.constellationsDefault);
@@ -149,6 +155,7 @@ export default function StarmapModal({ assets: raw, isTurkish, initial, onRender
       onEdit={() => setPreview('')}
       onCancel={onCancel}
       onConfirm={() => onConfirm(preview)}
+      backdrop={garment?.hex}
     >
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1">
@@ -221,6 +228,9 @@ export default function StarmapModal({ assets: raw, isTurkish, initial, onRender
               </button>
             ))}
           </div>
+          {!inkVisible(themeInk(assets.themes.find((x) => x.id === theme)), garment) && (
+            <span className="text-[11px] font-medium text-amber-600">{garmentWarning(isTurkish, garment)}</span>
+          )}
         </div>
       )}
 

@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
+import { garmentWarning, inkVisible, pickForGarment } from './garment';
+
+/** Temanın tişörte düşen mürekkebi: koyu tema koyu, açık tema beyaz basılır */
+const THEME_INK: Record<string, string> = { dark: '#111111', light: '#ffffff' };
 
 /** Sunucunun publicAssets çıktısı (app/lib/generators/song) */
 interface SongAssets {
@@ -120,7 +124,7 @@ const fmtDuration = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60)
  * onaylanınca ürüne konur. Fotoğraf `initial` ile geri gelmez (dosya
  * saklanmıyor); pencere yeniden açılınca tekrar seçilmesi gerekir.
  */
-export default function SongModal({ assets: raw, isTurkish, initial, onRender, onCancel, onConfirm }: GeneratorModalProps) {
+export default function SongModal({ assets: raw, isTurkish, garment, initial, onRender, onCancel, onConfirm }: GeneratorModalProps) {
   const assets = raw as unknown as SongAssets & { templateName: string };
   const pick = <T extends { id: string }>(list: T[], id: unknown) =>
     (typeof id === 'string' && list.some((x) => x.id === id) ? id : list[0]?.id) ?? '';
@@ -132,7 +136,7 @@ export default function SongModal({ assets: raw, isTurkish, initial, onRender, o
   const [link, setLink] = useState(() => prevF.link ?? '');
   const [duration, setDuration] = useState(() => prevF.duration ?? '');
   const [style, setStyle] = useState(() => pick(assets.styles, prevC.style));
-  const [theme, setTheme] = useState(() => pick(assets.themes, prevC.theme));
+  const [theme, setTheme] = useState(() => pickForGarment(assets.themes, prevC.theme, (t) => THEME_INK[t.id], garment));
   const [font, setFont] = useState(() => pick(assets.fonts, prevC.font));
   const [photo, setPhoto] = useState<File | null>(null);
   const [thumb, setThumb] = useState('');
@@ -263,6 +267,7 @@ export default function SongModal({ assets: raw, isTurkish, initial, onRender, o
       onEdit={() => setPreview('')}
       onCancel={onCancel}
       onConfirm={() => onConfirm(preview)}
+      backdrop={garment?.hex}
     >
       <label className="flex flex-col gap-1">
         <FieldLabel label={t.link} right={assets.showCode ? undefined : t.optional} />
@@ -346,6 +351,9 @@ export default function SongModal({ assets: raw, isTurkish, initial, onRender, o
               </button>
             ))}
           </div>
+          {style === 'minimal' && !inkVisible(THEME_INK[theme], garment) && (
+            <span className="text-[11px] font-medium text-amber-600">{garmentWarning(isTurkish, garment)}</span>
+          )}
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
+import { garmentWarning, inkVisible, pickForGarment } from './garment';
 
 interface Option { id: string; label: string; labelEn?: string }
 
@@ -24,7 +25,7 @@ interface PersonRow { name: string; month: string }
  * başlık ve stil/düzen/yazı tipi/renk seçimleri. Çizim sunucuda yapılır;
  * dönen şeffaf PNG onaylanınca ürüne konur.
  */
-export default function BirthflowerModal({ assets: raw, isTurkish, initial, onRender, onCancel, onConfirm }: GeneratorModalProps) {
+export default function BirthflowerModal({ assets: raw, isTurkish, garment, initial, onRender, onCancel, onConfirm }: GeneratorModalProps) {
   const assets = raw as unknown as BirthflowerAssets & { templateName: string };
   const max = Math.max(1, assets.maxPeople || 1);
   // Önceki seçim şablonda artık kapalıysa ilk izinli değere dönülür
@@ -44,7 +45,7 @@ export default function BirthflowerModal({ assets: raw, isTurkish, initial, onRe
   const [style, setStyle] = useState(() => pick(assets.styles, prev?.style));
   const [layout, setLayout] = useState(() => pick(assets.layouts, prev?.layout));
   const [font, setFont] = useState(() => pick(assets.fonts, prev?.font));
-  const [ink, setInk] = useState(() => pick(assets.inks, prev?.ink));
+  const [ink, setInk] = useState(() => pickForGarment(assets.inks, prev?.ink, (o) => o.hex, garment));
   const [preview, setPreview] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -109,6 +110,7 @@ export default function BirthflowerModal({ assets: raw, isTurkish, initial, onRe
       onEdit={() => setPreview('')}
       onCancel={onCancel}
       onConfirm={() => onConfirm(preview)}
+      backdrop={garment?.hex}
     >
       {assets.layouts.length > 1 && (
         <div className="flex flex-col gap-1.5">
@@ -194,6 +196,9 @@ export default function BirthflowerModal({ assets: raw, isTurkish, initial, onRe
         <div className="flex flex-col gap-1.5">
           <FieldLabel label={t.ink} />
           {pills(assets.inks, ink, setInk, (o) => (o as Option & { hex: string }).hex)}
+          {!inkVisible(assets.inks.find((o) => o.id === ink)?.hex, garment) && (
+            <span className="text-[11px] font-medium text-amber-600">{garmentWarning(isTurkish, garment)}</span>
+          )}
         </div>
       )}
     </GeneratorModalShell>

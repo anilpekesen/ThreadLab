@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
+import { garmentWarning, inkVisible, pickForGarment } from './garment';
 
 /** Sunucu: app/lib/generators/citymap (publicAssets) */
 interface CitymapAssets {
@@ -32,7 +33,7 @@ const km = (r: number, tr: boolean) => `${tr ? String(r).replace('.', ',') : r} 
  * OpenStreetMap verisinden çizilir. Yeni bir şehrin ilk çizimi veri
  * indirildiği için 10–20 sn sürebilir, sonrası önbellekten hızlı gelir.
  */
-export default function CitymapModal({ assets: raw, isTurkish, initial, onRender, onCancel, onConfirm }: GeneratorModalProps) {
+export default function CitymapModal({ assets: raw, isTurkish, garment, initial, onRender, onCancel, onConfirm }: GeneratorModalProps) {
   const assets = raw as unknown as CitymapAssets & { templateName: string };
   const cities = assets.cities ?? [];
   const pick = <T extends { id: string }>(list: T[], id: unknown) =>
@@ -48,7 +49,9 @@ export default function CitymapModal({ assets: raw, isTurkish, initial, onRender
   const [lon, setLon] = useState(prevF.lon ?? '');
   const [title, setTitle] = useState(prevF.title ?? '');
   const [subtitle, setSubtitle] = useState(prevF.subtitle ?? '');
-  const [style, setStyle] = useState(() => pick(assets.styles, prevC.style));
+  // Poster stillerinin kendi zemini var; mürekkep stillerinde yollar kumaşa basılır
+  const styleInk = (s?: { bg: string; ink: string }) => (!s || s.bg ? null : s.ink);
+  const [style, setStyle] = useState(() => pickForGarment(assets.styles, prevC.style, styleInk, garment));
   const [shape, setShape] = useState(() => pick(assets.shapes, prevC.shape));
   const [radius, setRadius] = useState(() =>
     assets.radii.includes(Number(prevC.radius)) ? Number(prevC.radius) : assets.defaultRadius);
@@ -122,6 +125,7 @@ export default function CitymapModal({ assets: raw, isTurkish, initial, onRender
       onEdit={() => setPreview('')}
       onCancel={onCancel}
       onConfirm={() => onConfirm(preview)}
+      backdrop={garment?.hex}
     >
       {busy && (
         <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-800">{t.wait}</p>
@@ -193,6 +197,9 @@ export default function CitymapModal({ assets: raw, isTurkish, initial, onRender
               </button>
             ))}
           </div>
+          {!inkVisible(styleInk(assets.styles.find((s) => s.id === style)), garment) && (
+            <span className="text-[11px] font-medium text-amber-600">{garmentWarning(isTurkish, garment)}</span>
+          )}
         </div>
       )}
 

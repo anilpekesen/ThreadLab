@@ -54,6 +54,7 @@ import { GOOGLE_FONTS, type DesignerConfig, type PersonalizationConfig, type Pri
 import { generateId, shrinkImageFile } from '@/utils/compress';
 import { scaleAreaForSize } from '@/utils/sizeScale';
 import { GENERATOR_UI } from '@/components/modals/generators/meta';
+import { garmentFromHex } from '@/components/modals/generators/garment';
 import type { GeneratorDraft, GeneratorChoices } from '@/components/modals/generators/types';
 import { evaluateRules, warnings, blockers, type RuleResult } from '@/utils/conditionalLogic';
 
@@ -4771,6 +4772,7 @@ export default function App() {
                   assets={templateAssets as unknown as import('@/components/modals/generators/types').GeneratorModalProps['assets']}
                   isTurkish={isTurkish}
                   initial={generatorDraftRef.current[String(templateAssets.generatorKind ?? '')] ?? null}
+                  garment={garmentFromHex(selectedColor ? colorHexForLabel(selectedColor) : null)}
                   onRender={renderGeneratorDesign}
                   onCancel={() => setTemplateModalOpen(false)}
                   onConfirm={placeTemplateDesign}
@@ -4780,6 +4782,7 @@ export default function App() {
                   assets={templateAssets as unknown as import('@/components/modals/TemplateWordArtModal').WordArtAssets}
                   isTurkish={isTurkish}
                   initial={wordArtDraftRef.current}
+                  garment={garmentFromHex(selectedColor ? colorHexForLabel(selectedColor) : null)}
                   onRender={renderWordArtDesign}
                   onCancel={() => setTemplateModalOpen(false)}
                   onConfirm={placeTemplateDesign}

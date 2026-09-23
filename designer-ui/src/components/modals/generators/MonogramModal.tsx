@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
+import { garmentWarning, inkVisible, pickForGarment } from './garment';
 
 /** Sunucu: app/lib/generators/monogram (publicAssets) */
 interface Option { id: string; label: string; labelEn: string }
@@ -66,7 +67,7 @@ function FrameIcon({ id }: { id: string }) {
  * çerçeve, yazı tipi ve mürekkep rengi. Harfler yazılırken büyük harfe
  * çevrilir ve harf/rakam dışı her şey atılır (sunucu aynı kuralı uygular).
  */
-export default function MonogramModal({ assets: rawAssets, isTurkish, initial, onRender, onCancel, onConfirm }: GeneratorModalProps) {
+export default function MonogramModal({ assets: rawAssets, isTurkish, garment, initial, onRender, onCancel, onConfirm }: GeneratorModalProps) {
   const assets = rawAssets as unknown as MonogramAssets & { templateName: string };
   const pick = (list: Array<{ id: string }>, id: unknown) =>
     (typeof id === 'string' && list.some((x) => x.id === id) ? id : list[0]?.id) ?? '';
@@ -84,7 +85,7 @@ export default function MonogramModal({ assets: rawAssets, isTurkish, initial, o
   const [joiner, setJoiner] = useState(() => pick(assets.joiners, prevC.joiner));
   const [font, setFont] = useState(() => pick(assets.fonts, prevC.font));
   const [color, setColor] = useState(() =>
-    (typeof prevC.color === 'string' && assets.colors.some((c) => c.hex === prevC.color) ? prevC.color : assets.colors[0]?.hex) ?? '#111111');
+    pickForGarment(assets.colors.map((c) => ({ id: c.hex })), prevC.color, (c) => c.id, garment) || '#111111');
   const [preview, setPreview] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -132,6 +133,7 @@ export default function MonogramModal({ assets: rawAssets, isTurkish, initial, o
       onEdit={() => setPreview('')}
       onCancel={onCancel}
       onConfirm={() => onConfirm(preview)}
+      backdrop={garment?.hex}
     >
       <label className="flex flex-col gap-1">
         <FieldLabel label={t.letters} right={`${Array.from(letters).length}/${assets.maxLetters}`} />
@@ -234,6 +236,9 @@ export default function MonogramModal({ assets: rawAssets, isTurkish, initial, o
               </button>
             ))}
           </div>
+          {!inkVisible(color, garment) && (
+            <span className="text-[11px] font-medium text-amber-600">{garmentWarning(isTurkish, garment)}</span>
+          )}
         </div>
       )}
     </GeneratorModalShell>

@@ -12,6 +12,8 @@ export interface GeneratorModalProps<A = Record<string, unknown>> {
   /** template-assets yanıtı: modülün publicAssets çıktısı + templateName */
   assets: A & { templateName: string; generatorKind: GeneratorKind };
   isTurkish: boolean;
+  /** Seçili tişört rengi; varsayılan mürekkep ve önizleme zemini buna göre */
+  garment?: import('./garment').Garment | null;
   /** Pencere daha önce kullanıldıysa son girilenler */
   initial?: GeneratorDraft | null;
   /** Girdiyi sunucuya gönderip hazır tasarımın adresini alır */

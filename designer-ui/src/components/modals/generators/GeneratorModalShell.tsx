@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { luminance } from './garment';
 
 /**
  * Üretici pencerelerinin ortak iskeleti: başlık, form ya da önizleme,
@@ -6,8 +7,10 @@ import type { ReactNode } from 'react';
  */
 export default function GeneratorModalShell({
   title, isTurkish, preview, previewAlt, busy, error, canMake,
-  onMake, onEdit, onCancel, onConfirm, onAgain, againLabel, children,
+  onMake, onEdit, onCancel, onConfirm, onAgain, againLabel, children, backdrop,
 }: {
+  /** Önizleme zemini: tişörtün rengi. Yoksa damalı (şeffaf) zemin. */
+  backdrop?: string | null;
   title: string;
   isTurkish: boolean;
   /** Sunucudan dönen tasarım adresi; varsa form yerine gösterilir */
@@ -37,8 +40,15 @@ export default function GeneratorModalShell({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {preview ? (
-            <img src={preview} alt={previewAlt}
-              className="mx-auto max-h-[56vh] w-auto rounded-xl border border-gray-100 bg-[repeating-conic-gradient(#f4f4f4_0%_25%,transparent_0%_50%)] bg-[length:14px_14px] object-contain" />
+            <div className={`rounded-xl border border-gray-100 p-3 ${backdrop ? '' : 'bg-[repeating-conic-gradient(#f4f4f4_0%_25%,transparent_0%_50%)] bg-[length:14px_14px]'}`}
+              style={backdrop ? { background: backdrop } : undefined}>
+              <img src={preview} alt={previewAlt} className="mx-auto max-h-[52vh] w-auto object-contain" />
+              {backdrop && (
+                <p className="mt-2 text-center text-[10px]" style={{ color: luminance(backdrop) < 0.35 ? '#d1d5db' : '#6b7280' }}>
+                  {isTurkish ? 'Tişört renginde önizleme' : 'Preview on the shirt colour'}
+                </p>
+              )}
+            </div>
           ) : (
             <div className="flex flex-col gap-4">{children}</div>
           )}

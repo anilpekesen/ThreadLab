@@ -194,6 +194,8 @@ export const starmapGenerator: GeneratorServerModule<StarmapConfig> = {
       allowConstellationToggle: config.allowConstellationToggle,
       constellationsDefault: config.constellationsDefault,
       allowGridToggle: config.allowGridToggle,
+      // Poster modunda zemin dolu: her tema her tişört renginde görünür
+      fillCanvas: config.fillCanvas,
       gridDefault: config.gridDefault,
       defaultTitle: config.defaultTitle.trim(),
       defaultSubtitle: config.defaultSubtitle.trim(),

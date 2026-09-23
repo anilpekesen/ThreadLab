@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { garmentWarning, paletteVisible, type Garment } from './generators/garment';
 
 export interface WordArtShapeOption {
   id: string;
@@ -31,6 +32,8 @@ export interface WordArtChoices {
 interface Props {
   assets: WordArtAssets;
   isTurkish: boolean;
+  /** Seçili tişört rengi: varsayılan palet ve önizleme zemini buna göre */
+  garment?: Garment | null;
   /** Pencere daha önce kullanıldıysa son kelimeler ve seçimler */
   initial?: { words: string; choices: WordArtChoices } | null;
   /** Kelimeleri ve seçimleri sunucuya gönderip hazır tasarımın adresini alır */
@@ -49,7 +52,7 @@ const MAX_VARIANT = 20;
  * sunucuda yapılır ve dönen şeffaf PNG onaylanınca ürünün üstüne konur.
  * Fotoğraf yüklenmediği için telif onayı istenmiyor.
  */
-export default function TemplateWordArtModal({ assets, isTurkish, initial, onRender, onCancel, onConfirm }: Props) {
+export default function TemplateWordArtModal({ assets, isTurkish, garment, initial, onRender, onCancel, onConfirm }: Props) {
   // Önceki seçim şablonda artık kapalıysa ilk izinli değere dönülür
   const pick = <T extends { id: string }>(list: T[], id: string | undefined) =>
     (id && list.some((x) => x.id === id) ? id : list[0]?.id) ?? '';
@@ -58,7 +61,13 @@ export default function TemplateWordArtModal({ assets, isTurkish, initial, onRen
   const [shape, setShape] = useState(() => pick(assets.shapes, prev?.shape) || 'heart');
   const [letter, setLetter] = useState(prev?.letter || assets.defaultLetter || 'A');
   const [font, setFont] = useState(() => pick(assets.fonts, prev?.font));
-  const [palette, setPalette] = useState(() => pick(assets.palettes, prev?.palette));
+  // Önceki seçim yoksa tişörtte görünen ilk paletle başla (siyah tişörtte
+  // siyah palet kaybolur); fotoğraf renkleri her zemine uyar sayılır
+  const [palette, setPalette] = useState(() => {
+    if (prev?.palette && assets.palettes.some((p) => p.id === prev.palette)) return prev.palette;
+    const ok = assets.palettes.find((p) => p.id !== 'photo' && paletteVisible(p.colors, garment));
+    return (ok ?? assets.palettes[0])?.id ?? '';
+  });
   const [variant, setVariant] = useState(prev?.variant ?? 0);
   /** "Fotoğrafım" şekli için; pencere kapanınca unutulur (dosya geri getirilemez) */
   const [photo, setPhoto] = useState<File | null>(null);
@@ -132,8 +141,10 @@ export default function TemplateWordArtModal({ assets, isTurkish, initial, onRen
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {preview ? (
-            <img src={preview} alt={assets.templateName}
-              className="mx-auto max-h-[52vh] w-auto rounded-xl border border-gray-100 bg-[repeating-conic-gradient(#f4f4f4_0%_25%,transparent_0%_50%)] bg-[length:14px_14px] object-contain" />
+            <div className={`rounded-xl border border-gray-100 p-3 ${garment ? '' : 'bg-[repeating-conic-gradient(#f4f4f4_0%_25%,transparent_0%_50%)] bg-[length:14px_14px]'}`}
+              style={garment ? { background: garment.hex } : undefined}>
+              <img src={preview} alt={assets.templateName} className="mx-auto max-h-[50vh] w-auto object-contain" />
+            </div>
           ) : (
             <div className="flex flex-col gap-4">
               <label className="flex flex-col gap-1">
@@ -229,6 +240,9 @@ export default function TemplateWordArtModal({ assets, isTurkish, initial, onRen
                       </button>
                     ))}
                   </div>
+                  {activePalette !== 'photo' && !paletteVisible(palettes.find((p) => p.id === activePalette)?.colors ?? [], garment) && (
+                    <span className="text-[11px] font-medium text-amber-600">{garmentWarning(isTurkish, garment)}</span>
+                  )}
                 </div>
               )}
             </div>
