@@ -2,7 +2,7 @@ import sharp from "sharp";
 import type { GeneratorServerModule } from "../server-types";
 import { GeneratorInputError } from "../types";
 import { FONT_LIBRARY } from "../../font-library";
-import { cleanText, loadLibraryFont, pickAllowed, textInk, textSvg } from "../svg-text.server";
+import { cleanText, loadLibraryFont, pickAllowed, textInk, textSvg, svgRaster, PRINT_SCALE } from "../svg-text.server";
 import {
   BIRTH_MONTHS, BIRTHFLOWER_INKS, BIRTHFLOWER_LAYOUTS, BIRTHFLOWER_STYLES,
   birthflowerConfig, type BirthflowerConfig, type BirthflowerLayout,
@@ -196,7 +196,8 @@ function singleScene(p: Person): Scene {
 // ── Çizim ──────────────────────────────────────────────────────────────
 
 async function renderPng(svg: string, width: number, height: number): Promise<Buffer> {
-  return sharp(Buffer.from(svg), { limitInputPixels: false }).resize(width, height).png().toBuffer();
+  // Baskı ölçeğinde (bkz. PRINT_SCALE): 2400 px baskı alanına büyütülünce çizgiler yumuşuyordu
+  return svgRaster(svg).resize(Math.round(width * PRINT_SCALE), Math.round(height * PRINT_SCALE)).png().toBuffer();
 }
 
 /** PNG'yi saydam olmayan piksellerin sınırına + payla kırpar */
@@ -306,6 +307,6 @@ export const birthflowerGenerator: GeneratorServerModule<BirthflowerConfig> = {
     const art = partsSvg(scene.parts, style, ink, stroke, view);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="${view.x} ${view.y} ${view.w} ${view.h}">${art}${measured.join("")}</svg>`;
     const png = await renderPng(svg, W, H);
-    return trimToInk(png, Math.round(Math.max(W, H) * 0.02));
+    return trimToInk(png, Math.round(Math.max(W, H) * 0.02 * PRINT_SCALE));
   },
 };

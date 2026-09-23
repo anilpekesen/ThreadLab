@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { FONT_LIBRARY } from "../../font-library";
 import type { GeneratorServerModule } from "../server-types";
 import { GeneratorInputError } from "../types";
-import { cleanText, loadLibraryFont, pickAllowed, textSvg } from "../svg-text.server";
+import { cleanText, loadLibraryFont, pickAllowed, textSvg, svgRaster } from "../svg-text.server";
 import {
   CITYMAP_COUNTRIES,
   CITYMAP_CITIES,
@@ -405,29 +405,30 @@ export const citymapGenerator: GeneratorServerModule<CitymapConfig> = {
     const mapBottom = MAP_Y + MAP;
     const attribution = lang === "tr" ? "© OpenStreetMap katkıda bulunanlar" : "© OpenStreetMap contributors";
     const attr = textSvg({
-      font: smallFont, text: attribution, x: W / 2, y: mapBottom + 78, size: 30, fill: pal.muted,
-      anchor: "middle", letterSpacing: 0.04,
+      font: smallFont, text: attribution, x: W / 2, y: mapBottom + 88, size: 40, fill: pal.muted,
+      anchor: "middle", letterSpacing: 0.03,
     });
-    const titleSize = script ? 250 : 196;
-    const titleY = mapBottom + (script ? 400 : 370);
+    // Yazılar tişörtte küçük kalıyordu: başlık ~1,2, alt satırlar ~1,5 katına
+    const titleSize = script ? 300 : 236;
+    const titleY = mapBottom + (script ? 430 : 400);
     const titleSvg = textSvg({
       font: titleFont, text: title, x: W / 2, y: titleY, size: titleSize, fill: pal.text,
-      anchor: "middle", maxWidth: MAP - 40, letterSpacing: script ? 0 : 0.16,
+      anchor: "middle", maxWidth: MAP - 40, letterSpacing: script ? 0 : 0.12,
     });
-    const subY = titleY + 150;
+    const subY = titleY + 185;
     const subSvg = textSvg({
-      font: bodyFont, text: subtitle, x: W / 2, y: subY, size: 62, fill: pal.text,
-      anchor: "middle", maxWidth: MAP - 80, letterSpacing: 0.28,
+      font: bodyFont, text: subtitle, x: W / 2, y: subY, size: 94, fill: pal.text,
+      anchor: "middle", maxWidth: MAP - 80, letterSpacing: 0.16,
     });
     const coordSvg = config.showCoordinates
       ? textSvg({
-          font: bodyFont, text: coordLine(point.lat, point.lon, lang), x: W / 2, y: subY + (subtitle ? 110 : 0),
-          size: 44, fill: pal.muted, anchor: "middle", letterSpacing: 0.18,
+          font: bodyFont, text: coordLine(point.lat, point.lon, lang), x: W / 2, y: subY + (subtitle ? 135 : 0),
+          size: 68, fill: pal.muted, anchor: "middle", letterSpacing: 0.08,
         })
       : { svg: "" };
     // Başlıkla alt satır arasında kısa ayraç (el yazısında kuyruklara çarpar, konmaz)
     const rule = title && !script && (subtitle || config.showCoordinates)
-      ? `<rect x="${W / 2 - 90}" y="${titleY + 58}" width="180" height="5" fill="${pal.text}"/>`
+      ? `<rect x="${W / 2 - 120}" y="${titleY + 68}" width="240" height="6" fill="${pal.text}"/>`
       : "";
 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
@@ -435,8 +436,8 @@ export const citymapGenerator: GeneratorServerModule<CitymapConfig> = {
       + mapSvg + attr.svg + titleSvg.svg + rule + subSvg.svg + coordSvg.svg
       + `</svg>`;
 
-    const buffer = await sharp(Buffer.from(svg), { limitInputPixels: false }).png({ compressionLevel: 8 }).toBuffer();
-    return { buffer, width: W, height: H };
+    const out = await svgRaster(svg).png({ compressionLevel: 8 }).toBuffer({ resolveWithObject: true });
+    return { buffer: out.data, width: out.info.width, height: out.info.height };
   },
 };
 

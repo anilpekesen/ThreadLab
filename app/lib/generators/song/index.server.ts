@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { FONT_LIBRARY } from "../../font-library";
 import type { GeneratorServerModule } from "../server-types";
-import { cleanText, loadLibraryFont, pickAllowed, textSvg, wrapText } from "../svg-text.server";
+import { cleanText, loadLibraryFont, pickAllowed, textSvg, wrapText, svgRaster, PRINT_SCALE } from "../svg-text.server";
 import { GeneratorInputError } from "../types";
 import { SONG_LIMITS, SONG_STYLES, SONG_THEMES, songConfig, type SongConfig, type SongStyle, type SongTheme } from "./config";
 import { codeSvg, fetchSpotifyCode, parseSpotifyLink, type SpotifyCodeShape } from "./spotify-code.server";
@@ -107,9 +107,12 @@ function readCrop(choices: Record<string, unknown>): PhotoCrop | null {
   return { x: clamp(x, 0, 1), y: clamp(y, 0, 1), zoom: clamp(Number.isFinite(zoom) ? zoom : 1, 1, 4) };
 }
 
+/** Fotoğraf katmanı baskı ölçeğinde: kart SVG'si de aynı katla rasterleşiyor */
+const PHOTO_PX = Math.round(PHOTO * PRINT_SCALE);
+
 async function photoLayer(photo: Buffer, crop: PhotoCrop | null): Promise<Buffer> {
   const mask = Buffer.from(
-    `<svg width="${PHOTO}" height="${PHOTO}"><rect width="${PHOTO}" height="${PHOTO}" rx="${PHOTO_RADIUS}" fill="#fff"/></svg>`,
+    `<svg width="${PHOTO_PX}" height="${PHOTO_PX}"><rect width="${PHOTO_PX}" height="${PHOTO_PX}" rx="${PHOTO_RADIUS * PRINT_SCALE}" fill="#fff"/></svg>`,
   );
   try {
     let square: Buffer;
@@ -129,14 +132,14 @@ async function photoLayer(photo: Buffer, crop: PhotoCrop | null): Promise<Buffer
       const size = Math.max(1, Math.min(Math.round(side), w - left, h - top));
       square = await sharp(oriented)
         .extract({ left, top, width: size, height: size })
-        .resize(PHOTO, PHOTO, { fit: "fill" })
+        .resize(PHOTO_PX, PHOTO_PX, { fit: "fill" })
         .removeAlpha()
         .toBuffer();
     } else {
       // Ayar yoksa yüz/ilgi alanı ortada tutulur (attention)
       square = await sharp(photo, { limitInputPixels: false })
         .rotate()
-        .resize(PHOTO, PHOTO, { fit: "cover", position: sharp.strategy.attention })
+        .resize(PHOTO_PX, PHOTO_PX, { fit: "cover", position: sharp.strategy.attention })
         .removeAlpha()
         .toBuffer();
     }
@@ -213,32 +216,34 @@ export const songGenerator: GeneratorServerModule<SongConfig> = {
     const HEART = 108;
     const textMax = INNER - HEART - 70;
     let y = PAD + PHOTO;
-    const titleLines = wrapText(font, title, 124, textMax, 2);
+    // Yazılar tişörtte küçük kalıyordu: başlık 124→150, sanatçı 84→104,
+    // süreler 58→72; aralıklar buna göre açıldı
+    const titleLines = wrapText(font, title, 150, textMax, 2);
     // Tek satıra küçülterek sığan başlık tek satır kalır; çok uzunsa iki satır
-    const oneLine = textSvg({ font, text: title, x: 0, y: 0, size: 124, fill: "#000", maxWidth: textMax });
-    const lines = titleLines.length > 1 && oneLine.size < 124 * 0.72 ? titleLines : [title];
-    const titleSize = lines.length > 1 ? 108 : 124;
-    y += 212;
+    const oneLine = textSvg({ font, text: title, x: 0, y: 0, size: 150, fill: "#000", maxWidth: textMax });
+    const lines = titleLines.length > 1 && oneLine.size < 150 * 0.72 ? titleLines : [title];
+    const titleSize = lines.length > 1 ? 128 : 150;
+    y += 240;
     const titleTop = y - titleSize * 0.72;
     for (const [i, line] of lines.entries()) {
       if (i > 0) y += titleSize * 1.12;
       parts.push(textSvg({ font, text: line, x: PAD, y, size: titleSize, fill: pal.ink, maxWidth: textMax }).svg);
     }
-    y += 116;
-    parts.push(textSvg({ font, text: artist, x: PAD, y, size: 84, fill: pal.soft, maxWidth: textMax }).svg);
+    y += 142;
+    parts.push(textSvg({ font, text: artist, x: PAD, y, size: 104, fill: pal.soft, maxWidth: textMax }).svg);
     const heartCy = (titleTop + y) / 2;
     parts.push(icon(W - PAD - HEART / 2, heartCy, HEART, heartIcon(pal.ink)));
 
     // ── İlerleme çubuğu ve süreler ───────────────────────────────────────
-    y += 150;
+    y += 170;
     const barH = 16;
     const done = INNER * PROGRESS;
     parts.push(`<rect x="${PAD}" y="${y - barH / 2}" width="${INNER}" height="${barH}" rx="${barH / 2}" fill="${pal.track}"/>`);
     parts.push(`<rect x="${PAD}" y="${y - barH / 2}" width="${f1(done)}" height="${barH}" rx="${barH / 2}" fill="${pal.ink}"/>`);
     parts.push(`<circle cx="${f1(PAD + done)}" cy="${y}" r="32" fill="${pal.ink}"/>`);
-    const timeY = y + 110;
-    parts.push(textSvg({ font, text: fmt(current), x: PAD, y: timeY, size: 58, fill: pal.soft }).svg);
-    parts.push(textSvg({ font, text: fmt(total), x: W - PAD, y: timeY, size: 58, fill: pal.soft, anchor: "end" }).svg);
+    const timeY = y + 125;
+    parts.push(textSvg({ font, text: fmt(current), x: PAD, y: timeY, size: 72, fill: pal.soft }).svg);
+    parts.push(textSvg({ font, text: fmt(total), x: W - PAD, y: timeY, size: 72, fill: pal.soft, anchor: "end" }).svg);
 
     // ── Oynatıcı düğmeleri ───────────────────────────────────────────────
     const cy = timeY + 220;
@@ -273,7 +278,8 @@ export const songGenerator: GeneratorServerModule<SongConfig> = {
     // ── Fotoğraf alanı ───────────────────────────────────────────────────
     const composites: sharp.OverlayOptions[] = [];
     if (photo) {
-      composites.push({ input: await photoLayer(photo, readCrop(input.choices)), left: PAD, top: PAD });
+      const at = Math.round(PAD * PRINT_SCALE);
+      composites.push({ input: await photoLayer(photo, readCrop(input.choices)), left: at, top: at });
     } else {
       // Kartta dolgulu kutu; şeffaf stilde kumaşa büyük bir mürekkep bloğu
       // basmamak için yalnızca çerçeve
@@ -285,7 +291,7 @@ export const songGenerator: GeneratorServerModule<SongConfig> = {
     if (pal.card) parts.unshift(`<rect width="${W}" height="${H}" rx="${CARD_RADIUS}" fill="${pal.card}"/>`);
 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${parts.join("")}</svg>`;
-    const buffer = await sharp(Buffer.from(svg)).composite(composites).png().toBuffer();
-    return { buffer, width: W, height: H };
+    const out = await svgRaster(svg).composite(composites).png().toBuffer({ resolveWithObject: true });
+    return { buffer: out.data, width: out.info.width, height: out.info.height };
   },
 };

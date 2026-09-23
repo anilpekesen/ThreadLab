@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { loadFont, glyphPathData, inkBox } from "./text-render.server";
+import { PRINT_SCALE } from "./generators/svg-text.server";
 import { findLibraryFont, FONT_LIBRARY } from "./font-library";
 import {
   WORDART_SHAPES,
@@ -391,9 +392,10 @@ export async function composeWordArt(opts: ComposeWordArtOptions): Promise<Compo
   }).join("");
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${bg}${body}</svg>`;
 
-  const buffer = await sharp(Buffer.from(svg), { limitInputPixels: false })
+  // Baskı ölçeğinde: 2400 px baskı alanına büyütülünce yazılar yumuşuyordu
+  const buffer = await sharp(Buffer.from(svg), { limitInputPixels: false, density: 72 * PRINT_SCALE })
     .png({ compressionLevel: 8 })
     .toBuffer();
 
-  return { buffer, width: W, height: H, placed: placements.length, skipped };
+  return { buffer, width: Math.round(W * PRINT_SCALE), height: Math.round(H * PRINT_SCALE), placed: placements.length, skipped };
 }

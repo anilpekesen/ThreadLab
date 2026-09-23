@@ -754,6 +754,17 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     setCanvasTouchAction(cv, allowPageScroll ? 'pan-y' : 'none');
     runtimeCanvas.upperCanvasEl?.style.setProperty('-webkit-user-select', 'none');
     runtimeCanvas.lowerCanvasEl?.style.setProperty('-webkit-user-select', 'none');
+    // Büyük görseller (ör. 4200 px'lik yıldız haritası) ekranda ~200 px'e
+    // küçültülüyor. Tarayıcının varsayılan küçültmesi ("low") bu oranda ince
+    // çizgileri ve küçük yazıları kırıyor: pencerede kusursuz görünen tasarım
+    // tişörtün üstünde bozuk duruyordu. "high" kalite tarayıcının <img>'de
+    // kullandığı küçültmeyle aynı. Ayar tuval boyutlanınca sıfırlandığından her
+    // çizimden önce yeniden yazılıyor; toCanvasElement'in açtığı dışa aktarma
+    // tuvali de aynı olaydan geçiyor (önizleme görselleri de düzgün çıksın).
+    cv.on('before:render', (e) => {
+      const ctx = ((e as unknown as { ctx?: CanvasRenderingContext2D }).ctx) ?? cv.getContext();
+      if (ctx) ctx.imageSmoothingQuality = 'high';
+    });
     cv.on('mouse:down', (e) => {
       if (e.target) {
         onObjectSelectedRef.current(e.target);

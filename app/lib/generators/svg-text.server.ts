@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { findLibraryFont, FONT_LIBRARY } from "../font-library";
 import { glyphPathData, inkBox, loadFont, measure } from "../text-render.server";
 import type * as opentypeNs from "opentype.js";
@@ -132,4 +133,20 @@ export function cleanColor(v: unknown, fallback: string): string {
 /** Seçim izinli listede değilse listenin ilk elemanı */
 export function pickAllowed<T extends string>(v: unknown, allowed: readonly T[], fallback?: T): T {
   return (allowed as readonly unknown[]).includes(v) ? (v as T) : (allowed[0] ?? (fallback as T));
+}
+
+/**
+ * Baskı ölçeği. Üreticiler 2400 px'lik koordinatla çizer; PNG'ye çevirirken
+ * bu katla büyütülür (3360 px ≈ 28 cm'de 300 DPI). Tasarım 2400 px çıktığında
+ * 28 cm'lik baskı alanına büyütülüyor, ~215 DPI kalıyor ve yazı kenarları
+ * yumuşuyordu. Çizimler vektör olduğu için büyütme kayıpsız.
+ *
+ * Daha büyüğü (ör. 4200 px) tarayıcıda 20+ megapiksel görsel demek; iPhone
+ * Safari bu boyutlarda sekmeyi kapatabiliyor.
+ */
+export const PRINT_SCALE = 1.4;
+
+/** SVG'yi baskı ölçeğinde rasterleştirir (librsvg `density` ile ölçekler) */
+export function svgRaster(svg: string, scale = PRINT_SCALE): sharp.Sharp {
+  return sharp(Buffer.from(svg), { density: 72 * scale, limitInputPixels: false });
 }

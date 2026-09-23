@@ -4,7 +4,7 @@ import { FONT_LIBRARY } from "../../font-library";
 import { glyphPathData } from "../../text-render.server";
 import type { GeneratorServerModule } from "../server-types";
 import { GeneratorInputError } from "../types";
-import { cleanColor, cleanText, loadLibraryFont, pickAllowed, textInk } from "../svg-text.server";
+import { cleanColor, cleanText, loadLibraryFont, pickAllowed, textInk, PRINT_SCALE } from "../svg-text.server";
 import {
   cleanMonogramLetters,
   MONOGRAM_BOTTOM_MAX,
@@ -355,7 +355,8 @@ async function inkBounds(svg: string): Promise<Box | null> {
   return { x1: x1 * k, y1: y1 * k, x2: (x2 + 1) * k, y2: (y2 + 1) * k };
 }
 
-const OUT_LONG = 2400;
+// Baskı ölçeğinde uzun kenar (bkz. PRINT_SCALE): 2400 px baskıda yumuşuyordu
+const OUT_LONG = Math.round(2400 * PRINT_SCALE);
 
 export const monogramGenerator: GeneratorServerModule<MonogramConfig> = {
   config: monogramConfig,

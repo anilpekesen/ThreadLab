@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { FONT_LIBRARY } from "../../font-library";
 import type { GeneratorServerModule } from "../server-types";
 import { GeneratorInputError } from "../types";
-import { cleanText, loadLibraryFont, pickAllowed, textInk, textSvg, wrapText } from "../svg-text.server";
+import { cleanText, loadLibraryFont, pickAllowed, textInk, textSvg, wrapText, svgRaster } from "../svg-text.server";
 import { horizontal, project, skyFrame, zonedTimeToUtc } from "./astro";
 import {
   STARMAP_SUBTITLE_MAX,
@@ -354,7 +354,7 @@ ${sky}
 ${textSvgs}
 </svg>`;
 
-    const buffer = await sharp(Buffer.from(svg), { limitInputPixels: false }).png({ compressionLevel: 9 }).toBuffer();
-    return { buffer, width: W, height };
+    const out = await svgRaster(svg).png({ compressionLevel: 9 }).toBuffer({ resolveWithObject: true });
+    return { buffer: out.data, width: out.info.width, height: out.info.height };
   },
 };
