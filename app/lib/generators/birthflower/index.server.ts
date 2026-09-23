@@ -95,10 +95,12 @@ function rowScene(people: Person[]): Scene {
   const n = people.length;
   const rows = n <= 5 ? 1 : 2;
   const perRow = Math.ceil(n / rows);
-  const cw = 280;
+  // İsimler tişörtte küçük kalıyordu (72 → 104); sütun ve sıra aralığı açıldı
+  // ki isimler çiçeklere çarpmasın ve uzun isim yeniden küçülmesin
+  const cw = 370;
   const stemLen = 330;
-  const nameY = stemLen + 100;
-  const rowH = nameY + 90 + 190;
+  const nameY = stemLen + 125;
+  const rowH = nameY + 120 + 190;
   people.forEach((p, i) => {
     const r = Math.floor(i / perRow);
     const inRow = r === rows - 1 ? n - perRow * r : perRow;
@@ -106,7 +108,15 @@ function rowScene(people: Person[]): Scene {
     const x = (c - (inRow - 1) / 2) * cw;
     const y = r * rowH;
     parts.push(...flowerAt(p, i, { stemLen, leafFrom: 0.34, leafTo: 0.84 }, tr(x, y)));
-    if (p.name) texts.push({ text: p.name, x, y: y + nameY, size: 72, anchor: "middle", maxWidth: cw * 0.94 });
+    if (p.name) {
+      // İki kelimelik uzun isim ("Muhammed Mustafa") sütuna sığmak için
+      // okunmayacak kadar küçülüyordu; iki satıra bölünür
+      const words = p.name.split(/\s+/);
+      const lines = words.length > 1 && p.name.length > 9
+        ? [words.slice(0, Math.ceil(words.length / 2)).join(" "), words.slice(Math.ceil(words.length / 2)).join(" ")]
+        : [p.name];
+      lines.forEach((line, li) => texts.push({ text: line, x, y: y + nameY + li * 112, size: 104, anchor: "middle", maxWidth: cw * 0.92 }));
+    }
   });
   return { parts, texts };
 }
@@ -165,7 +175,8 @@ function bouquetScene(people: Person[], ribbon: string): Scene {
   const names = people.map((p) => p.name).filter(Boolean);
   if (names.length) {
     const lines = names.length > 4 ? [names.slice(0, Math.ceil(names.length / 2)), names.slice(Math.ceil(names.length / 2))] : [names];
-    lines.forEach((line, li) => texts.push({ text: line.join("  ·  "), x: 0, y: tail + 125 + li * 105, size: 78, anchor: "middle", maxWidth: Math.max(700, 280 * Math.min(n, 4)) }));
+    // 78 → 110; iki satırda aralık da açıldı
+    lines.forEach((line, li) => texts.push({ text: line.join("  ·  "), x: 0, y: tail + 165 + li * 145, size: 110, anchor: "middle", maxWidth: Math.max(900, 360 * Math.min(n, 4)) }));
   }
   return { parts, texts };
 }
@@ -176,7 +187,7 @@ function singleScene(p: Person): Scene {
   const parts = flowerAt(p, 0, { stemLen, leafFrom: 0.3, leafTo: 0.62, bend: -24 }, tr(0, 0));
   const texts: TextItem[] = [];
   if (p.name) {
-    const size = 96;
+    const size = 132;
     // Adın gireceği yükseklik bandında sağa en az taşan yeri seç
     let best = { y: stemLen * 0.8, x: Infinity };
     for (let k = 0; k <= 8; k++) {
@@ -188,7 +199,7 @@ function singleScene(p: Person): Scene {
       if (!Number.isFinite(maxX)) maxX = 0;
       if (maxX < best.x - 8) best = { y, x: maxX };
     }
-    texts.push({ text: p.name, x: best.x + 50, y: best.y, size, anchor: "start", maxWidth: 330 });
+    texts.push({ text: p.name, x: best.x + 50, y: best.y, size, anchor: "start", maxWidth: 480 });
   }
   return { parts, texts };
 }
@@ -281,7 +292,7 @@ export const birthflowerGenerator: GeneratorServerModule<BirthflowerConfig> = {
       return r.svg;
     });
     if (title) {
-      const size = 110;
+      const size = 140;
       const maxWidth = Math.max((x2 - x1) * 0.96, 520);
       const cx = (x1 + x2) / 2;
       const r0 = textSvg({ font, text: title, x: cx, y: 0, size, fill: ink, anchor: "middle", maxWidth });
