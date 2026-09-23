@@ -221,7 +221,8 @@ function spacedLine(font: opentypeNs.Font, text: string, cap: number, maxWidth: 
     return h ? h.y2 - h.y1 : 700;
   })();
   let size = (1000 * cap) / capAt1000;
-  let spacing = 0.2;
+  // Geniş aralık küçük puntoda harfleri dağıtıyor; okunurluk için ölçülü
+  let spacing = 0.14;
   const adv = (s: number) => chars.map((ch) => (ch === " " ? font.getAdvanceWidth(" ", s) * 1.3 : font.getAdvanceWidth(ch, s)));
   const widthOf = (s: number, sp: number) => {
     const a = adv(s);
@@ -413,15 +414,19 @@ export const monogramGenerator: GeneratorServerModule<MonogramConfig> = {
     const parts: Array<{ box: Box; tol: number }> = [{ box: letterPiece.box, tol: 1.05 }];
     let extra = "";
     if (frame === "circle-text") {
-      if (topText) extra += arcText(captionFont, topText, "top", 118);
-      if (bottomText) extra += arcText(captionFont, bottomText, "bottom", 118);
+      // Halka bandı 270 px; 165 px'lik yazı iki yanda nefes payı bırakıyor.
+      // 118 px'te tişört önizlemesinde ve küçük baskıda okunmuyordu.
+      if (topText) extra += arcText(captionFont, topText, "top", 165);
+      if (bottomText) extra += arcText(captionFont, bottomText, "bottom", 165);
       // İki yazının buluştuğu yanlarda küçük süs noktaları
       extra += diamondDot(CX - RING_TEXT.mid, CY, 34, 90) + diamondDot(CX + RING_TEXT.mid, CY, 34, 90);
     } else {
       const lw = box.x2 - box.x1;
       const lh = box.y2 - box.y1;
-      const capH = Math.max(115, Math.min(170, lh * 0.14));
-      const gapY = capH * 1.25;
+      // Yazı harf yüksekliğinin ~%22'si: %14'te tişörtte okunmayacak kadar
+      // küçük kalıyordu. Harfler buna göre biraz küçülür, blok çerçeveye sığar.
+      const capH = Math.max(170, Math.min(270, lh * 0.22));
+      const gapY = capH * 1.1;
       // Yazı harflerden çok taşarsa blok küçülür ve harfler (asıl tasarım)
       // cılızlaşır; önce yazı daralır. Baklava ve armanın dar uçlarında pay az.
       const widthFactor = frame === "diamond" ? 0.95 : frame === "crest" || frame === "circle" ? 1.1 : 1.3;
