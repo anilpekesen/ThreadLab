@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { fabric } from 'fabric';
+import { drawArtworkOnFabric } from '@/utils/fabricRealism';
 import { useDesignerStore } from '@/store/designerStore';
 import type { PrintAreaConfig, Side } from '@/types';
 import { CurvedText, registerCurvedText } from '@/utils/curvedText';
@@ -1329,13 +1330,15 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
     } catch {
       return '';
     }
-    ctx.drawImage(
-      artwork,
-      targetRect.left * multiplier,
-      targetRect.top * multiplier,
-      targetRect.width * multiplier,
-      targetRect.height * multiplier,
-    );
+    // Tasarım kumaşın gölgesini, dokusunu ve kıvrımlarını alarak çizilir;
+    // düz yapıştırma çıkartma gibi duruyordu. Yalnızca önizleme — baskı
+    // dosyası exportPrintFile ile düz üretilir.
+    drawArtworkOnFabric(ctx, artwork, {
+      x: targetRect.left * multiplier,
+      y: targetRect.top * multiplier,
+      w: targetRect.width * multiplier,
+      h: targetRect.height * multiplier,
+    });
 
     return out.toDataURL('image/png');
   }, []);

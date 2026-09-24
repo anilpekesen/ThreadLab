@@ -2389,13 +2389,29 @@ export default function App() {
     }
   };
 
-  const handlePreview = () => {
-    const frontImg = frontCanvasRef.current?.exportPng(2) ?? '';
-    const backImg  = backCanvasRef.current?.exportPng(2) ?? '';
+  /**
+   * Tişört fotoğrafı + kumaş etkili tasarım (bkz. drawArtworkOnFabric).
+   * Düz `exportPng` tasarımı fotoğrafın üstüne çıkartma gibi yapıştırıyordu.
+   * Üretilemezse düz görsele düşülür.
+   */
+  const realisticPreview = async (which: 'front' | 'back', multiplier: number): Promise<string> => {
+    const handle = which === 'front' ? frontCanvasRef.current : backCanvasRef.current;
+    const area = activePrintAreas[which];
+    if (!handle) return '';
+    if (area && area.width > 0 && area.height > 0) {
+      try {
+        const url = await handle.exportPreviewForArea(area, canvasRectForArea(area), multiplier);
+        if (url) return url;
+      } catch { /* düz görsele düş */ }
+    }
+    return handle.exportPng(multiplier) ?? '';
+  };
+
+  const handlePreview = async () => {
+    const [frontImg, backImg] = await Promise.all([realisticPreview('front', 2), realisticPreview('back', 2)]);
     setPreviewImages({ front: frontImg, back: backImg });
     setPreviewTab('front');
     setShowPreview(true);
-
   };
 
   const handleAddToCart = async () => {
@@ -2523,8 +2539,8 @@ export default function App() {
       cartTimer.mark('fonts');
 
       // Export canvas: 3x preview (1440px+) + print at 300 DPI
-      const frontPreviewDataUrl = frontHas ? (frontCanvasRef.current?.exportPng(3) ?? '') : '';
-      const backPreviewDataUrl = backHas ? (backCanvasRef.current?.exportPng(3) ?? '') : '';
+      const frontPreviewDataUrl = frontHas ? await realisticPreview('front', 3) : '';
+      const backPreviewDataUrl = backHas ? await realisticPreview('back', 3) : '';
       cartTimer.mark('exportPreview');
       // Print dosyasını gerçek mm boyutlarında 300 DPI export et.
       // Baskı tarafında bulanıklık şikayetlerini önlemek için üretim dosyasında piksel kaybı yapmıyoruz.
