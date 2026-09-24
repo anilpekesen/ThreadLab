@@ -16,13 +16,13 @@ const T = {
   tr: {
     htmlLang: "tr",
     nav: {
-      features: "Özellikler", how: "Nasıl çalışır", pricing: "Fiyatlandırma",
+      features: "Özellikler", templates: "Şablonlar", how: "Nasıl çalışır", pricing: "Fiyatlandırma",
       faq: "SSS", blog: "Blog", login: "Giriş yap", cta: "Shopify'a ekle",
     },
     hero: {
       eyebrow: "SHOPIFY ÜRÜN KİŞİSELLEŞTİRME UYGULAMASI",
       title: `Müşterileriniz <span class="title-accent">kendi tasarımını</span> yapsın, siz baskıya yollayın.`,
-      sub: "PrintLab, Shopify mağazaları için ürün kişiselleştirme ve baskı tasarım aracıdır. T-shirt, sweatshirt, kupa, tote bag ve benzeri ürünlerde müşteri ürün sayfasında tasarım yapar, siz baskıya hazır siparişi alırsınız.",
+      sub: "PrintLab, Shopify mağazaları için ürün kişiselleştirme ve baskı tasarım aracıdır. Müşteri ürün sayfasında kendi tasarımını yapar ya da hazır şablonlardan birini birkaç bilgiyle kişiselleştirir — fotoğraflı çerçeveler, kelime sanatı, Spotify şarkısı, yıldız ve şehir haritası, monogram, doğum çiçeği. Siz baskıya hazır siparişi alırsınız.",
       cta1: "14 gün ücretsiz başla", cta2: "Demo mağazayı gör →",
       b1: "Kurulum 5 dakika", b2: "Kredi kartı gerekmiyor", b3: "Türkçe destek",
       trustLabel: "Shopify mağazaları için kişiselleştirme ve baskı yönetimi",
@@ -55,6 +55,30 @@ const T = {
         { t: "Çoklu ürün şablonları", p: "T-shirt, kupa, totebag, telefon kılıfı. Mockup ve baskı alanı her ürün için ayrı." },
         { t: "300 DPI baskı PDF", p: "Her sipariş için baskıya hazır PDF + JPG önizleme. CDN üzerinden anında erişim." },
         { t: "Google Drive yedekleme", p: "Sipariş başına baskı PNG'leri, mockup ve design.json kendi Drive klasörünüze yüklenir. Drive'ınızdaki diğer dosyalar gizli kalır (drive.file scope)." },
+        { t: "Gerçekçi önizleme", p: "Müşterinin önizlemesinde tasarım kumaşın kıvrım ve gölgelerini alır; baskı dosyası her zaman düz ve bozulmamış kalır." },
+        { t: "Türkçe ve İngilizce, sayfa içi yardım", p: "Yönetim paneli Shopify'ın dilinde açılır, mağaza tasarımcısı müşterinin dilinde. Her sayfada \"Bu sayfa nasıl çalışır?\" rehberi." },
+      ],
+    },
+    templates: {
+      eyebrow: "HAZIR ŞABLONLAR",
+      title: "Müşteri birkaç bilgi girer,<br/>baskıya hazır tasarım çıkar.",
+      sub: "Boş bir tuval yerine satışa hazır şablonlar. Şablonu bir kez ayarlayıp istediğiniz ürüne bağlarsınız; müşteri fotoğrafını, ismini, tarihini ya da şarkısını girer, PrintLab 300 DPI baskı dosyasını sunucuda üretir.",
+      note: "Görseller PrintLab'in ürettiği gerçek çıktılardır; fotoğraf alanlarında örnek bir çizim kullanıldı.",
+      items: [
+        { img: "mask-apparel", tag: "Fotoğraf şablonu", t: "Fotoğraflı tişört şablonları", p: "Kendi tasarımınızdaki kalp, çerçeve ya da harfin içine müşterinin fotoğrafı oturur. Arka plan otomatik temizlenir." },
+        { img: "mask-boxer-art", tag: "Fotoğraf şablonu", t: "Boxer ve iç giyim tasarımları", p: "\"Sadece Sen\", \"Hepsi Benim\" gibi fotoğraflı boxer şablonları; baskı alanı ürüne göre ayrı ayarlanır." },
+        { img: "wordart-heart", tag: "Kelime sanatı", t: "Kelime sanatı", p: "Müşterinin yazdığı kelimeler kalp, yıldız, daire ya da harf şeklinde dizilir. Font ve renk paleti şablonda seçilir." },
+        { img: "wordart-letter", tag: "Kelime sanatı", t: "Harf ve fotoğraf şeklinde kelimeler", p: "Kelimeler baş harfin ya da müşterinin fotoğrafının siluetinde toplanır; uzaktan bakınca portre görünür." },
+        { img: "song", tag: "Üretici", t: "Şarkı / Spotify tasarımı", p: "Spotify bağlantısı yapıştırılınca şarkı adı ve sanatçı kendiliğinden gelir. Fotoğraf kırpılır, okutulabilir Spotify kodu eklenir." },
+        { img: "starmap", tag: "Üretici", t: "Yıldız haritası", p: "Seçilen tarih, saat ve şehirde gökyüzünün gerçek görünümü; takımyıldızlar, isim ve not." },
+        { img: "citymap", tag: "Üretici", t: "Şehir haritası", p: "Şehrin ya da semtin gerçek sokak haritası; başlık, alt yazı ve koordinatlarla poster tarzında." },
+        { img: "monogram", tag: "Üretici", t: "Monogram", p: "İki-üç baş harf, çerçeve, üst ve alt yazıyla zarif çift ve aile monogramları." },
+        { img: "birthflower", tag: "Üretici", t: "Doğum çiçeği buketi", p: "Her kişinin doğum ayının çiçeği ve adı; tek kişilik ya da aile buketi." },
+      ],
+      extras: [
+        { k: "frame", t: "Çerçeve Stüdyosu", p: "Kanvas, pola kart ve çok fotoğraflı çerçeve şablonlarını tek editörde çizin; kart tabakaları kesim işaretleriyle çıkar." },
+        { k: "scatter", t: "Tekrarlı desen", p: "Müşterinin fotoğrafları kalplerle birlikte ürünün her yerine serpiştirilir — boxer ve pijama için ideal." },
+        { k: "ai", t: "Yapay zeka portre", p: "Müşterinin fotoğrafından seçtiğiniz tarzda (karikatür, çizim...) yapay zeka portresi üretilir." },
       ],
     },
     showcase: {
@@ -95,6 +119,8 @@ const T = {
         { q: "Baskıya hazır dosyaları nasıl alıyorum?", a: "Her sipariş tamamlandığında 300 DPI çözünürlükte PDF ve önizleme JPG'si otomatik oluşur, CDN üzerinde saklanır. Admin panelinden tek tıkla indirebilirsiniz." },
         { q: "Kendi mockup'larımı yükleyebilir miyim?", a: "Growth ve üzeri planlarında evet. Mockup PNG'sini yükler, baskı alanını sürükle-bırakla çizer, güvenli alan ve ölçü etiketini ayarlarsınız." },
         { q: "Türkçe dışında dil desteği var mı?", a: "Şu anda Türkçe ve İngilizce. Admin paneli her iki dili destekler; müşteri tasarımcısı da Türkçe/İngilizce." },
+        { q: "Hazır şablonları nasıl kullanıyorum?", a: "Kişileştirici sayfasında şablon türünü seçersiniz (fotoğraf şablonu, kelime sanatı, şarkı, yıldız haritası, şehir haritası, monogram, doğum çiçeği, tekrarlı desen, yapay zeka portre). Font, renk ve seçenekleri ayarlayıp şablonu bir veya birden çok ürüne bağlarsınız. Müşteri ürün sayfasında bilgilerini girer, baskı dosyası sunucuda üretilir." },
+        { q: "Yapay zeka görselleri deneme süresinde çalışır mı?", a: "Deneme süresinde yapay zeka görsel üretimi kapalıdır; arka plan kaldırma ve diğer tüm şablonlar çalışır. Ücretli plan başladığında planınızın aylık yapay zeka kotası açılır." },
         { q: "14 günlük deneme bittikten sonra ne olur?", a: "Deneme süresi bittikten sonra Shopify üzerinden ödeme başlar. İstediğiniz zaman planı değiştirebilir veya iptal edebilirsiniz." },
       ],
     },
@@ -116,13 +142,13 @@ const T = {
   en: {
     htmlLang: "en",
     nav: {
-      features: "Features", how: "How it works", pricing: "Pricing",
+      features: "Features", templates: "Templates", how: "How it works", pricing: "Pricing",
       faq: "FAQ", blog: "Blog", login: "Sign in", cta: "Add to Shopify",
     },
     hero: {
       eyebrow: "SHOPIFY PRODUCT PERSONALIZATION APP",
       title: `Let your customers <span class="title-accent">create their own design</span> — you send it to print.`,
-      sub: "PrintLab is a Shopify product personalization and print designer app embedded directly on your product pages. For t-shirts, sweatshirts, mugs, tote bags, and more, customers personalize the product and you receive a print-ready order.",
+      sub: "PrintLab is a Shopify product personalization and print designer app embedded directly on your product pages. Customers create their own design or personalize a ready-made template in a few steps — photo frames, word art, Spotify songs, star and city maps, monograms, birth flowers. You receive a print-ready order.",
       cta1: "Start free for 14 days", cta2: "See demo store →",
       b1: "5-minute setup", b2: "No credit card required", b3: "English support",
       trustLabel: "Product personalization and print workflow for Shopify stores",
@@ -155,6 +181,30 @@ const T = {
         { t: "Multi-product templates", p: "T-shirts, mugs, tote bags, phone cases. Separate mockup and print area per product." },
         { t: "300 DPI print PDF", p: "Print-ready PDF + JPG preview for every order. Instant access via CDN." },
         { t: "Google Drive backup", p: "One-click export of per-order print PNGs, mockup and design.json into your own Drive folder. Other files in your Drive stay private (drive.file scope)." },
+        { t: "Realistic preview", p: "In the customer's preview, the design follows the folds and shadows of the fabric; the print file always stays flat and untouched." },
+        { t: "English and Turkish, with in-page help", p: "The admin opens in your Shopify admin's language and the storefront designer in the customer's. Every page has a \"How does this page work?\" guide." },
+      ],
+    },
+    templates: {
+      eyebrow: "READY-MADE TEMPLATES",
+      title: "Customers enter a few details,<br/>a print-ready design comes out.",
+      sub: "Ready-to-sell templates instead of a blank canvas. Set a template up once and link it to any product; the customer adds a photo, a name, a date or a song, and PrintLab renders a 300 DPI print file on the server.",
+      note: "These images are real PrintLab output; photo slots use a sample illustration.",
+      items: [
+        { img: "mask-apparel", tag: "Photo template", t: "Photo t-shirt templates", p: "The customer's photo fits inside the heart, frame or letter of your own artwork. Backgrounds are removed automatically." },
+        { img: "mask-boxer-art", tag: "Photo template", t: "Boxers and underwear designs", p: "Photo boxer templates like \"Only You\" or \"All Mine\", with a print area set up per product." },
+        { img: "wordart-heart", tag: "Word art", t: "Word art", p: "The customer's words are arranged in a heart, star, circle or letter. You pick the fonts and color palettes." },
+        { img: "wordart-letter", tag: "Word art", t: "Letter- and photo-shaped words", p: "Words fill an initial or the silhouette of the customer's photo — step back and a portrait appears." },
+        { img: "song", tag: "Generator", t: "Song / Spotify design", p: "Paste a Spotify link and the song title and artist fill in automatically. Crop the photo and a scannable Spotify code is added." },
+        { img: "starmap", tag: "Generator", t: "Star map", p: "The real night sky on the chosen date, time and city, with constellations, a name and a note." },
+        { img: "citymap", tag: "Generator", t: "City map", p: "A real street map of any city or neighborhood, poster style, with a title, subtitle and coordinates." },
+        { img: "monogram", tag: "Generator", t: "Monogram", p: "Elegant couple and family monograms with two or three initials, a frame and top and bottom text." },
+        { img: "birthflower", tag: "Generator", t: "Birth flower bouquet", p: "Each person's birth month flower and name — a single flower or a whole family bouquet." },
+      ],
+      extras: [
+        { k: "frame", t: "Frame Studio", p: "Build canvas, polaroid card and multi-photo frame templates in one editor; card sheets come out with crop marks." },
+        { k: "scatter", t: "Repeat pattern", p: "The customer's photos are scattered across the whole product along with hearts — made for boxers and pajamas." },
+        { k: "ai", t: "AI portrait", p: "An AI portrait of the customer's photo in the style you choose (caricature, illustration and more)." },
       ],
     },
     showcase: {
@@ -195,6 +245,8 @@ const T = {
         { q: "How do I get print-ready files?", a: "A 300 DPI PDF and a preview JPG are generated automatically for every completed order and stored on CDN. Download with one click from your admin panel." },
         { q: "Can I upload my own mockups?", a: "Yes, on Growth and above. Upload your PNG mockup, draw the print area with drag & drop, and set the safe zone and dimension labels." },
         { q: "What languages does PrintLab support?", a: "Turkish and English are fully supported right now. The admin panel and the customer designer both have TR/EN language switching." },
+        { q: "How do I use the ready-made templates?", a: "On the Personalizer page you choose a template type (photo template, word art, song, star map, city map, monogram, birth flower, repeat pattern, AI portrait). Set the fonts, colors and options, then link the template to one or more products. Customers enter their details on the product page and the print file is rendered on the server." },
+        { q: "Does AI image generation work during the trial?", a: "AI image generation is turned off during the trial; background removal and every other template type work. When your paid plan starts, your plan's monthly AI quota is enabled." },
         { q: "What happens after the 14-day trial?", a: "After the trial ends, billing starts through Shopify. You can change your plan or cancel at any time from your Shopify admin." },
       ],
     },
@@ -239,6 +291,8 @@ function buildHtml(lang: Lang): string {
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/></svg>`,
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.71 3.5l-5 8.66 2.79 4.84h10L20.29 12.34 15.29 3.5z"/><path d="M2.71 12.16h13.29M7.71 3.5l5 8.66"/></svg>`,
+    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
   ];
   const featureColors = [
     "--fi-bg:var(--violet-50,#f5f3ff);--fi-fg:var(--accent-bg-removal)",
@@ -248,6 +302,8 @@ function buildHtml(lang: Lang): string {
     "--fi-bg:#eef2ff;--fi-fg:var(--brand-indigo-600)",
     "--fi-bg:#fff7ed;--fi-fg:#c2410c",
     "--fi-bg:#dbeafe;--fi-fg:#1d4ed8",
+    "--fi-bg:#fdf2f8;--fi-fg:#be185d",
+    "--fi-bg:#f0fdfa;--fi-fg:#0f766e",
   ];
 
   const checkIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
@@ -293,6 +349,26 @@ function buildHtml(lang: Lang): string {
       <div class="feature-icon" style="${featureColors[i]}">${featureIcons[i]}</div>
       <h3>${f.t}</h3>
       <p>${f.p}</p>
+    </article>`).join("");
+
+  const templateCards = t.templates.items.map((it) => `
+    <article class="tpl-card">
+      <div class="tpl-img${it.img.endsWith("-art") ? " tpl-img-art" : ""}"><img src="/showcase/${it.img}.webp" alt="${it.t}" loading="lazy" width="640" height="800" /></div>
+      <div class="tpl-body">
+        <span class="tpl-tag">${it.tag}</span>
+        <h3>${it.t}</h3>
+        <p>${it.p}</p>
+      </div>
+    </article>`).join("");
+  const extraArt: Record<string, string> = {
+    frame: `<div class="tx-frame">${Array.from({ length: 6 }, (_, i) => `<span style="--h:${i * 47}"></span>`).join("")}</div>`,
+    scatter: `<div class="tx-scatter">${Array.from({ length: 14 }, (_, i) => `<span class="${i % 3 === 2 ? "tx-heart" : "tx-face"}" style="--x:${(i * 37) % 92}%;--y:${(i * 53) % 84}%;--h:${i * 29}"></span>`).join("")}</div>`,
+    ai: `<div class="tx-ai"><span class="tx-ai-a"></span><span class="tx-ai-arrow">→</span><span class="tx-ai-b">✦</span></div>`,
+  };
+  const templateExtras = t.templates.extras.map((x) => `
+    <article class="tpl-extra">
+      <div class="tpl-extra-art">${extraArt[x.k]}</div>
+      <div><h3>${x.t}</h3><p>${x.p}</p></div>
     </article>`).join("");
 
   const showcaseList = t.showcase.l.map((l) => `
@@ -346,6 +422,37 @@ function buildHtml(lang: Lang): string {
     .cp-credits-label{font-size:13px;font-weight:600;color:#6b7280;margin:4px 0 12px;text-transform:uppercase;letter-spacing:.04em;}
     .cp-price{font-size:28px;font-weight:800;color:#4f46e5;margin-bottom:6px;}
     .cp-desc{font-size:13px;color:#9ca3af;margin-bottom:20px;}
+    /* ── Templates gallery ── */
+    .tpl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;max-width:1040px;margin:0 auto;}
+    @media (max-width:900px){.tpl-grid{grid-template-columns:repeat(2,1fr);gap:14px;}}
+    @media (max-width:520px){.tpl-grid{grid-template-columns:1fr;}}
+    .tpl-card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(15,23,42,.04);transition:transform .2s,box-shadow .2s;}
+    .tpl-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(15,23,42,.08);}
+    .tpl-img{aspect-ratio:4/5;background:#f4f3f1;overflow:hidden;}
+    .tpl-img img{width:100%;height:100%;object-fit:cover;display:block;}
+    .tpl-img-art{display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#fdf2f8,#f5f3ff);}
+    .tpl-img-art img{object-fit:contain;padding:18px;}
+    .tpl-body{padding:16px 18px 20px;}
+    .tpl-tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7c3aed;background:#f5f3ff;padding:3px 9px;border-radius:99px;}
+    .tpl-body h3{font-size:17px;margin:10px 0 6px;color:#111827;}
+    .tpl-body p{font-size:14px;line-height:1.55;color:#4b5563;margin:0;}
+    .tpl-extras{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin:22px auto 0;max-width:1040px;}
+    .tpl-extra{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:16px;}
+    .tpl-extra h3{font-size:16px;margin:0 0 4px;color:#111827;}
+    .tpl-extra p{font-size:13.5px;line-height:1.5;color:#4b5563;margin:0;}
+    .tpl-extra-art{flex:0 0 96px;height:96px;border-radius:14px;background:#f4f3f1;position:relative;overflow:hidden;}
+    .tx-frame{position:absolute;inset:10px;background:#fff;border:3px solid #3f2d20;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:4px;box-shadow:0 3px 8px rgba(0,0,0,.15);}
+    .tx-frame span{background:linear-gradient(160deg,hsl(var(--h),70%,72%),hsl(calc(var(--h) + 40),60%,48%));}
+    .tx-scatter{position:absolute;inset:0;background:#1f2937;}
+    .tx-scatter span{position:absolute;left:var(--x);top:var(--y);width:16px;height:16px;}
+    .tx-face{border-radius:50%;background:linear-gradient(160deg,hsl(var(--h),80%,78%),hsl(calc(var(--h) + 30),70%,55%));border:2px solid #fff;}
+    .tx-heart::before{content:"♥";color:#f43f5e;font-size:15px;line-height:16px;}
+    .tx-ai{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:4px;background:linear-gradient(135deg,#ede9fe,#fce7f3);}
+    .tx-ai-a,.tx-ai-b{width:32px;height:40px;border-radius:8px;}
+    .tx-ai-a{background:linear-gradient(160deg,#fcd34d,#f97316);}
+    .tx-ai-b{background:linear-gradient(160deg,#a78bfa,#ec4899);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;}
+    .tx-ai-arrow{color:#6b7280;font-size:13px;}
+    .tpl-note{text-align:center;font-size:13px;color:#9ca3af;margin:24px auto 0;max-width:560px;}
     .cp-note{text-align:center;font-size:13px;color:#9ca3af;margin-top:20px;max-width:480px;margin-left:auto;margin-right:auto;}
   </style>
 </head>
@@ -359,6 +466,7 @@ function buildHtml(lang: Lang): string {
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="#ozellikler">${t.nav.features}</a>
+      <a href="#sablonlar">${t.nav.templates}</a>
       <a href="#nasil">${t.nav.how}</a>
       <a href="#fiyatlandirma">${t.nav.pricing}</a>
       <a href="#sss">${t.nav.faq}</a>
@@ -539,8 +647,22 @@ function buildHtml(lang: Lang): string {
   </div>
 </section>
 
+<!-- ===== Templates ===== -->
+<section class="section section-tint" id="sablonlar">
+  <div class="section-inner">
+    <div class="section-head">
+      <div class="eyebrow eyebrow-violet">${t.templates.eyebrow}</div>
+      <h2 class="section-title">${t.templates.title}</h2>
+      <p class="section-sub">${t.templates.sub}</p>
+    </div>
+    <div class="tpl-grid">${templateCards}</div>
+    <div class="tpl-extras">${templateExtras}</div>
+    <p class="tpl-note">${t.templates.note}</p>
+  </div>
+</section>
+
 <!-- ===== Features ===== -->
-<section class="section section-tint" id="ozellikler">
+<section class="section" id="ozellikler">
   <div class="section-inner">
     <div class="section-head">
       <div class="eyebrow eyebrow-violet">${t.features.eyebrow}</div>
