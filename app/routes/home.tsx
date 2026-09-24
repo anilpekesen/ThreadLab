@@ -37,6 +37,8 @@ const T = {
       eyebrow: "PRINTLAB'İ İZLEYİN",
       title: "Bir dakikada PrintLab",
       sub: "Müşterinin ürün sayfasında tasarlamasından baskıya hazır siparişe kadar bütün akış.",
+      youtube: "https://youtu.be/D1tg4Mi7YkQ",
+      watch: "YouTube'da izle",
     },
     how: {
       eyebrow: "NASIL ÇALIŞIR",
@@ -169,6 +171,8 @@ const T = {
       eyebrow: "SEE PRINTLAB IN ACTION",
       title: "PrintLab in about a minute",
       sub: "The whole flow, from the customer designing on your product page to a print-ready order.",
+      youtube: "https://youtu.be/4yVLbPT4e5Y",
+      watch: "Watch on YouTube",
     },
     how: {
       eyebrow: "HOW IT WORKS",
@@ -439,6 +443,9 @@ function buildHtml(lang: Lang): string {
     .trust-chips a:hover{color:#7c3aed;border-color:#c4b5fd;background:#f5f3ff;}
     .section-video{padding-top:40px;}
     .promo-video{max-width:1040px;margin:0 auto;border-radius:20px;overflow:hidden;box-shadow:0 24px 60px rgba(49,46,129,.16);background:#eef2ff;aspect-ratio:16/9;}
+    .promo-video-link{text-align:center;margin:18px 0 0;font-size:15px;}
+    .promo-video-link a{color:#4f46e5;font-weight:600;text-decoration:none;}
+    .promo-video-link a:hover{text-decoration:underline;}
     .promo-video video{display:block;width:100%;height:100%;object-fit:cover;}
     /* ── Templates gallery ── */
     .tpl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;max-width:1040px;margin:0 auto;}
@@ -630,6 +637,7 @@ function buildHtml(lang: Lang): string {
         <source src="/video/printlab-${lang}.mp4" type="video/mp4" />
       </video>
     </div>
+    <p class="promo-video-link"><a href="${t.video.youtube}" target="_blank" rel="noopener noreferrer">${t.video.watch} →</a></p>
   </div>
 </section>
 <script>
