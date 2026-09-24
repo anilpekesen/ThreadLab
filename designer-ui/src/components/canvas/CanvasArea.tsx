@@ -3,7 +3,7 @@ import { fabric } from 'fabric';
 import { drawArtworkOnFabric } from '@/utils/fabricRealism';
 import { useDesignerStore } from '@/store/designerStore';
 import type { PrintAreaConfig, Side } from '@/types';
-import { CurvedText, registerCurvedText } from '@/utils/curvedText';
+import { CurvedText, registerCurvedText, setCurvedTextLocale } from '@/utils/curvedText';
 import { remapObjectsBetweenAreas } from '@/utils/sizeScale';
 import { ensureCanvasFontsReady, ensureFontLoaded } from '@/utils/fonts';
 
@@ -632,6 +632,7 @@ const CanvasArea = forwardRef<CanvasAreaHandle, Props>(({ side, zoom, printArea,
   } | null>(null);
 
   const { config, activeSide } = useDesignerStore();
+  useEffect(() => { setCurvedTextLocale(config?.locale); }, [config?.locale]);
   const [bgLoaded, setBgLoaded] = useState(false);
   const bgLoadGenRef = useRef(0);
   const bgFailedRef = useRef(false);

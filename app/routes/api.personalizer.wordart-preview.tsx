@@ -1,6 +1,7 @@
 import { json, type ActionFunctionArgs } from "@remix-run/node";
 import sharp from "sharp";
 import { authenticate } from "~/lib/authenticate.server";
+import { langFromRequest } from "~/i18n/server";
 import { FONT_LIBRARY } from "~/lib/font-library";
 import { normalizeWordArtConfig, type WordArtChoices } from "~/lib/wordart";
 import { composeWordArt, resolveWordArtRequest } from "~/lib/wordart-compose.server";
@@ -13,13 +14,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   await authenticate(request);
   if (request.method !== "POST") return json({ error: "Method not allowed" }, { status: 405 });
 
-  let body: { config?: unknown; words?: string; choices?: WordArtChoices };
+  let body: { config?: unknown; words?: string; choices?: WordArtChoices; _lang?: string };
   try { body = await request.json(); }
-  catch { return json({ error: "Geçersiz istek" }, { status: 400 }); }
+  catch { return json({ error: langFromRequest(request) === "en" ? "Invalid request" : "Geçersiz istek" }, { status: 400 }); }
+  const lang = body._lang === "en" || body._lang === "tr" ? body._lang : langFromRequest(request);
+  const en = lang === "en";
 
   const config = normalizeWordArtConfig(body.config, FONT_LIBRARY.map((f) => f.id));
   const resolved = resolveWordArtRequest(config, String(body.words ?? ""), body.choices ?? {});
-  if ("error" in resolved) return json({ error: resolved.error }, { status: 400 });
+  if ("error" in resolved) return json({ error: resolved.error, errorEn: resolved.errorEn }, { status: 400 });
 
   try {
     // Fotoğraf şekli önizlemesinde örnek bir baş-omuz silueti kullanılır
@@ -40,6 +43,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   } catch (err) {
     console.error("[wordart-preview] üretilemedi:", err);
-    return json({ error: "Önizleme üretilemedi" }, { status: 500 });
+    return json({ error: en ? "Couldn't create preview" : "Önizleme üretilemedi" }, { status: 500 });
   }
 };

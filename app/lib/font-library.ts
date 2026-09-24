@@ -23,6 +23,8 @@ export interface LibraryFont {
   label: string;
   /** Ne işe yaradığı: mağaza sahibi 8 font arasından hızlı seçsin */
   role: string;
+  /** `role` alanının İngilizcesi (yönetim ekranı İngilizceyken) */
+  roleEn?: string;
   /** Fontun kendi aile adı — <text> yedeğinde ve @font-face adında kullanılıyor */
   family: string;
   /** Şablona yazılan değer; hem tarayıcı hem sunucu bunu okuyor */
@@ -37,6 +39,7 @@ export const FONT_LIBRARY: LibraryFont[] = [
     id: "montserrat",
     label: "Montserrat",
     role: "Modern, geniş sans — genel amaçlı başlık",
+    roleEn: "Modern, wide sans — all-purpose headline",
     family: "Montserrat SemiBold",
     url: `${LIBRARY_PREFIX}montserrat.ttf`,
   },
@@ -44,6 +47,7 @@ export const FONT_LIBRARY: LibraryFont[] = [
     id: "poppins",
     label: "Poppins",
     role: "Yuvarlak geometrik sans — sade ve okunaklı",
+    roleEn: "Rounded geometric sans — clean and legible",
     family: "Poppins Medium",
     url: `${LIBRARY_PREFIX}poppins.ttf`,
   },
@@ -51,6 +55,7 @@ export const FONT_LIBRARY: LibraryFont[] = [
     id: "quicksand",
     label: "Quicksand",
     role: "Yumuşak hatlı — bebek, çocuk, doğum günü",
+    roleEn: "Soft shapes — baby, kids, birthdays",
     family: "Quicksand SemiBold",
     url: `${LIBRARY_PREFIX}quicksand.ttf`,
   },
@@ -58,6 +63,7 @@ export const FONT_LIBRARY: LibraryFont[] = [
     id: "oswald",
     label: "Oswald",
     role: "Dar ve uzun — dar alana sığan güçlü başlık",
+    roleEn: "Tall and condensed — a strong headline for narrow spaces",
     family: "Oswald Medium",
     url: `${LIBRARY_PREFIX}oswald.ttf`,
   },
@@ -65,6 +71,7 @@ export const FONT_LIBRARY: LibraryFont[] = [
     id: "playfair",
     label: "Playfair Display",
     role: "Zarif serif — düğün, yıldönümü",
+    roleEn: "Elegant serif — weddings, anniversaries",
     family: "Playfair Display SemiBold",
     url: `${LIBRARY_PREFIX}playfair.ttf`,
   },
@@ -72,6 +79,7 @@ export const FONT_LIBRARY: LibraryFont[] = [
     id: "cormorant",
     label: "Cormorant Garamond",
     role: "Klasik serif — ince, kitabi bir hava",
+    roleEn: "Classic serif — light, bookish feel",
     family: "Cormorant Garamond SemiBold",
     url: `${LIBRARY_PREFIX}cormorant.ttf`,
   },
@@ -79,6 +87,7 @@ export const FONT_LIBRARY: LibraryFont[] = [
     id: "dancing-script",
     label: "Dancing Script",
     role: "El yazısı — samimi, okunaklı",
+    roleEn: "Handwriting — friendly and legible",
     family: "Dancing Script",
     url: `${LIBRARY_PREFIX}dancing-script.ttf`,
   },
@@ -86,6 +95,7 @@ export const FONT_LIBRARY: LibraryFont[] = [
     id: "great-vibes",
     label: "Great Vibes",
     role: "Kaligrafi — davetiye ve nikâh işleri",
+    roleEn: "Calligraphy — invitations and weddings",
     family: "Great Vibes",
     url: `${LIBRARY_PREFIX}great-vibes.ttf`,
   },
@@ -95,6 +105,7 @@ export const FONT_LIBRARY: LibraryFont[] = [
     id: "montserrat-black",
     label: "Montserrat Black",
     role: "Çok kalın geometrik — harf içi fotoğraf için önerilen",
+    roleEn: "Extra-bold geometric — recommended for photos inside letters",
     family: "Montserrat Black",
     url: `${LIBRARY_PREFIX}montserrat-black.ttf`,
   },
@@ -102,6 +113,7 @@ export const FONT_LIBRARY: LibraryFont[] = [
     id: "archivo-black",
     label: "Archivo Black",
     role: "Çok kalın, geniş harfler — LOVE, AŞKIM gibi kısa kelimeler",
+    roleEn: "Extra-bold, wide letters — short words like LOVE",
     family: "Archivo Black",
     url: `${LIBRARY_PREFIX}archivo-black.ttf`,
   },
@@ -109,6 +121,7 @@ export const FONT_LIBRARY: LibraryFont[] = [
     id: "anton",
     label: "Anton",
     role: "Kalın ve dar — uzun isimler dar alana sığar",
+    roleEn: "Bold and condensed — long names fit narrow spaces",
     family: "Anton",
     url: `${LIBRARY_PREFIX}anton.ttf`,
   },

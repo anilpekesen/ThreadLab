@@ -20,16 +20,17 @@ export interface CitymapStyleMeta {
   label: string;
   labelEn: string;
   hint: string;
+  hintEn: string;
   /** Pencere ve ayar ekranındaki küçük örnek: zemin (boşsa şeffaf) ve yol rengi */
   bg: string;
   ink: string;
 }
 
 export const CITYMAP_STYLES: CitymapStyleMeta[] = [
-  { id: "ink-dark", label: "Siyah çizgi", labelEn: "Black ink", hint: "Şeffaf zemin, siyah yollar — beyaz ve açık renk ürünler", bg: "", ink: "#161616" },
-  { id: "ink-light", label: "Beyaz çizgi", labelEn: "White ink", hint: "Şeffaf zemin, beyaz yollar — siyah ve koyu renk ürünler", bg: "", ink: "#ffffff" },
-  { id: "poster-light", label: "Krem poster", labelEn: "Cream poster", hint: "Krem zemin, koyu yollar, mavi su, yeşil park — çerçeve/poster", bg: "#f3eee4", ink: "#23262b" },
-  { id: "poster-dark", label: "Lacivert poster", labelEn: "Navy poster", hint: "Lacivert zemin, açık yollar — çerçeve/poster", bg: "#15233a", ink: "#ece4d3" },
+  { id: "ink-dark", label: "Siyah çizgi", labelEn: "Black ink", hint: "Şeffaf zemin, siyah yollar — beyaz ve açık renk ürünler", hintEn: "Transparent background, black roads — white and light products", bg: "", ink: "#161616" },
+  { id: "ink-light", label: "Beyaz çizgi", labelEn: "White ink", hint: "Şeffaf zemin, beyaz yollar — siyah ve koyu renk ürünler", hintEn: "Transparent background, white roads — black and dark products", bg: "", ink: "#ffffff" },
+  { id: "poster-light", label: "Krem poster", labelEn: "Cream poster", hint: "Krem zemin, koyu yollar, mavi su, yeşil park — çerçeve/poster", hintEn: "Cream background, dark roads, blue water, green parks — frame/poster", bg: "#f3eee4", ink: "#23262b" },
+  { id: "poster-dark", label: "Lacivert poster", labelEn: "Navy poster", hint: "Lacivert zemin, açık yollar — çerçeve/poster", hintEn: "Navy background, light roads — frame/poster", bg: "#15233a", ink: "#ece4d3" },
 ];
 
 export const CITYMAP_SHAPES: Array<{ id: CitymapShapeId; label: string; labelEn: string; path: string }> = [

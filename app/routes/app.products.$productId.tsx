@@ -19,7 +19,9 @@ import {
 } from "@shopify/polaris";
 import { useEffect, useRef, useState } from "react";
 import { authenticate } from "~/lib/authenticate.server";
-import { useTranslation } from "~/i18n";
+import { useDict, useTranslation, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import productDetailDict from "~/i18n/admin/product-detail";
 import { PageHelper } from "~/components/PageHelper";
 import {
   fetchShopifyProductById,
@@ -408,6 +410,7 @@ function PrintAreaEditor({
   imageOptions?: string[];
 }) {
   const { t } = useTranslation();
+  const L = useDict(productDetailDict);
   // Kayıtlı mockupImageUrl varsa onu kullan, yoksa prop'tan gelen default'u kullan
   const savedImage = area.mockupImageUrl || null;
   const [activeImage, setActiveImage] = useState<string | null>(savedImage || imageUrl || null);
@@ -569,7 +572,7 @@ function PrintAreaEditor({
                     flexShrink: 0,
                   }}
                 >
-                  <img src={url} alt={`Gorsel ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <img src={url} alt={L.imageAlt(i + 1)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </button>
               ))}
             </div>
@@ -591,7 +594,7 @@ function PrintAreaEditor({
             {activeImage && (
               <img
                 src={activeImage}
-                alt="Urun gorseli"
+                alt={L.productImageAlt}
                 style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block", objectFit: "cover" }}
               />
             )}
@@ -776,7 +779,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   );
   if (invalidArea) {
     return json({
-      error: "Yerleşim ölçüleri sıfırdan büyük olmalı ve maksimum tasarım ölçüsünden küçük olmamalıdır.",
+      error: pickDict(productDetailDict, langFromRequest(request, form)).invalidPlacement,
     }, { status: 400 });
   }
 
@@ -830,7 +833,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 export default function ProductSettingsRoute() {
   const { product, config, printAreas, shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
+  const L = useDict(productDetailDict);
   const actionData = useActionData<typeof action>();
   const hasMounted = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1017,6 +1021,7 @@ export default function ProductSettingsRoute() {
         </Card>
 
         <Form method="post">
+          <input type="hidden" name="_lang" value={lang} />
           <BlockStack gap="500">
             <Card>
               <Box padding="400">
@@ -1026,26 +1031,26 @@ export default function ProductSettingsRoute() {
 
                   <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
                     <Select
-                      label="Urun tipi"
+                      label={L.productTypeLabel}
                       name="productType"
                       options={[
-                        { label: "T-shirt / genel giyim", value: "apparel" },
-                        { label: "Sweatshirt / hoodie", value: "sweatshirt" },
-                        { label: "Bez canta", value: "bag" },
-                        { label: "Kupa bardak", value: "mug" },
-                        { label: "Baksir / boxer", value: "boxer" },
-                        { label: "Diger", value: "other" },
+                        { label: L.typeApparel, value: "apparel" },
+                        { label: L.typeSweatshirt, value: "sweatshirt" },
+                        { label: L.typeBag, value: "bag" },
+                        { label: L.typeMug, value: "mug" },
+                        { label: L.typeBoxer, value: "boxer" },
+                        { label: L.typeOther, value: "other" },
                       ]}
                       value={productType}
                       onChange={(value) => setProductType(value as ProductConfig["productType"])}
                     />
 
                     <Select
-                      label="Yuz modu"
+                      label={L.surfaceModeLabel}
                       name="surfaceMode"
                       options={[
-                        { label: "On + arka", value: "front_back" },
-                        { label: "Sadece on", value: "front_only" },
+                        { label: L.surfaceFrontBack, value: "front_back" },
+                        { label: L.surfaceFrontOnly, value: "front_only" },
                       ]}
                       value={surfaceMode}
                       onChange={(value) => setSurfaceMode(value as ProductConfig["surfaceMode"])}
@@ -1062,10 +1067,10 @@ export default function ProductSettingsRoute() {
                   <Text as="p" tone="subdued">{t("products.printAreaEditorDesc")}</Text>
 
                   <Checkbox
-                    label="Baskı alanı çerçevesini müşteriye göster"
+                    label={L.showGuideLabel}
                     checked={showPrintAreaGuide}
                     onChange={setShowPrintAreaGuide}
-                    helpText="Tasarımcıda baskı alanını gösteren kesikli mavi çerçeve. Varsayılan olarak kapalıdır. Açmak yalnızca çizgiyi gösterir — tasarım her hâlükârda alan içinde tutulur ve baskı dosyası aynı alandan kırpılır."
+                    helpText={L.showGuideHelp}
                   />
                   <input type="hidden" name="showPrintAreaGuide" value={showPrintAreaGuide ? "1" : "0"} />
 
@@ -1351,7 +1356,7 @@ export default function ProductSettingsRoute() {
                                   setFrontBands((current) => current.filter((_, currentIndex) => currentIndex !== index))
                                 }
                               >
-                                Sil
+                                {t("products.delete")}
                               </Button>
                             </InlineStack>
                           </BlockStack>
@@ -1379,7 +1384,7 @@ export default function ProductSettingsRoute() {
                               )
                             }
                           >
-                            Bant ekle
+                            {t("products.addBand")}
                           </Button>
                         </InlineStack>
                         {backBands.map((band, index) => (
@@ -1484,14 +1489,14 @@ export default function ProductSettingsRoute() {
                 <BlockStack gap="400">
                   <InlineStack align="space-between">
                     <BlockStack gap="100">
-                      <Text as="h2" variant="headingMd">Koşullu Kurallar</Text>
-                      <Text as="p" tone="subdued">Müşteri renk/varyant seçince otomatik uyarı göster veya sepeti engelle.</Text>
+                      <Text as="h2" variant="headingMd">{L.rulesTitle}</Text>
+                      <Text as="p" tone="subdued">{L.rulesDesc}</Text>
                     </BlockStack>
                     <Button
                       onClick={() => {
                         const newRule: ConditionalRule = {
                           id: `rule_${Date.now()}`,
-                          name: "Yeni Kural",
+                          name: L.newRuleName,
                           enabled: true,
                           when: { field: "color", op: "eq", value: "" },
                           then: { action: "showWarning", message: "" },
@@ -1499,14 +1504,14 @@ export default function ProductSettingsRoute() {
                         setConditionalRules((prev) => [...prev, newRule]);
                       }}
                     >
-                      + Kural Ekle
+                      {L.addRule}
                     </Button>
                   </InlineStack>
 
                   <input type="hidden" name="conditionalRules" value={JSON.stringify(conditionalRules)} />
 
                   {conditionalRules.length === 0 && (
-                    <Text as="p" tone="subdued">Henüz kural eklenmemiş.</Text>
+                    <Text as="p" tone="subdued">{L.noRules}</Text>
                   )}
 
                   {conditionalRules.map((rule, idx) => (
@@ -1521,7 +1526,7 @@ export default function ProductSettingsRoute() {
                       <BlockStack gap="300">
                         <InlineStack align="space-between">
                           <Checkbox
-                            label={<Text as="span" variant="bodyMd" fontWeight="semibold">{rule.name || `Kural ${idx + 1}`}</Text>}
+                            label={<Text as="span" variant="bodyMd" fontWeight="semibold">{rule.name || L.ruleFallback(idx + 1)}</Text>}
                             checked={rule.enabled}
                             onChange={(v) => setConditionalRules((prev) =>
                               prev.map((r) => r.id === rule.id ? { ...r, enabled: v } : r)
@@ -1532,12 +1537,12 @@ export default function ProductSettingsRoute() {
                             size="slim"
                             onClick={() => setConditionalRules((prev) => prev.filter((r) => r.id !== rule.id))}
                           >
-                            Sil
+                            {L.remove}
                           </Button>
                         </InlineStack>
 
                         <TextField
-                          label="Kural Adı"
+                          label={L.ruleName}
                           value={rule.name}
                           onChange={(v) => setConditionalRules((prev) =>
                             prev.map((r) => r.id === rule.id ? { ...r, name: v } : r)
@@ -1547,10 +1552,10 @@ export default function ProductSettingsRoute() {
 
                         <InlineGrid columns={3} gap="200">
                           <Select
-                            label="Alan"
+                            label={L.field}
                             options={[
-                              { label: "Renk", value: "color" },
-                              { label: "Varyant Seçeneği", value: "variantOption" },
+                              { label: L.fieldColor, value: "color" },
+                              { label: L.fieldVariantOption, value: "variantOption" },
                             ]}
                             value={rule.when.field}
                             onChange={(v) => setConditionalRules((prev) =>
@@ -1558,11 +1563,11 @@ export default function ProductSettingsRoute() {
                             )}
                           />
                           <Select
-                            label="Koşul"
+                            label={L.condition}
                             options={[
-                              { label: "Eşit", value: "eq" },
-                              { label: "Eşit Değil", value: "neq" },
-                              { label: "İçeriyor", value: "contains" },
+                              { label: L.opEq, value: "eq" },
+                              { label: L.opNeq, value: "neq" },
+                              { label: L.opContains, value: "contains" },
                             ]}
                             value={rule.when.op}
                             onChange={(v) => setConditionalRules((prev) =>
@@ -1570,7 +1575,7 @@ export default function ProductSettingsRoute() {
                             )}
                           />
                           <TextField
-                            label={rule.when.field === "variantOption" ? "Değer (ör: XL)" : "Değer (ör: Siyah)"}
+                            label={rule.when.field === "variantOption" ? L.valueVariant : L.valueColor}
                             value={rule.when.value}
                             onChange={(v) => setConditionalRules((prev) =>
                               prev.map((r) => r.id === rule.id ? { ...r, when: { ...r.when, value: v } } : r)
@@ -1581,7 +1586,7 @@ export default function ProductSettingsRoute() {
 
                         {rule.when.field === "variantOption" && (
                           <TextField
-                            label="Seçenek Adı (ör: Beden, Renk)"
+                            label={L.optionName}
                             value={rule.when.optionName ?? ""}
                             onChange={(v) => setConditionalRules((prev) =>
                               prev.map((r) => r.id === rule.id ? { ...r, when: { ...r.when, optionName: v } } : r)
@@ -1592,10 +1597,10 @@ export default function ProductSettingsRoute() {
 
                         <InlineGrid columns={2} gap="200">
                           <Select
-                            label="Eylem"
+                            label={L.action}
                             options={[
-                              { label: "Uyarı Göster", value: "showWarning" },
-                              { label: "Sepeti Engelle", value: "blockCheckout" },
+                              { label: L.actionWarn, value: "showWarning" },
+                              { label: L.actionBlock, value: "blockCheckout" },
                             ]}
                             value={rule.then.action}
                             onChange={(v) => setConditionalRules((prev) =>
@@ -1603,7 +1608,7 @@ export default function ProductSettingsRoute() {
                             )}
                           />
                           <TextField
-                            label="Mesaj"
+                            label={L.message}
                             value={rule.then.message}
                             onChange={(v) => setConditionalRules((prev) =>
                               prev.map((r) => r.id === rule.id ? { ...r, then: { ...r.then, message: v } } : r)

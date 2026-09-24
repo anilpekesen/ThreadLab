@@ -15,10 +15,13 @@ const CORS = {
  */
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+  // Mağaza dili adresten okunur (?locale=); yoksa Türkçe
+  const lang: "tr" | "en" = (new URL(request.url).searchParams.get("locale") ?? "tr").toLowerCase().startsWith("tr") ? "tr" : "en";
+  const m = (tr: string, en: string) => (lang === "en" ? en : tr);
   const link = new URL(request.url).searchParams.get("link") ?? "";
   const ref = parseSpotifyLink(link.slice(0, 300));
-  if (!ref) return json({ error: "Spotify bağlantısı tanınmadı" }, { status: 400, headers: CORS });
+  if (!ref) return json({ error: m("Spotify bağlantısı tanınmadı", "Spotify link not recognized") }, { status: 400, headers: CORS });
   const info = await fetchSpotifyInfo(ref);
-  if (!info) return json({ error: "Şarkı bilgisi alınamadı" }, { status: 404, headers: CORS });
+  if (!info) return json({ error: m("Şarkı bilgisi alınamadı", "Could not fetch song details") }, { status: 404, headers: CORS });
   return json(info, { headers: { ...CORS, "Cache-Control": "public, max-age=86400" } });
 };

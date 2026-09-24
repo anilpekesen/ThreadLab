@@ -42,6 +42,14 @@ function getMeasureCtx(): CanvasRenderingContext2D | null {
   return measureCtx ?? null;
 }
 
+// Metin verilmeden oluşturulan kavisli yazının varsayılan içeriği; mağaza dili
+// belli olunca setCurvedTextLocale ile İngilizceye çevrilir.
+let defaultCurvedText = 'Kavisli Yazı';
+
+export function setCurvedTextLocale(locale: string | undefined): void {
+  defaultCurvedText = !locale || locale.startsWith('tr') ? 'Kavisli Yazı' : 'Curved text';
+}
+
 export class CurvedText extends fabric.Object {
   type = 'curvedText';
   text: string;
@@ -69,7 +77,7 @@ export class CurvedText extends fabric.Object {
 
   constructor(options: CurvedTextOptions = {}) {
     super(options as fabric.IObjectOptions);
-    this.text = String(options.text ?? 'Kavisli Yazı');
+    this.text = String(options.text ?? defaultCurvedText);
     this.radius = Number(options.radius ?? 100);
     this.fontSize = Number(options.fontSize ?? 36);
     this.fontFamily = String(options.fontFamily ?? 'Inter');

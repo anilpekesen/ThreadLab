@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { authenticate } from "~/lib/authenticate.server";
+import { langFromRequest } from "~/i18n/server";
 import { query } from "~/lib/db.server";
 import { getOrdersByIds } from "~/models/orders.server";
 import { getPersonalizerTemplate, templatePieces } from "~/models/personalizer.server";
@@ -30,12 +31,13 @@ interface DesignPiece {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const shop = session.shop;
+  const en = langFromRequest(request) === "en";
   const params = new URL(request.url).searchParams;
   const orderId = params.get("id") ?? "";
   const pieceIndex = Math.max(0, Number(params.get("piece") ?? 0) || 0);
 
   const [order] = await getOrdersByIds(shop, [orderId]);
-  if (!order?.designToken) return new Response("Sipariş ya da tasarım bulunamadı", { status: 404 });
+  if (!order?.designToken) return new Response(en ? "Order or design not found" : "Sipariş ya da tasarım bulunamadı", { status: 404 });
 
   // Sipariş sayfasıyla aynı kural: önce bu mağazanın tasarımı, yoksa yalnızca
   // token. Üreticiye devredilen siparişte (PrintLabHub) tasarım başka mağazada
@@ -51,26 +53,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   )).rows[0];
   const json = design?.design_json ?? null;
   if (!design || json?.type !== "personalizer-slots") {
-    return new Response("Kesim çizgili PDF yalnızca çerçeve ve kolaj siparişlerinde var", { status: 400 });
+    return new Response(en ? "PDFs with cut lines are only available for frame and collage orders" : "Kesim çizgili PDF yalnızca çerçeve ve kolaj siparişlerinde var", { status: 400 });
   }
 
   const pieces: DesignPiece[] = Array.isArray(json.pieces) ? (json.pieces as DesignPiece[]) : [];
   const piece: DesignPiece | undefined = pieces[pieceIndex]
     ?? (pieceIndex === 0 ? { url: design.front_print_url } : undefined);
-  if (!piece?.url) return new Response("Parça bulunamadı", { status: 404 });
+  if (!piece?.url) return new Response(en ? "Piece not found" : "Parça bulunamadı", { status: 404 });
 
   const spec = await resolveSpec(piece, String(json.templateId ?? ""), design.shop);
-  if (!spec) return new Response("Bu parçanın baskı ölçüsü bulunamadı", { status: 404 });
+  if (!spec) return new Response(en ? "No print size found for this piece" : "Bu parçanın baskı ölçüsü bulunamadı", { status: 404 });
 
   // Dosya yalnızca kendi depomuzdaki baskı klasöründen okunuyor
   const key = getR2KeyFromPublicUrl(piece.url, ["personalizer-print/"]);
-  if (!key) return new Response("Baskı dosyası beklenen konumda değil", { status: 400 });
+  if (!key) return new Response(en ? "The print file isn't in the expected location" : "Baskı dosyası beklenen konumda değil", { status: 400 });
 
   try {
     const png = await getR2Object(key);
     const pdf = await buildCutMarkPdf(png, spec, {
       title: `${order.orderNumber} ${String(json.templateName ?? "")}`.trim(),
-      subtitle: pieces.length > 1 ? (piece.name || `${pieceIndex + 1}. parça`) : undefined,
+      subtitle: pieces.length > 1 ? (piece.name || (en ? `Piece ${pieceIndex + 1}` : `${pieceIndex + 1}. parça`)) : undefined,
     });
     const base = `${order.orderNumber || "siparis"}${pieces.length > 1 ? `-${pieceIndex + 1}` : ""}`
       .replace(/[^a-zA-Z0-9_\-#]/g, "_");
@@ -83,7 +85,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   } catch (err) {
     console.error("[print-pdf] üretilemedi:", err);
-    return new Response("PDF üretilemedi", { status: 500 });
+    return new Response(en ? "Couldn't create the PDF" : "PDF üretilemedi", { status: 500 });
   }
 };
 

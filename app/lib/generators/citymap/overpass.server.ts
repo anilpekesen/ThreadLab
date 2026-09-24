@@ -255,7 +255,7 @@ export async function loadCitymapData(lat: number, lon: number, radiusKm: number
       }
     }
     console.error("[citymap] harita verisi alınamadı", lastErr);
-    throw new GeneratorInputError("Harita verisi şu an alınamadı, lütfen biraz sonra tekrar deneyin");
+    throw new GeneratorInputError("Harita verisi şu an alınamadı, lütfen biraz sonra tekrar deneyin", "Map data is unavailable right now, please try again shortly");
   })();
   inflight.set(file, job);
   try {

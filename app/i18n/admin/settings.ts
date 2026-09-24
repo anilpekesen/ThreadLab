@@ -1,0 +1,61 @@
+const tr = {
+  // Sunucu (action) mesajları
+  surchargeProductTitle: "Baskı Ücreti",
+  variantIdMissing: "Variant ID alınamadı",
+  fnQueryError: "Fn sorgu: ",
+  noneFound: "hiç yok",
+  fnNotFound: (list: string) => `Fonksiyon bulunamadı. Mevcut: ${list}`,
+  cartTransformAlready: "Cart Transform zaten kayıtlıydı (güncel). Sorun başka bir yerde — checkout'u test edin.",
+  cartTransformRegistered: "Cart Transform başarıyla kaydedildi! Şimdi checkout'u test edin.",
+  saveVariantFirst: "Önce variant ID kaydedin",
+  saveFailed: "Ayarlar kaydedilemedi, lütfen tekrar deneyin.",
+  // Arayüz
+  cartTransformError: (status: string) => `Cart Transform Hatası: ${status}`,
+  preview: "Önizleme:",
+  notificationsTitle: "Sipariş Bildirimleri",
+  notificationsDesc: "Ödeme onaylanan her sipariş için otomatik bildirim gönderir. E-posta ve/veya webhook URL girebilirsiniz.",
+  notificationEmailLabel: "Bildirim E-postası",
+  notificationEmailPlaceholder: "atölye@sirket.com",
+  notificationEmailHelp: "Sipariş bilgisi ve tasarım dosya linkleri bu adrese gönderilir.",
+  senderNameLabel: "Müşteri e-postası gönderen adı",
+  senderNamePlaceholder: "Shopify mağazanızın adı",
+  senderNameHelp: (shopName: string | null) =>
+    `Boş bırakırsanız Shopify mağaza adınız${shopName ? ` (${shopName})` : ""} otomatik kullanılır. Gönderici adresi teslimat güvenliği için PrintLab'in doğrulanmış adresi olarak kalır.`,
+  whatsappLabel: "WhatsApp Numarası",
+  whatsappHelp: "Ülke kodu dahil rakam — örn. 905321234567. Admin panelden WhatsApp hattını bağladıktan sonra bu numaraya bildirim gönderilir.",
+  notificationsActive: "✓ Bildirimler aktif — ",
+  channelEmail: "E-posta",
+  appEmbedAlt: "App Embeds paneli - Baskı Ücreti Koruma anahtarı",
+  themeSetupAlt: "Tema kurulumu - DesignKit blok ayarları",
+};
+
+const en: typeof tr = {
+  surchargeProductTitle: "Print fee",
+  variantIdMissing: "Couldn't get the variant ID",
+  fnQueryError: "Function query: ",
+  noneFound: "none",
+  fnNotFound: (list) => `Function not found. Available: ${list}`,
+  cartTransformAlready: "Cart Transform was already registered (up to date). The issue is elsewhere — test checkout.",
+  cartTransformRegistered: "Cart Transform registered. Now test checkout.",
+  saveVariantFirst: "Save a variant ID first",
+  saveFailed: "Couldn't save settings. Please try again.",
+  cartTransformError: (status) => `Cart Transform error: ${status}`,
+  preview: "Preview:",
+  notificationsTitle: "Order notifications",
+  notificationsDesc: "Sends an automatic notification for every order with a confirmed payment. You can enter an email and/or a webhook URL.",
+  notificationEmailLabel: "Notification email",
+  notificationEmailPlaceholder: "workshop@company.com",
+  notificationEmailHelp: "Order details and design file links are sent to this address.",
+  senderNameLabel: "Customer email sender name",
+  senderNamePlaceholder: "Your Shopify store name",
+  senderNameHelp: (shopName) =>
+    `If left blank, your Shopify store name${shopName ? ` (${shopName})` : ""} is used automatically. The sender address stays PrintLab's verified address for deliverability.`,
+  whatsappLabel: "WhatsApp number",
+  whatsappHelp: "Digits including country code — e.g. 905321234567. Notifications are sent to this number once the WhatsApp line is connected in the admin panel.",
+  notificationsActive: "✓ Notifications on — ",
+  channelEmail: "Email",
+  appEmbedAlt: "App embeds panel - Print fee protection toggle",
+  themeSetupAlt: "Theme setup - DesignKit block settings",
+};
+
+export default { tr, en };

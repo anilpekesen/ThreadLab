@@ -14,6 +14,9 @@ import {
   type PersonalizerTemplate,
 } from "~/models/personalizer.server";
 import { generatorMeta } from "~/lib/generators/types";
+import { pickDict, useDict, useTranslation, type Lang } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import dict from "~/i18n/personalizer/list";
 import {
   clearProductTemplateMetafield, setProductTemplateMetafield,
 } from "~/lib/personalizer-metafield.server";
@@ -26,6 +29,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate(request);
   const form = await request.formData();
+  const L = pickDict(dict, langFromRequest(request, form));
   const intent = String(form.get("intent") ?? "");
   const id = String(form.get("id") ?? "");
 
@@ -39,7 +43,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
   if (intent === "duplicate") {
     const copy = await duplicatePersonalizerTemplate(id, session.shop);
-    if (!copy) return json({ error: "Şablon kopyalanamadı" }, { status: 404 });
+    if (!copy) return json({ error: L.duplicateFailed }, { status: 404 });
     return json({ ok: true, duplicatedId: copy.id });
   }
   if (intent === "sync_metafields") {
@@ -55,26 +59,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const result = hasPhotoSlots
           ? await setProductTemplateMetafield(session.shop, productId, template.id)
           : await clearProductTemplateMetafield(session.shop, productId);
-        if (!result.ok) hatalar.push(`${template.name}: ${result.error ?? "bilinmeyen hata"}`);
+        if (!result.ok) hatalar.push(`${template.name}: ${result.error ?? L.unknownError}`);
         else if (hasPhotoSlots) yazilan++;
         else temizlenen++;
       }
     }
     return json({ ok: true, synced: true, yazilan, temizlenen, hatalar });
   }
-  return json({ error: "Bilinmeyen işlem" }, { status: 400 });
+  return json({ error: L.unknownIntent }, { status: 400 });
 };
 
-const CATEGORY_META: Array<{
+const CATEGORY_ORDER: PersonalizerCategory[] = ["apparel", "boxer", "frame", "ai", "wordart", "generator"];
+
+function categoryMeta(L: typeof dict.tr): Array<{
   id: PersonalizerCategory; label: string; description: string;
-}> = [
-  { id: "apparel", label: "Tişört ve giyim", description: "Baskı alanına yerleşen tek görsel tasarımları" },
-  { id: "boxer", label: "Boxer ve tekrarlı desen", description: "Fotoğraf ve süslemeden oluşan tekrar desenleri" },
-  { id: "frame", label: "Fotoğraflı çerçeve", description: "Tekli, çok fotoğraflı ve set çerçeveler" },
-  { id: "ai", label: "AI portre", description: "Fotoğraftan üretilen sanatsal portreler" },
-  { id: "wordart", label: "Kelime sanatı", description: "Kelimelerin bir şeklin içine dizildiği tasarımlar" },
-  { id: "generator", label: "Hazır tasarım üreticileri", description: "Şarkı, monogram, yıldız/şehir haritası ve doğum çiçeği" },
-];
+}> {
+  return CATEGORY_ORDER.map((id) => ({ id, ...L.categories[id as keyof typeof L.categories] }));
+}
 
 function categoryIcon(category: PersonalizerCategory) {
   const line = {
@@ -89,27 +90,33 @@ function categoryIcon(category: PersonalizerCategory) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect {...line} x="4" y="3" width="16" height="18" rx="1" /><path {...line} d="m7 17 4-5 3 3 2-2 2 4M9 8h.01" /></svg>;
 }
 
-function methodLabel(template: PersonalizerTemplate) {
-  if (template.category === "ai") return "AI görsel üretimi";
-  if (template.category === "boxer") return "Tekrarlı desen";
-  if (template.category === "wordart") return "Şekle dizilen kelimeler";
-  if (template.category === "generator") return generatorMeta(template.generator_config?.kind)?.label ?? "Tasarım üreticisi";
-  if (template.category === "apparel") return "Tek görsel yerleşimi";
+function methodLabel(template: PersonalizerTemplate, L: typeof dict.tr, lang: Lang) {
+  if (template.category === "ai") return L.methodAi;
+  if (template.category === "boxer") return L.methodBoxer;
+  if (template.category === "wordart") return L.methodWordart;
+  if (template.category === "generator") {
+    const meta = generatorMeta(template.generator_config?.kind);
+    return (lang === "en" ? meta?.labelEn : meta?.label) ?? L.methodGenerator;
+  }
+  if (template.category === "apparel") return L.methodApparel;
   const count = template.pieces.reduce((total, piece) => total + piece.slots.length, 0)
     || template.slots.length || template.expected_slots;
-  return count > 0 ? `${count} fotoğraf alanı` : "Fotoğraf yerleşimi";
+  return count > 0 ? L.methodSlots(count) : L.methodPhoto;
 }
 
-function formatDate(value: string) {
+function formatDate(value: string, locale: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("tr-TR", {
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit", month: "short", year: "numeric", timeZone: "Europe/Istanbul",
   }).format(date);
 }
 
 export default function PersonalizerIndex() {
   const { templates } = useLoaderData<typeof loader>();
+  const { lang } = useTranslation();
+  const L = useDict(dict);
+  const CATEGORY_META = categoryMeta(L);
   const fetcher = useFetcher<{
     error?: string; ok?: boolean; synced?: boolean; yazilan?: number;
     temizlenen?: number; hatalar?: string[];
@@ -134,26 +141,26 @@ export default function PersonalizerIndex() {
 
   function submit(intent: string, template: PersonalizerTemplate, extra: Record<string, string> = {}) {
     setOpenMenu(null);
-    fetcher.submit({ intent, id: template.id, ...extra }, { method: "POST" });
+    fetcher.submit({ intent, id: template.id, ...extra, _lang: lang }, { method: "POST" });
   }
 
   function remove(template: PersonalizerTemplate) {
-    if (!confirm(`“${template.name}” şablonunu silmek istediğinizden emin misiniz?`)) return;
+    if (!confirm(L.confirmDelete(template.name))) return;
     submit("delete", template);
   }
 
   return (
     <Page
-      title="Kişiselleştirme şablonları"
-      subtitle="Farklı ürün gruplarındaki müşteri tasarım akışlarını tek yerden yönetin."
-      primaryAction={{ content: "Yeni şablon", url: "/app/personalizer/new" }}
+      title={L.pageTitle}
+      subtitle={L.pageSubtitle}
+      primaryAction={{ content: L.newTemplate, url: "/app/personalizer/new" }}
       secondaryActions={[
-        { content: "Nasıl kurulur?", url: "/app/personalizer/setup" },
+        { content: L.howToSetup, url: "/app/personalizer/setup" },
         {
-          content: "Bağlantıları denetle",
+          content: L.syncLinks,
           loading: fetcher.state !== "idle",
           onAction: () => fetcher.submit(
-            { intent: "sync_metafields" },
+            { intent: "sync_metafields", _lang: lang },
             { method: "POST", action: "/app/personalizer" },
           ),
         },
@@ -163,30 +170,26 @@ export default function PersonalizerIndex() {
         {fetcher.data?.error ? <Banner tone="critical">{fetcher.data.error}</Banner> : null}
         {fetcher.data?.synced ? (
           <Banner tone={fetcher.data.hatalar?.length ? "warning" : "success"}>
-            <p>{`${fetcher.data.yazilan ?? 0} üründe kişiselleştirme alanı açık, ${fetcher.data.temizlenen ?? 0} üründe kapalı olarak eşitlendi.`}</p>
+            <p>{L.syncResult(fetcher.data.yazilan ?? 0, fetcher.data.temizlenen ?? 0)}</p>
             {fetcher.data.hatalar?.length ? <p>{fetcher.data.hatalar.join(" · ")}</p> : null}
           </Banner>
         ) : null}
 
-        <Banner tone="info" title="Kişiselleştirici 4 adımda çalışır">
-          <p>
-            1) Ürün türüne göre şablon oluşturun · 2) Tasarımı kurup kaydedin · 3) Şablonu Shopify
-            ürününe bağlayın · 4) Ürün sayfasına bloğu bir kez ekleyin. Durumu "Ürüne bağlı değil"
-            olan şablonlar müşteriye görünmez.
-          </p>
+        <Banner tone="info" title={L.stepsTitle}>
+          <p>{L.stepsBody}</p>
           <div style={{ marginTop: 8 }}>
-            <Button url="/app/personalizer/setup">Adım adım rehber</Button>
+            <Button url="/app/personalizer/setup">{L.stepByStep}</Button>
           </div>
         </Banner>
 
         {templates.length === 0 ? (
           <Card>
             <EmptyState
-              heading="İlk şablonunuzu oluşturun"
-              action={{ content: "Yeni şablon", url: "/app/personalizer/new" }}
+              heading={L.emptyHeading}
+              action={{ content: L.newTemplate, url: "/app/personalizer/new" }}
               image="/empty-templates.svg"
             >
-              <Text as="p">Giyim, boxer, çerçeve veya AI portre için yönlendirmeli kurulumla başlayın.</Text>
+              <Text as="p">{L.emptyBody}</Text>
             </EmptyState>
           </Card>
         ) : (
@@ -194,27 +197,27 @@ export default function PersonalizerIndex() {
             <div className="pl-resource-toolbar">
               <div className="pl-resource-search">
                 <TextField
-                  label="Şablon ara" labelHidden placeholder="Şablon ara"
+                  label={L.searchLabel} labelHidden placeholder={L.searchLabel}
                   value={search} onChange={setSearch} autoComplete="off"
                   clearButton onClearButtonClick={() => setSearch("")}
                 />
               </div>
               <div className="pl-resource-filter">
                 <Select
-                  label="Sektör" labelHidden value={category} onChange={setCategory}
+                  label={L.sectorLabel} labelHidden value={category} onChange={setCategory}
                   options={[
-                    { label: "Sektör: Tümü", value: "all" },
+                    { label: L.sectorAll, value: "all" },
                     ...CATEGORY_META.map((item) => ({ label: item.label, value: item.id })),
                   ]}
                 />
               </div>
               <div className="pl-resource-filter">
                 <Select
-                  label="Durum" labelHidden value={status} onChange={setStatus}
+                  label={L.statusLabel} labelHidden value={status} onChange={setStatus}
                   options={[
-                    { label: "Durum: Tümü", value: "all" },
-                    { label: "Aktif", value: "active" },
-                    { label: "Pasif", value: "inactive" },
+                    { label: L.statusAll, value: "all" },
+                    { label: L.active, value: "active" },
+                    { label: L.inactive, value: "inactive" },
                   ]}
                 />
               </div>
@@ -223,10 +226,10 @@ export default function PersonalizerIndex() {
             {filtered.length === 0 ? (
               <Box padding="800">
                 <BlockStack gap="200" inlineAlign="center">
-                  <Text as="h3" variant="headingSm">Eşleşen şablon bulunamadı</Text>
-                  <Text as="p" tone="subdued">Arama sözcüğünü veya filtreleri değiştirin.</Text>
+                  <Text as="h3" variant="headingSm">{L.noMatchTitle}</Text>
+                  <Text as="p" tone="subdued">{L.noMatchBody}</Text>
                   <Button onClick={() => { setSearch(""); setCategory("all"); setStatus("all"); }}>
-                    Filtreleri temizle
+                    {L.clearFilters}
                   </Button>
                 </BlockStack>
               </Box>
@@ -235,12 +238,12 @@ export default function PersonalizerIndex() {
                 <table className="pl-resource-table">
                   <thead>
                     <tr>
-                      <th>Şablon</th>
-                      <th className="pl-col-method">Yöntem</th>
-                      <th>Durum</th>
-                      <th className="pl-col-products">Bağlı ürün</th>
-                      <th className="pl-col-date">Son güncelleme</th>
-                      <th><span className="pl-visually-hidden">İşlemler</span></th>
+                      <th>{L.colTemplate}</th>
+                      <th className="pl-col-method">{L.colMethod}</th>
+                      <th>{L.colStatus}</th>
+                      <th className="pl-col-products">{L.colProducts}</th>
+                      <th className="pl-col-date">{L.colUpdated}</th>
+                      <th><span className="pl-visually-hidden">{L.colActions}</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -273,19 +276,19 @@ export default function PersonalizerIndex() {
                                 </BlockStack>
                               </InlineStack>
                             </td>
-                            <td className="pl-col-method">{methodLabel(template)}</td>
+                            <td className="pl-col-method">{methodLabel(template, L, lang)}</td>
                             <td>
                               {/* "Aktif" rozeti, ürüne bağlı olmayan şablonu da hazır
                                   gibi gösteriyordu; müşteriye görünmemesinin en sık
                                   sebebi bu. */}
                               {!template.active
-                                ? <Badge>Pasif</Badge>
+                                ? <Badge>{L.badgeInactive}</Badge>
                                 : template.product_count === 0
-                                  ? <Badge tone="attention">Ürüne bağlı değil</Badge>
-                                  : <Badge tone="success">Yayında</Badge>}
+                                  ? <Badge tone="attention">{L.badgeNotLinked}</Badge>
+                                  : <Badge tone="success">{L.badgeLive}</Badge>}
                             </td>
                             <td className="pl-col-products">{template.product_count}</td>
-                            <td className="pl-col-date">{formatDate(template.updated_at)}</td>
+                            <td className="pl-col-date">{formatDate(template.updated_at, L.dateLocale)}</td>
                             <td className="pl-resource-actions">
                               <Popover
                                 active={openMenu === template.id}
@@ -294,16 +297,16 @@ export default function PersonalizerIndex() {
                                 activator={(
                                   <Button
                                     variant="tertiary"
-                                    accessibilityLabel={`${template.name} işlemleri`}
+                                    accessibilityLabel={L.actionsFor(template.name)}
                                     onClick={() => setOpenMenu(openMenu === template.id ? null : template.id)}
                                   >⋯</Button>
                                 )}
                               >
                                 <ActionList items={[
-                                  { content: "Düzenle", url: `/app/personalizer/${template.id}` },
-                                  { content: template.active ? "Pasife al" : "Aktifleştir", onAction: () => submit("toggle", template, { active: String(!template.active) }) },
-                                  { content: "Kopyala", onAction: () => submit("duplicate", template) },
-                                  { content: "Sil", destructive: true, onAction: () => remove(template) },
+                                  { content: L.edit, url: `/app/personalizer/${template.id}` },
+                                  { content: template.active ? L.deactivate : L.activate, onAction: () => submit("toggle", template, { active: String(!template.active) }) },
+                                  { content: L.duplicate, onAction: () => submit("duplicate", template) },
+                                  { content: L.remove, destructive: true, onAction: () => remove(template) },
                                 ]} />
                               </Popover>
                             </td>

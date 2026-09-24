@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { BlockStack, InlineStack, Text, Button, Checkbox } from "@shopify/polaris";
 import { NumberField } from "./NumberField";
+import { useDict } from "~/i18n";
+import cardDict from "~/i18n/studio/card-grid";
 
 /**
  * Tek tek kesilecek kart ürünleri (pola kart, magnet, sticker) tabakaya
@@ -25,6 +27,7 @@ export function CardGridForm({ fits, onApply, onCancel }: {
   onApply: (o: CardGridFormOptions) => void;
   onCancel: () => void;
 }) {
+  const L = useDict(cardDict);
   // Pola kart ölçüsü: 9x11 cm, fotoğrafın altında geniş bir yazı payı
   const [cardWidthMm, setCardWidthMm] = useState(90);
   const [cardHeightMm, setCardHeightMm] = useState(110);
@@ -49,28 +52,27 @@ export function CardGridForm({ fits, onApply, onCancel }: {
   return (
     <div className="fs-size-form">
       <BlockStack gap="300">
-        <Text as="h3" variant="headingSm">Kart tabakası</Text>
+        <Text as="h3" variant="headingSm">{L.title}</Text>
         <Text as="p" variant="bodySm" tone="subdued">
-          Kartlar tabakaya dizilir, basılır ve tek tek kesilir. Her kart için bir fotoğraf
-          alanı, istenirse altında bir yazı alanı açılır.
+          {L.intro}
         </Text>
         <div className="fs-grid-2">
-          <NumberField label="Kart eni" value={cardWidthMm} min={10} onCommit={setCardWidthMm} />
-          <NumberField label="Kart boyu" value={cardHeightMm} min={10} onCommit={setCardHeightMm} />
-          <NumberField label="Fotoğraf kenarı" value={marginMm} min={0} onCommit={setMarginMm} />
-          <NumberField label="Kartlar arası" value={gapMm} min={0} onCommit={setGapMm} />
+          <NumberField label={L.cardWidth} value={cardWidthMm} min={10} onCommit={setCardWidthMm} />
+          <NumberField label={L.cardHeight} value={cardHeightMm} min={10} onCommit={setCardHeightMm} />
+          <NumberField label={L.photoMargin} value={marginMm} min={0} onCommit={setMarginMm} />
+          <NumberField label={L.cardGap} value={gapMm} min={0} onCommit={setGapMm} />
         </div>
         <Checkbox
-          label="Kartın altında yazı alanı olsun"
+          label={L.withCaption}
           checked={yazi}
           onChange={setYazi}
-          helpText="Müşteri her kart için kısa bir yazı girer."
+          helpText={L.withCaptionHelp}
         />
         {yazi && (
-          <NumberField label="Yazı payı" value={captionMm} min={5} onCommit={setCaptionMm} />
+          <NumberField label={L.captionSpace} value={captionMm} min={5} onCommit={setCaptionMm} />
         )}
         <NumberField
-          label="Bu tabakadaki kart sayısı"
+          label={L.cardLimit}
           suffix=""
           step={1}
           value={limit}
@@ -79,21 +81,19 @@ export function CardGridForm({ fits, onApply, onCancel }: {
         />
         <Text as="p" variant="bodySm" tone={adet > 0 ? "subdued" : "critical"}>
           {adet > 0
-            ? `Tabakaya ${sigan.cols} × ${sigan.rows} = ${sigan.count} kart sığıyor;`
-              + ` ${adet} kart oluşturulacak. Fotoğraf alanı ${Math.round(cardWidthMm - marginMm * 2)}`
-              + ` × ${Math.round(fotoH)} mm. (0 yazarsanız sığan kadar.)`
-            : "Bu ölçüdeki kart tabakaya sığmıyor; kartı küçültün ya da daha büyük bir ölçü seçin."}
+            ? L.fits(sigan.cols, sigan.rows, sigan.count, adet, Math.round(cardWidthMm - marginMm * 2), Math.round(fotoH))
+            : L.noFit}
         </Text>
         <Checkbox
-          label="Mevcut alanların yerine koy"
+          label={L.replace}
           checked={replace}
           onChange={setReplace}
         />
         <InlineStack gap="200">
           <Button variant="primary" disabled={adet === 0} onClick={() => onApply(secim)}>
-            Kartları oluştur
+            {L.create}
           </Button>
-          <Button onClick={onCancel}>Vazgeç</Button>
+          <Button onClick={onCancel}>{L.cancel}</Button>
         </InlineStack>
       </BlockStack>
     </div>

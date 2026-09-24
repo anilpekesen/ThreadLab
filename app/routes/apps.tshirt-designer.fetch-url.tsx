@@ -13,6 +13,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  // Mağaza dili adresten okunur (?locale=); yoksa Türkçe
+  const lang: "tr" | "en" = (new URL(request.url).searchParams.get("locale") ?? "tr").toLowerCase().startsWith("tr") ? "tr" : "en";
+  const m = (tr: string, en: string) => (lang === "en" ? en : tr);
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, { status: 405 });
   }
@@ -20,7 +23,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const body = await request.json().catch(() => null) as { url?: string } | null;
   const imageUrl = body?.url?.trim();
   if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
-    return json({ error: "Geçersiz URL" }, { status: 400 });
+    return json({ error: m("Geçersiz URL", "Invalid URL") }, { status: 400 });
   }
 
   let res: Response;
@@ -30,21 +33,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       signal: AbortSignal.timeout(10_000),
     });
   } catch {
-    return json({ error: "URL'den resim indirilemedi" }, { status: 422 });
+    return json({ error: m("URL'den resim indirilemedi", "Could not download the image from the URL") }, { status: 422 });
   }
-  if (!res.ok) return json({ error: `Sunucu yanıtı: ${res.status}` }, { status: 422 });
+  if (!res.ok) return json({ error: m(`Sunucu yanıtı: ${res.status}`, `Server responded with ${res.status}`) }, { status: 422 });
 
   const contentType = (res.headers.get("content-type") || "").split(";")[0].trim();
   const ext = ALLOWED_IMAGE_MIME[contentType];
-  if (!ext) return json({ error: "Desteklenmeyen resim formatı" }, { status: 422 });
+  if (!ext) return json({ error: m("Desteklenmeyen resim formatı", "Unsupported image format") }, { status: 422 });
   const contentLength = Number(res.headers.get("content-length") || 0);
   if (contentLength > MAX_FETCHED_IMAGE_BYTES) {
-    return json({ error: "Resim çok büyük" }, { status: 422 });
+    return json({ error: m("Resim çok büyük", "Image is too large") }, { status: 422 });
   }
 
   const buffer = Buffer.from(await res.arrayBuffer());
   if (buffer.length > MAX_FETCHED_IMAGE_BYTES) {
-    return json({ error: "Resim çok büyük" }, { status: 422 });
+    return json({ error: m("Resim çok büyük", "Image is too large") }, { status: 422 });
   }
   return json({ url: `data:${contentType};base64,${buffer.toString("base64")}` });
 };

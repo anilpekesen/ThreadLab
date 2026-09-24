@@ -110,6 +110,7 @@ export function squareAroundCenter(rect: Rect, canvas: PrintCanvas): Rect {
 export interface LayoutPreset {
   id: string;
   label: string;
+  labelEn: string;
   /** Tuvale göre ızgara; oryantasyon tuvalden okunup satır/sütun çevrilebilir */
   grid: (canvas: PrintCanvas) => Pick<GridConfig, "cols" | "rows" | "merges">;
 }
@@ -117,27 +118,27 @@ export interface LayoutPreset {
 const portrait = (c: PrintCanvas) => c.aspect < 0.98;
 
 export const LAYOUT_PRESETS: LayoutPreset[] = [
-  { id: "single", label: "Tek fotoğraf", grid: () => ({ cols: 1, rows: 1 }) },
+  { id: "single", label: "Tek fotoğraf", labelEn: "Single photo", grid: () => ({ cols: 1, rows: 1 }) },
   {
-    id: "two", label: "2 fotoğraf",
+    id: "two", label: "2 fotoğraf", labelEn: "2 photos",
     grid: (c) => (portrait(c) ? { cols: 1, rows: 2 } : { cols: 2, rows: 1 }),
   },
-  { id: "four", label: "4'lü ızgara", grid: () => ({ cols: 2, rows: 2 }) },
+  { id: "four", label: "4'lü ızgara", labelEn: "Grid of 4", grid: () => ({ cols: 2, rows: 2 }) },
   {
-    id: "six", label: "6'lı ızgara",
+    id: "six", label: "6'lı ızgara", labelEn: "Grid of 6",
     grid: (c) => (portrait(c) ? { cols: 2, rows: 3 } : { cols: 3, rows: 2 }),
   },
-  { id: "nine", label: "9'lu ızgara", grid: () => ({ cols: 3, rows: 3 }) },
+  { id: "nine", label: "9'lu ızgara", labelEn: "Grid of 9", grid: () => ({ cols: 3, rows: 3 }) },
   {
-    id: "twelve", label: "12'li ızgara",
+    id: "twelve", label: "12'li ızgara", labelEn: "Grid of 12",
     grid: (c) => (portrait(c) ? { cols: 3, rows: 4 } : { cols: 4, rows: 3 }),
   },
   {
-    id: "hero-4", label: "1 büyük + 5 küçük",
+    id: "hero-4", label: "1 büyük + 5 küçük", labelEn: "1 large + 5 small",
     grid: () => ({ cols: 3, rows: 3, merges: [{ col: 0, row: 0, col_span: 2, row_span: 2 }] }),
   },
   {
-    id: "hero-row", label: "1 büyük + 3 alt",
+    id: "hero-row", label: "1 büyük + 3 alt", labelEn: "1 large + 3 below",
     grid: () => ({ cols: 3, rows: 3, merges: [{ col: 0, row: 0, col_span: 3, row_span: 2 }] }),
   },
 ];

@@ -268,7 +268,7 @@ export const birthflowerGenerator: GeneratorServerModule<BirthflowerConfig> = {
       if (!Number.isInteger(month) || month < 1 || month > 12) continue;
       people.push({ month, name: cleanText(fields[`name_${i}`], config.nameMaxLength) });
     }
-    if (!people.length) throw new GeneratorInputError("En az bir kişi için doğum ayını seçin");
+    if (!people.length) throw new GeneratorInputError("En az bir kişi için doğum ayını seçin", "Choose a birth month for at least one person");
     const title = config.titleEnabled ? cleanText(fields.title, config.titleMaxLength) : "";
 
     // Kurdele: renkli stilde toz pembe; tek renkli stillerde mürekkeple aynı

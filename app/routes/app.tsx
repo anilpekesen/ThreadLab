@@ -12,7 +12,9 @@ import { ensureCartTransformRegistered } from "~/lib/cart-transform.server";
 import { getShopSubscription } from "~/models/billing.server";
 import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
-import { LanguageProvider, useTranslation, type Lang } from "~/i18n";
+import { LanguageProvider, useTranslation, pickDict, readLangFromCookie, type Lang } from "~/i18n";
+import shellDict from "~/i18n/admin/app-shell";
+import { useEffect, useState } from "react";
 import appLayoutStyles from "~/styles/app-layout.css?url";
 import personalizerAdminStyles from "~/styles/personalizer-admin.css?url";
 
@@ -207,10 +209,23 @@ export function ErrorBoundary() {
   const error = useRouteError();
   Sentry.captureException(error);
   console.error("[app.tsx ErrorBoundary]", error);
+  // Hata sınırı LanguageProvider dışında; dili istemcide çerez/localStorage'dan oku
+  const [errLang, setErrLang] = useState<Lang>("tr");
+  useEffect(() => {
+    let next: Lang = readLangFromCookie();
+    try {
+      const stored = window.localStorage.getItem("dk_lang");
+      if (stored === "en" || stored === "tr") next = stored;
+    } catch {
+      // localStorage yoksa çerezle devam
+    }
+    setErrLang(next);
+  }, []);
+  const L = pickDict(shellDict, errLang);
   return (
     <div style={{ padding: 40, textAlign: "center", fontFamily: "system-ui, sans-serif" }}>
-      <h2 style={{ color: "#d92020" }}>Bir hata oluştu</h2>
-      <p style={{ color: "#6b7280" }}>Lütfen sayfayı yenileyin.</p>
+      <h2 style={{ color: "#d92020" }}>{L.errorTitle}</h2>
+      <p style={{ color: "#6b7280" }}>{L.errorBody}</p>
     </div>
   );
 }

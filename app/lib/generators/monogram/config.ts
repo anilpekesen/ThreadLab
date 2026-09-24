@@ -11,10 +11,10 @@ import type { GeneratorConfigBase, GeneratorConfigModule } from "../types";
  */
 
 export const MONOGRAM_LAYOUTS = [
-  { id: "classic", label: "Klasik", labelEn: "Classic", hint: "3 harfte ortadaki büyük; 2 harfte ayraçla yan yana" },
-  { id: "stacked", label: "Yan yana", labelEn: "Side by side", hint: "Harfler eşit boyda" },
-  { id: "single", label: "Tek harf", labelEn: "Single letter", hint: "Yalnızca ilk harf, büyük" },
-  { id: "interlock", label: "İç içe", labelEn: "Interlocked", hint: "Harfler hafifçe üst üste biner" },
+  { id: "classic", label: "Klasik", labelEn: "Classic", hint: "3 harfte ortadaki büyük; 2 harfte ayraçla yan yana", hintEn: "3 letters: larger middle letter; 2 letters: side by side with a separator" },
+  { id: "stacked", label: "Yan yana", labelEn: "Side by side", hint: "Harfler eşit boyda", hintEn: "Letters are the same size" },
+  { id: "single", label: "Tek harf", labelEn: "Single letter", hint: "Yalnızca ilk harf, büyük", hintEn: "First letter only, large" },
+  { id: "interlock", label: "İç içe", labelEn: "Interlocked", hint: "Harfler hafifçe üst üste biner", hintEn: "Letters overlap slightly" },
 ] as const;
 export type MonogramLayout = (typeof MONOGRAM_LAYOUTS)[number]["id"];
 

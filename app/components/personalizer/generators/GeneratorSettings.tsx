@@ -3,6 +3,8 @@ import { useState, type ComponentType } from "react";
 import { GENERATOR_CONFIGS } from "~/lib/generators/configs";
 import type { GeneratorConfigBase, GeneratorKind } from "~/lib/generators/types";
 import type { GeneratorSettingsProps } from "./types";
+import { useDict, useTranslation } from "~/i18n";
+import dict from "~/i18n/personalizer/generator";
 import { SongSettings } from "./SongSettings";
 import { MonogramSettings } from "./MonogramSettings";
 import { StarmapSettings } from "./StarmapSettings";
@@ -26,6 +28,8 @@ const SETTINGS: Record<GeneratorKind, AnySettings> = {
  */
 export function GeneratorSettings({ kind, initial }: { kind: GeneratorKind; initial: unknown }) {
   const mod = GENERATOR_CONFIGS[kind];
+  const { lang } = useTranslation();
+  const L = useDict(dict);
   const [config, setConfig] = useState<GeneratorConfigBase>(() => mod.normalize(initial ?? mod.defaults));
   const [preview, setPreview] = useState<string>("");
   const [error, setError] = useState("");
@@ -39,13 +43,13 @@ export function GeneratorSettings({ kind, initial }: { kind: GeneratorKind; init
       const res = await fetch("/api/personalizer/generator-preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ config: mod.normalize(config) }),
+        body: JSON.stringify({ config: mod.normalize(config), _lang: lang }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Önizleme üretilemedi");
+      if (!res.ok || data.error) throw new Error(data.error || L.previewFailed);
       setPreview(data.image);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Önizleme üretilemedi");
+      setError(err instanceof Error ? err.message : L.previewFailed);
     } finally {
       setBusy(false);
     }
@@ -56,9 +60,9 @@ export function GeneratorSettings({ kind, initial }: { kind: GeneratorKind; init
       <Settings value={config} onChange={(next) => setConfig(mod.normalize(next))} />
 
       <BlockStack gap="300">
-        <Text as="h3" variant="headingSm">Önizleme</Text>
+        <Text as="h3" variant="headingSm">{L.previewTitle}</Text>
         <InlineStack gap="200">
-          <Button onClick={runPreview} loading={busy}>Örnek bilgilerle önizle</Button>
+          <Button onClick={runPreview} loading={busy}>{L.previewButton}</Button>
         </InlineStack>
         {error && <Banner tone="critical">{error}</Banner>}
         {preview && (
@@ -66,7 +70,7 @@ export function GeneratorSettings({ kind, initial }: { kind: GeneratorKind; init
             background: "repeating-conic-gradient(#f1f1f1 0% 25%, #fff 0% 50%) 50% / 20px 20px",
             border: "1px solid #e1e3e5", borderRadius: 8, padding: 12, display: "flex", justifyContent: "center",
           }}>
-            <img src={preview} alt="Önizleme" style={{ maxWidth: "100%", maxHeight: 480 }} />
+            <img src={preview} alt={L.previewAlt} style={{ maxWidth: "100%", maxHeight: 480 }} />
           </div>
         )}
       </BlockStack>

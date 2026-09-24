@@ -5,12 +5,71 @@ import type { FilterPreset } from '@/types';
 import { applyFilterPreset, applyAdjustments } from '@/utils/filters';
 import type { CurvedText, CurvedTextOptions } from '@/utils/curvedText';
 
+const TEXT_TR = {
+  selectObject: "Canvas'ta bir nesne seç",
+  general: 'Genel',
+  opacity: 'Opaklık',
+  forward: 'Öne',
+  backward: 'Arkaya',
+  textStyle: 'Yazı Stili',
+  size: 'Boyut',
+  color: 'Renk',
+  curvedText: 'Kavisli Yazı',
+  text: 'Metin',
+  arcRadius: 'Yay Yarıçapı',
+  position: 'Konum',
+  topArc: 'Üst Yay',
+  top: 'Üst',
+  bottomArc: 'Alt Yay',
+  bottom: 'Alt',
+  letterSpacing: 'Karakter Aralığı',
+  filters: 'Filtreler',
+  adjustments: 'Ayarlar',
+  brightness: 'Parlaklık',
+  contrast: 'Kontrast',
+  saturation: 'Doygunluk',
+};
+const TEXT_EN: typeof TEXT_TR = {
+  selectObject: 'Select an object on the canvas',
+  general: 'General',
+  opacity: 'Opacity',
+  forward: 'Forward',
+  backward: 'Backward',
+  textStyle: 'Text style',
+  size: 'Size',
+  color: 'Color',
+  curvedText: 'Curved text',
+  text: 'Text',
+  arcRadius: 'Arc radius',
+  position: 'Position',
+  topArc: 'Top arc',
+  top: 'Top',
+  bottomArc: 'Bottom arc',
+  bottom: 'Bottom',
+  letterSpacing: 'Letter spacing',
+  filters: 'Filters',
+  adjustments: 'Adjustments',
+  brightness: 'Brightness',
+  contrast: 'Contrast',
+  saturation: 'Saturation',
+};
+// FILTER_PRESETS etiketleri Türkçe; İngilizce mağazada bunlar gösterilir
+const FILTER_LABELS_EN: Record<string, string> = {
+  original: 'Original',
+  grayscale: 'Grayscale',
+  sepia: 'Sepia',
+  invert: 'Invert',
+};
+
 interface Props {
   selectedObject: fabric.Object | null;
   onChanged: () => void;
+  locale?: string;
 }
 
-export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
+export default function PropertiesPanel({ selectedObject, onChanged, locale }: Props) {
+  const isTurkish = !locale || locale.startsWith('tr');
+  const L = isTurkish ? TEXT_TR : TEXT_EN;
   const [brightness, setBrightness] = useState(0);
   const [contrast, setContrast] = useState(0);
   const [saturation, setSaturation] = useState(0);
@@ -85,7 +144,7 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
     return (
       <div className="flex flex-col items-center justify-center h-40 text-zinc-600 text-sm gap-2">
         <span className="text-3xl">👆</span>
-        <p>Canvas'ta bir nesne seç</p>
+        <p>{L.selectObject}</p>
       </div>
     );
   }
@@ -93,8 +152,8 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
   return (
     <div className="flex flex-col gap-4 overflow-y-auto pb-4">
       {/* Common: opacity, layer */}
-      <Section title="Genel">
-        <Label>Opaklık: {Math.round((selectedObject.opacity ?? 1) * 100)}%</Label>
+      <Section title={L.general}>
+        <Label>{L.opacity}: {Math.round((selectedObject.opacity ?? 1) * 100)}%</Label>
         <input
           type="range" min={0} max={100}
           value={Math.round((selectedObject.opacity ?? 1) * 100)}
@@ -102,15 +161,15 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
           className="w-full"
         />
         <div className="flex gap-2 mt-1">
-          <button onClick={handleLayerUp} className="flex-1 btn-sm">↑ Öne</button>
-          <button onClick={handleLayerDown} className="flex-1 btn-sm">↓ Arkaya</button>
+          <button onClick={handleLayerUp} className="flex-1 btn-sm">↑ {L.forward}</button>
+          <button onClick={handleLayerDown} className="flex-1 btn-sm">↓ {L.backward}</button>
         </div>
       </Section>
 
       {/* Regular text properties */}
       {isText && (
         <>
-          <Section title="Yazı Stili">
+          <Section title={L.textStyle}>
             <Label>Font</Label>
             <select
               value={(getTextObj().fontFamily) ?? 'Poppins'}
@@ -120,7 +179,7 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
               {GOOGLE_FONTS.map((f) => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
             </select>
 
-            <Label>Boyut: {getTextObj().fontSize ?? 36}px</Label>
+            <Label>{L.size}: {getTextObj().fontSize ?? 36}px</Label>
             <input
               type="range" min={8} max={120}
               value={getTextObj().fontSize ?? 36}
@@ -129,7 +188,7 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
             />
 
             <div className="flex gap-2 items-center">
-              <Label>Renk</Label>
+              <Label>{L.color}</Label>
               <input
                 type="color"
                 value={(getTextObj().fill as string) ?? '#ffffff'}
@@ -159,8 +218,8 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
       {/* Curved text properties */}
       {isCurvedText && (
         <>
-          <Section title="Kavisli Yazı">
-            <Label>Metin</Label>
+          <Section title={L.curvedText}>
+            <Label>{L.text}</Label>
             <input
               type="text"
               value={getCurved().text}
@@ -168,7 +227,7 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
               className="w-full bg-zinc-800 border border-border rounded p-1.5 text-sm focus:outline-none focus:border-accent"
             />
 
-            <Label>Yay Yarıçapı: {getCurved().radius}px</Label>
+            <Label>{L.arcRadius}: {getCurved().radius}px</Label>
             <input
               type="range" min={40} max={260}
               value={getCurved().radius}
@@ -176,22 +235,22 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
               className="w-full"
             />
 
-            <Label>Konum</Label>
+            <Label>{L.position}</Label>
             <div className="flex gap-1">
               <button
                 onClick={() => setCurvedProp('reverse', false)}
                 className={`flex-1 btn-sm ${!getCurved().reverse ? 'bg-accent' : ''}`}
-                title="Üst Yay"
-              >⌒ Üst</button>
+                title={L.topArc}
+              >⌒ {L.top}</button>
               <button
                 onClick={() => setCurvedProp('reverse', true)}
                 className={`flex-1 btn-sm ${getCurved().reverse ? 'bg-accent' : ''}`}
-                title="Alt Yay"
-              >⌣ Alt</button>
+                title={L.bottomArc}
+              >⌣ {L.bottom}</button>
             </div>
           </Section>
 
-          <Section title="Yazı Stili">
+          <Section title={L.textStyle}>
             <Label>Font</Label>
             <select
               value={getCurved().fontFamily ?? 'Inter'}
@@ -201,7 +260,7 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
               {GOOGLE_FONTS.map((f) => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
             </select>
 
-            <Label>Boyut: {getCurved().fontSize ?? 36}px</Label>
+            <Label>{L.size}: {getCurved().fontSize ?? 36}px</Label>
             <input
               type="range" min={8} max={80}
               value={getCurved().fontSize ?? 36}
@@ -209,7 +268,7 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
               className="w-full"
             />
 
-            <Label>Karakter Aralığı: {getCurved().charSpacing ?? 0}px</Label>
+            <Label>{L.letterSpacing}: {getCurved().charSpacing ?? 0}px</Label>
             <input
               type="range" min={-5} max={30}
               value={getCurved().charSpacing ?? 0}
@@ -218,7 +277,7 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
             />
 
             <div className="flex gap-2 items-center">
-              <Label>Renk</Label>
+              <Label>{L.color}</Label>
               <input
                 type="color"
                 value={getCurved().fill ?? '#111827'}
@@ -244,23 +303,23 @@ export default function PropertiesPanel({ selectedObject, onChanged }: Props) {
       {/* Image filters */}
       {isImage && (
         <>
-          <Section title="Filtreler">
+          <Section title={L.filters}>
             <div className="grid grid-cols-2 gap-1">
               {FILTER_PRESETS.map((f) => (
                 <button
                   key={f.id}
                   onClick={() => handleFilterPreset(f.id as FilterPreset)}
                   className={`text-xs py-1.5 rounded border transition-colors ${activeFilter === f.id ? 'bg-accent border-accent' : 'bg-zinc-800 border-border hover:bg-zinc-700'}`}
-                >{f.label}</button>
+                >{isTurkish ? f.label : (FILTER_LABELS_EN[f.id] ?? f.label)}</button>
               ))}
             </div>
           </Section>
 
-          <Section title="Ayarlar">
+          <Section title={L.adjustments}>
             {([
-              { label: 'Parlaklık', key: 'brightness' as const, val: brightness },
-              { label: 'Kontrast', key: 'contrast' as const, val: contrast },
-              { label: 'Doygunluk', key: 'saturation' as const, val: saturation },
+              { label: L.brightness, key: 'brightness' as const, val: brightness },
+              { label: L.contrast, key: 'contrast' as const, val: contrast },
+              { label: L.saturation, key: 'saturation' as const, val: saturation },
             ]).map(({ label, key, val }) => (
               <div key={key}>
                 <Label>{label}: {val > 0 ? '+' : ''}{val}</Label>

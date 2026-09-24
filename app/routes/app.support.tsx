@@ -9,7 +9,9 @@ import {
 import { authenticate } from "~/lib/authenticate.server";
 import { query } from "~/lib/db.server";
 import { useState } from "react";
-import { useTranslation } from "~/i18n";
+import { useTranslation, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import supportDict from "~/i18n/admin/support";
 import type { TranslationKey } from "~/i18n/tr";
 
 interface Message { role: "merchant" | "admin"; text: string; at: string }
@@ -41,13 +43,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop } = await authenticate(request);
   const form = await request.formData();
   const intent = form.get("intent") as string;
+  const L = pickDict(supportDict, langFromRequest(request, form));
 
   if (intent === "create") {
     const subject = (form.get("subject") as string)?.trim();
     const message = (form.get("message") as string)?.trim();
     const category = normalizeCategory(form.get("category"));
     const priority = normalizePriority(form.get("priority"));
-    if (!subject || !message) return json({ error: "Konu ve mesaj gereklidir.", success: false });
+    if (!subject || !message) return json({ error: L.subjectAndMessageRequired, success: false });
     const id = `tkt_${randomBytes(8).toString("hex")}`;
     const firstMsg: Message = { role: "merchant", text: message, at: new Date().toISOString() };
     await query(
@@ -62,7 +65,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "reply") {
     const ticketId = (form.get("ticketId") as string)?.trim();
     const text = (form.get("text") as string)?.trim();
-    if (!ticketId || !text) return json({ error: "Mesaj boş olamaz.", success: false });
+    if (!ticketId || !text) return json({ error: L.messageEmpty, success: false });
     const newMsg: Message = { role: "merchant", text, at: new Date().toISOString() };
     await query(
       `UPDATE support_tickets
@@ -146,7 +149,7 @@ export default function SupportPage() {
   const { tickets } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const isSubmitting = navigation.state === "submitting";
 
   const [subject, setSubject] = useState("");
@@ -207,6 +210,7 @@ export default function SupportPage() {
                 <Text as="h2" variant="headingMd">{t("support.newTicket" as never)}</Text>
                 <Form method="post">
                   <input type="hidden" name="intent" value="create" />
+                  <input type="hidden" name="_lang" value={lang} />
                   <BlockStack gap="300">
                     <TextField
                       label={t("support.subject" as never)}
@@ -309,6 +313,7 @@ export default function SupportPage() {
                               {ticket.status !== "closed" ? (
                                 <Form method="post">
                                   <input type="hidden" name="intent" value="reply" />
+                                  <input type="hidden" name="_lang" value={lang} />
                                   <input type="hidden" name="ticketId" value={ticket.id} />
                                   <BlockStack gap="200">
                                     <TextField

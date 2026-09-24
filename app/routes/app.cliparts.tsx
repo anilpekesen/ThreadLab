@@ -18,7 +18,9 @@ import {
   toggleClipartActive,
   type Clipart,
 } from "~/models/cliparts.server";
-import { useTranslation } from "~/i18n";
+import { useTranslation, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import clipartsDict from "~/i18n/admin/cliparts";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -38,21 +40,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const uploadHandler = unstable_createMemoryUploadHandler({ maxPartSize: MAX_BYTES });
     const form = await unstable_parseMultipartFormData(cloned, uploadHandler);
     const intent = String(form.get("intent") || "");
+    const L = pickDict(clipartsDict, langFromRequest(request, form));
 
     if (intent === "upload") {
       const file = form.get("image");
-      const name = String(form.get("name") || "Klipart").trim().slice(0, 80);
+      const name = String(form.get("name") || L.defaultName).trim().slice(0, 80);
       const category = String(form.get("category") || "genel");
 
       if (!(file instanceof File) || file.size === 0)
-        return json({ error: "Dosya seçilmedi" }, { status: 400 });
+        return json({ error: L.noFile }, { status: 400 });
       if (file.size > MAX_BYTES)
-        return json({ error: "Dosya 5 MB sınırını aşıyor" }, { status: 400 });
+        return json({ error: L.tooLarge }, { status: 400 });
 
       try {
         await addClipart(name, category, file, request.url);
       } catch (err) {
-        return json({ error: err instanceof Error ? err.message : "Hata" }, { status: 500 });
+        return json({ error: err instanceof Error ? err.message : L.genericError }, { status: 500 });
       }
       return json({ ok: true });
     }
@@ -60,6 +63,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const form = await request.formData();
   const intent = String(form.get("intent") || "");
+  const L = pickDict(clipartsDict, langFromRequest(request, form));
 
   if (intent === "delete") {
     const id = String(form.get("id") || "");
@@ -74,7 +78,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ ok: true });
   }
 
-  return json({ error: "Bilinmeyen işlem" }, { status: 400 });
+  return json({ error: L.unknownAction }, { status: 400 });
 };
 
 // ─── Klipart Kartı ──────────────────────────────────────────────────
@@ -132,7 +136,7 @@ function ClipartCard({ c, catLabel }: { c: Clipart; catLabel: string }) {
 export default function ClipartsRoute() {
   const { cliparts } = useLoaderData<typeof loader>();
   const { revalidate } = useRevalidator();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const uploadFetcher = useFetcher<{ ok?: boolean; error?: string }>();
   const isUploading = uploadFetcher.state !== "idle";
   const uploadOk = !isUploading && uploadFetcher.data?.ok === true;
@@ -191,6 +195,7 @@ export default function ClipartsRoute() {
 
               <uploadFetcher.Form method="post" encType="multipart/form-data">
                 <input type="hidden" name="intent" value="upload" />
+                <input type="hidden" name="_lang" value={lang} />
                 <BlockStack gap="300">
 
                   {/* Dosya seç */}

@@ -1,5 +1,5 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
-import { WORDART_SHAPES, wordArtShapePath, findPalette } from "~/lib/wordart";
+import { WORDART_SHAPES, wordArtShapePath, findPalette, DEFAULT_WORDART } from "~/lib/wordart";
 import { FONT_LIBRARY } from "~/lib/font-library";
 import { getGeneratorModule } from "~/lib/generators/registry.server";
 import sharp from "sharp";
@@ -11,6 +11,27 @@ import {
 } from "~/models/personalizer.server";
 import { AI_STYLES, normalizeAiConfig } from "~/lib/ai-styles";
 import { scanTemplateHoles, scanHoleFromPoint } from "~/lib/template-hole.server";
+
+/**
+ * İngilizce mağazada, mağaza sahibinin değiştirmediği Türkçe varsayılan
+ * örnek metinlerin karşılıkları. Sahibin kendi yazdığı metne dokunulmaz;
+ * yalnızca birebir varsayılan olan değer çevrilir.
+ */
+const EN_DEFAULTS: Record<string, string> = {
+  "Bizim Şarkımız": "Our Song",
+  "Sen ve Ben": "You and Me",
+  "Tanıştığımız Gece": "The Night We Met",
+  "Annemin Bahçesi": "Mom's Garden",
+};
+const EN_SAMPLE_WORDS = ["*I Love You", "My Love", "Sweetheart", "Forever", "Soulmate", "Always", "My Heart"];
+const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
+function englishDefaults<T extends Record<string, unknown>>(assets: T): T {
+  const out: Record<string, unknown> = { ...assets };
+  for (const [k, v] of Object.entries(out)) {
+    if (typeof v === "string" && EN_DEFAULTS[v]) out[k] = EN_DEFAULTS[v];
+  }
+  return out as T;
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -38,8 +59,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Yüz belirtilmezse ön yüz — eski istemciler side göndermiyor
   const side = normalizeSide(url.searchParams.get("side"));
   if (!shop || !productId) {
-    return json({ error: "shop ve productId gerekli" }, { status: 400, headers: CORS });
+    return json({ error: "shop and productId are required" }, { status: 400, headers: CORS });
   }
+
+  const lang: "tr" | "en" = (url.searchParams.get("locale") ?? "tr").toLowerCase().startsWith("tr") ? "tr" : "en";
+  const m = (tr: string, en: string) => (lang === "en" ? en : tr);
 
   const [template, availableSides] = await Promise.all([
     getPersonalizerTemplateByProduct(shop, productId, side, variantId).catch(() => null),
@@ -47,7 +71,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   ]);
   if (!template) {
     return json(
-      { error: "Bu ürünün bu yüzüne bağlı şablon yok", availableSides },
+      { error: m("Bu ürünün bu yüzüne bağlı şablon yok", "No template is linked to this side of the product"), availableSides },
       { status: 404, headers: CORS },
     );
   }
@@ -101,9 +125,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (template.layout_mode === "generator") {
     const cfg = template.generator_config;
     if (!cfg) {
-      return json({ error: "Şablonun üretici ayarı eksik" }, { status: 404, headers: CORS });
+      return json({ error: m("Şablonun üretici ayarı eksik", "The template's generator settings are missing") }, { status: 404, headers: CORS });
     }
-    const assets = await getGeneratorModule(cfg.kind).publicAssets(cfg);
+    const rawAssets = await getGeneratorModule(cfg.kind).publicAssets(cfg);
+    const assets = lang === "en" ? englishDefaults(rawAssets) : rawAssets;
     return json(
       {
         ...assets,
@@ -149,7 +174,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }),
         maxWords: cfg.maxWords,
         maxWordLength: cfg.maxWordLength,
-        sampleWords: cfg.sampleWords,
+        sampleWords: lang === "en" && sameList(cfg.sampleWords, DEFAULT_WORDART.sampleWords) ? EN_SAMPLE_WORDS : cfg.sampleWords,
         defaultLetter: cfg.defaultLetter,
       },
       { headers: { ...CORS, "Cache-Control": "public, max-age=300" } },
@@ -193,7 +218,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Maskeli tipte tasarım dosyası zorunlu
   if (!template.template_url) {
-    return json({ error: "Şablon görseli yüklenmemiş" }, { status: 404, headers: CORS });
+    return json({ error: m("Şablon görseli yüklenmemiş", "The template image has not been uploaded") }, { status: 404, headers: CORS });
   }
 
   let templateBuf: Buffer;
@@ -202,7 +227,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (!res.ok) throw new Error(String(res.status));
     templateBuf = Buffer.from(await res.arrayBuffer());
   } catch (err) {
-    return json({ error: `Şablon indirilemedi: ${String(err)}` }, { status: 502, headers: CORS });
+    return json({ error: m(`Şablon indirilemedi: ${String(err)}`, `Could not download the template: ${String(err)}`) }, { status: 502, headers: CORS });
   }
 
   const useSeed = template.hole_seed_x >= 0 && template.hole_seed_y >= 0;
@@ -213,7 +238,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const hole = scan?.holes[0];
   if (!scan || !hole) {
     return json(
-      { error: "Şablonda fotoğrafın gireceği boşluk bulunamadı" },
+      { error: m("Şablonda fotoğrafın gireceği boşluk bulunamadı", "No photo area was found in the template") },
       { status: 422, headers: CORS },
     );
   }

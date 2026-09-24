@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function TextPanel({ value, onChange, onSubmit, isEditing = false, locale }: Props) {
-  const { t } = useDesignerI18n(locale);
+  const { t, isTurkish } = useDesignerI18n(locale);
 
   return (
     <div className="space-y-6">
@@ -32,7 +32,7 @@ export default function TextPanel({ value, onChange, onSubmit, isEditing = false
 
       {!isEditing && (
         <p className="text-center text-xs text-gray-400">
-          {locale === 'tr' || !locale
+          {isTurkish
             ? 'Yazıyı ekledikten sonra kavisli yapmak için ⌒ butonuna bas'
             : 'After adding text, press ⌒ in the toolbar to curve it'}
         </p>

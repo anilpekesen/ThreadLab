@@ -65,15 +65,15 @@ const f1 = (n: number) => Number(n.toFixed(1));
 function parseDate(v: unknown): { y: number; m: number; d: number } {
   const s = typeof v === "string" ? v.trim() : "";
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!match) throw new GeneratorInputError("Lütfen geçerli bir tarih seçin.");
+  if (!match) throw new GeneratorInputError("Lütfen geçerli bir tarih seçin.", "Please choose a valid date.");
   const [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])];
   if (y < STARMAP_YEAR_MIN || y > STARMAP_YEAR_MAX) {
-    throw new GeneratorInputError(`Tarih ${STARMAP_YEAR_MIN}–${STARMAP_YEAR_MAX} arasında olmalı.`);
+    throw new GeneratorInputError(`Tarih ${STARMAP_YEAR_MIN}–${STARMAP_YEAR_MAX} arasında olmalı.`, `The date must be between ${STARMAP_YEAR_MIN} and ${STARMAP_YEAR_MAX}.`);
   }
   // 31 Şubat gibi var olmayan günler Date'te taşar; geri okuyunca yakalanır
   const probe = new Date(Date.UTC(y, m - 1, d));
   if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) {
-    throw new GeneratorInputError("Lütfen geçerli bir tarih seçin.");
+    throw new GeneratorInputError("Lütfen geçerli bir tarih seçin.", "Please choose a valid date.");
   }
   return { y, m, d };
 }
@@ -83,7 +83,7 @@ function parseTime(v: unknown): { h: number; mi: number } {
   if (!match) return { h: 21, mi: 0 };
   const h = Number(match[1]);
   const mi = Number(match[2]);
-  if (h > 23 || mi > 59) throw new GeneratorInputError("Lütfen geçerli bir saat seçin.");
+  if (h > 23 || mi > 59) throw new GeneratorInputError("Lütfen geçerli bir saat seçin.", "Please choose a valid time.");
   return { h, mi };
 }
 

@@ -10,6 +10,8 @@ import {
   type SongTheme,
 } from "~/lib/generators/song/config";
 import type { GeneratorSettingsProps } from "./types";
+import { useDict, useTranslation } from "~/i18n";
+import dict from "~/i18n/generators/song";
 
 /**
  * Şarkı / Spotify tasarımının ayarları. Seçim listeleri "müşteriye
@@ -18,6 +20,9 @@ import type { GeneratorSettingsProps } from "./types";
  * işaretini kaldırmak listeyi varsayılana döndürür (normalize).
  */
 export function SongSettings({ value, onChange }: GeneratorSettingsProps<SongConfig>) {
+  const L = useDict(dict);
+  const { lang } = useTranslation();
+  const en = lang === "en";
   const set = (patch: Partial<SongConfig>) => onChange({ ...value, ...patch });
   // Metin alanları yerel tutulur: sarmalayıcı her değişikliği normalize
   // ediyor, bu da yazarken sondaki boşluğu siliyor ve boş alanı hemen
@@ -37,9 +42,9 @@ export function SongSettings({ value, onChange }: GeneratorSettingsProps<SongCon
   return (
     <BlockStack gap="500">
       <BlockStack gap="200">
-        <Text as="h3" variant="headingSm">Müşteriye açılan stiller</Text>
+        <Text as="h3" variant="headingSm">{L.stylesTitle}</Text>
         <Text as="p" tone="subdued" variant="bodySm">
-          Kart: yuvarlak köşeli dolgulu zemin, her ürün renginde aynı görünür. Sade: şeffaf zemin, yalnızca mürekkep basılır.
+          {L.stylesHelp}
         </Text>
         <InlineStack gap="200" wrap>
           {SONG_STYLES.map((s) => {
@@ -47,7 +52,7 @@ export function SongSettings({ value, onChange }: GeneratorSettingsProps<SongCon
             return (
               <button key={s.id} type="button" style={chip(on)} aria-pressed={on}
                 onClick={() => set({ styles: toggle<SongStyle>(value.styles, s.id) })}>
-                {s.label}
+                {en ? s.labelEn : s.label}
               </button>
             );
           })}
@@ -55,9 +60,9 @@ export function SongSettings({ value, onChange }: GeneratorSettingsProps<SongCon
       </BlockStack>
 
       <BlockStack gap="200">
-        <Text as="h3" variant="headingSm">Renk temaları</Text>
+        <Text as="h3" variant="headingSm">{L.themesTitle}</Text>
         <Text as="p" tone="subdued" variant="bodySm">
-          Ürününüz tek renkse yalnızca uyan temayı açın: beyaz tişörtte Koyu, siyah tişörtte Açık.
+          {L.themesHelp}
         </Text>
         <InlineStack gap="200" wrap>
           {SONG_THEMES.map((t) => {
@@ -66,8 +71,8 @@ export function SongSettings({ value, onChange }: GeneratorSettingsProps<SongCon
               <button key={t.id} type="button" style={chip(on)} aria-pressed={on}
                 onClick={() => set({ themes: toggle<SongTheme>(value.themes, t.id) })}>
                 <span style={{ width: 14, height: 14, borderRadius: 4, background: t.swatch, border: "1px solid #c9cccf" }} />
-                {t.label}
-                <span style={{ color: "#6d7175", fontSize: 12 }}>· {t.hint}</span>
+                {en ? t.labelEn : t.label}
+                <span style={{ color: "#6d7175", fontSize: 12 }}>· {en ? t.hintEn : t.hint}</span>
               </button>
             );
           })}
@@ -75,12 +80,12 @@ export function SongSettings({ value, onChange }: GeneratorSettingsProps<SongCon
       </BlockStack>
 
       <BlockStack gap="200">
-        <Text as="h3" variant="headingSm">Yazı tipleri</Text>
+        <Text as="h3" variant="headingSm">{L.fontsTitle}</Text>
         <InlineStack gap="200" wrap>
           {FONT_LIBRARY.map((f) => {
             const on = value.fonts.includes(f.id);
             return (
-              <button key={f.id} type="button" style={chip(on)} aria-pressed={on} title={f.role}
+              <button key={f.id} type="button" style={chip(on)} aria-pressed={on} title={lang === "en" ? (f.roleEn ?? f.role) : f.role}
                 onClick={() => set({ fonts: toggle(value.fonts, f.id) })}>
                 {f.label}
               </button>
@@ -91,28 +96,28 @@ export function SongSettings({ value, onChange }: GeneratorSettingsProps<SongCon
 
       <FormLayout>
         <Checkbox
-          label="Fotoğraf zorunlu"
+          label={L.requirePhoto}
           checked={value.requirePhoto}
           onChange={(v) => set({ requirePhoto: v })}
-          helpText="Kapalıysa fotoğraf yüklemeyen müşterinin tasarımında fotoğraf yerine müzik notalı bir kutu çizilir."
+          helpText={L.requirePhotoHelp}
         />
         <Checkbox
-          label="Spotify kodunu göster"
+          label={L.showCode}
           checked={value.showCode}
           onChange={(v) => set({ showCode: v })}
-          helpText="Müşteri Spotify şarkı bağlantısını yapıştırır; tasarımın altına telefonla okutulunca şarkıyı açan kod basılır. Kapalıysa bağlantı sorulmaz."
+          helpText={L.showCodeHelp}
         />
         <FormLayout.Group>
           <TextField
-            label="Örnek şarkı adı"
+            label={L.sampleTitle}
             value={sampleTitle}
             onChange={(v) => { setSampleTitle(v); set({ sampleTitle: v }); }}
             maxLength={SONG_LIMITS.title}
             autoComplete="off"
-            helpText="Müşteri penceresi bu metinle açılır."
+            helpText={L.sampleTitleHelp}
           />
           <TextField
-            label="Örnek sanatçı"
+            label={L.sampleArtist}
             value={sampleArtist}
             onChange={(v) => { setSampleArtist(v); set({ sampleArtist: v }); }}
             maxLength={SONG_LIMITS.artist}

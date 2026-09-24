@@ -41,8 +41,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     locale?: string;
     optionValues?: string[];
   };
+  const queryEn = String(new URL(request.url).searchParams.get("locale") ?? "").toLowerCase().startsWith("en");
   try { body = await request.json(); }
-  catch { return json({ error: "Geçersiz istek" }, { status: 400, headers: CORS }); }
+  catch { return json({ error: queryEn ? "Invalid request" : "Geçersiz istek" }, { status: 400, headers: CORS }); }
+  const en = String(body.locale ?? "tr").toLowerCase().startsWith("en");
 
   const shop = String(body.shop ?? "");
   const productId = String(body.productId ?? "");
@@ -55,7 +57,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       : null)
     ?? (body.templateId ? await getPersonalizerTemplatePublic(String(body.templateId)) : null);
 
-  if (!template) return json({ error: "Şablon bulunamadı" }, { status: 404, headers: CORS });
+  if (!template) return json({ error: en ? "Template not found" : "Şablon bulunamadı" }, { status: 404, headers: CORS });
 
   const built = await buildSlotData(template, {
     variantId,
@@ -65,8 +67,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     optionValues: Array.isArray(body.optionValues) ? body.optionValues.map(String) : [],
   });
 
-  if (!built) return json({ error: "Bu şablon çoklu alan içermiyor" }, { status: 400, headers: CORS });
-  if ("page" in built) return json({ error: "Şablon eksik kurulmuş" }, { status: 400, headers: CORS });
+  if (!built) return json({ error: en ? "This template has no multiple slots" : "Bu şablon çoklu alan içermiyor" }, { status: 400, headers: CORS });
+  if ("page" in built) return json({ error: en ? "Template setup is incomplete" : "Şablon eksik kurulmuş" }, { status: 400, headers: CORS });
 
   return json({ data: built.data }, { headers: CORS });
 };

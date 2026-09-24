@@ -70,7 +70,7 @@ export default function CitymapModal({ assets: raw, isTurkish, garment, initial,
         listToggle: 'Pick from list', lat: 'Latitude', lon: 'Longitude', coordHint: 'The two numbers Google Maps shows when you long-press a spot (e.g. 41.0082, 28.9784).',
         title: 'Title', subtitle: 'Subtitle', subtitlePh: 'e.g. Where we met · 14.02.2021', style: 'Style', shape: 'Shape',
         radius: 'Zoom', font: 'Font', wait: 'Preparing your map, this can take 10–20 seconds.',
-        badCoord: 'Latitude must be between -80 and 84, longitude between -180 and 180.', turkey: 'Türkiye', world: 'World' };
+        badCoord: 'Latitude must be between -80 and 84, longitude between -180 and 180.', turkey: 'Turkey', world: 'World' };
 
   const selected = cities.find((c) => c.id === city);
   const results = useMemo(() => {

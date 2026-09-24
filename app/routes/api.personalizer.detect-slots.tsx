@@ -1,5 +1,6 @@
 import { json, type ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "~/lib/authenticate.server";
+import { langFromRequest } from "~/i18n/server";
 import { uploadToR2 } from "~/lib/r2.server";
 import { scanTemplateHoles, extractHoleMask, type TemplateHole } from "~/lib/template-hole.server";
 import { sortReadingOrder, type ImageSlot } from "~/lib/slots";
@@ -27,12 +28,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  let body: { templateUrl?: string; expected?: number; minAreaRatio?: number };
+  let body: { templateUrl?: string; expected?: number; minAreaRatio?: number; _lang?: string };
   try { body = await request.json(); }
-  catch { return json({ error: "Geçersiz istek" }, { status: 400 }); }
+  catch { return json({ error: langFromRequest(request) === "en" ? "Invalid request" : "Geçersiz istek" }, { status: 400 }); }
+  const lang = body._lang === "en" || body._lang === "tr" ? body._lang : langFromRequest(request);
+  const en = lang === "en";
 
   const templateUrl = String(body.templateUrl ?? "").trim();
-  if (!templateUrl) return json({ error: "Şablon görseli yok" }, { status: 400 });
+  if (!templateUrl) return json({ error: en ? "No template image" : "Şablon görseli yok" }, { status: 400 });
 
   let buffer: Buffer;
   try {
@@ -40,7 +43,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!res.ok) throw new Error(String(res.status));
     buffer = Buffer.from(await res.arrayBuffer());
   } catch (err) {
-    return json({ error: `Şablon indirilemedi: ${String(err)}` }, { status: 502 });
+    return json({ error: `${en ? "Couldn't download template" : "Şablon indirilemedi"}: ${String(err)}` }, { status: 502 });
   }
 
   let scan;
@@ -48,7 +51,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     scan = await scanTemplateHoles(buffer);
   } catch (err) {
     console.error("[detect-slots] tarama hatası:", err);
-    return json({ error: "Şablon taranamadı" }, { status: 500 });
+    return json({ error: en ? "Couldn't scan the template" : "Şablon taranamadı" }, { status: 500 });
   }
 
   const total = scan.width * scan.height;
@@ -59,17 +62,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({
       found: false,
       slots: [],
-      message:
-        "Kapalı şeffaf alan bulunamadı. Tasarımın PNG olduğundan, arka planın opak "
-        + "olduğundan ve deliklerin tuvalin kenarına değmediğinden emin olun.",
+      message: en
+        ? "No enclosed transparent areas found. Make sure the design is a PNG, the background is opaque "
+          + "and the holes don't touch the edge of the canvas."
+        : "Kapalı şeffaf alan bulunamadı. Tasarımın PNG olduğundan, arka planın opak "
+          + "olduğundan ve deliklerin tuvalin kenarına değmediğinden emin olun.",
       scanned: { width: scan.width, height: scan.height, rawHoles: scan.holes.length },
     });
   }
 
   if (holes.length > MAX_HOLES) {
     return json({
-      error: `${holes.length} alan bulundu; bu bir tarama hatası olabilir. `
-        + "Alan eşiğini yükseltip tekrar deneyin.",
+      error: en
+        ? `Found ${holes.length} areas; this may be a scanning error. Raise the area threshold and try again.`
+        : `${holes.length} alan bulundu; bu bir tarama hatası olabilir. `
+          + "Alan eşiğini yükseltip tekrar deneyin.",
       scanned: { width: scan.width, height: scan.height, rawHoles: scan.holes.length },
     }, { status: 400 });
   }
@@ -103,14 +110,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   } catch (err) {
     console.error("[detect-slots] maske üretimi başarısız:", err);
-    return json({ error: "Alan maskeleri üretilemedi" }, { status: 500 });
+    return json({ error: en ? "Couldn't create area masks" : "Alan maskeleri üretilemedi" }, { status: 500 });
   }
 
   const slots = sortReadingOrder(draft).map((s) => ({
     ...s,
     id: `photo_${s.order}`,
     source: `photo_${s.order}`,
-    label: `${s.order}. Fotoğraf`,
+    label: en ? `Photo ${s.order}` : `${s.order}. Fotoğraf`,
   }));
 
   const expected = Math.max(0, Math.floor(Number(body.expected) || 0));
@@ -119,7 +126,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     slots,
     scanned: { width: scan.width, height: scan.height, rawHoles: scan.holes.length },
     mismatch: expected > 0 && expected !== slots.length
-      ? `Beklenen ${expected} alan, bulunan ${slots.length}. Fazlalıkları silin ya da beklenen sayıyı düzeltin.`
+      ? en
+        ? `Expected ${expected} areas, found ${slots.length}. Delete the extras or correct the expected number.`
+        : `Beklenen ${expected} alan, bulunan ${slots.length}. Fazlalıkları silin ya da beklenen sayıyı düzeltin.`
       : null,
   });
 };

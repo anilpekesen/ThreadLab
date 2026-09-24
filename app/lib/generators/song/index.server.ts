@@ -145,7 +145,7 @@ async function photoLayer(photo: Buffer, crop: PhotoCrop | null): Promise<Buffer
     }
     return await sharp(square).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
   } catch {
-    throw new GeneratorInputError("Fotoğraf okunamadı; JPG ya da PNG bir fotoğraf seçin");
+    throw new GeneratorInputError("Fotoğraf okunamadı; JPG ya da PNG bir fotoğraf seçin", "The photo could not be read; choose a JPG or PNG photo");
   }
 }
 
@@ -191,9 +191,9 @@ export const songGenerator: GeneratorServerModule<SongConfig> = {
         const res = await fetch(info.coverUrl, { signal: AbortSignal.timeout(8000) }).catch(() => null);
         if (res?.ok) photo = Buffer.from(await res.arrayBuffer());
       }
-      if (!photo) throw new GeneratorInputError("Albüm kapağı alınamadı; bir fotoğraf seçin");
+      if (!photo) throw new GeneratorInputError("Albüm kapağı alınamadı; bir fotoğraf seçin", "Could not fetch the album cover; choose a photo");
     }
-    if (!photo && config.requirePhoto) throw new GeneratorInputError("Bir fotoğraf seçin");
+    if (!photo && config.requirePhoto) throw new GeneratorInputError("Bir fotoğraf seçin", "Choose a photo");
 
     // Spotify kodu: yanlış bağlantı müşteriye söylenir (ödediği kod eksik
     // basılmasın); servis geçici olarak yanıt vermezse tasarım kodsuz çizilir.
@@ -202,11 +202,11 @@ export const songGenerator: GeneratorServerModule<SongConfig> = {
     if (config.showCode && link) {
       const ref = parseSpotifyLink(link);
       if (!ref) {
-        throw new GeneratorInputError("Spotify bağlantısı tanınmadı. Spotify'da şarkı → Paylaş → Şarkı bağlantısını kopyala ile alınan bağlantıyı yapıştırın.");
+        throw new GeneratorInputError("Spotify bağlantısı tanınmadı. Spotify'da şarkı → Paylaş → Şarkı bağlantısını kopyala ile alınan bağlantıyı yapıştırın.", "Spotify link not recognised. In Spotify, open the song → Share → Copy Song Link and paste it here.");
       }
       const res = await fetchSpotifyCode(ref);
       if (res.ok) code = res.shape;
-      else if (res.reason === "missing") throw new GeneratorInputError("Bu Spotify bağlantısında bir şarkı bulunamadı; bağlantıyı kontrol edin.");
+      else if (res.reason === "missing") throw new GeneratorInputError("Bu Spotify bağlantısında bir şarkı bulunamadı; bağlantıyı kontrol edin.", "No song was found at this Spotify link; please check the link.");
     }
 
     const font = await loadLibraryFont(fontId);

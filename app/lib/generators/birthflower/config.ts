@@ -29,16 +29,16 @@ export const BIRTH_MONTHS: Array<{ month: number; label: string; labelEn: string
   { month: 12, label: "Aralık", labelEn: "December", flower: "Kardelen", flowerEn: "Snowdrop" },
 ];
 
-export const BIRTHFLOWER_STYLES: Array<{ id: BirthflowerStyle; label: string; labelEn: string; hint: string }> = [
-  { id: "lineart", label: "Çizgi", labelEn: "Line art", hint: "Tek renk kontur, zarif ve minimal" },
-  { id: "color", label: "Renkli", labelEn: "Colour", hint: "Kontur + yumuşak renk dolgular (tam renkli baskı gerekir)" },
-  { id: "silhouette", label: "Siluet", labelEn: "Silhouette", hint: "Dolu tek renk, kâğıt kesiği görünümü" },
+export const BIRTHFLOWER_STYLES: Array<{ id: BirthflowerStyle; label: string; labelEn: string; hint: string; hintEn: string }> = [
+  { id: "lineart", label: "Çizgi", labelEn: "Line art", hint: "Tek renk kontur, zarif ve minimal", hintEn: "Single-colour outline, elegant and minimal" },
+  { id: "color", label: "Renkli", labelEn: "Colour", hint: "Kontur + yumuşak renk dolgular (tam renkli baskı gerekir)", hintEn: "Outline + soft colour fills (needs full-colour printing)" },
+  { id: "silhouette", label: "Siluet", labelEn: "Silhouette", hint: "Dolu tek renk, kâğıt kesiği görünümü", hintEn: "Solid single colour, paper-cut look" },
 ];
 
-export const BIRTHFLOWER_LAYOUTS: Array<{ id: BirthflowerLayout; label: string; labelEn: string; hint: string }> = [
-  { id: "bouquet", label: "Buket", labelEn: "Bouquet", hint: "Saplar kurdeleyle toplanır, isimler altta" },
-  { id: "row", label: "Yan yana", labelEn: "Side by side", hint: "Her kişinin çiçeği, altında adı" },
-  { id: "single", label: "Tek çiçek", labelEn: "Single flower", hint: "Tek kişi, büyük çiçek, ad sapın yanında" },
+export const BIRTHFLOWER_LAYOUTS: Array<{ id: BirthflowerLayout; label: string; labelEn: string; hint: string; hintEn: string }> = [
+  { id: "bouquet", label: "Buket", labelEn: "Bouquet", hint: "Saplar kurdeleyle toplanır, isimler altta", hintEn: "Stems tied with a ribbon, names below" },
+  { id: "row", label: "Yan yana", labelEn: "Side by side", hint: "Her kişinin çiçeği, altında adı", hintEn: "Each person's flower with their name below" },
+  { id: "single", label: "Tek çiçek", labelEn: "Single flower", hint: "Tek kişi, büyük çiçek, ad sapın yanında", hintEn: "One person, large flower, name beside the stem" },
 ];
 
 /** Mürekkep renkleri: koyu ürün için beyaz, açık ürün için diğerleri */

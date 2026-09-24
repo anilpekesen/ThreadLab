@@ -81,4 +81,24 @@ export function useTranslation() {
   return useContext(LanguageContext);
 }
 
+/**
+ * Ekrana özel sözlük: `{ tr: {...}, en: {...} }` alır, geçerli dilin
+ * nesnesini döndürür. Büyük ekranlar metinlerini ortak tr.ts/en.ts yerine
+ * kendi dosyalarında (app/i18n/<bölüm>/<ekran>.ts) tutar; ortak dosyada
+ * yüzlerce anahtar birikmez ve ekranlar birbirinin dosyasına dokunmaz.
+ *
+ *   const L = useDict(editorDict);
+ *   <Button>{L.save}</Button>
+ *   {L.linkedTo(3)}   // fonksiyon değerler de olabilir
+ */
+export function useDict<T>(dict: { tr: T; en: T }): T {
+  const { lang } = useContext(LanguageContext);
+  return dict[lang] ?? dict.tr;
+}
+
+/** Aynı sözlüğü bileşen dışında (ör. yardımcı fonksiyonlarda) seçmek için */
+export function pickDict<T>(dict: { tr: T; en: T }, lang: Lang): T {
+  return dict[lang] ?? dict.tr;
+}
+
 export { readLangFromCookie };

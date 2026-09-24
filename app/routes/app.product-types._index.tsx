@@ -1,7 +1,9 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useNavigate, useNavigation } from "@remix-run/react";
-import { useTranslation } from "~/i18n";
+import { useTranslation, useDict, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import productTypesDict from "~/i18n/admin/product-types";
 import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Text, BlockStack, Box, Badge, Button,
@@ -17,8 +19,6 @@ import {
 import { deactivateProductConfig } from "~/models/product-config.server";
 import { PLANS } from "~/lib/plans";
 
-const TYPE_SUGGESTIONS = ["Tişört", "Sweatshirt", "Hoodie", "Polo", "Bez Çanta", "Kupa", "Boxer", "Şort", "Diğer"];
-
 function PrintTypeField({
   value,
   onChange,
@@ -29,6 +29,7 @@ function PrintTypeField({
   disabled?: boolean;
 }) {
   const { t } = useTranslation();
+  const L = useDict(productTypesDict);
   return (
     <BlockStack gap="200">
       <TextField
@@ -43,7 +44,7 @@ function PrintTypeField({
       />
       {!disabled && (
         <InlineStack gap="150" wrap>
-          {TYPE_SUGGESTIONS.map((s) => (
+          {L.typeSuggestions.map((s) => (
             <button
               key={s}
               type="button"
@@ -83,12 +84,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = session.shop;
   const form = await request.formData();
   const intent = form.get("intent") as string;
+  const L = pickDict(productTypesDict, langFromRequest(request, form));
 
   if (intent === "create") {
     const quota = await canCreateProductType(shop);
-    if (!quota.allowed) return json({ error: "Plan limitine ulaştınız" }, { status: 403 });
+    if (!quota.allowed) return json({ error: L.planLimitReached }, { status: 403 });
     const pt = await createProductType(shop, {
-      name: String(form.get("name") || "").trim() || "Yeni Ürün Tipi",
+      name: String(form.get("name") || "").trim() || L.defaultTypeName,
       product_type: String(form.get("name") || "apparel"),
       surface_mode: (form.get("surface_mode") as "front_only" | "front_back") ?? "front_back",
     });
@@ -111,7 +113,7 @@ export default function ProductTypesIndex() {
   const { productTypes, quota } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const nav = useNavigation();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const isSubmitting = nav.state === "submitting";
 
   const [showCreate, setShowCreate] = useState(false);
@@ -220,6 +222,7 @@ export default function ProductTypesIndex() {
                         )}
                         <Form method="post">
                           <input type="hidden" name="intent" value="delete" />
+                          <input type="hidden" name="_lang" value={lang} />
                           <input type="hidden" name="id" value={pt.id} />
                           <Button tone="critical" variant="plain" size="slim" submit loading={isSubmitting}>
                             {t("productTypes.delete")}
@@ -255,6 +258,7 @@ export default function ProductTypesIndex() {
         <Modal.Section>
           <Form method="post" id="create-product-type-form">
             <input type="hidden" name="intent" value="create" />
+            <input type="hidden" name="_lang" value={lang} />
             <BlockStack gap="400">
               <PrintTypeField value={newName} onChange={setNewName} />
               <Select

@@ -102,9 +102,9 @@ export function resolveWordArtRequest(
   config: WordArtTemplateConfig,
   rawWords: string | string[],
   choices: WordArtChoices,
-): ComposeWordArtOptions | { error: string } {
+): ComposeWordArtOptions | { error: string; errorEn: string } {
   const words = parseWordArtWords(rawWords, config);
-  if (words.length === 0) return { error: "En az bir kelime yazın" };
+  if (words.length === 0) return { error: "En az bir kelime yazın", errorEn: "Write at least one word" };
 
   const shape = isWordArtShape(choices.shape) && config.shapes.includes(choices.shape)
     ? choices.shape : config.shapes[0];

@@ -3,7 +3,9 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import { useState, useCallback } from "react";
 import { useMemo } from "react";
-import { useTranslation } from "~/i18n";
+import { useTranslation, useDict, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import ordersDict from "~/i18n/admin/orders";
 import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Badge, Button, InlineStack, Box, Text, BlockStack,
@@ -130,17 +132,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate(request);
   const form = await request.formData();
   const intent = form.get("intent") as string;
+  const S = pickDict(ordersDict, langFromRequest(request, form));
 
   if (intent === "sync") {
     try {
       const count = await syncOrdersFromAdmin(admin, session.shop);
       return json({ ok: true, synced: count });
     } catch (err) {
-      let msg = "Bilinmeyen hata";
+      let msg = S.unknownError;
       if (err instanceof Error) {
         msg = err.message;
       } else if (err instanceof Response) {
-        msg = `Shopify API hatası (HTTP ${err.status})`;
+        msg = S.shopifyApiError(err.status);
       } else {
         msg = String(err);
       }
@@ -175,7 +178,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       try {
         await withOrderDriveExportLock(session.shop, shopifyOrderId, async () => {
           const order = await getOrderByShopifyId(session.shop, shopifyOrderId);
-          if (!order) throw new Error("bulunamadı");
+          if (!order) throw new Error(S.notFound);
 
           const siblings = await getSiblingOrders(session.shop, shopifyOrderId, "").catch(() => [] as Order[]);
           const allRows = [order, ...siblings.filter((row) => row.id !== order.id)];
@@ -183,7 +186,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           const hasAnyFile = products.some((product) =>
             product.frontPrint || product.backPrint || product.frontPreview || product.backPreview,
           );
-          if (!hasAnyFile) throw new Error("yüklenecek dosya yok");
+          if (!hasAnyFile) throw new Error(S.noFilesToUpload);
 
           const folderId = await ensureOrderDriveFolder({
             shop: session.shop,
@@ -341,6 +344,7 @@ export default function Orders() {
   const syncFetcher = useFetcher<{ ok: boolean; synced?: number; error?: string }>();
   const driveFetcher = useFetcher<{ ok: boolean; bulkDrive?: boolean; success?: number; failed?: number; errors?: string[] }>();
   const { t, lang } = useTranslation();
+  const L = useDict(ordersDict);
   const isSyncing = syncFetcher.state !== "idle";
   const syncResult = syncFetcher.data as { ok: boolean; synced?: number; error?: string } | undefined;
   const isDriveExporting = driveFetcher.state !== "idle";
@@ -393,7 +397,7 @@ export default function Orders() {
         {/* Önizleme */}
         <IndexTable.Cell>
           {g.previewUrl ? (
-            <Thumbnail source={g.previewUrl} alt="Tasarım" size="small" />
+            <Thumbnail source={g.previewUrl} alt={L.designAlt} size="small" />
           ) : (
             <div style={{
               width: 40, height: 40, borderRadius: 6,
@@ -476,24 +480,25 @@ export default function Orders() {
           <InlineStack gap="200" blockAlign="center" wrap>
             {g.frontPrintUrl && (
               <a href={g.frontPrintUrl} target="_blank" rel="noreferrer" download onClick={(e) => e.stopPropagation()}>
-                <Button size="slim" variant="plain">⬇ Ön</Button>
+                <Button size="slim" variant="plain">{L.downloadFront}</Button>
               </a>
             )}
             {g.backPrintUrl && (
               <a href={g.backPrintUrl} target="_blank" rel="noreferrer" download onClick={(e) => e.stopPropagation()}>
-                <Button size="slim" variant="plain">⬇ Arka</Button>
+                <Button size="slim" variant="plain">{L.downloadBack}</Button>
               </a>
             )}
             {next ? (
               <fetcher.Form method="post" onClick={(e) => e.stopPropagation()}>
                 <input type="hidden" name="ids" value={g.ids.join(",")} />
                 <input type="hidden" name="status" value={next} />
+                <input type="hidden" name="_lang" value={lang} />
                 <Button submit size="slim" variant="secondary">
                   → {STATUS_KEYS[next] ? t(STATUS_KEYS[next]) : next}
                 </Button>
               </fetcher.Form>
             ) : (
-              <Text as="span" variant="bodySm" tone="success">✓ Tamamlandı</Text>
+              <Text as="span" variant="bodySm" tone="success">{L.completed}</Text>
             )}
           </InlineStack>
         </IndexTable.Cell>
@@ -507,8 +512,9 @@ export default function Orders() {
       primaryAction={
         <syncFetcher.Form method="post">
           <input type="hidden" name="intent" value="sync" />
+          <input type="hidden" name="_lang" value={lang} />
           <Button submit loading={isSyncing} variant="secondary" size="slim">
-            {isSyncing ? "Senkronize ediliyor..." : "Eski siparişleri çek"}
+            {isSyncing ? L.syncing : L.syncOld}
           </Button>
         </syncFetcher.Form>
       }
@@ -517,15 +523,15 @@ export default function Orders() {
         {syncResult && (
           <Banner tone={syncResult.ok ? "success" : "critical"}>
             {syncResult.ok
-              ? `${syncResult.synced ?? 0} yeni sipariş eklendi.`
-              : `Hata: ${syncResult.error}`}
+              ? L.syncedNew(syncResult.synced ?? 0)
+              : L.errorPrefix(syncResult.error ?? "")}
           </Banner>
         )}
         {driveResult && (
           <Banner tone={driveResult.ok ? "success" : (driveResult.success ? "warning" : "critical")}>
             {driveResult.ok
-              ? `${driveResult.success} sipariş Drive'a başarıyla yüklendi.`
-              : `${driveResult.success ?? 0} başarılı, ${driveResult.failed ?? 0} başarısız.${driveResult.errors?.length ? " " + driveResult.errors.join(" | ") : ""}`
+              ? L.driveSuccess(driveResult.success ?? 0)
+              : `${L.drivePartial(driveResult.success ?? 0, driveResult.failed ?? 0)}${driveResult.errors?.length ? " " + driveResult.errors.join(" | ") : ""}`
             }
           </Banner>
         )}
@@ -578,28 +584,29 @@ export default function Orders() {
                 <TextField
                   label=""
                   labelHidden
-                  placeholder="Sipariş no ara... (#11031)"
+                  placeholder={L.searchPlaceholder}
                   value={searchValue}
                   onChange={handleSearchChange}
                   clearButton
                   onClearButtonClick={handleSearchClear}
                   autoComplete="off"
                   connectedRight={
-                    <Button submit size="slim" variant="secondary">Ara</Button>
+                    <Button submit size="slim" variant="secondary">{L.search}</Button>
                   }
                 />
               </form>
               {driveConnected ? (
                 <driveFetcher.Form method="post">
                   <input type="hidden" name="intent" value="bulkDriveExportAll" />
+                  <input type="hidden" name="_lang" value={lang} />
                   <input type="hidden" name="status" value={status} />
                   <Button submit loading={isDriveExporting} disabled={groups.length === 0} variant="secondary" size="slim">
-                    {isDriveExporting ? "Drive'a aktarılıyor..." : "Tüm uygun siparişleri Drive'a aktar"}
+                    {isDriveExporting ? L.driveExporting : L.driveExportAll}
                   </Button>
                 </driveFetcher.Form>
               ) : (
                 <Button variant="secondary" size="slim" onClick={() => navigate("/app/settings")}>
-                  Drive Bağla
+                  {L.connectDrive}
                 </Button>
               )}
             </InlineStack>
@@ -608,8 +615,8 @@ export default function Orders() {
             <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
               <Text as="span" variant="bodySm" tone="subdued">
                 {pagination.total
-                  ? `${pageStart}-${pageEnd} / ${pagination.total} sipariş gösteriliyor`
-                  : "0 sipariş"}
+                  ? L.showing(pageStart, pageEnd, pagination.total)
+                  : L.zeroOrders}
               </Text>
               {pagination.totalPages > 1 && (
                 <InlineStack gap="200" blockAlign="center">
@@ -618,17 +625,17 @@ export default function Orders() {
                     disabled={!pagination.hasPrevious}
                     onClick={() => navigate(buildOrdersUrl(pagination.page - 1))}
                   >
-                    Önceki
+                    {L.previous}
                   </Button>
                   <Text as="span" variant="bodySm" tone="subdued">
-                    Sayfa {pagination.page} / {pagination.totalPages}
+                    {L.pageOf(pagination.page, pagination.totalPages)}
                   </Text>
                   <Button
                     size="slim"
                     disabled={!pagination.hasNext}
                     onClick={() => navigate(buildOrdersUrl(pagination.page + 1))}
                   >
-                    Sonraki
+                    {L.next}
                   </Button>
                 </InlineStack>
               )}
@@ -640,11 +647,11 @@ export default function Orders() {
               <BlockStack gap="300" inlineAlign="center">
                 <Text as="p" variant="headingMd" alignment="center">
                   {status
-                    ? `"${STATUS_KEYS[status] ? t(STATUS_KEYS[status]) : status}" durumunda sipariş yok`
+                    ? L.noOrdersInStatus(STATUS_KEYS[status] ? t(STATUS_KEYS[status]) : status)
                     : t("orders.noOrders")}
                 </Text>
                 <Text as="p" tone="subdued" alignment="center">
-                  Tasarım içeren siparişler checkout tamamlandığında otomatik buraya eklenir.
+                  {L.emptyHint}
                 </Text>
               </BlockStack>
             </Box>
@@ -658,7 +665,7 @@ export default function Orders() {
                 {
                   // Set ürünlerinde bir sipariş üç dosya üretiyor; tek tek
                   // indirmek günde yirmi siparişte altmış tıklama demek.
-                  content: "Baskı dosyalarını indir",
+                  content: L.downloadPrintFiles,
                   onAction: () => {
                     const secili = allResourcesSelected
                       ? groups
@@ -671,20 +678,21 @@ export default function Orders() {
                 },
                 ...(driveConnected ? [
                 {
-                  content: isDriveExporting ? "Yükleniyor..." : "Drive'a Aktar",
+                  content: isDriveExporting ? L.uploading : L.exportToDrive,
                   onAction: () => {
                     const selected = allResourcesSelected
                       ? groups
                       : groups.filter((g) => selectedResources.includes(g.shopifyOrderId));
                     const fd = new FormData();
                     fd.set("intent", "bulkDriveExport");
+                    fd.set("_lang", lang);
                     fd.set("shopifyOrderIds", selected.map((g) => g.shopifyOrderId).join(","));
                     driveFetcher.submit(fd, { method: "post" });
                   },
                 },
               ] : [
                 {
-                  content: "Drive Bağla",
+                  content: L.connectDrive,
                   onAction: () => navigate("/app/settings"),
                 },
               ]),
@@ -695,7 +703,7 @@ export default function Orders() {
                 { title: t("common.product") },
                 { title: t("common.status") },
                 { title: t("common.date") },
-                { title: "İşlem" },
+                { title: L.actionHeading },
               ]}
             >
               {rowMarkup}
@@ -709,17 +717,17 @@ export default function Orders() {
                   disabled={!pagination.hasPrevious}
                   onClick={() => navigate(buildOrdersUrl(pagination.page - 1))}
                 >
-                  Önceki
+                  {L.previous}
                 </Button>
                 <Text as="span" variant="bodySm" tone="subdued">
-                  Sayfa {pagination.page} / {pagination.totalPages}
+                  {L.pageOf(pagination.page, pagination.totalPages)}
                 </Text>
                 <Button
                   size="slim"
                   disabled={!pagination.hasNext}
                   onClick={() => navigate(buildOrdersUrl(pagination.page + 1))}
                 >
-                  Sonraki
+                  {L.next}
                 </Button>
               </InlineStack>
             </Box>

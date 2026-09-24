@@ -102,7 +102,7 @@ function buildLetters(
 
   // Fontta olmayan harf (ör. Kiril, Arap) boş kutu olarak basılmasın
   const missing = chars.find((ch) => font.charToGlyphIndex(ch) === 0);
-  if (missing) throw new GeneratorInputError(`"${missing}" harfi bu yazı tipinde yok; Latin harfleri ya da rakam kullanın`);
+  if (missing) throw new GeneratorInputError(`"${missing}" harfi bu yazı tipinde yok; Latin harfleri ya da rakam kullanın`, `"${missing}" is not in this font; use Latin letters or digits`);
 
   chars.forEach((ch, i) => {
     const sc = scaleOf(i);
@@ -112,7 +112,7 @@ function buildLetters(
     const ty = sc === 1 ? 0 : capMid + (CAP * sc) / 2;
     glyphs.push({ g, ty, scale: sc });
   });
-  if (!glyphs.length) throw new GeneratorInputError("Bu harfler seçilen yazı tipiyle çizilemedi");
+  if (!glyphs.length) throw new GeneratorInputError("Bu harfler seçilen yazı tipiyle çizilemedi", "These letters could not be drawn with the chosen font");
 
   const pathsSvg = (g: Glyph) => g.paths.map((d) => `<path d="${d}"/>`).join("");
 
@@ -388,7 +388,7 @@ export const monogramGenerator: GeneratorServerModule<MonogramConfig> = {
 
   async compose(config, input) {
     const letters = Array.from(cleanMonogramLetters(input.fields.letters, config.maxLetters));
-    if (!letters.length) throw new GeneratorInputError("En az bir harf yazın");
+    if (!letters.length) throw new GeneratorInputError("En az bir harf yazın", "Type at least one letter");
 
     const layout = pickAllowed(input.choices.layout, config.layouts);
     const frame = pickAllowed(input.choices.frame, config.frames);
@@ -466,7 +466,7 @@ export const monogramGenerator: GeneratorServerModule<MonogramConfig> = {
       `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${vb}">${body}</svg>`;
 
     const b = await inkBounds(full(`0 0 ${CANVAS} ${CANVAS}`, 600, 600));
-    if (!b) throw new GeneratorInputError("Tasarım çizilemedi, lütfen başka bir yazı tipi deneyin");
+    if (!b) throw new GeneratorInputError("Tasarım çizilemedi, lütfen başka bir yazı tipi deneyin", "The design could not be drawn, please try another font");
     const pad = Math.max(b.x2 - b.x1, b.y2 - b.y1) * 0.03 + 8;
     const vx = b.x1 - pad;
     const vy = b.y1 - pad;

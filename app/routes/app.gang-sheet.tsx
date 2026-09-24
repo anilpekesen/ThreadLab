@@ -2,7 +2,8 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useNavigate } from "@remix-run/react";
 import { useState, useCallback, useMemo } from "react";
-import { useTranslation } from "~/i18n";
+import { useTranslation, useDict } from "~/i18n";
+import gangDict from "~/i18n/admin/gang-sheet";
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
   Box, Select, RangeSlider, Thumbnail, Checkbox, Banner,
@@ -14,14 +15,8 @@ import type { Order } from "~/models/orders.server";
 import { getShopSubscription } from "~/models/billing.server";
 import { PLANS, planKeyFromName } from "~/lib/billing.server";
 
-const SHEET_PRESETS = [
-  { label: "DTF Rulo 60cm (300dpi — 7087px)", value: "dtf60" },
-  { label: "DTF Rulo 100cm (300dpi — 11811px)", value: "dtf100" },
-  { label: "A3 Dikey (300dpi — 3508×4961px)", value: "a3" },
-  { label: "A3 Yatay (300dpi — 4961×3508px)", value: "a3l" },
-  { label: "A4 Dikey (300dpi — 2480×3508px)", value: "a4" },
-  { label: "A4 Yatay (300dpi — 3508×2480px)", value: "a4l" },
-];
+// Etiketler sözlükte (gangDict.presets); burada yalnızca değerler
+const SHEET_PRESET_VALUES = ["dtf60", "dtf100", "a3", "a3l", "a4", "a4l"];
 
 const PRESET_DIMS: Record<string, { w: number; h: number | null }> = {
   dtf60:  { w: 7087, h: null },
@@ -112,14 +107,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function GangSheet() {
   const { printableOrders, shop, locked } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
+  const L = useDict(gangDict);
+  const SHEET_PRESETS = SHEET_PRESET_VALUES.map((value) => ({ label: L.presets[value] ?? value, value }));
 
   if (locked) {
     return (
       <Page title="Gang Sheet">
-        <Banner tone="warning" title="Pro veya Business planı gerekli">
-          <p>Gang Sheet özelliği Pro ve Business planlarında kullanılabilir.</p>
-          <Button onClick={() => navigate("/app/billing")}>Planı Yükselt</Button>
+        <Banner tone="warning" title={L.planRequiredTitle}>
+          <p>{L.planRequiredBody}</p>
+          <Button onClick={() => navigate("/app/billing")}>{L.upgradePlan}</Button>
         </Banner>
       </Page>
     );
@@ -173,12 +170,13 @@ export default function GangSheet() {
       margin: String(margin),
       cols: columns,
       shop,
+      _lang: lang,
     });
     try {
       const res = await fetch(`/api/gang-sheet?${params.toString()}`);
       if (!res.ok) {
         const text = await res.text();
-        setError(`Hata: ${text}`);
+        setError(L.errorPrefix(text));
         return;
       }
       const blob = await res.blob();
@@ -191,21 +189,21 @@ export default function GangSheet() {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Bilinmeyen hata");
+      setError(e instanceof Error ? e.message : L.unknownError);
     } finally {
       setGenerating(false);
     }
-  }, [allOrderIds, preset, margin, columns]);
+  }, [allOrderIds, preset, margin, columns, L]);
 
   const dims = PRESET_DIMS[preset];
   const dimsLabel = dims
-    ? `${dims.w}px × ${dims.h ? `${dims.h}px` : "otomatik yükseklik"}`
+    ? `${dims.w}px × ${dims.h ? `${dims.h}px` : L.autoHeight}`
     : "";
 
   return (
     <Page
       title={t("gangSheet.title")}
-      backAction={{ content: "Üretim", onAction: () => navigate("/app/production") }}
+      backAction={{ content: L.backToProduction, onAction: () => navigate("/app/production") }}
       primaryAction={{
         content: generating ? t("gangSheet.generating") : t("gangSheet.generate"),
         onAction: handleGenerate,
@@ -251,37 +249,37 @@ export default function GangSheet() {
                   </div>
 
                   <Select
-                    label="Sütun sayısı (yan yana)"
+                    label={L.columnsLabel}
                     options={[
-                      { label: "Otomatik (fiziksel boyut)", value: "0" },
-                      { label: "2 sütun", value: "2" },
-                      { label: "3 sütun", value: "3" },
-                      { label: "4 sütun", value: "4" },
-                      { label: "5 sütun", value: "5" },
-                      { label: "6 sütun", value: "6" },
+                      { label: L.columnsAuto, value: "0" },
+                      { label: L.columnsN(2), value: "2" },
+                      { label: L.columnsN(3), value: "3" },
+                      { label: L.columnsN(4), value: "4" },
+                      { label: L.columnsN(5), value: "5" },
+                      { label: L.columnsN(6), value: "6" },
                     ]}
                     value={columns}
                     onChange={setColumns}
-                    helpText={columns === "0" ? "Fiziksel baskı boyutuna göre otomatik" : `Her satırda en az ${columns} tasarım`}
+                    helpText={columns === "0" ? L.columnsAutoHelp : L.columnsMinHelp(columns)}
                   />
 
                   <Divider />
 
                   <Banner tone="info">
                     <Text as="p" variant="bodySm">
-                      Tasarım yüzü: ön ve arka planlar otomatik eklenmektedir.
+                      {L.sidesInfo}
                     </Text>
                   </Banner>
 
                   <BlockStack gap="100">
                     <Text as="p" variant="bodySm" tone="subdued">
-                      {selectedKeys.length} / {groups.length} sipariş seçildi
+                      {L.selectedCount(selectedKeys.length, groups.length)}
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Toplam baskı: <strong>{totalPrints}</strong> adet
+                      {L.totalPrintsPrefix}<strong>{totalPrints}</strong>{L.totalPrintsSuffix}
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Sayfa: {dimsLabel}
+                      {L.pagePrefix}{dimsLabel}
                     </Text>
                   </BlockStack>
 
@@ -301,7 +299,7 @@ export default function GangSheet() {
                   <InlineStack align="space-between" blockAlign="center">
                     <Text as="h2" variant="headingMd">{t("gangSheet.selectOrders")}</Text>
                     <Button size="slim" variant="plain" onClick={toggleAll}>
-                      {selectedKeys.length === groups.length ? "Tümünü Kaldır" : t("production.selectAll")}
+                      {selectedKeys.length === groups.length ? L.deselectAll : t("production.selectAll")}
                     </Button>
                   </InlineStack>
 
@@ -335,16 +333,16 @@ export default function GangSheet() {
                                 onChange={() => toggleGroup(group.shopifyOrderId)}
                               />
                               {group.previewUrl && (
-                                <Thumbnail source={group.previewUrl} alt="Tasarım" size="small" />
+                                <Thumbnail source={group.previewUrl} alt={L.designAlt} size="small" />
                               )}
                               <BlockStack gap="100">
                                 <InlineStack gap="200" blockAlign="center">
                                   <Text as="span" variant="bodySm" fontWeight="semibold">
                                     {group.orderNumber}
                                   </Text>
-                                  <Badge tone="warning" size="small">{`${group.totalQty} adet`}</Badge>
-                                  {group.hasFront && <Badge tone="success" size="small">Ön ✓</Badge>}
-                                  {group.hasBack && <Badge size="small">Arka ✓</Badge>}
+                                  <Badge tone="warning" size="small">{L.qty(group.totalQty)}</Badge>
+                                  {group.hasFront && <Badge tone="success" size="small">{L.frontOk}</Badge>}
+                                  {group.hasBack && <Badge size="small">{L.backOk}</Badge>}
                                 </InlineStack>
                                 <Text as="span" variant="bodySm" tone="subdued">
                                   {group.customerName} · {group.productBaseName}
@@ -387,10 +385,10 @@ export default function GangSheet() {
               <InlineStack align="center" gap="400" blockAlign="center">
                 <BlockStack gap="100">
                   <Text as="p" variant="headingMd">
-                    {totalPrints} baskı → Gang Sheet hazır
+                    {L.readySummary(totalPrints)}
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {SHEET_PRESETS.find((p) => p.value === preset)?.label} · {columns !== "0" ? `${columns} sütun` : "Otomatik boyut"} · Ön + Arka
+                    {SHEET_PRESETS.find((p) => p.value === preset)?.label} · {columns !== "0" ? L.columnsShort(columns) : L.autoSize} · {L.frontAndBack}
                   </Text>
                 </BlockStack>
                 <Button
@@ -400,7 +398,7 @@ export default function GangSheet() {
                   disabled={generating}
                   loading={generating}
                 >
-                  {generating ? t("gangSheet.generating") : `${t("gangSheet.generate")} (${totalPrints} baskı)`}
+                  {generating ? t("gangSheet.generating") : `${t("gangSheet.generate")} ${L.printsCount(totalPrints)}`}
                 </Button>
               </InlineStack>
             </Box>

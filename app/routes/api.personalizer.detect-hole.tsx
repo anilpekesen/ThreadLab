@@ -1,6 +1,7 @@
 import { json, type ActionFunctionArgs } from "@remix-run/node";
 import sharp from "sharp";
 import { authenticate } from "~/lib/authenticate.server";
+import { langFromRequest } from "~/i18n/server";
 import {
   scanHoleFromPoint,
   scanTemplateHoles,
@@ -17,15 +18,17 @@ import {
 export const action = async ({ request }: ActionFunctionArgs) => {
   await authenticate(request);
 
-  let body: { templateUrl?: string; x?: number; y?: number };
+  let body: { templateUrl?: string; x?: number; y?: number; _lang?: string };
   try {
     body = await request.json();
   } catch {
-    return json({ error: "Geçersiz istek" }, { status: 400 });
+    return json({ error: langFromRequest(request) === "en" ? "Invalid request" : "Geçersiz istek" }, { status: 400 });
   }
+  const lang = body._lang === "en" || body._lang === "tr" ? body._lang : langFromRequest(request);
+  const en = lang === "en";
 
   const templateUrl = String(body.templateUrl ?? "").trim();
-  if (!templateUrl) return json({ error: "Şablon görseli yok" }, { status: 400 });
+  if (!templateUrl) return json({ error: en ? "No template image" : "Şablon görseli yok" }, { status: 400 });
 
   let buffer: Buffer;
   try {
@@ -33,7 +36,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!res.ok) throw new Error(String(res.status));
     buffer = Buffer.from(await res.arrayBuffer());
   } catch (err) {
-    return json({ error: `Şablon indirilemedi: ${String(err)}` }, { status: 502 });
+    return json({ error: `${en ? "Couldn't download template" : "Şablon indirilemedi"}: ${String(err)}` }, { status: 502 });
   }
 
   const hasPoint = Number.isFinite(body.x) && Number.isFinite(body.y);
@@ -49,7 +52,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!scan.holes.length) scan = null;
     }
   } catch (err) {
-    return json({ error: `Alan taranamadı: ${String(err)}` }, { status: 500 });
+    return json({ error: `${en ? "Couldn't scan the area" : "Alan taranamadı"}: ${String(err)}` }, { status: 500 });
   }
 
   const hole = scan?.holes[0];
@@ -58,8 +61,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       found: false,
       mode,
       message: hasPoint
-        ? "Bu noktadan bir alan bulunamadı. Tasarımın boş kısmına tıklayın."
-        : "Şablonda kapalı şeffaf alan yok. Boş kısma tıklayarak elle seçin.",
+        ? en
+          ? "No area found from this point. Click an empty part of the design."
+          : "Bu noktadan bir alan bulunamadı. Tasarımın boş kısmına tıklayın."
+        : en
+          ? "The template has no enclosed transparent area. Click the empty part to select it manually."
+          : "Şablonda kapalı şeffaf alan yok. Boş kısma tıklayarak elle seçin.",
     });
   }
 

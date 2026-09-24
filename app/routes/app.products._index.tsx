@@ -17,17 +17,9 @@ import {
 import { useState } from "react";
 import { authenticate } from "~/lib/authenticate.server";
 import { fetchShopifyProducts, getProductConfig } from "~/models/product-config.server";
-import { useTranslation } from "~/i18n";
+import { useTranslation, useDict } from "~/i18n";
+import productsListDict from "~/i18n/admin/products-list";
 import { PageHelper } from "~/components/PageHelper";
-
-const PRODUCT_TYPE_LABELS: Record<string, string> = {
-  apparel: "T-shirt / giyim",
-  sweatshirt: "Sweatshirt / hoodie",
-  bag: "Canta",
-  mug: "Bardak / kupa",
-  boxer: "Baksir / boxer",
-  other: "Diger",
-};
 
 function encodeProductToken(productId: string) {
   return Buffer.from(productId, "utf8").toString("base64url");
@@ -60,6 +52,7 @@ export default function ProductsIndexRoute() {
   const [query, setQuery] = useState(q);
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const L = useDict(productsListDict);
 
   return (
     <Page title={t("products.title")}>
@@ -88,7 +81,7 @@ export default function ProductsIndexRoute() {
                     />
                   </div>
                   <Button submit variant="primary">
-                    Ara
+                    {L.search}
                   </Button>
                 </InlineStack>
               </Form>
@@ -100,7 +93,7 @@ export default function ProductsIndexRoute() {
           {rows.length === 0 ? (
             <Box padding="400">
               <Text as="p" tone="subdued">
-                Eslesen urun bulunamadi.
+                {L.noMatches}
               </Text>
             </Box>
           ) : (
@@ -119,28 +112,28 @@ export default function ProductsIndexRoute() {
                           </Text>
                         </BlockStack>
                         <Badge tone={row.status ? "success" : "attention"}>
-                          {row.status ? "Aktif" : "Pasif"}
+                          {row.status ? L.active : L.inactive}
                         </Badge>
                       </InlineStack>
 
                       <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
                         <BlockStack gap="100">
                           <Text as="p" variant="bodySm" tone="subdued">
-                            Urun tipi
+                            {L.productType}
                           </Text>
-                          <Text as="p">{PRODUCT_TYPE_LABELS[row.productType] ?? row.productType}</Text>
+                          <Text as="p">{L.typeLabels[row.productType] ?? row.productType}</Text>
                         </BlockStack>
                         <BlockStack gap="100">
                           <Text as="p" variant="bodySm" tone="subdued">
-                            Baski yuzleri
+                            {L.printSides}
                           </Text>
-                          <Text as="p">{row.surfaceMode === "front_only" ? "Sadece on" : "On + arka"}</Text>
+                          <Text as="p">{row.surfaceMode === "front_only" ? L.frontOnly : L.frontAndBack}</Text>
                         </BlockStack>
                       </InlineGrid>
 
                       <InlineStack gap="200">
                         <Button onClick={() => navigate(row.editUrl)} variant="primary">
-                          Ayarları aç
+                          {L.openSettings}
                         </Button>
                       </InlineStack>
                     </BlockStack>

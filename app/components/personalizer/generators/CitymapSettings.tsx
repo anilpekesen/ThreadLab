@@ -10,6 +10,8 @@ import {
   type CitymapConfig,
 } from "~/lib/generators/citymap/config";
 import type { GeneratorSettingsProps } from "./types";
+import { useDict, useTranslation } from "~/i18n";
+import dict from "~/i18n/generators/citymap";
 
 /**
  * Şehir haritası şablonunun ayarları. Listeler "müşteriye açılanlar": ilk
@@ -17,6 +19,9 @@ import type { GeneratorSettingsProps } from "./types";
  * seçim hiç görünmez.
  */
 export function CitymapSettings({ value, onChange }: GeneratorSettingsProps<CitymapConfig>) {
+  const L = useDict(dict);
+  const { lang } = useTranslation();
+  const en = lang === "en";
   const set = <K extends keyof CitymapConfig>(k: K, v: CitymapConfig[K]) => onChange({ ...value, [k]: v });
   // Son işaret kaldırılamaz: boş liste normalize'da varsayılana döner ve
   // mağaza sahibinin kaldırdığı seçenekler geri gelir, şaşırtıcı olur.
@@ -36,15 +41,15 @@ export function CitymapSettings({ value, onChange }: GeneratorSettingsProps<City
   return (
     <BlockStack gap="500">
       <BlockStack gap="200">
-        <Text as="h3" variant="headingSm">Stiller</Text>
+        <Text as="h3" variant="headingSm">{L.stylesTitle}</Text>
         <Text as="p" tone="subdued" variant="bodySm">
-          Tişört için şeffaf zeminli çizgi stillerini (beyaz ürüne siyah, koyu ürüne beyaz), çerçeve ve poster için zeminli stilleri açın.
+          {L.stylesHelp}
         </Text>
         <InlineStack gap="200" wrap>
           {CITYMAP_STYLES.map((s) => {
             const on = value.styles.includes(s.id);
             return (
-              <button key={s.id} type="button" style={chip(on)} title={s.hint} aria-pressed={on}
+              <button key={s.id} type="button" style={chip(on)} title={en ? s.hintEn : s.hint} aria-pressed={on}
                 onClick={() => set("styles", toggle(value.styles, s.id))}>
                 <span style={{
                   width: 18, height: 18, borderRadius: 4, border: "1px solid #c9cccf",
@@ -53,7 +58,7 @@ export function CitymapSettings({ value, onChange }: GeneratorSettingsProps<City
                 }}>
                   <span style={{ width: 10, height: 3, background: s.ink, borderRadius: 2 }} />
                 </span>
-                {s.label}
+                {en ? s.labelEn : s.label}
               </button>
             );
           })}
@@ -61,7 +66,7 @@ export function CitymapSettings({ value, onChange }: GeneratorSettingsProps<City
       </BlockStack>
 
       <BlockStack gap="200">
-        <Text as="h3" variant="headingSm">Harita şekilleri</Text>
+        <Text as="h3" variant="headingSm">{L.shapesTitle}</Text>
         <InlineStack gap="200" wrap>
           {CITYMAP_SHAPES.map((s) => {
             const on = value.shapes.includes(s.id);
@@ -69,7 +74,7 @@ export function CitymapSettings({ value, onChange }: GeneratorSettingsProps<City
               <button key={s.id} type="button" style={chip(on)} aria-pressed={on}
                 onClick={() => set("shapes", toggle(value.shapes, s.id))}>
                 <svg width="18" height="18" viewBox="0 0 100 100" aria-hidden="true"><path d={s.path} fill="currentColor" /></svg>
-                {s.label}
+                {en ? s.labelEn : s.label}
               </button>
             );
           })}
@@ -77,9 +82,9 @@ export function CitymapSettings({ value, onChange }: GeneratorSettingsProps<City
       </BlockStack>
 
       <BlockStack gap="200">
-        <Text as="h3" variant="headingSm">Yakınlık (merkezden yarıçap)</Text>
+        <Text as="h3" variant="headingSm">{L.radiiTitle}</Text>
         <Text as="p" tone="subdued" variant="bodySm">
-          1 km mahalle sokaklarını, 5 km şehrin genelini gösterir. Geniş alanlar küçük illerde boş, büyük şehirlerde çok sık görünebilir.
+          {L.radiiHelp}
         </Text>
         <InlineStack gap="200" wrap blockAlign="center">
           {CITYMAP_RADII.map((r) => {
@@ -87,15 +92,15 @@ export function CitymapSettings({ value, onChange }: GeneratorSettingsProps<City
             return (
               <button key={r} type="button" style={chip(on)} aria-pressed={on}
                 onClick={() => set("radii", toggle(value.radii, r))}>
-                {String(r).replace(".", ",")} km
+                {L.km(r)}
               </button>
             );
           })}
         </InlineStack>
         <div style={{ maxWidth: 220 }}>
           <Select
-            label="Varsayılan yakınlık"
-            options={value.radii.map((r) => ({ label: `${String(r).replace(".", ",")} km`, value: String(r) }))}
+            label={L.defaultRadius}
+            options={value.radii.map((r) => ({ label: L.km(r), value: String(r) }))}
             value={String(value.defaultRadius)}
             onChange={(v) => set("defaultRadius", Number(v))}
           />
@@ -103,12 +108,12 @@ export function CitymapSettings({ value, onChange }: GeneratorSettingsProps<City
       </BlockStack>
 
       <BlockStack gap="200">
-        <Text as="h3" variant="headingSm">Başlık yazı tipleri</Text>
+        <Text as="h3" variant="headingSm">{L.fontsTitle}</Text>
         <InlineStack gap="200" wrap>
           {libFonts.map((f) => {
             const on = value.fonts.includes(f.id);
             return (
-              <button key={f.id} type="button" style={chip(on)} title={f.role} aria-pressed={on}
+              <button key={f.id} type="button" style={chip(on)} title={lang === "en" ? (f.roleEn ?? f.role) : f.role} aria-pressed={on}
                 onClick={() => set("fonts", toggle(value.fonts, f.id))}>
                 {f.label}
               </button>
@@ -120,64 +125,63 @@ export function CitymapSettings({ value, onChange }: GeneratorSettingsProps<City
       <FormLayout>
         <FormLayout.Group>
           <Select
-            label="Şehir listesi"
+            label={L.cityScope}
             options={[
-              { label: "Türkiye ve dünya şehirleri", value: "all" },
-              { label: "Yalnız Türkiye (81 il + ilçeler)", value: "tr" },
+              { label: L.cityScopeAll, value: "all" },
+              { label: L.cityScopeTr, value: "tr" },
             ]}
             value={value.cityScope}
             onChange={(v) => set("cityScope", v as CitymapConfig["cityScope"])}
           />
           <Select
-            label="Pencere açılınca seçili şehir"
-            options={cities.map((c) => ({ label: citymapCityLabel(c), value: c.id }))}
+            label={L.defaultCity}
+            options={cities.map((c) => ({ label: citymapCityLabel(c, lang), value: c.id }))}
             value={value.defaultCity}
             onChange={(v) => set("defaultCity", v)}
           />
         </FormLayout.Group>
         <FormLayout.Group>
           <Select
-            label="Merkez işareti"
+            label={L.marker}
             options={[
-              { label: "Kalp", value: "heart" },
-              { label: "Konum iğnesi", value: "pin" },
-              { label: "İşaret yok", value: "none" },
+              { label: L.markerHeart, value: "heart" },
+              { label: L.markerPin, value: "pin" },
+              { label: L.markerNone, value: "none" },
             ]}
             value={value.marker}
             onChange={(v) => set("marker", v as CitymapConfig["marker"])}
           />
           <Select
-            label="Baskıdaki sabit yazıların dili"
+            label={L.labelLanguage}
             options={[
-              { label: "Türkçe (41.0082° K / 28.9784° D, TÜRKİYE)", value: "tr" },
-              { label: "English (41.0082° N / 28.9784° E)", value: "en" },
+              { label: L.labelLanguageTr, value: "tr" },
+              { label: L.labelLanguageEn, value: "en" },
             ]}
             value={value.labelLanguage}
             onChange={(v) => set("labelLanguage", v as CitymapConfig["labelLanguage"])}
           />
         </FormLayout.Group>
         <Checkbox
-          label="Koordinat satırını göster"
+          label={L.showCoordinates}
           checked={value.showCoordinates}
           onChange={(v) => set("showCoordinates", v)}
         />
         <Checkbox
-          label="Parkları yeşil boya (poster stilleri)"
+          label={L.showParks}
           checked={value.showParks}
           onChange={(v) => set("showParks", v)}
-          helpText="Tek renk çizgi stillerinde park çizilmez."
+          helpText={L.showParksHelp}
         />
         <Checkbox
-          label="Müşteri listede olmayan bir nokta girebilsin (enlem/boylam)"
+          label={L.allowCustomPoint}
           checked={value.allowCustomPoint}
           onChange={(v) => set("allowCustomPoint", v)}
-          helpText="Köy, düğün salonu, ilk buluşma yeri gibi noktalar için. Yeni her nokta haritanın ilk çiziminde 10–20 saniye sürebilir."
+          helpText={L.allowCustomPointHelp}
         />
       </FormLayout>
 
       <Banner tone="info">
-        Harita verisi OpenStreetMap'ten (ODbL lisansı) gelir; lisans gereği haritanın altında küçük bir
-        "© OpenStreetMap katkıda bulunanlar" yazısı her zaman basılır.
+        {L.osmNotice}
       </Banner>
     </BlockStack>
   );

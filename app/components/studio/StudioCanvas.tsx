@@ -7,6 +7,8 @@ import {
 } from "~/lib/frame-studio";
 import { maskPathUrl, shapeMaskUrl } from "~/lib/slot-shapes";
 import { fontPreviewFamily } from "./TextSlotSettings";
+import { useDict } from "~/i18n";
+import canvasDict from "~/i18n/studio/canvas";
 
 /**
  * Stüdyo tuvali — alanları gerçek baskı oranında gösterir ve fareyle ya da
@@ -59,6 +61,7 @@ export function StudioCanvas({
   canvas, slots, selectedIds, onSelect, onLive, onCommit,
   backgroundUrl, overlayUrl, showOverlay, showGuides,
 }: StudioCanvasProps) {
+  const L = useDict(canvasDict);
   const stageRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const [boardSize, setBoardSize] = useState({ w: 0, h: 0 });
@@ -333,7 +336,7 @@ export function StudioCanvas({
                     justifyContent: s.align === "left" ? "flex-start" : s.align === "right" ? "flex-end" : "center",
                   }}
                 >
-                  {s.default_value || s.label || "Yazı"}
+                  {s.default_value || s.label || L.textPlaceholder}
                 </span>
               ) : null}
             </div>
@@ -365,7 +368,7 @@ export function StudioCanvas({
             <span className="fs-rotate-stem" aria-hidden="true" />
             <span
               className="fs-rotate"
-              title="Döndür (Shift ile 15°)"
+              title={L.rotateHandle}
               onPointerDown={(e) => beginSlot(e, single, "rotate")}
             />
           </div>

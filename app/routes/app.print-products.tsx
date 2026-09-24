@@ -15,6 +15,9 @@ import {
   seedPrintProducts,
 } from "~/models/print-product.server";
 import { printCanvas, aspectLabel, type PrintProduct } from "~/lib/print-spec";
+import { useDict, useTranslation, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import dict from "~/i18n/admin/print-products";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
@@ -27,6 +30,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = session.shop;
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
+  const L = pickDict(dict, langFromRequest(request, form));
 
   if (intent === "seed") {
     const created = await seedPrintProducts(shop);
@@ -51,7 +55,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Number.isFinite(v) && v > 0 ? v : fallback;
     };
     const input = {
-      name: String(form.get("name") ?? "").trim() || "Adsız ebat",
+      name: String(form.get("name") ?? "").trim() || L.untitledSize,
       width_mm: num("width_mm", 200),
       height_mm: num("height_mm", 200),
       dpi: Math.round(num("dpi", 300)),
@@ -67,7 +71,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ ok: true });
   }
 
-  return json({ error: "Bilinmeyen işlem" }, { status: 400 });
+  return json({ error: L.unknownAction }, { status: 400 });
 };
 
 const EMPTY_DRAFT = {
@@ -88,6 +92,8 @@ export default function PrintProductsPage() {
   const { products } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const [draft, setDraft] = useState<Draft | null>(null);
+  const L = useDict(dict);
+  const { lang } = useTranslation();
 
   const busy = fetcher.state !== "idle";
 
@@ -107,13 +113,13 @@ export default function PrintProductsPage() {
 
   function save() {
     if (!draft) return;
-    fetcher.submit({ intent: "save", ...draft }, { method: "POST" });
+    fetcher.submit({ intent: "save", ...draft, _lang: lang }, { method: "POST" });
     setDraft(null);
   }
 
   function remove(p: PrintProduct) {
-    if (!confirm(`"${p.name}" ebadını silmek istediğinize emin misiniz?`)) return;
-    fetcher.submit({ intent: "delete", id: p.id }, { method: "POST" });
+    if (!confirm(L.confirmDelete(p.name))) return;
+    fetcher.submit({ intent: "delete", id: p.id, _lang: lang }, { method: "POST" });
   }
 
   // Taslak ölçüleri anında tuvale çevrilir; mağaza sahibi kaydetmeden önce
@@ -130,10 +136,10 @@ export default function PrintProductsPage() {
 
   return (
     <Page
-      title="Baskı ebatları"
-      subtitle="Bir tasarımın fiziksel karşılığı: ölçü, çözünürlük ve taşma payı. Şablonlar bu ebatlara bağlanır."
+      title={L.title}
+      subtitle={L.subtitle}
       primaryAction={{
-        content: "Yeni ebat",
+        content: L.newSize,
         onAction: () => setDraft({ ...EMPTY_DRAFT }),
         disabled: busy,
       }}
@@ -143,8 +149,7 @@ export default function PrintProductsPage() {
           <BlockStack gap="400">
             <Banner tone="info">
               <p>
-                Aynı şablon, <b>aynı en-boy oranındaki</b> her ebatta çalışır. 20×20 ile 30×30 aynı
-                şablonu paylaşır; 30×40 ile 50×70 paylaşamaz çünkü oranları farklıdır.
+                {L.aspectInfoPre}<b>{L.aspectInfoBold}</b>{L.aspectInfoPost}
               </p>
             </Banner>
 
@@ -152,33 +157,33 @@ export default function PrintProductsPage() {
               <Card>
                 <BlockStack gap="400">
                   <Text as="h2" variant="headingMd">
-                    {draft.id ? "Ebadı düzenle" : "Yeni ebat"}
+                    {draft.id ? L.editSize : L.newSize}
                   </Text>
                   <FormLayout>
                     <TextField
-                      label="Ad"
+                      label={L.name}
                       value={draft.name}
                       onChange={(v) => setDraft({ ...draft, name: v })}
-                      placeholder="Yapışan çerçeve 20x20"
+                      placeholder={L.namePlaceholder}
                       autoComplete="off"
                     />
                     <FormLayout.Group>
                       <TextField
-                        label="Genişlik (mm)"
+                        label={L.width}
                         type="number"
                         value={draft.width_mm}
                         onChange={(v) => setDraft({ ...draft, width_mm: v })}
                         autoComplete="off"
                       />
                       <TextField
-                        label="Yükseklik (mm)"
+                        label={L.height}
                         type="number"
                         value={draft.height_mm}
                         onChange={(v) => setDraft({ ...draft, height_mm: v })}
                         autoComplete="off"
                       />
                       <TextField
-                        label="Çözünürlük (dpi)"
+                        label={L.resolution}
                         type="number"
                         value={draft.dpi}
                         onChange={(v) => setDraft({ ...draft, dpi: v })}
@@ -187,36 +192,36 @@ export default function PrintProductsPage() {
                     </FormLayout.Group>
                     <FormLayout.Group>
                       <TextField
-                        label="Taşma payı (mm)"
+                        label={L.bleed}
                         type="number"
                         value={draft.bleed_mm}
                         onChange={(v) => setDraft({ ...draft, bleed_mm: v })}
-                        helpText="Kesimdeki kaymayı tolere eder"
+                        helpText={L.bleedHelp}
                         autoComplete="off"
                       />
                       <TextField
-                        label="Güvenli alan (mm)"
+                        label={L.safe}
                         type="number"
                         value={draft.safe_mm}
                         onChange={(v) => setDraft({ ...draft, safe_mm: v })}
-                        helpText="Yazı ve fotoğraf bu alanın içinde kalmalı"
+                        helpText={L.safeHelp}
                         autoComplete="off"
                       />
                       <Select
-                        label="Baskı türü"
+                        label={L.printType}
                         options={[
-                          { label: "Düz (çerçeve, poster, kanvas)", value: "flat" },
-                          { label: "Silindirik (kupa)", value: "cylindrical" },
+                          { label: L.wrapFlat, value: "flat" },
+                          { label: L.wrapCylindrical, value: "cylindrical" },
                         ]}
                         value={draft.wrap}
                         onChange={(v) => setDraft({ ...draft, wrap: v })}
                       />
                     </FormLayout.Group>
                     <TextField
-                      label="Ürün görseli (mockup) URL"
+                      label={L.mockupUrl}
                       value={draft.mockup_url}
                       onChange={(v) => setDraft({ ...draft, mockup_url: v })}
-                      helpText="Boş bırakılabilir"
+                      helpText={L.optional}
                       autoComplete="off"
                     />
                   </FormLayout>
@@ -225,20 +230,19 @@ export default function PrintProductsPage() {
                     <Box background="bg-surface-secondary" padding="300" borderRadius="200">
                       <BlockStack gap="100">
                         <Text as="p" variant="bodySm">
-                          <b>Üretilecek dosya:</b> {preview.canvasWidth} × {preview.canvasHeight} px
-                          {"  ·  "}oran {aspectLabel(preview.aspect)}
+                          <b>{L.outputFile}</b> {preview.canvasWidth} × {preview.canvasHeight} px
+                          {"  ·  "}{L.ratio} {aspectLabel(preview.aspect)}
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          Kesim {preview.trim.width} × {preview.trim.height} px, güvenli alan{" "}
-                          {preview.safe.width} × {preview.safe.height} px
+                          {L.trimSafe(preview.trim.width, preview.trim.height, preview.safe.width, preview.safe.height)}
                         </Text>
                       </BlockStack>
                     </Box>
                   )}
 
                   <InlineStack gap="200">
-                    <Button variant="primary" onClick={save} loading={busy}>Kaydet</Button>
-                    <Button onClick={() => setDraft(null)}>Vazgeç</Button>
+                    <Button variant="primary" onClick={save} loading={busy}>{L.save}</Button>
+                    <Button onClick={() => setDraft(null)}>{L.cancel}</Button>
                   </InlineStack>
                 </BlockStack>
               </Card>
@@ -247,18 +251,17 @@ export default function PrintProductsPage() {
             <Card padding="0">
               {products.length === 0 ? (
                 <EmptyState
-                  heading="Henüz baskı ebadı yok"
+                  heading={L.emptyHeading}
                   action={{
-                    content: "Yaygın ebatları ekle",
-                    onAction: () => fetcher.submit({ intent: "seed" }, { method: "POST" }),
+                    content: L.addCommon,
+                    onAction: () => fetcher.submit({ intent: "seed", _lang: lang }, { method: "POST" }),
                     loading: busy,
                   }}
-                  secondaryAction={{ content: "Kendim ekleyeyim", onAction: () => setDraft({ ...EMPTY_DRAFT }) }}
+                  secondaryAction={{ content: L.addManually, onAction: () => setDraft({ ...EMPTY_DRAFT }) }}
                   image=""
                 >
                   <p>
-                    Çerçeve, poster, kanvas ve kupa için yaygın ebatları tek tıkla ekleyebilir,
-                    sonra istediğinizi değiştirebilirsiniz.
+                    {L.emptyBody}
                   </p>
                 </EmptyState>
               ) : (
@@ -274,32 +277,32 @@ export default function PrintProductsPage() {
                               <InlineStack gap="200" blockAlign="center">
                                 <Text as="span" variant="headingSm">{p.name}</Text>
                                 <Badge tone={p.active ? "success" : undefined}>
-                                  {p.active ? "Yayında" : "Kapalı"}
+                                  {p.active ? L.live : L.off}
                                 </Badge>
                                 <Badge>{aspectLabel(c.aspect)}</Badge>
-                                {p.wrap === "cylindrical" && <Badge tone="attention">Silindirik</Badge>}
+                                {p.wrap === "cylindrical" && <Badge tone="attention">{L.cylindrical}</Badge>}
                               </InlineStack>
                               <Text as="span" variant="bodySm" tone="subdued">
                                 {p.width_mm} × {p.height_mm} mm @ {p.dpi} dpi
-                                {"  ·  "}dosya {c.canvasWidth} × {c.canvasHeight} px
-                                {"  ·  "}taşma {p.bleed_mm} mm
+                                {"  ·  "}{L.file} {c.canvasWidth} × {c.canvasHeight} px
+                                {"  ·  "}{L.bleedShort} {p.bleed_mm} mm
                               </Text>
                             </BlockStack>
                             <InlineStack gap="200" wrap={false}>
                               <Button
                                 onClick={() =>
                                   fetcher.submit(
-                                    { intent: "toggle", id: p.id, active: String(!p.active) },
+                                    { intent: "toggle", id: p.id, active: String(!p.active), _lang: lang },
                                     { method: "POST" },
                                   )
                                 }
                                 disabled={busy}
                               >
-                                {p.active ? "Kapat" : "Yayınla"}
+                                {p.active ? L.disable : L.publish}
                               </Button>
-                              <Button onClick={() => edit(p)} disabled={busy}>Düzenle</Button>
+                              <Button onClick={() => edit(p)} disabled={busy}>{L.edit}</Button>
                               <Button tone="critical" variant="plain" onClick={() => remove(p)} disabled={busy}>
-                                Sil
+                                {L.delete}
                               </Button>
                             </InlineStack>
                           </InlineStack>

@@ -1,6 +1,7 @@
 export interface ClipArtItem {
   id: string;
   name: string;
+  nameEn: string;
   category: 'cartoon' | 'superhero' | 'shapes';
   svg: string;
 }
@@ -228,28 +229,28 @@ const DIAMOND = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
 </svg>`;
 
 export const CLIPART_ITEMS: ClipArtItem[] = [
-  { id: 'bunny', name: 'Tavşan', category: 'cartoon', svg: toDataUrl(BUNNY) },
-  { id: 'yellow-bird', name: 'Sarı Kuş', category: 'cartoon', svg: toDataUrl(YELLOW_BIRD) },
-  { id: 'gray-cat', name: 'Gri Kedi', category: 'cartoon', svg: toDataUrl(GRAY_CAT) },
-  { id: 'cartoon-duck', name: 'Ördek', category: 'cartoon', svg: toDataUrl(CARTOON_DUCK) },
-  { id: 'dragon', name: 'Ejderha', category: 'cartoon', svg: toDataUrl(DRAGON) },
-  { id: 'robot', name: 'Robot', category: 'cartoon', svg: toDataUrl(ROBOT) },
-  { id: 'superhero', name: 'Süper Kahraman', category: 'superhero', svg: toDataUrl(SUPERHERO) },
-  { id: 'spiderweb', name: 'Örümcek Ağı', category: 'superhero', svg: toDataUrl(SPIDERWEB) },
-  { id: 'lightning', name: 'Şimşek', category: 'superhero', svg: toDataUrl(LIGHTNING) },
-  { id: 'shield', name: 'Kalkan', category: 'superhero', svg: toDataUrl(SHIELD) },
-  { id: 'rocket', name: 'Roket', category: 'superhero', svg: toDataUrl(ROCKET) },
-  { id: 'star', name: 'Yıldız', category: 'shapes', svg: toDataUrl(STAR) },
-  { id: 'crown', name: 'Taç', category: 'shapes', svg: toDataUrl(CROWN) },
-  { id: 'heart', name: 'Kalp', category: 'shapes', svg: toDataUrl(HEART) },
-  { id: 'diamond', name: 'Elmas', category: 'shapes', svg: toDataUrl(DIAMOND) },
+  { id: 'bunny', name: 'Tavşan', nameEn: 'Bunny', category: 'cartoon', svg: toDataUrl(BUNNY) },
+  { id: 'yellow-bird', name: 'Sarı Kuş', nameEn: 'Yellow bird', category: 'cartoon', svg: toDataUrl(YELLOW_BIRD) },
+  { id: 'gray-cat', name: 'Gri Kedi', nameEn: 'Gray cat', category: 'cartoon', svg: toDataUrl(GRAY_CAT) },
+  { id: 'cartoon-duck', name: 'Ördek', nameEn: 'Duck', category: 'cartoon', svg: toDataUrl(CARTOON_DUCK) },
+  { id: 'dragon', name: 'Ejderha', nameEn: 'Dragon', category: 'cartoon', svg: toDataUrl(DRAGON) },
+  { id: 'robot', name: 'Robot', nameEn: 'Robot', category: 'cartoon', svg: toDataUrl(ROBOT) },
+  { id: 'superhero', name: 'Süper Kahraman', nameEn: 'Superhero', category: 'superhero', svg: toDataUrl(SUPERHERO) },
+  { id: 'spiderweb', name: 'Örümcek Ağı', nameEn: 'Spider web', category: 'superhero', svg: toDataUrl(SPIDERWEB) },
+  { id: 'lightning', name: 'Şimşek', nameEn: 'Lightning', category: 'superhero', svg: toDataUrl(LIGHTNING) },
+  { id: 'shield', name: 'Kalkan', nameEn: 'Shield', category: 'superhero', svg: toDataUrl(SHIELD) },
+  { id: 'rocket', name: 'Roket', nameEn: 'Rocket', category: 'superhero', svg: toDataUrl(ROCKET) },
+  { id: 'star', name: 'Yıldız', nameEn: 'Star', category: 'shapes', svg: toDataUrl(STAR) },
+  { id: 'crown', name: 'Taç', nameEn: 'Crown', category: 'shapes', svg: toDataUrl(CROWN) },
+  { id: 'heart', name: 'Kalp', nameEn: 'Heart', category: 'shapes', svg: toDataUrl(HEART) },
+  { id: 'diamond', name: 'Elmas', nameEn: 'Diamond', category: 'shapes', svg: toDataUrl(DIAMOND) },
 ];
 
 export const CLIPART_CATEGORIES = [
-  { id: 'all', label: 'Tümü' },
-  { id: 'cartoon', label: 'Çizgi Film' },
-  { id: 'superhero', label: 'Süper Kahraman' },
-  { id: 'shapes', label: 'Şekiller' },
+  { id: 'all', label: 'Tümü', labelEn: 'All' },
+  { id: 'cartoon', label: 'Çizgi Film', labelEn: 'Cartoon' },
+  { id: 'superhero', label: 'Süper Kahraman', labelEn: 'Superhero' },
+  { id: 'shapes', label: 'Şekiller', labelEn: 'Shapes' },
 ] as const;
 
 export type ClipArtCategory = (typeof CLIPART_CATEGORIES)[number]['id'];

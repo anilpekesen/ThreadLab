@@ -133,11 +133,11 @@ export interface TextSlot {
 export type Slot = ImageSlot | TextSlot;
 
 /** Müşteriye açılabilen yazı boyutu kademeleri; değer puntonun çarpanı */
-export const TEXT_SIZE_STEPS: Array<{ value: number; label: string }> = [
-  { value: 0.8, label: "Küçük" },
-  { value: 1, label: "Normal" },
-  { value: 1.25, label: "Büyük" },
-  { value: 1.5, label: "Çok büyük" },
+export const TEXT_SIZE_STEPS: Array<{ value: number; label: string; labelEn: string }> = [
+  { value: 0.8, label: "Küçük", labelEn: "Small" },
+  { value: 1, label: "Normal", labelEn: "Normal" },
+  { value: 1.25, label: "Büyük", labelEn: "Large" },
+  { value: 1.5, label: "Çok büyük", labelEn: "Extra large" },
 ];
 
 /**
@@ -728,6 +728,8 @@ export interface ValidateOptions {
   expected_image_slots?: number;
   /** Müşteriden gelecek fotoğrafın gerçekçi kısa kenarı (uyarı eşiği için) */
   typical_photo_px?: number;
+  /** Denetim mesajlarının dili (yönetim ekranı dili); varsayılan Türkçe */
+  lang?: "tr" | "en";
 }
 
 /**
@@ -744,9 +746,10 @@ export function validateSlots(
 ): SlotIssue[] {
   const issues: SlotIssue[] = [];
   const images = slots.filter(isImageSlot);
+  const en = options.lang === "en";
 
   if (slots.length === 0) {
-    issues.push({ level: "error", message: "Şablonda hiç alan tanımlı değil." });
+    issues.push({ level: "error", message: en ? "The template has no slots." : "Şablonda hiç alan tanımlı değil." });
     return issues;
   }
 
@@ -754,19 +757,21 @@ export function validateSlots(
   if (expected > 0 && images.length !== expected) {
     issues.push({
       level: "error",
-      message: `Beklenen ${expected} fotoğraf alanı, bulunan ${images.length}. Fazla alanları silin veya beklenen sayıyı düzeltin.`,
+      message: en
+        ? `Expected ${expected} photo slots, found ${images.length}. Delete the extra slots or fix the expected count.`
+        : `Beklenen ${expected} fotoğraf alanı, bulunan ${images.length}. Fazla alanları silin veya beklenen sayıyı düzeltin.`,
     });
   }
 
   const ids = new Set<string>();
   for (const s of slots) {
     if (ids.has(s.id)) {
-      issues.push({ level: "error", slot_id: s.id, message: `"${s.id}" kimliği birden fazla alanda kullanılmış.` });
+      issues.push({ level: "error", slot_id: s.id, message: en ? `The ID "${s.id}" is used by more than one slot.` : `"${s.id}" kimliği birden fazla alanda kullanılmış.` });
     }
     ids.add(s.id);
 
     if (!(s.rect.w > 0) || !(s.rect.h > 0)) {
-      issues.push({ level: "error", slot_id: s.id, message: `"${s.label || s.id}" alanının ölçüsü geçersiz.` });
+      issues.push({ level: "error", slot_id: s.id, message: en ? `"${s.label || s.id}" has an invalid size.` : `"${s.label || s.id}" alanının ölçüsü geçersiz.` });
       continue;
     }
     // Döndürülmüş alanın köşeleri tuvalden taşabilir; polaroid kolajlarda bu
@@ -775,8 +780,8 @@ export function validateSlots(
     const eps = 1e-6;
     if (x < -eps || y < -eps || x + w > 1 + eps || y + h > 1 + eps) {
       issues.push(s.rotation
-        ? { level: "warning", slot_id: s.id, message: `"${s.label || s.id}" döndürüldüğü için köşeleri tuvalden taşıyor; taşan kısım basılmaz.` }
-        : { level: "error", slot_id: s.id, message: `"${s.label || s.id}" tuvalin dışına taşıyor.` });
+        ? { level: "warning", slot_id: s.id, message: en ? `"${s.label || s.id}" is rotated, so its corners extend past the canvas; that part won't print.` : `"${s.label || s.id}" döndürüldüğü için köşeleri tuvalden taşıyor; taşan kısım basılmaz.` }
+        : { level: "error", slot_id: s.id, message: en ? `"${s.label || s.id}" extends outside the canvas.` : `"${s.label || s.id}" tuvalin dışına taşıyor.` });
       continue;
     }
 
@@ -789,7 +794,7 @@ export function validateSlots(
       issues.push({
         level: "warning",
         slot_id: s.id,
-        message: `"${s.label || s.id}" güvenli alanın dışında; kesimde kırpılabilir.`,
+        message: en ? `"${s.label || s.id}" is outside the safe area and may be trimmed when cut.` : `"${s.label || s.id}" güvenli alanın dışında; kesimde kırpılabilir.`,
       });
     }
   }
@@ -801,7 +806,9 @@ export function validateSlots(
         issues.push({
           level: "warning",
           slot_id: images[j].id,
-          message: `"${images[i].label || images[i].id}" ile "${images[j].label || images[j].id}" çakışıyor.`,
+          message: en
+            ? `"${images[i].label || images[i].id}" overlaps "${images[j].label || images[j].id}".`
+            : `"${images[i].label || images[i].id}" ile "${images[j].label || images[j].id}" çakışıyor.`,
         });
       }
     }
@@ -817,7 +824,9 @@ export function validateSlots(
         issues.push({
           level: "warning",
           slot_id: s.id,
-          message: `"${s.label || s.id}" için ${shortEdge} px gerekiyor; ${typical} px'lik fotoğraflar bulanık basılır.`,
+          message: en
+            ? `"${s.label || s.id}" needs ${shortEdge} px; ${typical} px photos will print blurry.`
+            : `"${s.label || s.id}" için ${shortEdge} px gerekiyor; ${typical} px'lik fotoğraflar bulanık basılır.`,
         });
       }
     }

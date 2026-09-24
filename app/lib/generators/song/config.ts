@@ -21,8 +21,8 @@ export const SONG_STYLES = [
 ] as const;
 
 export const SONG_THEMES = [
-  { id: "dark", label: "Koyu", labelEn: "Dark", hint: "Açık renk ürünler için", swatch: "#121212" },
-  { id: "light", label: "Açık", labelEn: "Light", hint: "Koyu renk ürünler için", swatch: "#ffffff" },
+  { id: "dark", label: "Koyu", labelEn: "Dark", hint: "Açık renk ürünler için", hintEn: "For light products", swatch: "#121212" },
+  { id: "light", label: "Açık", labelEn: "Light", hint: "Koyu renk ürünler için", hintEn: "For dark products", swatch: "#ffffff" },
 ] as const;
 
 export type SongStyle = (typeof SONG_STYLES)[number]["id"];

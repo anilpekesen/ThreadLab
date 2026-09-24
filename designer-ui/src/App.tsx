@@ -247,7 +247,7 @@ function readConfig(): DesignerConfig {
   return {
     productId: p.get('productId') ?? '',
     productHandle: p.get('handle') ?? '',
-    productTitle: p.get('title') ?? 'Tişört',
+    productTitle: p.get('title') ?? ((p.get('locale') ?? 'tr-TR').startsWith('tr') ? 'Tişört' : 'T-shirt'),
     frontImage: p.get('front') ?? '',
     backImage: p.get('back') ?? '',
     shirtColor: p.get('color') ?? '#1C1C1E',
@@ -1960,7 +1960,7 @@ export default function App() {
     fd.append('choices', JSON.stringify(choices));
     if (decorationFile) fd.append('decoration', decorationFile, decorationFile.name || 'decoration.png');
 
-    const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
+    const res = await fetch(`/apps/tshirt-designer/template-compose?locale=${isTurkish ? 'tr' : 'en'}`, { method: 'POST', body: fd });
     const data = await res.json() as {
       url?: string;
       error?: string;
@@ -1990,7 +1990,7 @@ export default function App() {
     fd.append('style', styleId);
     fd.append('textValues', JSON.stringify(textValues));
 
-    const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
+    const res = await fetch(`/apps/tshirt-designer/template-compose?locale=${isTurkish ? 'tr' : 'en'}`, { method: 'POST', body: fd });
     const data = await res.json() as {
       url?: string;
       error?: string;
@@ -2021,7 +2021,7 @@ export default function App() {
     if (photo) fd.append('photo', await shrinkImageFile(photo));
 
     wordArtDraftRef.current = { words, choices };
-    const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
+    const res = await fetch(`/apps/tshirt-designer/template-compose?locale=${isTurkish ? 'tr' : 'en'}`, { method: 'POST', body: fd });
     const data = await res.json() as { url?: string; error?: string };
     if (!res.ok || !data.url) {
       throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
@@ -2048,7 +2048,7 @@ export default function App() {
     fd.append('choices', JSON.stringify(choices));
     if (photo) fd.append('photo', await shrinkImageFile(photo));
 
-    const res = await fetch('/apps/tshirt-designer/template-compose', { method: 'POST', body: fd });
+    const res = await fetch(`/apps/tshirt-designer/template-compose?locale=${isTurkish ? 'tr' : 'en'}`, { method: 'POST', body: fd });
     const data = await res.json() as { url?: string; error?: string };
     if (!res.ok || !data.url) {
       throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
@@ -2077,6 +2077,7 @@ export default function App() {
         side: activeSide,
       });
       if (config.selectedVariant?.id) params.set('variantId', String(config.selectedVariant.id));
+      params.set('locale', isTurkish ? 'tr' : 'en');
       const res = await fetch(`/apps/tshirt-designer/template-assets?${params}`);
       const data = await res.json();
       if (!res.ok || (!data?.maskDataUrl && data?.layoutMode !== 'scatter' && data?.layoutMode !== 'ai' && data?.layoutMode !== 'wordart' && data?.layoutMode !== 'generator')) {
@@ -2359,7 +2360,7 @@ export default function App() {
       form.append('productId', config?.productId || '');
       form.append('handle', config?.productHandle || '');
       form.append('session_id', getBgSessionId());
-      const shopParam = config?.shop ? `?shop=${encodeURIComponent(config.shop)}` : '';
+      const shopParam = config?.shop ? `?shop=${encodeURIComponent(config.shop)}&locale=${isTurkish ? 'tr' : 'en'}` : `?locale=${isTurkish ? 'tr' : 'en'}`;
       const res = await fetch(`/apps/tshirt-designer/remove-background${shopParam}`, {
         method: 'POST',
         body: form,
@@ -5018,6 +5019,7 @@ export default function App() {
                             value={qty}
                             onChange={(next) => setSizeQuantity(size!, next)}
                             label={`${size} ${t.quantityLabel}`}
+                            locale={config?.locale}
                           />
                         </div>
                       )}
@@ -5033,6 +5035,7 @@ export default function App() {
                   onChange={setNoSizeQuantity}
                   min={minOrderQty}
                   label={t.quantityLabel}
+                  locale={config?.locale}
                 />
                 {minOrderQty > 1 && (
                   <span className="text-xs text-gray-400">Min: {minOrderQty}</span>
@@ -5228,6 +5231,7 @@ export default function App() {
                           onChange={(next) => setSizeQuantity(size!, next)}
                           size="sm"
                           label={`${size} ${t.quantityLabel}`}
+                          locale={config?.locale}
                         />
                       </div>
                       )}
@@ -5249,6 +5253,7 @@ export default function App() {
                 onChange={setNoSizeQuantity}
                 min={minOrderQty}
                 label={t.quantityLabel}
+                locale={config?.locale}
               />
             </div>
           )}

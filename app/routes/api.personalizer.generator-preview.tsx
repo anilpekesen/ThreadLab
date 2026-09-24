@@ -1,6 +1,7 @@
 import { json, type ActionFunctionArgs } from "@remix-run/node";
 import sharp from "sharp";
 import { authenticate } from "~/lib/authenticate.server";
+import { langFromRequest } from "~/i18n/server";
 import { normalizeGeneratorConfig, GENERATOR_CONFIGS } from "~/lib/generators/configs";
 import { getGeneratorModule } from "~/lib/generators/registry.server";
 import { GeneratorInputError } from "~/lib/generators/types";
@@ -14,12 +15,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate(request);
   if (request.method !== "POST") return json({ error: "Method not allowed" }, { status: 405 });
 
-  let body: { config?: unknown; fields?: Record<string, string>; choices?: Record<string, string | number | boolean> };
+  let body: { config?: unknown; fields?: Record<string, string>; choices?: Record<string, string | number | boolean>; _lang?: string };
   try { body = await request.json(); }
-  catch { return json({ error: "Geçersiz istek" }, { status: 400 }); }
+  catch { return json({ error: langFromRequest(request) === "en" ? "Invalid request" : "Geçersiz istek" }, { status: 400 }); }
+  const lang = body._lang === "en" || body._lang === "tr" ? body._lang : langFromRequest(request);
+  const en = lang === "en";
 
   const config = normalizeGeneratorConfig(body.config);
-  if (!config) return json({ error: "Üretici türü tanınmadı" }, { status: 400 });
+  if (!config) return json({ error: en ? "Unknown generator type" : "Üretici türü tanınmadı" }, { status: 400 });
   const sample = GENERATOR_CONFIGS[config.kind];
 
   const photo = sample.samplePhoto
@@ -43,8 +46,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       height: result.height,
     });
   } catch (err) {
-    if (err instanceof GeneratorInputError) return json({ error: err.message }, { status: 400 });
+    if (err instanceof GeneratorInputError) return json({ error: err.messageFor(lang) }, { status: 400 });
     console.error("[generator-preview]", err);
-    return json({ error: "Önizleme üretilemedi" }, { status: 500 });
+    return json({ error: en ? "Couldn't create preview" : "Önizleme üretilemedi" }, { status: 500 });
   }
 };

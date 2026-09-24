@@ -2,7 +2,8 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import { useState, useCallback } from "react";
-import { useTranslation } from "~/i18n";
+import { useTranslation, useDict } from "~/i18n";
+import dict from "~/i18n/admin/production";
 import {
   Page, Card, Badge, Button, InlineStack, Box, Text, BlockStack,
   Thumbnail, IndexTable, useIndexResourceState, Banner, Grid,
@@ -17,13 +18,6 @@ import { PLANS, planKeyFromName } from "~/lib/billing.server";
 
 const APP_URL = "https://app.printlabapp.com";
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Bekliyor",
-  preparing: "Hazırlanıyor",
-  printed: "Basıldı",
-  ready: "Hazır",
-  shipped: "Gönderildi",
-};
 const STATUS_TONE: Record<string, "attention" | "info" | "success"> = {
   pending: "attention",
   preparing: "info",
@@ -119,31 +113,31 @@ function hasPrintFile(order: Order): boolean {
   return !!(order.designFrontPrintUrl || order.productionFileUrl);
 }
 
-const STATUSES = [
-  { label: "Tümü (Bugün)", value: "" },
-  { label: "Bekliyor", value: "pending" },
-  { label: "Hazırlanıyor", value: "preparing" },
-  { label: "Basıldı", value: "printed" },
-];
+const STATUS_VALUES = ["", "pending", "preparing", "printed"];
 
 export default function Production() {
   const { orders, withFile, statusFilter, todayOnly, zipQuery, locked } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const L = useDict(dict);
 
   if (locked) {
     return (
-      <Page title="Üretim">
-        <Banner tone="warning" title="Pro veya Business planı gerekli">
-          <p>Üretim ekranı Pro ve Business planlarında kullanılabilir.</p>
-          <Button onClick={() => navigate("/app/billing")}>Planı Yükselt</Button>
+      <Page title={L.title}>
+        <Banner tone="warning" title={L.planRequired}>
+          <p>{L.lockedBody}</p>
+          <Button onClick={() => navigate("/app/billing")}>{L.upgradePlan}</Button>
         </Banner>
       </Page>
     );
   }
   const fetcher = useFetcher();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
 
-  const resourceName = { singular: "sipariş", plural: "sipariş" };
+  const resourceName = { singular: L.resourceSingular, plural: L.resourcePlural };
+  const STATUSES = STATUS_VALUES.map((value) => ({
+    label: value ? L.statusLabels[value] : L.allToday,
+    value,
+  }));
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(orders);
 
@@ -185,12 +179,13 @@ export default function Production() {
       fd.set("intent", "bulk_status");
       fd.set("ids", selectedResources.join(","));
       fd.set("status", status);
+      fd.set("_lang", lang);
       fetcher.submit(fd, { method: "post" });
     },
-    [selectedResources, fetcher],
+    [selectedResources, fetcher, lang],
   );
 
-  const today = new Date().toLocaleDateString("tr-TR", {
+  const today = new Date().toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", {
     day: "2-digit", month: "long", year: "numeric",
   });
 
@@ -210,7 +205,7 @@ export default function Production() {
         {/* Önizleme */}
         <IndexTable.Cell>
           {previewUrl ? (
-            <Thumbnail source={previewUrl} alt="Tasarım" size="small" />
+            <Thumbnail source={previewUrl} alt={L.designAlt} size="small" />
           ) : (
             <div style={{
               width: 40, height: 40, borderRadius: 6, background: "#f3f4f6",
@@ -243,7 +238,7 @@ export default function Production() {
                 <Badge tone="info" size="small">{o.variantTitle}</Badge>
               )}
               {(o.quantity ?? 1) > 1 && (
-                <Badge tone="warning" size="small">{`${o.quantity}× adet`}</Badge>
+                <Badge tone="warning" size="small">{L.qty(o.quantity ?? 1)}</Badge>
               )}
             </InlineStack>
           </BlockStack>
@@ -252,7 +247,7 @@ export default function Production() {
         {/* Durum */}
         <IndexTable.Cell>
           <Badge tone={STATUS_TONE[o.productionStatus] ?? "attention"}>
-            {STATUS_LABELS[o.productionStatus] ?? o.productionStatus}
+            {L.statusLabels[o.productionStatus] ?? o.productionStatus}
           </Badge>
         </IndexTable.Cell>
 
@@ -260,22 +255,22 @@ export default function Production() {
         <IndexTable.Cell>
           {hasFile ? (
             <InlineStack gap="150" blockAlign="center">
-              <Badge tone="success">✓ Dosya var</Badge>
+              <Badge tone="success">{L.hasFile}</Badge>
               {frontUrl && (
                 <a href={`${APP_URL}/api/download?url=${encodeURIComponent(frontUrl)}&filename=on-baski.png`}
                   target="_blank" rel="noreferrer" download>
-                  <Button size="slim" variant="plain">⬇ Ön</Button>
+                  <Button size="slim" variant="plain">{L.front}</Button>
                 </a>
               )}
               {backUrl && (
                 <a href={`${APP_URL}/api/download?url=${encodeURIComponent(backUrl)}&filename=arka-baski.png`}
                   target="_blank" rel="noreferrer" download>
-                  <Button size="slim" variant="plain">⬇ Arka</Button>
+                  <Button size="slim" variant="plain">{L.back}</Button>
                 </a>
               )}
             </InlineStack>
           ) : (
-            <Badge tone="attention">Dosya yok</Badge>
+            <Badge tone="attention">{L.noFile}</Badge>
           )}
         </IndexTable.Cell>
       </IndexTable.Row>
@@ -286,13 +281,13 @@ export default function Production() {
     <Page
       title={`${t("production.title")} — ${today}`}
       primaryAction={{
-        content: downloadState === "downloading" ? "İndiriliyor..." : t("production.downloadZip"),
+        content: downloadState === "downloading" ? L.downloading : t("production.downloadZip"),
         onAction: handleZipDownload,
         disabled: orders.length === 0 || downloadState === "downloading",
       }}
       secondaryActions={[
         {
-          content: "Baskı Kuyruğu",
+          content: L.printQueue,
           onAction: () => navigate("/app/print-queue"),
           disabled: orders.filter(hasPrintFile).length === 0,
         },
@@ -302,7 +297,7 @@ export default function Production() {
           disabled: orders.filter(hasPrintFile).length === 0,
         },
         {
-          content: "Yenile",
+          content: L.refresh,
           onAction: () => navigate("/app/production"),
         },
       ]}
@@ -311,13 +306,13 @@ export default function Production() {
         {/* İstatistikler */}
         <Grid>
           <Grid.Cell columnSpan={{ xs: 6, sm: 2, md: 2, lg: 4, xl: 4 }}>
-            <StatCard label={todayOnly ? "Bugün toplam" : "Toplam sipariş"} value={orders.length} />
+            <StatCard label={todayOnly ? L.todayTotal : L.totalOrders} value={orders.length} />
           </Grid.Cell>
           <Grid.Cell columnSpan={{ xs: 6, sm: 2, md: 2, lg: 4, xl: 4 }}>
-            <StatCard label="Baskı dosyası hazır" value={withFile} tone="success" />
+            <StatCard label={L.filesReady} value={withFile} tone="success" />
           </Grid.Cell>
           <Grid.Cell columnSpan={{ xs: 6, sm: 2, md: 2, lg: 4, xl: 4 }}>
-            <StatCard label="Dosya eksik" value={orders.length - withFile} tone={orders.length - withFile > 0 ? "caution" : undefined} />
+            <StatCard label={L.filesMissing} value={orders.length - withFile} tone={orders.length - withFile > 0 ? "caution" : undefined} />
           </Grid.Cell>
         </Grid>
 
@@ -326,27 +321,27 @@ export default function Production() {
           <Banner tone="info">
             <InlineStack gap="300" blockAlign="center" wrap>
               <Text as="span" variant="bodySm">
-                <strong>{selectedResources.length}</strong> sipariş seçildi
+                <strong>{selectedResources.length}</strong>{L.selectedSuffix}
               </Text>
               <Button
                 size="slim"
                 onClick={() => handleBulkStatus("preparing")}
                 loading={fetcher.state === "submitting"}
               >
-                → Hazırlanıyor İşaretle
+                {L.markPreparing}
               </Button>
               <Button
                 size="slim"
                 onClick={() => handleBulkStatus("printed")}
                 loading={fetcher.state === "submitting"}
               >
-                → Basıldı İşaretle
+                {L.markPrinted}
               </Button>
               <Button size="slim" variant="secondary" onClick={handleZipDownload}>
-                ⬇ Seçilenleri ZIP İndir
+                {L.downloadSelectedZip}
               </Button>
               <Button size="slim" variant="secondary" onClick={handleGangSheet}>
-                Gang Sheet Oluştur
+                {L.createGangSheet}
               </Button>
             </InlineStack>
           </Banner>
@@ -373,7 +368,7 @@ export default function Production() {
                 pressed={todayOnly}
                 onClick={() => navigate(`/app/production${todayOnly ? "" : "?today=1"}`)}
               >
-                📅 Sadece Bugün
+                {L.todayOnly}
               </Button>
             </InlineStack>
           </Box>
@@ -382,10 +377,10 @@ export default function Production() {
             <Box padding="800">
               <BlockStack gap="300" inlineAlign="center">
                 <Text as="p" variant="headingMd" alignment="center">
-                  Bekleyen sipariş bulunamadı
+                  {L.emptyTitle}
                 </Text>
                 <Text as="p" tone="subdued" alignment="center">
-                  Yeni siparişler geldiğinde burada görünecek.
+                  {L.emptyBody}
                 </Text>
               </BlockStack>
             </Box>
@@ -397,11 +392,11 @@ export default function Production() {
               onSelectionChange={handleSelectionChange}
               headings={[
                 { title: "" },
-                { title: "Sipariş" },
-                { title: "Müşteri" },
-                { title: "Ürün" },
-                { title: "Durum" },
-                { title: "Baskı Dosyası" },
+                { title: L.colOrder },
+                { title: L.colCustomer },
+                { title: L.colProduct },
+                { title: L.colStatus },
+                { title: L.colPrintFile },
               ]}
             >
               {rowMarkup}
@@ -414,7 +409,7 @@ export default function Production() {
           <Divider />
         </Box>
         <Text as="p" variant="bodySm" tone="subdued">
-          ZIP İndir: seçilen siparişlerin baskı dosyalarını tek bir ZIP'e paketler. Hiçbir şey seçilmezse listelenen tüm siparişler dahil edilir.
+          {L.zipFooter}
         </Text>
       </BlockStack>
     </Page>

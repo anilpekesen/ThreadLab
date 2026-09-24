@@ -316,7 +316,7 @@ export async function buildSlotData(
         fontUrl: sl.font_url ?? "",
         fontFamily: sl.font_family,
         colorChoices: (sl.color_choices ?? []).map((c) => ({
-          hex: c, label: colorLabel(c), light: isLightColor(c),
+          hex: c, label: colorLabel(c, isTr ? "tr" : "en"), light: isLightColor(c),
         })),
         colorFree: sl.color_free === true,
         // Boyut kademeleri: Normal her zaman ilk sırada, mağazanın açtıkları küçükten büyüğe

@@ -1,0 +1,41 @@
+const tr = {
+  defaultBadge: "(varsayılan)",
+  stylesTitle: "Çizim stilleri",
+  stylesHelp: "Çizgi ve siluet tek renk basılır; renkli stil çiçekleri kendi renkleriyle doldurur (DTF/DTG gibi tam renkli baskı gerekir).",
+  layoutsTitle: "Düzenler",
+  layoutsHelp: "Buket saplarını fiyonkla toplar; yan yana düzen her çiçeğin altına adı yazar; tek çiçek yalnızca ilk kişiyi kullanır.",
+  fontsTitle: "Yazı tipleri",
+  inksTitle: "Mürekkep renkleri",
+  inksHelp: "Çizgilerin ve isimlerin rengi. Koyu ürünler için Beyaz'ı açık tutun.",
+  maxPeople: "En fazla kişi",
+  maxPeopleHelp: "Buket 6 kişiden sonra iki kat dizilir.",
+  nameMaxLength: "İsim başına en fazla harf",
+  titleEnabled: "Müşteri bir başlık yazabilsin",
+  titleEnabledHelp: "Tasarımın üstünde, isimlerle aynı yazı tipinde (örn. Annemin Bahçesi).",
+  titleMaxLength: "Başlık en fazla harf",
+  titlePlaceholder: "Başlık kutusundaki örnek",
+  titlePlaceholderHelp: "Müşteri penceresinde soluk örnek olarak görünür; boş başlık basılmaz.",
+  monthFlowers: "Ay çiçekleri",
+};
+
+const en: typeof tr = {
+  defaultBadge: "(default)",
+  stylesTitle: "Drawing styles",
+  stylesHelp: "Line art and silhouette print in a single color; the color style fills flowers with their own colors (needs full-color printing such as DTF/DTG).",
+  layoutsTitle: "Layouts",
+  layoutsHelp: "Bouquet ties the stems with a bow; side by side writes each name under its flower; single flower uses only the first person.",
+  fontsTitle: "Fonts",
+  inksTitle: "Ink colors",
+  inksHelp: "Color of the lines and names. Keep White enabled for dark products.",
+  maxPeople: "Maximum people",
+  maxPeopleHelp: "After 6 people the bouquet is arranged in two rows.",
+  nameMaxLength: "Maximum letters per name",
+  titleEnabled: "Let customers add a title",
+  titleEnabledHelp: "Above the design, in the same font as the names (e.g. Mom's Garden).",
+  titleMaxLength: "Maximum title letters",
+  titlePlaceholder: "Title box example",
+  titlePlaceholderHelp: "Shown as a faded example in the customer window; an empty title isn't printed.",
+  monthFlowers: "Birth month flowers",
+};
+
+export default { tr, en };

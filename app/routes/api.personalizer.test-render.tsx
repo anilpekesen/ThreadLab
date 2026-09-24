@@ -1,6 +1,7 @@
 import { json, type ActionFunctionArgs } from "@remix-run/node";
 import sharp from "sharp";
 import { authenticate } from "~/lib/authenticate.server";
+import { langFromRequest } from "~/i18n/server";
 import { uploadToR2 } from "~/lib/r2.server";
 import { getPersonalizerTemplate, templatePieces } from "~/models/personalizer.server";
 import { getPrintProduct } from "~/models/print-product.server";
@@ -50,18 +51,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  let body: { templateId?: string };
+  let body: { templateId?: string; _lang?: string };
   try { body = await request.json(); }
-  catch { return json({ error: "Geçersiz istek" }, { status: 400 }); }
+  catch { return json({ error: langFromRequest(request) === "en" ? "Invalid request" : "Geçersiz istek" }, { status: 400 }); }
+  const lang = body._lang === "en" || body._lang === "tr" ? body._lang : langFromRequest(request);
+  const en = lang === "en";
 
   const template = await getPersonalizerTemplate(String(body.templateId ?? ""), session.shop);
-  if (!template) return json({ error: "Şablon bulunamadı" }, { status: 404 });
+  if (!template) return json({ error: en ? "Template not found" : "Şablon bulunamadı" }, { status: 404 });
 
   const pieces = templatePieces(template);
 
   const allImageSlots = pieces.flatMap((piece) => piece.slots.filter(isImageSlot));
   if (allImageSlots.length === 0) {
-    return json({ error: "Şablonda fotoğraf alanı yok" }, { status: 400 });
+    return json({ error: en ? "The template has no photo slots" : "Şablonda fotoğraf alanı yok" }, { status: 400 });
   }
 
   // Aynı kaynağı gösteren slotlar aynı örnek fotoğrafı almalı; şablon "tek
@@ -93,7 +96,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         : null;
       if (!product) {
         return json(
-          { error: `"${piece.name}" parçasına baskı ebadı bağlanmamış` },
+          { error: en ? `No print size is linked to the "${piece.name}" piece` : `"${piece.name}" parçasına baskı ebadı bağlanmamış` },
           { status: 400 },
         );
       }
@@ -121,6 +124,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         expected_image_slots: pieces.length === 1 ? template.expected_slots : 0,
         // 12 MP'lik tipik bir telefon fotoğrafının kısa kenarı
         typical_photo_px: 3000,
+        lang,
       });
       for (const issue of pieceIssues) {
         issues.push(pieces.length > 1
@@ -136,7 +140,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           issues.push({
             level: "warning",
             slot_id: slot.id,
-            message: `"${slot.label || slot.id}" için font yüklenmemiş; baskıda tasarımdan farklı görünecek.`,
+            message: en
+              ? `No font uploaded for "${slot.label || slot.id}"; it will look different from the design when printed.`
+              : `"${slot.label || slot.id}" için font yüklenmemiş; baskıda tasarımdan farklı görünecek.`,
           });
         }
       }
@@ -151,7 +157,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   } catch (err) {
     console.error("[test-render] hata:", err);
-    return json({ error: "Deneme çıktısı üretilemedi" }, { status: 500 });
+    return json({ error: en ? "Couldn't create the test render" : "Deneme çıktısı üretilemedi" }, { status: 500 });
   }
 };
 

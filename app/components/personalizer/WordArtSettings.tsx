@@ -12,6 +12,8 @@ import {
   type WordArtShapeId,
   type WordArtTemplateConfig,
 } from "~/lib/wordart";
+import { useDict, useTranslation } from "~/i18n";
+import dict from "~/i18n/personalizer/wordart";
 
 /**
  * Kelime sanatı şablonunun ayarları. Durumu kendi içinde tutar ve kaydetme
@@ -21,6 +23,9 @@ import {
  * işaretliyse müşteri penceresinde o seçim hiç görünmez.
  */
 export function WordArtSettings({ initial }: { initial: unknown }) {
+  const { lang } = useTranslation();
+  const L = useDict(dict);
+  const en = lang === "en";
   const start = normalizeWordArtConfig(initial);
   const [shapes, setShapes] = useState<WordArtShapeId[]>(start.shapes);
   const [fonts, setFonts] = useState<string[]>(start.fonts);
@@ -65,13 +70,14 @@ export function WordArtSettings({ initial }: { initial: unknown }) {
           config,
           words: config.sampleWords.join("\n"),
           choices: { shape: previewShape || config.shapes[0], variant: nextVariant },
+          _lang: lang,
         }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Önizleme üretilemedi");
+      if (!res.ok || data.error) throw new Error(data.error || L.previewFailed);
       setPreview(data);
     } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : "Önizleme üretilemedi");
+      setPreviewError(err instanceof Error ? err.message : L.previewFailed);
     } finally {
       setPreviewing(false);
     }
@@ -90,8 +96,8 @@ export function WordArtSettings({ initial }: { initial: unknown }) {
   return (
     <BlockStack gap="500">
       <BlockStack gap="200">
-        <Text as="h3" variant="headingSm">Müşteriye açılan şekiller</Text>
-        <Text as="p" tone="subdued" variant="bodySm">İlk işaretlediğiniz şekil varsayılan olur. Harf şeklinde müşteri kendi harfini seçer. "Fotoğrafım" şeklinde müşterinin fotoğrafının arka planı silinir ve kelimeler kişinin siluetine dizilir (arka plan silme kotanızdan düşer); "Fotoğrafın renkleri" paletiyle her kelime fotoğraftaki rengini alır.</Text>
+        <Text as="h3" variant="headingSm">{L.shapesTitle}</Text>
+        <Text as="p" tone="subdued" variant="bodySm">{L.shapesHelp}</Text>
         <InlineStack gap="200" wrap>
           {WORDART_SHAPES.map((s) => {
             const on = shapes.includes(s.id);
@@ -104,25 +110,25 @@ export function WordArtSettings({ initial }: { initial: unknown }) {
                       ? <path d="M11 3a4 4 0 1 1 0 8a4 4 0 0 1 0-8Zm-7 17c0-4 3-6.5 7-6.5s7 2.5 7 6.5Z" fill="currentColor" />
                       : <path d={wordArtShapePath(s.id, 20, 20)} transform="translate(1 1)" fill="currentColor" />}
                 </svg>
-                {s.label}
+                {en ? s.labelEn : s.label}
               </button>
             );
           })}
         </InlineStack>
         {shapes.includes("letter") && (
           <div style={{ maxWidth: 160 }}>
-            <TextField label="Varsayılan harf" value={defaultLetter} onChange={(v) => setDefaultLetter(v.slice(0, 2))} autoComplete="off" />
+            <TextField label={L.defaultLetter} value={defaultLetter} onChange={(v) => setDefaultLetter(v.slice(0, 2))} autoComplete="off" />
           </div>
         )}
       </BlockStack>
 
       <BlockStack gap="200">
-        <Text as="h3" variant="headingSm">Yazı tipleri</Text>
+        <Text as="h3" variant="headingSm">{L.fontsTitle}</Text>
         <InlineStack gap="200" wrap>
           {FONT_LIBRARY.map((f) => {
             const on = fonts.includes(f.id);
             return (
-              <button key={f.id} type="button" style={chip(on)} onClick={() => toggle(fonts, setFonts, f.id)} aria-pressed={on} title={f.role}>
+              <button key={f.id} type="button" style={chip(on)} onClick={() => toggle(fonts, setFonts, f.id)} aria-pressed={on} title={en ? f.roleEn ?? f.role : f.role}>
                 {f.label}
               </button>
             );
@@ -131,8 +137,8 @@ export function WordArtSettings({ initial }: { initial: unknown }) {
       </BlockStack>
 
       <BlockStack gap="200">
-        <Text as="h3" variant="headingSm">Renk paletleri</Text>
-        <Text as="p" tone="subdued" variant="bodySm">Koyu ürünler için Beyaz ya da Neon, açık ürünler için diğerlerini açın.</Text>
+        <Text as="h3" variant="headingSm">{L.palettesTitle}</Text>
+        <Text as="p" tone="subdued" variant="bodySm">{L.palettesHelp}</Text>
         <InlineStack gap="200" wrap>
           {WORDART_PALETTES.map((p) => {
             const on = palettes.includes(p.id);
@@ -146,7 +152,7 @@ export function WordArtSettings({ initial }: { initial: unknown }) {
                     <span key={c} style={{ width: 12, height: 12, background: c, border: "1px solid #d0d0d0", marginRight: -3, borderRadius: 3 }} />
                   ))}
                 </span>
-                <span style={{ marginLeft: 4 }}>{p.label}</span>
+                <span style={{ marginLeft: 4 }}>{en ? p.labelEn : p.label}</span>
               </button>
             );
           })}
@@ -156,78 +162,78 @@ export function WordArtSettings({ initial }: { initial: unknown }) {
       <FormLayout>
         <FormLayout.Group>
           <Select
-            label="Kelime yönü"
+            label={L.orientation}
             options={[
-              { label: "Karışık (çoğu yatay, bazıları dikey)", value: "mixed" },
-              { label: "Hepsi yatay", value: "horizontal" },
-              { label: "Hepsi dikey", value: "vertical" },
+              { label: L.orientationMixed, value: "mixed" },
+              { label: L.orientationHorizontal, value: "horizontal" },
+              { label: L.orientationVertical, value: "vertical" },
             ]}
             value={orientation}
             onChange={(v) => setOrientation(v as WordArtOrientation)}
           />
           <TextField
-            label="Şekil zemin rengi"
+            label={L.background}
             value={background}
             onChange={setBackground}
             autoComplete="off"
             placeholder="#ffffff"
-            helpText="Boş bırakılırsa şeffaf; kelimeler doğrudan ürünün üstüne basılır."
+            helpText={L.backgroundHelp}
           />
         </FormLayout.Group>
         <FormLayout.Group>
-          <TextField label="En fazla kelime" type="number" value={maxWords} onChange={setMaxWords} autoComplete="off" />
-          <TextField label="Kelime başına en fazla harf" type="number" value={maxWordLength} onChange={setMaxWordLength} autoComplete="off" />
+          <TextField label={L.maxWords} type="number" value={maxWords} onChange={setMaxWords} autoComplete="off" />
+          <TextField label={L.maxWordLength} type="number" value={maxWordLength} onChange={setMaxWordLength} autoComplete="off" />
         </FormLayout.Group>
         <Checkbox
-          label="Boşlukları kelimeleri tekrarlayarak doldur"
+          label={L.repeatWords}
           checked={repeatWords}
           onChange={setRepeatWords}
-          helpText="Kapalıysa her kelime yalnızca bir kez yazılır; az kelimede şekil seçilemeyecek kadar boş kalır."
+          helpText={L.repeatWordsHelp}
         />
         <TextField
-          label="Örnek kelimeler"
+          label={L.sampleWords}
           value={sampleWords}
           onChange={setSampleWords}
           multiline={5}
           autoComplete="off"
-          helpText="Her satıra bir kelime. Başına * koyulan kelime büyük yazılır. Müşteri penceresi bu listeyle açılır."
+          helpText={L.sampleWordsHelp}
         />
       </FormLayout>
 
       <details style={{ borderTop: "1px solid #e1e3e5", paddingTop: 12 }}>
         <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#303030" }}>
-          Tuval ve punto
+          {L.canvasSection}
         </summary>
         <div style={{ marginTop: 16 }}>
           <FormLayout>
             <FormLayout.Group>
-              <TextField label="Tuval genişliği (px)" type="number" value={canvasWidth} onChange={setCanvasWidth} autoComplete="off" />
-              <TextField label="Tuval yüksekliği (px)" type="number" value={canvasHeight} onChange={setCanvasHeight} autoComplete="off" />
+              <TextField label={L.canvasWidth} type="number" value={canvasWidth} onChange={setCanvasWidth} autoComplete="off" />
+              <TextField label={L.canvasHeight} type="number" value={canvasHeight} onChange={setCanvasHeight} autoComplete="off" />
             </FormLayout.Group>
             <FormLayout.Group>
-              <TextField label="En küçük punto (px)" type="number" value={minFontPx} onChange={setMinFontPx} autoComplete="off"
-                helpText="Baskıda okunabilirlik sınırı. 2400 px ≈ 30 cm basılırsa 28 px ≈ 3,5 mm." />
-              <TextField label="En büyük punto (px)" type="number" value={maxFontPx} onChange={setMaxFontPx} autoComplete="off" />
+              <TextField label={L.minFont} type="number" value={minFontPx} onChange={setMinFontPx} autoComplete="off"
+                helpText={L.minFontHelp} />
+              <TextField label={L.maxFont} type="number" value={maxFontPx} onChange={setMaxFontPx} autoComplete="off" />
             </FormLayout.Group>
           </FormLayout>
         </div>
       </details>
 
       <BlockStack gap="300">
-        <Text as="h3" variant="headingSm">Önizleme</Text>
+        <Text as="h3" variant="headingSm">{L.previewTitle}</Text>
         <InlineStack gap="200" blockAlign="end">
           <div style={{ minWidth: 160 }}>
             <Select
-              label="Şekil"
-              options={config.shapes.map((id) => ({ label: WORDART_SHAPES.find((s) => s.id === id)?.label ?? id, value: id }))}
+              label={L.previewShape}
+              options={config.shapes.map((id) => ({ label: (() => { const sh = WORDART_SHAPES.find((s) => s.id === id); return (en ? sh?.labelEn : sh?.label) ?? id; })(), value: id }))}
               value={previewShape || config.shapes[0]}
               onChange={setPreviewShape}
             />
           </div>
-          <Button onClick={() => { setVariant(0); runPreview(0); }} loading={previewing}>Örnek kelimelerle önizle</Button>
+          <Button onClick={() => { setVariant(0); runPreview(0); }} loading={previewing}>{L.previewButton}</Button>
           {preview && (
             <Button variant="plain" onClick={() => { const v = (variant + 1) % 20; setVariant(v); runPreview(v); }} disabled={previewing}>
-              Farklı dizilim
+              {L.differentLayout}
             </Button>
           )}
         </InlineStack>
@@ -238,11 +244,11 @@ export function WordArtSettings({ initial }: { initial: unknown }) {
               background: "repeating-conic-gradient(#f1f1f1 0% 25%, #fff 0% 50%) 50% / 20px 20px",
               border: "1px solid #e1e3e5", borderRadius: 8, padding: 12, display: "flex", justifyContent: "center",
             }}>
-              <img src={preview.image} alt="Kelime sanatı önizlemesi" style={{ maxWidth: "100%", maxHeight: 420 }} />
+              <img src={preview.image} alt={L.previewAlt} style={{ maxWidth: "100%", maxHeight: 420 }} />
             </div>
             <Text as="p" tone="subdued" variant="bodySm">
-              {`${preview.placed} kelime yerleşti.`}
-              {preview.skipped.length > 0 && ` Sığmayan: ${preview.skipped.join(", ")}.`}
+              {L.placed(preview.placed)}
+              {preview.skipped.length > 0 && L.skipped(preview.skipped.join(", "))}
             </Text>
           </BlockStack>
         )}

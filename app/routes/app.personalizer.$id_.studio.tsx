@@ -12,14 +12,18 @@ import { normalizeGridConfig, normalizeMockups, normalizePieces, type TemplatePi
 import { SINGLE_PIECE_ID, piecesToTemplateFields } from "~/lib/frame-studio";
 import type { PrintProduct } from "~/lib/print-spec";
 import { FrameStudio, type NewSizeInput, type StudioSavePayload } from "~/components/studio/FrameStudio";
+import { pickDict, useTranslation } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import dict from "~/i18n/personalizer/studio";
 import studioStyles from "~/styles/frame-studio.css?url";
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: studioStyles }];
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
+  const L = pickDict(dict, langFromRequest(request));
   const template = await getPersonalizerTemplate(params.id ?? "", session.shop);
-  if (!template) throw new Response("Şablon bulunamadı", { status: 404 });
+  if (!template) throw new Response(L.notFound, { status: 404 });
 
   // Stüdyo her şablonu parça listesi olarak düzenler. Tek parçalı şablonun
   // arka planı `template_url` kolonunda duruyor; kayıtta aynı yere dönüyor.
@@ -27,7 +31,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     ? template.pieces
     : [{
         id: SINGLE_PIECE_ID,
-        name: template.name || "Tasarım",
+        name: template.name || L.defaultPieceName,
         print_product_id: template.print_product_id,
         slots: template.slots,
         background_url: template.template_url || undefined,
@@ -53,15 +57,17 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const shop = session.shop;
   const id = params.id ?? "";
 
-  let body: { intent?: string } & Partial<StudioSavePayload> & { size?: Partial<NewSizeInput> };
+  let body: { intent?: string; _lang?: string } & Partial<StudioSavePayload> & { size?: Partial<NewSizeInput> };
   try { body = await request.json(); }
-  catch { return json({ error: "Geçersiz istek" }, { status: 400 }); }
+  catch { return json({ error: pickDict(dict, langFromRequest(request)).invalidRequest }, { status: 400 }); }
+  // JSON gövdesinde form olmadığından dil `_lang` alanından okunur
+  const L = pickDict(dict, body._lang === "en" || body._lang === "tr" ? body._lang : langFromRequest(request));
 
   if (body.intent === "create_size") {
     const s = body.size ?? {};
     const width = Number(s.width_mm);
     const height = Number(s.height_mm);
-    if (!(width > 0) || !(height > 0)) return json({ error: "Genişlik ve yükseklik gerekli" }, { status: 400 });
+    if (!(width > 0) || !(height > 0)) return json({ error: L.sizeRequired }, { status: 400 });
     const created = await createPrintProduct(shop, {
       name: String(s.name ?? "").trim() || `${width / 10}×${height / 10} cm`,
       width_mm: width,
@@ -75,15 +81,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     return json({ ok: true, createdSizeId: created.id });
   }
 
-  if (body.intent !== "save") return json({ error: "Bilinmeyen işlem" }, { status: 400 });
+  if (body.intent !== "save") return json({ error: L.unknownIntent }, { status: 400 });
 
   const template = await getPersonalizerTemplate(id, shop);
-  if (!template) return json({ error: "Şablon bulunamadı" }, { status: 404 });
+  if (!template) return json({ error: L.notFound }, { status: 404 });
 
   // İstemciden gelen her şey normalize ediliyor: bozuk geometri render
   // motoruna ve müşteri sayfasına geçmemeli.
   const pieces = normalizePieces(body.pieces);
-  if (pieces.length === 0) return json({ error: "Kaydedilecek tasarım yok" }, { status: 400 });
+  if (pieces.length === 0) return json({ error: L.nothingToSave }, { status: 400 });
 
   const fields = piecesToTemplateFields(pieces, template);
   const hadPhotoSlots = template.slots.length > 0 || template.pieces.length > 0;
@@ -113,7 +119,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const result = hasPhotoSlots
         ? await setProductTemplateMetafield(shop, productId, id)
         : await clearProductTemplateMetafield(shop, productId);
-      if (!result.ok) metafieldErrors.push(result.error ?? "bilinmeyen hata");
+      if (!result.ok) metafieldErrors.push(result.error ?? L.unknownError);
     }
   }
 
@@ -121,7 +127,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     ok: true,
     saved: true,
     error: metafieldErrors.length
-      ? `Tasarım kaydedildi ama bağlı ürünlerin bir kısmı güncellenemedi: ${metafieldErrors.join(", ")}. Şablon listesinde "Bağlantıları denetle"ye basın.`
+      ? L.metafieldPartial(metafieldErrors.join(", "))
       : undefined,
   });
 };
@@ -129,6 +135,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 export default function PersonalizerStudioRoute() {
   const data = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const { lang } = useTranslation();
   const saveFetcher = useFetcher<{ ok?: boolean; saved?: boolean; error?: string }>();
   const sizeFetcher = useFetcher<{ ok?: boolean; createdSizeId?: string; error?: string }>();
   const [saveCount, setSaveCount] = useState(0);
@@ -156,14 +163,14 @@ export default function PersonalizerStudioRoute() {
       saveError={saveFetcher.data?.error ?? sizeFetcher.data?.error}
       saveCount={saveCount}
       onSave={(payload) => saveFetcher.submit(
-        { intent: "save", ...payload } as never,
+        { intent: "save", ...payload, _lang: lang } as never,
         { method: "POST", encType: "application/json" },
       )}
       onBack={() => navigate(`/app/personalizer/${data.templateId}`)}
       creatingSize={sizeFetcher.state !== "idle"}
       createdSizeId={sizeFetcher.data?.createdSizeId}
       onCreateSize={(size) => sizeFetcher.submit(
-        { intent: "create_size", size } as never,
+        { intent: "create_size", size, _lang: lang } as never,
         { method: "POST", encType: "application/json" },
       )}
     />

@@ -20,20 +20,21 @@ export const STARMAP_THEMES: Array<{
   /** Yönetim ekranında ve pencerede küçük örnek: daire zemini + yıldız rengi */
   swatch: { bg: string; ink: string };
   hint: string;
+  hintEn: string;
 }> = [
-  { id: "navy", label: "Lacivert", labelEn: "Navy", swatch: { bg: "#13234a", ink: "#ffffff" }, hint: "Lacivert dolgulu daire, beyaz yıldızlar" },
-  { id: "black", label: "Siyah", labelEn: "Black", swatch: { bg: "#0b0b0d", ink: "#ffffff" }, hint: "Siyah dolgulu daire, beyaz yıldızlar" },
-  { id: "transparent-light", label: "Beyaz mürekkep", labelEn: "White ink", swatch: { bg: "#1f1f1f", ink: "#ffffff" }, hint: "Şeffaf zemin, beyaz baskı — siyah/koyu tişört" },
-  { id: "transparent-dark", label: "Siyah mürekkep", labelEn: "Black ink", swatch: { bg: "#ffffff", ink: "#111111" }, hint: "Şeffaf zemin, siyah baskı — beyaz/açık tişört" },
+  { id: "navy", label: "Lacivert", labelEn: "Navy", swatch: { bg: "#13234a", ink: "#ffffff" }, hint: "Lacivert dolgulu daire, beyaz yıldızlar", hintEn: "Navy filled circle, white stars" },
+  { id: "black", label: "Siyah", labelEn: "Black", swatch: { bg: "#0b0b0d", ink: "#ffffff" }, hint: "Siyah dolgulu daire, beyaz yıldızlar", hintEn: "Black filled circle, white stars" },
+  { id: "transparent-light", label: "Beyaz mürekkep", labelEn: "White ink", swatch: { bg: "#1f1f1f", ink: "#ffffff" }, hint: "Şeffaf zemin, beyaz baskı — siyah/koyu tişört", hintEn: "Transparent background, white print — black/dark shirts" },
+  { id: "transparent-dark", label: "Siyah mürekkep", labelEn: "Black ink", swatch: { bg: "#ffffff", ink: "#111111" }, hint: "Şeffaf zemin, siyah baskı — beyaz/açık tişört", hintEn: "Transparent background, black print — white/light shirts" },
 ];
 
 export type StarmapDateFormat = "long" | "long-time" | "numeric" | "numeric-time";
 
-export const STARMAP_DATE_FORMATS: Array<{ id: StarmapDateFormat; label: string }> = [
-  { id: "long", label: "12 Haziran 2020" },
-  { id: "long-time", label: "12 Haziran 2020 · 21:00" },
-  { id: "numeric", label: "12.06.2020" },
-  { id: "numeric-time", label: "12.06.2020 · 21:00" },
+export const STARMAP_DATE_FORMATS: Array<{ id: StarmapDateFormat; label: string; labelEn: string }> = [
+  { id: "long", label: "12 Haziran 2020", labelEn: "June 12, 2020" },
+  { id: "long-time", label: "12 Haziran 2020 · 21:00", labelEn: "June 12, 2020 · 21:00" },
+  { id: "numeric", label: "12.06.2020", labelEn: "06/12/2020" },
+  { id: "numeric-time", label: "12.06.2020 · 21:00", labelEn: "06/12/2020 · 21:00" },
 ];
 
 export const STARMAP_TITLE_MAX = 40;

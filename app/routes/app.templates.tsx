@@ -5,7 +5,9 @@ import {
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useRevalidator, useNavigate } from "@remix-run/react";
-import { useTranslation } from "~/i18n";
+import { useTranslation, useDict, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import templatesDict from "~/i18n/admin/templates";
 import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Layout, Card, Box, Text, BlockStack, InlineStack, Button,
@@ -48,6 +50,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = session.shop;
 
   const contentType = cloned.headers.get("content-type") ?? "";
+  // Multipart ayrıştırılamazsa formdaki _lang okunamaz; çerez/sorgu yedeğine düşülür
+  let L = pickDict(templatesDict, langFromRequest(request));
 
   if (contentType.includes("multipart/form-data")) {
     let form: FormData;
@@ -56,29 +60,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       form = await unstable_parseMultipartFormData(cloned, uploadHandler);
     } catch (err) {
       console.error("[templates] multipart parse failed:", err);
-      return json({ error: "Dosya yüklenemedi. PNG, JPG, WebP veya SVG formatında en fazla 20 MB görsel yükleyin." }, { status: 400 });
+      return json({ error: L.uploadFailed }, { status: 400 });
     }
     const intent = String(form.get("intent") || "");
+    L = pickDict(templatesDict, langFromRequest(request, form));
 
     if (intent === "upload") {
       const file = form.get("image");
-      const name = String(form.get("name") || "Şablon").trim().slice(0, 80);
-      const category = String(form.get("category") || "").trim().slice(0, 60) || "Genel";
+      const name = String(form.get("name") || L.defaultName).trim().slice(0, 80);
+      const category = String(form.get("category") || "").trim().slice(0, 60) || L.defaultCategory;
 
       if (!(file instanceof File) || file.size === 0) {
-        return json({ error: "Görsel seçilmedi" }, { status: 400 });
+        return json({ error: L.noImage }, { status: 400 });
       }
       if (file.size > MAX_TEMPLATE_UPLOAD_BYTES) {
-        return json({ error: "Görsel 20 MB sınırını aşıyor" }, { status: 400 });
+        return json({ error: L.tooLarge }, { status: 400 });
       }
       if (!ALLOWED_TEMPLATE_TYPES.has(file.type)) {
-        return json({ error: "PNG, JPG, WebP veya SVG formatında görsel yükleyin" }, { status: 400 });
+        return json({ error: L.badType }, { status: 400 });
       }
 
       const quota = await checkTemplateQuota(shop);
       if (!quota.allowed) {
         return json(
-          { error: `Planınızın şablon limiti doldu (${quota.count}/${quota.quota}). Plan yükseltmek için Abonelik sayfasını ziyaret edin.` },
+          { error: L.quotaReached(quota.count, quota.quota) },
           { status: 429 },
         );
       }
@@ -86,7 +91,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       try {
         await addShopTemplate(shop, name, category, file, cloned.url);
       } catch (err) {
-        return json({ error: err instanceof Error ? err.message : "Yükleme başarısız" }, { status: 500 });
+        return json({ error: err instanceof Error ? err.message : L.saveFailed }, { status: 500 });
       }
 
       return json({ ok: true });
@@ -95,6 +100,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const form = await cloned.formData().catch(() => new FormData());
   const intent = String(form.get("intent") || "");
+  L = pickDict(templatesDict, langFromRequest(request, form));
 
   if (intent === "delete") {
     const id = String(form.get("id") || "");
@@ -105,12 +111,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "rename") {
     const id = String(form.get("id") || "");
     const name = String(form.get("name") || "").trim().slice(0, 80);
-    const category = String(form.get("category") || "").trim().slice(0, 60) || "Genel";
+    const category = String(form.get("category") || "").trim().slice(0, 60) || L.defaultCategory;
     if (id) await updateShopTemplate(shop, id, { name, category });
     return json({ ok: true });
   }
 
-  return json({ error: "Bilinmeyen işlem" }, { status: 400 });
+  return json({ error: L.unknownAction }, { status: 400 });
 };
 
 // ─── Category input ────────────────────────────────────────────────
@@ -169,7 +175,7 @@ function CategoryField({
 // ─── Template card ────────────────────────────────────────────────
 function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
   const fetcher = useFetcher<{ ok?: boolean }>();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(tpl.name);
   const [category, setCategory] = useState(tpl.category);
@@ -195,6 +201,7 @@ function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
               <InlineStack gap="200">
                 <fetcher.Form method="post">
                   <input type="hidden" name="intent" value="rename" />
+                  <input type="hidden" name="_lang" value={lang} />
                   <input type="hidden" name="id" value={tpl.id} />
                   <input type="hidden" name="name" value={name} />
                   <input type="hidden" name="category" value={category} />
@@ -208,6 +215,7 @@ function TemplateCard({ tpl }: { tpl: ShopTemplate }) {
               <Button size="slim" onClick={() => setEditing(true)}>{t("common.edit")}</Button>
               <fetcher.Form method="post">
                 <input type="hidden" name="intent" value="delete" />
+                <input type="hidden" name="_lang" value={lang} />
                 <input type="hidden" name="id" value={tpl.id} />
                 <Button submit variant="plain" tone="critical" size="slim" loading={isDeleting}>{t("common.delete")}</Button>
               </fetcher.Form>
@@ -224,7 +232,8 @@ export default function TemplatesRoute() {
   const { templates, quota, planKey } = useLoaderData<typeof loader>();
   const { revalidate } = useRevalidator();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
+  const L = useDict(templatesDict);
   const uploadFetcher = useFetcher<typeof action>();
   const isUploading = uploadFetcher.state !== "idle";
   const uploadData = uploadFetcher.data as { ok?: boolean; error?: string } | undefined;
@@ -270,7 +279,7 @@ export default function TemplatesRoute() {
           <Box padding="400">
             <InlineStack align="space-between" blockAlign="center">
               <BlockStack gap="100">
-                <Text as="p" variant="bodyMd" fontWeight="bold">{t("templates.upgradeNeeded").split(" ")[0] === "Plan" ? "Şablon Kotası" : "Template Quota"}</Text>
+                <Text as="p" variant="bodyMd" fontWeight="bold">{L.quotaTitle}</Text>
                 <Text as="p" tone="subdued" variant="bodySm">
                   {t("templates.usageLabel")} <strong>{planKey}</strong>{isStarterBlocked ? "" : ` — ${t("templates.usageUsed")} ${quotaLabel}`}
                 </Text>
@@ -312,6 +321,7 @@ export default function TemplatesRoute() {
 
                 <uploadFetcher.Form method="post" encType="multipart/form-data">
                   <input type="hidden" name="intent" value="upload" />
+                  <input type="hidden" name="_lang" value={lang} />
                   <BlockStack gap="300">
 
                     <div>
@@ -358,7 +368,7 @@ export default function TemplatesRoute() {
                           <BlockStack gap="200">
                             <img
                               src={preview}
-                              alt="Önizleme"
+                              alt={L.previewAlt}
                               style={{ maxHeight: 160, maxWidth: "100%", objectFit: "contain", margin: "0 auto", display: "block" }}
                             />
                             <Text as="p" variant="bodySm" tone="subdued">{fileName} — {t("templates.changeImage")}</Text>
@@ -380,7 +390,7 @@ export default function TemplatesRoute() {
                       value={name}
                       onChange={setName}
                       autoComplete="off"
-                      placeholder="örn. Spider-Man, Bugs Bunny, Çiçek Logo"
+                      placeholder={L.namePlaceholder}
                       disabled={quotaFull}
                     />
 

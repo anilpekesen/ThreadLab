@@ -16,6 +16,7 @@ export interface AiStyleDef {
   labelEn: string;
   /** Yönetici ekranı ve ilerideki stil kartları için kısa açıklama */
   description: string;
+  descriptionEn: string;
   /**
    * Yalnızca ÇİZİM TEKNİĞİNİ anlatan isim tamlaması; prompt'ta "Draw it as "
    * ile birleşir. Kimin çizileceğini ve pozu söylemez — onu buildAiSubject ve
@@ -31,6 +32,7 @@ export const AI_STYLES: Record<string, AiStyleDef> = {
     label: "Karikatür",
     labelEn: "Caricature",
     description: "Fotoğrafı renkli ve eğlenceli, baskıya uygun bir illüstrasyona dönüştürür.",
+    descriptionEn: "Turns the photo into a colourful, playful illustration ready for print.",
     style:
       "a modern caricature illustration: clean confident outlines, smooth digital shading, vivid natural colours. "
       + "Stylise only the faces — softer, warmer features and expressive eyes. Keep real head-to-body proportions; no "
@@ -41,6 +43,7 @@ export const AI_STYLES: Record<string, AiStyleDef> = {
     label: "Suluboya",
     labelEn: "Watercolor",
     description: "Fotoğrafı yumuşak ve sanatsal bir suluboya portresine dönüştürür.",
+    descriptionEn: "Turns the photo into a soft, artistic watercolour portrait.",
     style:
       "a watercolour portrait: delicate brushwork, translucent pigment layers, natural colour variation, soft blended "
       + "edges, paper texture. The brushwork follows the photo's own shapes and light and never reshapes them. Faces "
@@ -51,6 +54,7 @@ export const AI_STYLES: Record<string, AiStyleDef> = {
     label: "Karakalem",
     labelEn: "Pencil sketch",
     description: "Fotoğrafı detaylı, el çizimi hissi veren karakalem çalışmasına dönüştürür.",
+    descriptionEn: "Turns the photo into a detailed, hand-drawn pencil sketch.",
     style:
       "a hand-drawn graphite pencil portrait: visible pencil strokes, cross-hatching, subtle tonal shading, fine "
       + "contour lines, hand-sketched paper texture. Monochrome graphite only, no colour anywhere. Faces fully "
@@ -61,6 +65,7 @@ export const AI_STYLES: Record<string, AiStyleDef> = {
     label: "Pop Art",
     labelEn: "Pop art",
     description: "Canlı renkler ve çizgi roman estetiğiyle güçlü bir baskı tasarımı oluşturur.",
+    descriptionEn: "Creates a bold print design with vivid colours and a comic-book look.",
     style:
       "a bold pop-art illustration: strong black outlines, flat comic-book shading, halftone texture, vivid magenta, "
       + "yellow, cyan, blue, black and white. Colours may change but the drawing underneath stays true to the photo. "
@@ -72,6 +77,7 @@ export const AI_STYLES: Record<string, AiStyleDef> = {
     label: "Tek Çizgi",
     labelEn: "Line art",
     description: "Fotoğrafı sade ve modern çizgisel bir illüstrasyona dönüştürür.",
+    descriptionEn: "Turns the photo into a clean, modern line illustration.",
     style:
       "a minimalist continuous-line portrait: thin black linework tracing the pose, bodies, hands, hair and "
       + "identifying facial structure exactly as photographed. The environment drops to a few lines. At most one or "
@@ -186,6 +192,7 @@ export interface AiModelDef {
   label: string;
   /** Yönetici model seçerken görmesi gereken ölçülmüş davranış */
   note: string;
+  noteEn: string;
 }
 
 export interface AiProviderDef {
@@ -205,6 +212,7 @@ export const AI_PROVIDERS: Record<AiProvider, AiProviderDef> = {
         id: "flux-kontext-pro",
         label: "FLUX Kontext Pro",
         note: "En iyi baskı kalitesi: güçlü kontrast, temiz beyaz zemin, göz/saç rengini korur. ~11-15 sn, ~$0.04. İçerik filtresi katı — bazı fotoğrafları reddeder.",
+        noteEn: "Best print quality: strong contrast, clean white background, keeps eye and hair colour. ~11-15 s, ~$0.04. Strict content filter — rejects some photos.",
       },
     ],
   },
@@ -215,11 +223,13 @@ export const AI_PROVIDERS: Record<AiProvider, AiProviderDef> = {
         id: "flux-2-klein-9b",
         label: "FLUX.2 Klein 9B",
         note: "3 kat hızlı (~3 sn), ~$0.017. Girdi 512px'e düşürülür, çizgiler daha soluk, göz rengini değiştirebilir. Önizleme için uygun.",
+        noteEn: "3x faster (~3 s), ~$0.017. Input is downscaled to 512 px, lines are fainter and eye colour may change. Good for previews.",
       },
       {
         id: "flux-2-klein-4b",
         label: "FLUX.2 Klein 4B",
         note: "En ucuz ve toleranslı ama en düşük kalite; zemini temiz bırakmaz.",
+        noteEn: "Cheapest and most tolerant but lowest quality; does not leave a clean background.",
       },
     ],
   },

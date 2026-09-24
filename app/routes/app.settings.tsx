@@ -1,7 +1,9 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useNavigation } from "@remix-run/react";
-import { useTranslation } from "~/i18n";
+import { useDict, useTranslation, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import settingsDict from "~/i18n/admin/settings";
 import { PageHelper } from "~/components/PageHelper";
 import {
   BlockStack,
@@ -267,13 +269,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate(request);
   const form = await request.formData();
   const intent = form.get("intent");
+  const S = pickDict(settingsDict, langFromRequest(request, form));
 
   if (intent === "createSurchargeProduct") {
     const response = await admin.graphql(`
       #graphql
       mutation {
         productCreate(input: {
-          title: "Baskı Ücreti"
+          title: ${JSON.stringify(S.surchargeProductTitle)}
           productType: "Service"
           status: ACTIVE
           requiresSellingPlan: false
@@ -306,7 +309,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const productGid = data.data?.productCreate?.product?.id ?? "";
     const gid = data.data?.productCreate?.product?.variants?.nodes?.[0]?.id ?? "";
     const variantId = gid.split("/").pop() ?? "";
-    if (!variantId) return json({ error: "Variant ID alınamadı" });
+    if (!variantId) return json({ error: S.variantIdMissing });
 
     // Publish to all available sales channels so Cart Transform can add it
     if (productGid) {
@@ -358,18 +361,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         errors?: Array<{ message: string }>;
       };
       if (fnData.errors?.length) {
-        return json({ error: "Fn sorgu: " + fnData.errors.map((e) => e.message).join(", ") });
+        return json({ error: S.fnQueryError + fnData.errors.map((e) => e.message).join(", ") });
       }
       const functions = fnData.data?.shopifyFunctions?.nodes ?? [];
       const cartFn = functions.find((f) => f.apiType === "purchase.cart-transform.run");
       if (!cartFn) {
-        const list = functions.map((f) => `${f.title}(${f.apiType})`).join(", ") || "hiç yok";
-        return json({ error: "Fonksiyon bulunamadı. Mevcut: " + list });
+        const list = functions.map((f) => `${f.title}(${f.apiType})`).join(", ") || S.noneFound;
+        return json({ error: S.fnNotFound(list) });
       }
 
       // Already registered with the current function ID — nothing to do
       if (existing.some((t) => t.functionId === cartFn.id)) {
-        return json({ success: "Cart Transform zaten kayıtlıydı (güncel). Sorun başka bir yerde — checkout'u test edin." });
+        return json({ success: S.cartTransformAlready });
       }
 
       // Delete stale registrations and re-register
@@ -396,7 +399,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (regErrors.length) {
         return json({ error: regErrors.map((e) => e.message).join(", ") });
       }
-      return json({ success: "Cart Transform başarıyla kaydedildi! Şimdi checkout'u test edin." });
+      return json({ success: S.cartTransformRegistered });
     } catch (err) {
       return json({ error: err instanceof Error ? err.message : String(err) });
     }
@@ -410,7 +413,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "fixSurchargeVariant") {
     const settings = await getShopSettings(session.shop);
     const variantId = settings.surchargeVariantId;
-    if (!variantId) return json({ error: "Önce variant ID kaydedin" });
+    if (!variantId) return json({ error: S.saveVariantFirst });
     const gid = `gid://shopify/ProductVariant/${variantId}`;
     const fixRes = await admin.graphql(
       `#graphql
@@ -461,7 +464,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   } catch (err) {
     console.error("[settings] saveShopSettings error:", err);
-    return json({ error: "Ayarlar kaydedilemedi, lütfen tekrar deneyin." }, { status: 500 });
+    return json({ error: S.saveFailed }, { status: 500 });
   }
   if (newVariantId) await writeSurchargeMetafield(admin, newVariantId).catch(() => {});
   return redirect("/app/settings?saved=1");
@@ -471,6 +474,7 @@ export default function SettingsRoute() {
   const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, appEmbedUrl, surchargeVariantOptions, drive, gdriveConnected, gdriveError, googleAuthQuery } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const { t, lang } = useTranslation();
+  const L = useDict(settingsDict);
   const isSaving = navigation.state === "submitting";
 
   const [surchargeVariantId, setSurchargeVariantId] = useState(settings.surchargeVariantId || "");
@@ -514,11 +518,12 @@ export default function SettingsRoute() {
           <Banner tone="critical" title={t("settings.cartTransformNotFound")} />
         )}
         {(cartTransformStatus === "error" || cartTransformStatus?.startsWith("error:")) && (
-          <Banner tone="critical" title={`Cart Transform Hatası: ${cartTransformStatus}`} />
+          <Banner tone="critical" title={L.cartTransformError(cartTransformStatus)} />
         )}
 
         {/* Outer Form — only text inputs + save button, no nested fetcher forms */}
         <Form method="post">
+          <input type="hidden" name="_lang" value={lang} />
           <BlockStack gap="400">
 
             <Card>
@@ -607,7 +612,7 @@ export default function SettingsRoute() {
                   />
                   {termsUrl && (
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Önizleme:{" "}
+                      {L.preview}{" "}
                       <a href={termsUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb" }}>
                         {termsUrl}
                       </a>
@@ -622,46 +627,46 @@ export default function SettingsRoute() {
               <Box padding="400">
                 <BlockStack gap="300">
                   <BlockStack gap="100">
-                    <Text as="h2" variant="headingMd">Sipariş Bildirimleri</Text>
+                    <Text as="h2" variant="headingMd">{L.notificationsTitle}</Text>
                     <Text as="p" tone="subdued" variant="bodySm">
-                      Ödeme onaylanan her sipariş için otomatik bildirim gönderir. E-posta ve/veya webhook URL girebilirsiniz.
+                      {L.notificationsDesc}
                     </Text>
                   </BlockStack>
 
                   <TextField
-                    label="Bildirim E-postası"
+                    label={L.notificationEmailLabel}
                     name="notificationEmail"
                     value={notificationEmail}
                     onChange={setNotificationEmail}
                     autoComplete="off"
                     type="email"
-                    placeholder="atölye@sirket.com"
-                    helpText="Sipariş bilgisi ve tasarım dosya linkleri bu adrese gönderilir."
+                    placeholder={L.notificationEmailPlaceholder}
+                    helpText={L.notificationEmailHelp}
                   />
 
                   <TextField
-                    label="Müşteri e-postası gönderen adı"
+                    label={L.senderNameLabel}
                     name="emailSenderName"
                     value={emailSenderName}
                     onChange={setEmailSenderName}
                     autoComplete="off"
-                    placeholder={settings.shopDisplayName || "Shopify mağazanızın adı"}
-                    helpText={`Boş bırakırsanız Shopify mağaza adınız${settings.shopDisplayName ? ` (${settings.shopDisplayName})` : ""} otomatik kullanılır. Gönderici adresi teslimat güvenliği için PrintLab'in doğrulanmış adresi olarak kalır.`}
+                    placeholder={settings.shopDisplayName || L.senderNamePlaceholder}
+                    helpText={L.senderNameHelp(settings.shopDisplayName || null)}
                   />
 
                   <TextField
-                    label="WhatsApp Numarası"
+                    label={L.whatsappLabel}
                     name="notificationWhatsapp"
                     value={notificationWhatsapp}
                     onChange={setNotificationWhatsapp}
                     autoComplete="off"
                     placeholder="905XXXXXXXXX"
-                    helpText="Ülke kodu dahil rakam — örn. 905321234567. Admin panelden WhatsApp hattını bağladıktan sonra bu numaraya bildirim gönderilir."
+                    helpText={L.whatsappHelp}
                   />
 
                   {(notificationEmail || notificationWhatsapp) && (
                     <Text as="p" variant="bodySm" tone="success">
-                      ✓ Bildirimler aktif — {[notificationEmail && "E-posta", notificationWhatsapp && "WhatsApp"].filter(Boolean).join(" + ")}
+                      {L.notificationsActive}{[notificationEmail && L.channelEmail, notificationWhatsapp && "WhatsApp"].filter(Boolean).join(" + ")}
                     </Text>
                   )}
                 </BlockStack>
@@ -699,6 +704,7 @@ export default function SettingsRoute() {
                     </Button>
                     <Form method="post">
                       <input type="hidden" name="intent" value="disconnectGoogleDrive" />
+                      <input type="hidden" name="_lang" value={lang} />
                       <Button submit tone="critical" variant="plain">
                         {t("settings.gdriveDisconnect")}
                       </Button>
@@ -765,7 +771,7 @@ export default function SettingsRoute() {
                   )}
                   <img
                     src="/app-embed-panel.png"
-                    alt="App Embeds panel - Baskı Ücreti Koruma toggle"
+                    alt={L.appEmbedAlt}
                     style={{ maxWidth: 240, borderRadius: 8, border: "1px solid #e1e3e5", marginTop: 8 }}
                   />
                 </BlockStack>
@@ -796,7 +802,7 @@ export default function SettingsRoute() {
               )}
               <img
                 src="/designkit-block-setup.png"
-                alt="Tema kurulumu - DesignKit block settings"
+                alt={L.themeSetupAlt}
                 style={{ width: "100%", borderRadius: 8, border: "1px solid #e1e3e5" }}
               />
               <BlockStack gap="200">

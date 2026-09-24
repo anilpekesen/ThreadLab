@@ -133,7 +133,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
     setUrlLoading(true);
     setUrlError('');
     try {
-      const res = await fetch('/apps/tshirt-designer/fetch-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: value }) });
+      const res = await fetch(`/apps/tshirt-designer/fetch-url?locale=${tr ? 'tr' : 'en'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: value }) });
       const data = await res.json() as { url?: string; error?: string };
       if (!res.ok || !data.url) { setUrlError(data.error ?? (tr ? 'Resim yüklenemedi' : 'Could not load image')); return; }
       setImageUrl('');
@@ -582,7 +582,7 @@ function AiPanel({
   // Panel açılınca kota bilgisini çek
   useEffect(() => {
     if (!shop) return;
-    fetch(`${appUrl}/apps/tshirt-designer/generate-image?shop=${encodeURIComponent(shop)}&sessionId=${encodeURIComponent(sessionId ?? '')}`)
+    fetch(`${appUrl}/apps/tshirt-designer/generate-image?locale=${tr ? 'tr' : 'en'}&shop=${encodeURIComponent(shop)}&sessionId=${encodeURIComponent(sessionId ?? '')}`)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data) setQuota(data as QuotaInfo); })
       .catch(() => {});
@@ -599,7 +599,7 @@ function AiPanel({
     // Adım göstergesini 10 saniye sonra güncelle (bg removal aşamasına geçildiğini göster)
     const stepTimer = setTimeout(() => setLoadingStep(t.imageRemoving), 10_000);
     try {
-      const res = await fetch(`${appUrl}/apps/tshirt-designer/generate-image?shop=${encodeURIComponent(shop ?? '')}`, {
+      const res = await fetch(`${appUrl}/apps/tshirt-designer/generate-image?locale=${tr ? 'tr' : 'en'}&shop=${encodeURIComponent(shop ?? '')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

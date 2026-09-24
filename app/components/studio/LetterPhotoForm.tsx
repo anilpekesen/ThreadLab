@@ -4,6 +4,8 @@ import { FONT_LIBRARY, findLibraryFont } from "~/lib/font-library";
 import type { LetterGlyph } from "~/lib/frame-studio";
 import { NumberField } from "./NumberField";
 import { FONT_FACE_CSS, fontPreviewFamily } from "./TextSlotSettings";
+import { useDict, useTranslation } from "~/i18n";
+import letterDict from "~/i18n/studio/letter-photo";
 
 /**
  * "LOVE", "AŞKIM", bir isim — her harf ayrı bir fotoğraf alanı olur ve
@@ -29,6 +31,8 @@ export function LetterPhotoForm({ onApply, onCancel }: {
   onApply: (options: LetterPhotoOptions) => void;
   onCancel: () => void;
 }) {
+  const L = useDict(letterDict);
+  const { lang } = useTranslation();
   const [word, setWord] = useState("LOVE");
   const [fontUrl, setFontUrl] = useState(FONT_LIBRARY.find((f) => f.id === HEAVY_FIRST[0])?.url ?? FONT_LIBRARY[0].url);
   const [uploaded, setUploaded] = useState<{ url: string; family: string } | null>(null);
@@ -52,8 +56,8 @@ export function LetterPhotoForm({ onApply, onCancel }: {
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
   const options = [
-    ...sorted.map((f) => ({ label: HEAVY_FIRST.includes(f.id) ? `${f.label} (kalın, önerilir)` : f.label, value: f.url })),
-    ...(uploaded ? [{ label: `Yüklediğim font: ${uploaded.family}`, value: uploaded.url }] : []),
+    ...sorted.map((f) => ({ label: HEAVY_FIRST.includes(f.id) ? L.heavyRecommended(f.label) : f.label, value: f.url })),
+    ...(uploaded ? [{ label: L.uploadedFont(uploaded.family), value: uploaded.url }] : []),
   ];
   const libraryFont = findLibraryFont(fontUrl);
 
@@ -63,13 +67,14 @@ export function LetterPhotoForm({ onApply, onCancel }: {
     try {
       const fd = new FormData();
       fd.append("font", file);
+      fd.append("_lang", lang);
       const res = await fetch("/api/fonts/upload", { method: "POST", body: fd });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Font yüklenemedi");
+      if (!res.ok || data.error) throw new Error(data.error || L.fontUploadFailed);
       setUploaded({ url: data.url, family: data.family });
       setFontUrl(data.url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Font yüklenemedi");
+      setError(err instanceof Error ? err.message : L.fontUploadFailed);
     } finally {
       setBusy(false);
     }
@@ -82,13 +87,13 @@ export function LetterPhotoForm({ onApply, onCancel }: {
       const res = await fetch("/api/personalizer/letter-shapes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: word, fontUrl }),
+        body: JSON.stringify({ text: word, fontUrl, _lang: lang }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Harfler oluşturulamadı");
+      if (!res.ok || data.error) throw new Error(data.error || L.lettersFailed);
       onApply({ glyphs: data.glyphs as LetterGlyph[], gapMm, heightRatio: heightPct / 100, strokeMm, position, replace });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Harfler oluşturulamadı");
+      setError(err instanceof Error ? err.message : L.lettersFailed);
     } finally {
       setBusy(false);
     }
@@ -100,17 +105,17 @@ export function LetterPhotoForm({ onApply, onCancel }: {
     <div className="fs-size-form">
       <style dangerouslySetInnerHTML={{ __html: FONT_FACE_CSS }} />
       <BlockStack gap="300">
-        <Text as="h3" variant="headingSm">Harf şekilli fotoğraflar</Text>
+        <Text as="h3" variant="headingSm">{L.title}</Text>
         <Text as="p" variant="bodySm" tone="subdued">
-          Her harf ayrı bir fotoğraf alanı olur; müşterinin fotoğrafı harfin içinde görünür.
+          {L.intro}
         </Text>
         <TextField
-          label="Yazı"
+          label={L.word}
           autoComplete="off"
           value={word}
           maxLength={24}
           onChange={(v) => setWord(v)}
-          helpText={letterCount > 0 ? `${letterCount} fotoğraf alanı oluşur` : "Örn: LOVE, AŞKIM, bir isim"}
+          helpText={letterCount > 0 ? L.slotCount(letterCount) : L.wordExample}
         />
         {libraryFont && word.trim() && (
           <div
@@ -120,7 +125,7 @@ export function LetterPhotoForm({ onApply, onCancel }: {
             {word}
           </div>
         )}
-        <Select label="Font" options={options} value={fontUrl} onChange={setFontUrl} />
+        <Select label={L.font} options={options} value={fontUrl} onChange={setFontUrl} />
         <input
           ref={fileRef}
           type="file"
@@ -134,43 +139,43 @@ export function LetterPhotoForm({ onApply, onCancel }: {
         />
         <InlineStack>
           <Button variant="plain" onClick={() => fileRef.current?.click()} disabled={busy}>
-            Tasarımımdaki fontu yükle (.ttf, .otf)
+            {L.uploadFont}
           </Button>
         </InlineStack>
         <div className="fs-grid-2">
-          <NumberField label="Harf arası" value={gapMm} min={0} onCommit={setGapMm} />
-          <NumberField label="Yükseklik" suffix="%" step={5} value={heightPct} min={10} onCommit={(v) => setHeightPct(Math.min(100, v))} />
+          <NumberField label={L.letterGap} value={gapMm} min={0} onCommit={setGapMm} />
+          <NumberField label={L.height} suffix="%" step={5} value={heightPct} min={10} onCommit={(v) => setHeightPct(Math.min(100, v))} />
         </div>
         <NumberField
-          label="Kalınlaştır"
+          label={L.thicken}
           value={strokeMm}
           min={0}
           onCommit={(v) => setStrokeMm(Math.min(15, v))}
         />
         <Text as="p" variant="bodySm" tone="subdued">
-          Harf gövdesini her yönden kalınlaştırır; fotoğraf harfin içinde daha çok görünür.
+          {L.thickenHelp}
         </Text>
         <Select
-          label="Konum"
+          label={L.position}
           options={[
-            { label: "Üstte (altta yazılara yer kalır)", value: "top" },
-            { label: "Ortada", value: "center" },
+            { label: L.positionTop, value: "top" },
+            { label: L.positionCenter, value: "center" },
           ]}
           value={position}
           onChange={(v) => setPosition(v === "center" ? "center" : "top")}
         />
         <Checkbox
-          label="Mevcut fotoğraf alanlarının yerine koy"
+          label={L.replace}
           checked={replace}
           onChange={setReplace}
-          helpText="Yazı alanları korunur."
+          helpText={L.replaceHelp}
         />
         {error && <Banner tone="critical">{error}</Banner>}
         <InlineStack gap="200">
           <Button variant="primary" loading={busy} disabled={letterCount === 0} onClick={() => void apply()}>
-            Harfleri oluştur
+            {L.create}
           </Button>
-          <Button onClick={onCancel} disabled={busy}>Vazgeç</Button>
+          <Button onClick={onCancel} disabled={busy}>{L.cancel}</Button>
         </InlineStack>
       </BlockStack>
     </div>

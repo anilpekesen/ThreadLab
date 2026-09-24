@@ -17,6 +17,8 @@ import { StudioInspector } from "./StudioInspector";
 import { NumberField } from "./NumberField";
 import { LetterPhotoForm, type LetterPhotoOptions } from "./LetterPhotoForm";
 import { CardGridForm, type CardGridFormOptions } from "./CardGridForm";
+import { useDict, useTranslation } from "~/i18n";
+import studioDict from "~/i18n/studio/studio";
 
 /**
  * Çerçeve Stüdyosu — bir fotoğraf ürününün baskı düzenini tek ekranda kurar.
@@ -71,10 +73,28 @@ interface History {
 
 const HISTORY_LIMIT = 60;
 
+/** Otomatik verilen fotoğraf alanı adı mı ("3. Fotoğraf" / "Photo 3") */
+const AUTO_PHOTO_LABEL = /^(\d+\. Fotoğraf|Photo \d+)$/;
+
 export function FrameStudio({
   templateId, templateName, initialPieces, initialGrid, initialMockups, printProducts,
   saving, saveError, saveCount, onSave, onBack, creatingSize, createdSizeId, onCreateSize,
 }: FrameStudioProps) {
+  const L = useDict(studioDict);
+  const { lang } = useTranslation();
+  /**
+   * Yardımcı kütüphanenin ürettiği varsayılan adlar Türkçe; yönetim ekranı
+   * İngilizceyken yeni oluşturulan alanların adları İngilizceye çevrilir.
+   */
+  const localizeLabels = <T extends Slot>(list: T[]): T[] => (lang !== "en" ? list : list.map((x) => {
+    let m = /^(\d+)\. Fotoğraf$/.exec(x.label);
+    if (m) return { ...x, label: L.photoLabel(Number(m[1])) };
+    m = /^(\d+)\. Fotoğraf \((.*)\)$/.exec(x.label);
+    if (m) return { ...x, label: L.letterPhotoLabel(Number(m[1]), m[2]) };
+    m = /^(\d+)\. kartın yazısı$/.exec(x.label);
+    if (m) return { ...x, label: L.cardCaptionLabel(Number(m[1])) };
+    return x;
+  }));
   const [history, setHistory] = useState<History>({
     pieces: initialPieces, past: [], future: [], lastKey: "", lastAt: 0,
   });
@@ -194,7 +214,7 @@ export function FrameStudio({
     const slot: ImageSlot = {
       id, kind: "image", source: id, rect, fit: "cover",
       allow: { pan: true, zoom: true, rotate: true },
-      label: `${order}. Fotoğraf`, order,
+      label: L.photoLabel(order), order,
     };
     setSlots([...active.slots, slot]);
     select(id);
@@ -208,7 +228,7 @@ export function FrameStudio({
     const slot: TextSlot = {
       id, kind: "text",
       rect: clampRect({ x: 0.15, y: trimBottom - 0.14, w: 0.7, h: 0.08 }),
-      label: count === 1 ? "İsim" : `Yazı ${count}`,
+      label: count === 1 ? L.firstTextLabel : L.textLabel(count),
       order: 100 + count,
       mode: "free",
       default_value: "",
@@ -245,8 +265,8 @@ export function FrameStudio({
       const rect = clampRect(rectFromMm({ ...offset, x: offset.x + 5, y: offset.y + 5 }, canvas, dpi));
       const imageCount = working.slots.filter(isImageSlot).length + 1;
       const copy: Slot = isImageSlot(src)
-        ? { ...src, id: newId, source: newId, rect, order: imageCount, label: `${imageCount}. Fotoğraf` }
-        : { ...src, id: newId, rect, label: `${src.label} (kopya)` };
+        ? { ...src, id: newId, source: newId, rect, order: imageCount, label: L.photoLabel(imageCount) }
+        : { ...src, id: newId, rect, label: L.copyLabel(src.label) };
       working.slots.push(copy);
       created.push(newId);
     }
@@ -260,7 +280,7 @@ export function FrameStudio({
     if (!result) return;
     setSlots(result.slots);
     select(result.keptId);
-    setNote({ tone: "success", text: "Alanlar tek alanda birleştirildi." });
+    setNote({ tone: "success", text: L.merged });
   }
 
   function splitSelected(cols: number, rows: number, gapMm: number) {
@@ -273,13 +293,13 @@ export function FrameStudio({
       return id;
     });
     if (parts.length < 2) {
-      setNote({ tone: "warning", text: "Alan bu aralıkla bölünemeyecek kadar küçük." });
+      setNote({ tone: "warning", text: L.splitTooSmall });
       return;
     }
     const index = active.slots.findIndex((x) => x.id === selected.id);
-    const next = [...active.slots.slice(0, index), ...parts, ...active.slots.slice(index + 1)];
+    const next = [...active.slots.slice(0, index), ...localizeLabels(parts), ...active.slots.slice(index + 1)];
     const images = sortReadingOrder(next.filter(isImageSlot))
-      .map((x) => ({ ...x, label: /^\d+\. Fotoğraf$/.test(x.label) || !x.label ? `${x.order}. Fotoğraf` : x.label }));
+      .map((x) => ({ ...x, label: AUTO_PHOTO_LABEL.test(x.label) || !x.label ? L.photoLabel(x.order) : x.label }));
     setSlots([...images, ...next.filter((x) => !isImageSlot(x))]);
     setSelectedIds(parts.map((x) => x.id));
   }
@@ -302,17 +322,17 @@ export function FrameStudio({
       },
     });
     if (letters.length === 0) {
-      setNote({ tone: "warning", text: "Harfler bu ölçüye sığmadı. Kenar boşluğunu ya da harf arasını küçültün." });
+      setNote({ tone: "warning", text: L.lettersNoFit });
       return;
     }
     const start = base.filter(isImageSlot).length;
-    const numbered = letters.map((s, i) => ({ ...s, order: start + i + 1, label: `${start + i + 1}. Fotoğraf (${s.mask_label})` }));
+    const numbered = letters.map((s, i) => ({ ...s, order: start + i + 1, label: L.letterPhotoLabel(start + i + 1, s.mask_label ?? "") }));
     setSlots([...base, ...numbered]);
     setSelectedIds(numbered.map((s) => s.id));
     setShowLetters(false);
     setNote(active.overlay_url
-      ? { tone: "warning", text: "Harfler oluşturuldu. Bu tasarımda bir üst katman görseli var; harflerin üstünü örtüyorsa soldaki \"Tasarım görselleri\" bölümünden kaldırın." }
-      : { tone: "success", text: `${numbered.length} harf şekilli fotoğraf alanı oluşturuldu. Seçiliyken birlikte taşıyabilirsiniz.` });
+      ? { tone: "warning", text: L.lettersOverlay }
+      : { tone: "success", text: L.lettersCreated(numbered.length) });
   }
 
   /**
@@ -333,17 +353,16 @@ export function FrameStudio({
       startIndex: kalan.filter(isImageSlot).length,
     }, canvas, dpi);
     if (sonuc.count === 0) {
-      setNote({ tone: "warning", text: "Bu ölçüdeki kart tabakaya sığmadı." });
+      setNote({ tone: "warning", text: L.cardsNoFit });
       return;
     }
-    setSlots([...kalan, ...sonuc.slots]);
+    setSlots([...kalan, ...localizeLabels(sonuc.slots)]);
     setGrid({ ...grid, cut_mm: sonuc.cuts });
     setSelectedIds([]);
     setShowCards(false);
     setNote({
       tone: "success",
-      text: `${sonuc.count} kart oluşturuldu (${sonuc.cols} × ${sonuc.rows}).`
-        + " Kesim çizgileri baskı PDF'ine işleniyor.",
+      text: L.cardsCreated(sonuc.count, sonuc.cols, sonuc.rows),
     });
   }
 
@@ -367,35 +386,35 @@ export function FrameStudio({
   function renumber() {
     if (!active) return;
     const images = sortReadingOrder(active.slots.filter(isImageSlot))
-      .map((s) => ({ ...s, label: /^\d+\. Fotoğraf$/.test(s.label) || !s.label ? `${s.order}. Fotoğraf` : s.label }));
+      .map((s) => ({ ...s, label: AUTO_PHOTO_LABEL.test(s.label) || !s.label ? L.photoLabel(s.order) : s.label }));
     setSlots([...images, ...active.slots.filter((s) => !isImageSlot(s))]);
-    setNote({ tone: "info", text: "Alanlar soldan sağa, yukarıdan aşağıya numaralandı." });
+    setNote({ tone: "info", text: L.renumbered });
   }
 
   function applyPreset(preset: LayoutPreset, base = grid) {
     if (!active || !canvas) return;
     const { slots, grid: nextGrid } = presetSlots(preset, base, canvas, dpi);
     if (slots.length === 0) {
-      setNote({ tone: "warning", text: "Boşluklar bu ölçüye sığmıyor. Kenar boşluğunu ya da aralığı küçültün." });
+      setNote({ tone: "warning", text: L.gapsNoFit });
       return;
     }
     const texts = active.slots.filter((s) => !isImageSlot(s));
-    setSlots([...prefixSlotIds(slots, active, pieces), ...texts]);
+    setSlots([...prefixSlotIds(localizeLabels(slots), active, pieces), ...texts]);
     setGrid(nextGrid);
     setLastPreset(preset);
     select(null);
-    setNote({ tone: "success", text: `${preset.label} uygulandı. Beğenmezseniz geri alabilirsiniz.` });
+    setNote({ tone: "success", text: L.presetApplied(lang === "en" ? preset.labelEn : preset.label) });
   }
 
   function regenerateGrid() {
     if (!active || !canvas) return;
     const slots = buildGridSlots(grid, canvas, dpi);
     if (slots.length === 0) {
-      setNote({ tone: "warning", text: "Boşluklar bu ölçüye sığmıyor. Kenar boşluğunu ya da aralığı küçültün." });
+      setNote({ tone: "warning", text: L.gapsNoFit });
       return;
     }
     const texts = active.slots.filter((s) => !isImageSlot(s));
-    setSlots([...prefixSlotIds(slots, active, pieces), ...texts]);
+    setSlots([...prefixSlotIds(localizeLabels(slots), active, pieces), ...texts]);
     select(null);
   }
 
@@ -408,12 +427,13 @@ export function FrameStudio({
       const fd = new FormData();
       fd.append("image", file);
       fd.append("folder", field === "overlay_url" ? "personalizer-overlay" : "personalizer-template");
+      fd.append("_lang", lang);
       const res = await fetch("/api/personalizer/upload-image", { method: "POST", body: fd });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Görsel yüklenemedi");
+      if (!res.ok || data.error) throw new Error(data.error || L.imageUploadFailed);
       withActive((p) => ({ ...p, [field]: data.url }));
     } catch (err) {
-      setNote({ tone: "critical", text: err instanceof Error ? err.message : "Görsel yüklenemedi" });
+      setNote({ tone: "critical", text: err instanceof Error ? err.message : L.imageUploadFailed });
     } finally {
       setUploading("");
     }
@@ -430,20 +450,20 @@ export function FrameStudio({
       const res = await fetch("/api/personalizer/detect-slots", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateUrl: url, expected: 0 }),
+        body: JSON.stringify({ templateUrl: url, expected: 0, _lang: lang }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Tarama başarısız");
+      if (!res.ok || data.error) throw new Error(data.error || L.scanFailed);
       if (!data.found) {
-        setNote({ tone: "warning", text: data.message || "Tasarımda şeffaf delik bulunamadı." });
+        setNote({ tone: "warning", text: data.message || L.noHolesFound });
         return;
       }
       const texts = active.slots.filter((s) => !isImageSlot(s));
-      setSlots([...prefixSlotIds(data.slots as Slot[], active, pieces), ...texts]);
+      setSlots([...prefixSlotIds(localizeLabels(data.slots as Slot[]), active, pieces), ...texts]);
       select(null);
-      setNote({ tone: "success", text: `${data.slots.length} delik bulundu ve fotoğraf alanına çevrildi.` });
+      setNote({ tone: "success", text: L.holesFound(data.slots.length) });
     } catch (err) {
-      setNote({ tone: "critical", text: err instanceof Error ? err.message : "Tarama başarısız" });
+      setNote({ tone: "critical", text: err instanceof Error ? err.message : L.scanFailed });
     } finally {
       setHoleBusy(false);
     }
@@ -457,14 +477,14 @@ export function FrameStudio({
     // Tek parçalı şablon sete dönüşürken ilk parça "frame_1" olur; slot
     // kimlikleri önek almadığı için değişmez.
     if (list.length === 1 && list[0].id === SINGLE_PIECE_ID) {
-      source = { ...list[0], id: "frame_1", name: "1. Parça" };
+      source = { ...list[0], id: "frame_1", name: L.pieceName(1) };
       list = [source];
     }
     const n = list.length + 1;
     let id = `frame_${n}`;
     let k = n;
     while (list.some((p) => p.id === id)) id = `frame_${++k}`;
-    const copy = clonePiece(source, id, `${n}. Parça`, n);
+    const copy = clonePiece(source, id, L.pieceName(n), n);
     commitPieces([...list, copy]);
     setActivePieceId(id);
     select(null);
@@ -502,7 +522,7 @@ export function FrameStudio({
     if (nextProduct && current && Math.abs(nextProduct.width_mm / nextProduct.height_mm - current.width_mm / current.height_mm) > 0.01 && active.slots.length > 0) {
       setNote({
         tone: "warning",
-        text: "Yeni ölçünün en-boy oranı farklı; alanlar esneyebilir. Hazır bir düzeni yeniden uygulayın ya da alanları kontrol edin.",
+        text: L.aspectChanged,
       });
     }
   }
@@ -568,21 +588,21 @@ export function FrameStudio({
       const res = await fetch("/api/personalizer/test-render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId }),
+        body: JSON.stringify({ templateId, _lang: lang }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Deneme baskısı alınamadı");
+      if (!res.ok || data.error) throw new Error(data.error || L.testFailed);
       setTest({
         busy: false,
         images: data.pieces ?? [{ id: "main", name: "", url: data.url }],
         issues: data.issues,
       });
     } catch (err) {
-      setTest({ busy: false, error: err instanceof Error ? err.message : "Deneme baskısı alınamadı" });
+      setTest({ busy: false, error: err instanceof Error ? err.message : L.testFailed });
     }
   }
 
-  const issues = useMemo(() => (canvas && active ? validateSlots(active.slots, canvas) : []), [canvas, active]);
+  const issues = useMemo(() => (canvas && active ? validateSlots(active.slots, canvas, { lang }) : []), [canvas, active, lang]);
   const missingSize = pieces.filter((p) => !p.print_product_id);
 
   // Hazır düzen küçük resimleri etkin ölçüye göre çiziliyor: dikey bir
@@ -607,45 +627,45 @@ export function FrameStudio({
           <Button
             variant="tertiary"
             onClick={() => {
-              if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Kaydetmeden çıkılsın mı?")) return;
+              if (dirty && !window.confirm(L.confirmLeave)) return;
               onBack();
             }}
           >
-            ← Şablon
+            {L.backToTemplate}
           </Button>
           <div className="fs-title">
-            <Text as="h1" variant="headingMd" truncate>{templateName || "Adsız şablon"}</Text>
-            <Text as="span" tone="subdued" variant="bodySm">Çerçeve Stüdyosu</Text>
+            <Text as="h1" variant="headingMd" truncate>{templateName || L.untitledTemplate}</Text>
+            <Text as="span" tone="subdued" variant="bodySm">{L.studioName}</Text>
           </div>
         </div>
 
         <div className="fs-toolbar-center">
           <ButtonGroup variant="segmented">
-            <Button pressed={view === "design"} onClick={() => setView("design")}>Tasarım</Button>
+            <Button pressed={view === "design"} onClick={() => setView("design")}>{L.tabDesign}</Button>
             <Button pressed={view === "mockups"} onClick={() => setView("mockups")}>
-              {mockups.length > 0 ? `Ürün görselleri (${mockups.length})` : "Ürün görselleri"}
+              {mockups.length > 0 ? L.tabMockupsCount(mockups.length) : L.tabMockups}
             </Button>
           </ButtonGroup>
           {view === "design" && (
             <ButtonGroup variant="segmented">
-              <Button onClick={undo} disabled={history.past.length === 0}>Geri al</Button>
-              <Button onClick={redo} disabled={history.future.length === 0}>Yinele</Button>
+              <Button onClick={undo} disabled={history.past.length === 0}>{L.undo}</Button>
+              <Button onClick={redo} disabled={history.future.length === 0}>{L.redo}</Button>
             </ButtonGroup>
           )}
         </div>
 
         <div className="fs-toolbar-end">
           <span className={`fs-save-state${dirty ? " is-dirty" : ""}`} aria-live="polite">
-            {saving ? "Kaydediliyor…" : dirty ? "Kaydedilmemiş değişiklik" : "Kaydedildi"}
+            {saving ? L.saving : dirty ? L.unsaved : L.saved}
           </span>
           <Button
             onClick={runTest}
             loading={test.busy}
             disabled={dirty || missingSize.length > 0}
           >
-            Deneme baskısı
+            {L.testPrint}
           </Button>
-          <Button variant="primary" onClick={save} loading={saving} disabled={!dirty}>Kaydet</Button>
+          <Button variant="primary" onClick={save} loading={saving} disabled={!dirty}>{L.save}</Button>
         </div>
       </header>
 
@@ -658,7 +678,7 @@ export function FrameStudio({
 
       {/* ── Set sekmeleri ── */}
       {view === "design" && (
-        <nav className="fs-pieces" aria-label="Set parçaları">
+        <nav className="fs-pieces" aria-label={L.piecesNav}>
           {pieces.length > 1 ? pieces.map((p) => (
             <button
               key={p.id}
@@ -670,10 +690,10 @@ export function FrameStudio({
               <span className="fs-piece-count">{p.slots.filter(isImageSlot).length}</span>
             </button>
           )) : (
-            <Text as="span" tone="subdued" variant="bodySm">Tek parça: sipariş başına bir baskı dosyası</Text>
+            <Text as="span" tone="subdued" variant="bodySm">{L.singlePiece}</Text>
           )}
           <Button size="slim" variant="plain" onClick={addPiece}>
-            {pieces.length > 1 ? "+ Parça ekle" : "Set yap (ör. 3'lü çerçeve)"}
+            {pieces.length > 1 ? L.addPiece : L.makeSet}
           </Button>
         </nav>
       )}
@@ -689,12 +709,12 @@ export function FrameStudio({
       ) : (
         <div className="fs-body">
           {/* ── Sol panel ── */}
-          <aside className="fs-panel fs-panel-left" aria-label="Düzen ve katmanlar">
+          <aside className="fs-panel fs-panel-left" aria-label={L.leftPanel}>
             <section className="fs-section">
-              <Text as="h2" variant="headingSm">{pieces.length > 1 ? `${active.name} ölçüsü` : "Ölçü"}</Text>
+              <Text as="h2" variant="headingSm">{pieces.length > 1 ? L.pieceSize(active.name) : L.size}</Text>
               {pieces.length > 1 && (
                 <TextField
-                  label="Parça adı"
+                  label={L.pieceNameLabel}
                   autoComplete="off"
                   value={active.name}
                   onChange={(v) => withActive((p) => ({ ...p, name: v }), `piece-name:${active.id}`)}
@@ -702,10 +722,10 @@ export function FrameStudio({
               )}
               {printProducts.length > 0 && (
                 <Select
-                  label="Baskı ölçüsü"
+                  label={L.printSize}
                   labelHidden={pieces.length <= 1}
                   options={[
-                    { label: "Ölçü seçin", value: "" },
+                    { label: L.chooseSize, value: "" },
                     ...printProducts.map((p) => ({
                       label: `${p.name} (${p.width_mm / 10}×${p.height_mm / 10} cm, ${aspectLabel(p.width_mm / p.height_mm)})`,
                       value: p.id,
@@ -718,18 +738,18 @@ export function FrameStudio({
               {sizeDraft ? (
                 <div className="fs-size-form">
                   <div className="fs-grid-2">
-                    <TextField label="Genişlik" type="number" suffix="cm" autoComplete="off" value={sizeDraft.width}
+                    <TextField label={L.width} type="number" suffix="cm" autoComplete="off" value={sizeDraft.width}
                       onChange={(v) => setSizeDraft({ ...sizeDraft, width: v })} />
-                    <TextField label="Yükseklik" type="number" suffix="cm" autoComplete="off" value={sizeDraft.height}
+                    <TextField label={L.height} type="number" suffix="cm" autoComplete="off" value={sizeDraft.height}
                       onChange={(v) => setSizeDraft({ ...sizeDraft, height: v })} />
-                    <TextField label="Taşma payı" type="number" suffix="mm" autoComplete="off" value={sizeDraft.bleed}
+                    <TextField label={L.bleed} type="number" suffix="mm" autoComplete="off" value={sizeDraft.bleed}
                       onChange={(v) => setSizeDraft({ ...sizeDraft, bleed: v })} />
-                    <TextField label="Güvenli alan" type="number" suffix="mm" autoComplete="off" value={sizeDraft.safe}
+                    <TextField label={L.safeArea} type="number" suffix="mm" autoComplete="off" value={sizeDraft.safe}
                       onChange={(v) => setSizeDraft({ ...sizeDraft, safe: v })} />
                   </div>
-                  <TextField label="Çözünürlük" type="number" suffix="dpi" autoComplete="off" value={sizeDraft.dpi}
+                  <TextField label={L.resolution} type="number" suffix="dpi" autoComplete="off" value={sizeDraft.dpi}
                     onChange={(v) => setSizeDraft({ ...sizeDraft, dpi: v })}
-                    helpText="Taşma payı kesimde gider; güvenli alanın dışına yazı koymayın." />
+                    helpText={L.sizeHelp} />
                   <InlineStack gap="200">
                     <Button
                       variant="primary"
@@ -748,9 +768,9 @@ export function FrameStudio({
                         });
                       }}
                     >
-                      Ölçüyü ekle
+                      {L.addSize}
                     </Button>
-                    <Button onClick={() => setSizeDraft(null)}>Vazgeç</Button>
+                    <Button onClick={() => setSizeDraft(null)}>{L.cancel}</Button>
                   </InlineStack>
                 </div>
               ) : (
@@ -758,7 +778,7 @@ export function FrameStudio({
                   variant="plain"
                   onClick={() => setSizeDraft({ width: "30", height: "40", bleed: "3", safe: "5", dpi: "300" })}
                 >
-                  + Yeni ölçü tanımla
+                  {L.newSize}
                 </Button>
               )}
             </section>
@@ -766,7 +786,7 @@ export function FrameStudio({
             {canvas && (
               <>
                 <section className="fs-section">
-                  <Text as="h2" variant="headingSm">Hazır düzenler</Text>
+                  <Text as="h2" variant="headingSm">{L.presets}</Text>
                   <div className="fs-presets">
                     {presetThumbs.map(({ preset, slots }) => (
                       <button
@@ -774,7 +794,7 @@ export function FrameStudio({
                         type="button"
                         className={`fs-preset${lastPreset?.id === preset.id ? " is-active" : ""}`}
                         onClick={() => applyPreset(preset)}
-                        title={preset.label}
+                        title={lang === "en" ? preset.labelEn : preset.label}
                       >
                         <svg viewBox={`0 0 100 ${(100 / canvas.aspect).toFixed(2)}`} aria-hidden="true">
                           <rect x="0" y="0" width="100" height={100 / canvas.aspect} className="fs-preset-bg" />
@@ -783,75 +803,75 @@ export function FrameStudio({
                               width={s.rect.w * 100} height={s.rect.h * (100 / canvas.aspect)} className="fs-preset-slot" />
                           ))}
                         </svg>
-                        <span>{preset.label}</span>
+                        <span>{lang === "en" ? preset.labelEn : preset.label}</span>
                       </button>
                     ))}
                   </div>
                   <Button variant="plain" onClick={() => setShowGridSettings((v) => !v)} ariaExpanded={showGridSettings}>
-                    {showGridSettings ? "Boşluk ayarlarını gizle" : "Kenar ve aralık boşlukları"}
+                    {showGridSettings ? L.hideGapSettings : L.gapSettings}
                   </Button>
                   {showGridSettings && (
                     <BlockStack gap="200">
                       <div className="fs-grid-2">
-                        <NumberField label="Kenar boşluğu" value={grid.margin_mm.top} min={0}
+                        <NumberField label={L.margin} value={grid.margin_mm.top} min={0}
                           onCommit={(v) => setGrid({ ...grid, margin_mm: { top: v, right: v, bottom: grid.margin_mm.bottom === grid.margin_mm.top ? v : grid.margin_mm.bottom, left: v } })} />
-                        <NumberField label="Alt boşluk" value={grid.margin_mm.bottom} min={0}
+                        <NumberField label={L.bottomMargin} value={grid.margin_mm.bottom} min={0}
                           onCommit={(v) => setGrid({ ...grid, margin_mm: { ...grid.margin_mm, bottom: v } })} />
-                        <NumberField label="Yatay aralık" value={grid.gap_x_mm} min={0}
+                        <NumberField label={L.gapX} value={grid.gap_x_mm} min={0}
                           onCommit={(v) => setGrid({ ...grid, gap_x_mm: v })} />
-                        <NumberField label="Dikey aralık" value={grid.gap_y_mm} min={0}
+                        <NumberField label={L.gapY} value={grid.gap_y_mm} min={0}
                           onCommit={(v) => setGrid({ ...grid, gap_y_mm: v })} />
-                        <NumberField label="Sütun" suffix="" step={1} value={grid.cols} min={1}
+                        <NumberField label={L.columns} suffix="" step={1} value={grid.cols} min={1}
                           onCommit={(v) => setGrid({ ...grid, cols: Math.max(1, Math.round(v)), merges: [] })} />
-                        <NumberField label="Satır" suffix="" step={1} value={grid.rows} min={1}
+                        <NumberField label={L.rows} suffix="" step={1} value={grid.rows} min={1}
                           onCommit={(v) => setGrid({ ...grid, rows: Math.max(1, Math.round(v)), merges: [] })} />
                       </div>
-                      <NumberField label="Köşe yuvarlaklığı" value={grid.corner_radius_mm} min={0}
+                      <NumberField label={L.cornerRadius} value={grid.corner_radius_mm} min={0}
                         onCommit={(v) => setGrid({ ...grid, corner_radius_mm: v })} />
                       <Text as="p" tone="subdued" variant="bodySm">
-                        Alt boşluğu artırırsanız isim yazısı için yer açılır.
+                        {L.bottomMarginHint}
                       </Text>
                       <Button onClick={() => (lastPreset && lastPreset.grid(canvas).cols === grid.cols && lastPreset.grid(canvas).rows === grid.rows
                         ? applyPreset(lastPreset, grid)
                         : regenerateGrid())}
                       >
-                        {`${buildGridSlots(grid, canvas, dpi).length} alanı yeniden oluştur`}
+                        {L.regenerate(buildGridSlots(grid, canvas, dpi).length)}
                       </Button>
                     </BlockStack>
                   )}
                 </section>
 
                 <section className="fs-section">
-                  <Text as="h2" variant="headingSm">Ekle</Text>
+                  <Text as="h2" variant="headingSm">{L.add}</Text>
                   <div className="fs-grid-2">
-                    <Button onClick={addImageSlot}>Fotoğraf alanı</Button>
-                    <Button onClick={addTextSlot}>Yazı alanı</Button>
+                    <Button onClick={addImageSlot}>{L.photoSlot}</Button>
+                    <Button onClick={addTextSlot}>{L.textSlot}</Button>
                   </div>
                   {showLetters ? (
                     <LetterPhotoForm onApply={applyLetters} onCancel={() => setShowLetters(false)} />
                   ) : (
                     <Button onClick={() => setShowLetters(true)} fullWidth>
-                      Harf şekilli fotoğraflar (LOVE…)
+                      {L.letterPhotos}
                     </Button>
                   )}
                   {showCards ? (
                     <CardGridForm fits={cardFit} onApply={applyCards} onCancel={() => setShowCards(false)} />
                   ) : (
                     <Button onClick={() => setShowCards(true)} fullWidth>
-                      Kart tabakası (pola kart…)
+                      {L.cardSheet}
                     </Button>
                   )}
                 </section>
 
                 <section className="fs-section">
                   <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingSm">Katmanlar</Text>
+                    <Text as="h2" variant="headingSm">{L.layers}</Text>
                     {active.slots.filter(isImageSlot).length > 1 && (
-                      <Button variant="plain" onClick={renumber}>Sırayı düzelt</Button>
+                      <Button variant="plain" onClick={renumber}>{L.fixOrder}</Button>
                     )}
                   </InlineStack>
                   {active.slots.length === 0 ? (
-                    <Text as="p" tone="subdued" variant="bodySm">Henüz alan yok.</Text>
+                    <Text as="p" tone="subdued" variant="bodySm">{L.noSlots}</Text>
                   ) : (
                     <ul className="fs-layers">
                       {[...active.slots]
@@ -869,7 +889,7 @@ export function FrameStudio({
                                 {isImageSlot(s) ? s.order : "T"}
                               </span>
                               <span className="fs-layer-name">{s.label || s.id}</span>
-                              {isImageSlot(s) && s.source !== s.id && <Badge size="small">tekrar</Badge>}
+                              {isImageSlot(s) && s.source !== s.id && <Badge size="small">{L.repeatBadge}</Badge>}
                             </button>
                           </li>
                         ))}
@@ -878,7 +898,7 @@ export function FrameStudio({
                 </section>
 
                 <section className="fs-section">
-                  <Text as="h2" variant="headingSm">Tasarım görselleri</Text>
+                  <Text as="h2" variant="headingSm">{L.designImages}</Text>
                   {(["background_url", "overlay_url"] as const).map((field) => (
                     <div key={field} className="fs-asset">
                       <div className="fs-asset-thumb">
@@ -886,10 +906,10 @@ export function FrameStudio({
                       </div>
                       <div className="fs-asset-body">
                         <Text as="span" variant="bodySm" fontWeight="semibold">
-                          {field === "background_url" ? "Arka plan" : "Üst katman"}
+                          {field === "background_url" ? L.background : L.overlay}
                         </Text>
                         <Text as="span" variant="bodySm" tone="subdued">
-                          {field === "background_url" ? "Fotoğrafların altında" : "Fotoğrafların üstünde, şeffaf PNG"}
+                          {field === "background_url" ? L.backgroundHint : L.overlayHint}
                         </Text>
                         <InlineStack gap="200">
                           <input
@@ -904,12 +924,12 @@ export function FrameStudio({
                             }}
                           />
                           <Button size="slim" loading={uploading === field} onClick={() => layerInputs[field].current?.click()}>
-                            {active[field] ? "Değiştir" : "Yükle"}
+                            {active[field] ? L.replace : L.upload}
                           </Button>
                           {active[field] && (
                             <Button size="slim" variant="plain" tone="critical"
                               onClick={() => withActive((p) => ({ ...p, [field]: undefined }))}>
-                              Kaldır
+                              {L.remove}
                             </Button>
                           )}
                         </InlineStack>
@@ -917,17 +937,17 @@ export function FrameStudio({
                     </div>
                   ))}
                   {(active.background_url || active.overlay_url) && (
-                    <Button onClick={detectHoles} loading={holeBusy}>Şeffaf deliklerden alan bul</Button>
+                    <Button onClick={detectHoles} loading={holeBusy}>{L.detectHoles}</Button>
                   )}
-                  <Checkbox label="Üst katmanı tuvalde göster" checked={showOverlay} onChange={setShowOverlay}
+                  <Checkbox label={L.showOverlay} checked={showOverlay} onChange={setShowOverlay}
                     disabled={!active.overlay_url} />
-                  <Checkbox label="Kesim ve güvenli alan çizgileri" checked={showGuides} onChange={setShowGuides} />
+                  <Checkbox label={L.showGuides} checked={showGuides} onChange={setShowGuides} />
                 </section>
 
                 {pieces.length > 1 && (
                   <section className="fs-section">
                     <Button tone="critical" variant="plain" onClick={() => removePiece(active.id)}>
-                      {`"${active.name}" parçasını sil`}
+                      {L.deletePiece(active.name)}
                     </Button>
                   </section>
                 )}
@@ -958,32 +978,31 @@ export function FrameStudio({
                   showGuides={showGuides}
                 />
                 <div className="fs-canvas-meta">
-                  {product && `${product.width_mm / 10} × ${product.height_mm / 10} cm · taşma ${product.bleed_mm} mm · güvenli alan ${product.safe_mm} mm · ${product.dpi} dpi`}
+                  {product && L.canvasMeta(product.width_mm / 10, product.height_mm / 10, product.bleed_mm, product.safe_mm, product.dpi)}
                   {showGuides && (
                     <span className="fs-legend">
-                      <i className="is-trim" /> kesim <i className="is-safe" /> güvenli alan
+                      <i className="is-trim" /> {L.legendTrim} <i className="is-safe" /> {L.legendSafe}
                     </span>
                   )}
                 </div>
               </>
             ) : (
               <div className="fs-empty">
-                <Text as="h2" variant="headingMd">Önce baskı ölçüsünü seçin</Text>
+                <Text as="h2" variant="headingMd">{L.pickSizeFirst}</Text>
                 <Text as="p" tone="subdued">
-                  Alanlar gerçek ölçüde çizilir. Soldan hazır bir ölçü seçin ya da "Yeni ölçü tanımla" ile
-                  kendi ölçünüzü (ör. 30×40 cm) ekleyin.
+                  {L.pickSizeFirstBody}
                 </Text>
               </div>
             )}
           </main>
 
           {/* ── Sağ panel ── */}
-          <aside className="fs-panel fs-panel-right" aria-label="Seçili alanın ayarları">
+          <aside className="fs-panel fs-panel-right" aria-label={L.rightPanel}>
             {(test.images || test.error) && (
               <section className="fs-section">
                 <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingSm">Deneme baskısı</Text>
-                  <Button variant="plain" onClick={() => setTest({ busy: false })}>Kapat</Button>
+                  <Text as="h2" variant="headingSm">{L.testPrint}</Text>
+                  <Button variant="plain" onClick={() => setTest({ busy: false })}>{L.close}</Button>
                 </InlineStack>
                 {test.error && <Banner tone="critical">{test.error}</Banner>}
                 {test.issues && test.issues.length > 0 && (
@@ -993,7 +1012,7 @@ export function FrameStudio({
                 )}
                 {test.images?.map((img) => (
                   <figure key={img.id} className="fs-test-image">
-                    <a href={img.url} target="_blank" rel="noreferrer"><img src={img.url} alt={img.name || "Deneme baskısı"} /></a>
+                    <a href={img.url} target="_blank" rel="noreferrer"><img src={img.url} alt={img.name || L.testPrint} /></a>
                     {img.name && <figcaption>{img.name}</figcaption>}
                   </figure>
                 ))}
@@ -1021,7 +1040,7 @@ export function FrameStudio({
             {missingSize.length > 0 && pieces.length > 1 && (
               <section className="fs-section">
                 <Banner tone="warning">
-                  {`Ölçüsü seçilmemiş parça: ${missingSize.map((p) => p.name).join(", ")}`}
+                  {L.missingSize(missingSize.map((p) => p.name).join(", "))}
                 </Banner>
               </section>
             )}

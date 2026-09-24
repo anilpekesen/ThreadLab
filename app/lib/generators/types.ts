@@ -23,6 +23,11 @@ export interface GeneratorKindMeta {
   tags: string[];
   /** Yeni şablon sihirbazında şablon adı için örnek */
   namePlaceholder: string;
+  /** İngilizce yönetim ekranı için karşılıklar */
+  labelEn: string;
+  descriptionEn: string;
+  tagsEn: string[];
+  namePlaceholderEn: string;
 }
 
 export const GENERATOR_KINDS: GeneratorKindMeta[] = [
@@ -32,6 +37,10 @@ export const GENERATOR_KINDS: GeneratorKindMeta[] = [
     description: "Müşteri şarkısını, fotoğrafını ve Spotify bağlantısını girer; çalar görünümlü, okutulabilir Spotify kodlu tasarım üretilir.",
     tags: ["Spotify kodu", "Fotoğraf"],
     namePlaceholder: "Örn: Bizim şarkımız çerçeve",
+    labelEn: "Song / Spotify design",
+    descriptionEn: "The customer enters their song, a photo and a Spotify link; a player-style design with a scannable Spotify code is created.",
+    tagsEn: ["Spotify code", "Photo"],
+    namePlaceholderEn: "e.g. Our song frame",
   },
   {
     kind: "monogram",
@@ -39,6 +48,10 @@ export const GENERATOR_KINDS: GeneratorKindMeta[] = [
     description: "İki-üç baş harf, çerçeve ve yazı tipiyle zarif bir monogram.",
     tags: ["Baş harf", "Çerçeve"],
     namePlaceholder: "Örn: Çift monogramı",
+    labelEn: "Monogram / initials",
+    descriptionEn: "An elegant monogram with two or three initials, a frame and a typeface.",
+    tagsEn: ["Initials", "Frame"],
+    namePlaceholderEn: "e.g. Couple monogram",
   },
   {
     kind: "starmap",
@@ -46,6 +59,10 @@ export const GENERATOR_KINDS: GeneratorKindMeta[] = [
     description: "Seçilen tarih, saat ve şehirde gökyüzünün gerçek görünümü; altında isim ve not.",
     tags: ["Tarih ve şehir", "Gerçek gökyüzü"],
     namePlaceholder: "Örn: Tanıştığımız gece",
+    labelEn: "Star map",
+    descriptionEn: "The real night sky on the chosen date, time and city, with a name and note below.",
+    tagsEn: ["Date and city", "Real sky"],
+    namePlaceholderEn: "e.g. The night we met",
   },
   {
     kind: "citymap",
@@ -53,6 +70,10 @@ export const GENERATOR_KINDS: GeneratorKindMeta[] = [
     description: "Seçilen şehrin ya da noktanın sokak haritası, başlık ve koordinatlarla poster tarzında.",
     tags: ["Şehir", "Poster"],
     namePlaceholder: "Örn: Memleketim haritası",
+    labelEn: "City map",
+    descriptionEn: "A poster-style street map of the chosen city or place, with a title and coordinates.",
+    tagsEn: ["City", "Poster"],
+    namePlaceholderEn: "e.g. Hometown map",
   },
   {
     kind: "birthflower",
@@ -60,6 +81,10 @@ export const GENERATOR_KINDS: GeneratorKindMeta[] = [
     description: "Her kişinin doğum ayının çiçeği ve adı; tek kişi ya da aile buketi.",
     tags: ["Doğum ayı", "Aile"],
     namePlaceholder: "Örn: Anneme aile buketi",
+    labelEn: "Birth flower and name",
+    descriptionEn: "Each person's birth month flower and name; a single person or a family bouquet.",
+    tagsEn: ["Birth month", "Family"],
+    namePlaceholderEn: "e.g. Mom's family bouquet",
   },
 ];
 
@@ -109,5 +134,17 @@ export interface GeneratorComposeResult {
   height: number;
 }
 
-/** Üretici hatası: mesaj müşteriye olduğu gibi gösterilebilir */
-export class GeneratorInputError extends Error {}
+/**
+ * Üretici hatası: mesaj müşteriye olduğu gibi gösterilir. İngilizce mağazada
+ * müşteri Türkçe hata görmesin diye iki dilli; rota mağazanın diline göre seçer.
+ */
+export class GeneratorInputError extends Error {
+  readonly en: string;
+  constructor(tr: string, en?: string) {
+    super(tr);
+    this.en = en ?? tr;
+  }
+  messageFor(lang: "tr" | "en"): string {
+    return lang === "en" ? this.en : this.message;
+  }
+}

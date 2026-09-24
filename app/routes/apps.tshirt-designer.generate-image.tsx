@@ -7,13 +7,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
   const sessionId = url.searchParams.get("sessionId") ?? "";
-  if (!shop) return json({ error: "shop parametresi eksik" }, { status: 400 });
+  if (!shop) return json({ error: (url.searchParams.get("locale") ?? "tr").toLowerCase().startsWith("tr") ? "shop parametresi eksik" : "Missing shop parameter" }, { status: 400 });
   return json(await getAiQuotaInfo(shop, sessionId));
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
-  if (!shop) return json({ error: "shop parametresi eksik" }, { status: 400 });
+  if (!shop) return json({ error: (url.searchParams.get("locale") ?? "tr").toLowerCase().startsWith("tr") ? "shop parametresi eksik" : "Missing shop parameter" }, { status: 400 });
   return handleAiImageGeneration(request, shop);
 };

@@ -24,23 +24,11 @@ import { getOrdersWithPrintFiles, bulkUpdateStatus, fulfillShopifyOrders } from 
 import type { Order } from "~/models/orders.server";
 import { getShopSubscription } from "~/models/billing.server";
 import { planKeyFromName } from "~/lib/billing.server";
+import { useDict, useTranslation, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import dict from "~/i18n/admin/print-queue";
 
-const SHEET_PRESETS = [
-  { label: "DTF Rulo 60cm", value: "dtf60" },
-  { label: "DTF Rulo 100cm", value: "dtf100" },
-  { label: "A3 Dikey", value: "a3" },
-  { label: "A3 Yatay", value: "a3l" },
-  { label: "A4 Dikey", value: "a4" },
-  { label: "A4 Yatay", value: "a4l" },
-];
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Bekliyor",
-  preparing: "Hazırlanıyor",
-  printed: "Basıldı",
-  ready: "Hazır",
-  shipped: "Gönderildi",
-};
+const SHEET_PRESET_VALUES = ["dtf60", "dtf100", "a3", "a3l", "a4", "a4l"];
 
 function canUsePrintQueue(planKey: string, subscriptionStatus?: string | null): boolean {
   return (planKey === "Pro" || planKey === "Business")
@@ -112,10 +100,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate(request);
   const sub = await getShopSubscription(session.shop);
   const planKey = planKeyFromName(sub?.plan_key) ?? "Pro";
-  if (!canUsePrintQueue(planKey, sub?.subscription_status)) {
-    return json({ ok: false, error: "Pro veya Business planı gerekli" }, { status: 403 });
-  }
   const form = await request.formData();
+  if (!canUsePrintQueue(planKey, sub?.subscription_status)) {
+    return json({ ok: false, error: pickDict(dict, langFromRequest(request, form)).planRequired }, { status: 403 });
+  }
   const intent = String(form.get("intent") || "");
   const ids = String(form.get("ids") || "").split(",").filter(Boolean);
   if (intent === "bulk_status" && ids.length) {
@@ -138,6 +126,9 @@ export default function PrintQueue() {
   const { orders, locked, shop } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
+  const L = useDict(dict);
+  const { lang } = useTranslation();
+  const SHEET_PRESETS = SHEET_PRESET_VALUES.map((value) => ({ label: L.sheetPresets[value], value }));
   const groups = useMemo(() => groupOrders(orders), [orders]);
   const [selectedKeys, setSelectedKeys] = useState(groups.map((g) => g.key));
   const [preset, setPreset] = useState("dtf60");
@@ -190,11 +181,11 @@ export default function PrintQueue() {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Bilinmeyen hata");
+      setError(err instanceof Error ? err.message : L.unknownError);
     } finally {
       setDownloading(false);
     }
-  }, [columns, labels, margin, preset, selectedIds, shop]);
+  }, [columns, labels, margin, preset, selectedIds, shop, L]);
 
   const setBulkStatus = useCallback((status: string) => {
     if (!selectedIds.length) return;
@@ -202,15 +193,16 @@ export default function PrintQueue() {
     fd.set("intent", "bulk_status");
     fd.set("ids", selectedIds.join(","));
     fd.set("status", status);
+    fd.set("_lang", lang);
     fetcher.submit(fd, { method: "post" });
-  }, [fetcher, selectedIds]);
+  }, [fetcher, selectedIds, lang]);
 
   if (locked) {
     return (
-      <Page title="Baskı Kuyruğu">
-        <Banner tone="warning" title="Pro veya Business planı gerekli">
-          <p>Baskı Kuyruğu Otomatik Paketleyici yalnızca aktif Pro ve Business aboneliklerinde kullanılabilir.</p>
-          <Button onClick={() => navigate("/app/billing")}>Planı Yükselt</Button>
+      <Page title={L.title}>
+        <Banner tone="warning" title={L.planRequired}>
+          <p>{L.lockedBody}</p>
+          <Button onClick={() => navigate("/app/billing")}>{L.upgradePlan}</Button>
         </Banner>
       </Page>
     );
@@ -218,29 +210,29 @@ export default function PrintQueue() {
 
   return (
     <Page
-      title="Baskı Kuyruğu"
-      subtitle="Bekleyen siparişlerden etiketli baskı paketi, kesim listesi ve üretim özeti oluşturun."
-      backAction={{ content: "Üretim", onAction: () => navigate("/app/production") }}
+      title={L.title}
+      subtitle={L.subtitle}
+      backAction={{ content: L.production, onAction: () => navigate("/app/production") }}
       primaryAction={{
-        content: downloading ? "Hazırlanıyor..." : "Paketi Oluştur",
+        content: downloading ? L.preparing : L.buildPackage,
         onAction: buildZip,
         disabled: selectedIds.length === 0 || downloading,
         loading: downloading,
       }}
       secondaryActions={[
-        { content: "Gang Sheet", onAction: () => navigate(`/app/gang-sheet?ids=${selectedIds.join(",")}`), disabled: selectedIds.length === 0 },
-        { content: "Yenile", onAction: () => navigate("/app/print-queue") },
+        { content: L.gangSheet, onAction: () => navigate(`/app/gang-sheet?ids=${selectedIds.join(",")}`), disabled: selectedIds.length === 0 },
+        { content: L.refresh, onAction: () => navigate("/app/print-queue") },
       ]}
     >
       <BlockStack gap="500">
-        {error && <Banner tone="critical" title="Baskı paketi oluşturulamadı" onDismiss={() => setError(null)}><p>{error}</p></Banner>}
+        {error && <Banner tone="critical" title={L.buildFailed} onDismiss={() => setError(null)}><p>{error}</p></Banner>}
 
         <Grid>
           <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 2, lg: 4, xl: 4 }}>
             <Card>
               <Box padding="400">
                 <BlockStack gap="100">
-                  <Text as="p" variant="bodySm" tone="subdued">Seçili sipariş</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{L.selectedOrders}</Text>
                   <Text as="p" variant="headingXl">{selectedGroups.length}</Text>
                 </BlockStack>
               </Box>
@@ -250,7 +242,7 @@ export default function PrintQueue() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="100">
-                  <Text as="p" variant="bodySm" tone="subdued">Baskı adedi</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{L.printQty}</Text>
                   <Text as="p" variant="headingXl">{selectedQty}</Text>
                 </BlockStack>
               </Box>
@@ -260,7 +252,7 @@ export default function PrintQueue() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="100">
-                  <Text as="p" variant="bodySm" tone="subdued">Kuyruktaki Sipariş</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{L.queuedOrders}</Text>
                   <Text as="p" variant="headingXl">{groups.length}</Text>
                 </BlockStack>
               </Box>
@@ -273,32 +265,32 @@ export default function PrintQueue() {
             <Card>
               <Box padding="400">
                 <BlockStack gap="400">
-                  <Text as="h2" variant="headingMd">Otomatik Paket Ayarları</Text>
+                  <Text as="h2" variant="headingMd">{L.autoPackageSettings}</Text>
                   <Divider />
-                  <Select label="Sheet boyutu" options={SHEET_PRESETS} value={preset} onChange={setPreset} />
+                  <Select label={L.sheetSize} options={SHEET_PRESETS} value={preset} onChange={setPreset} />
                   <Select
-                    label="Sütun"
+                    label={L.columns}
                     options={[
-                      { label: "Otomatik", value: "0" },
-                      { label: "2 sütun", value: "2" },
-                      { label: "3 sütun", value: "3" },
-                      { label: "4 sütun", value: "4" },
-                      { label: "5 sütun", value: "5" },
-                      { label: "6 sütun", value: "6" },
+                      { label: L.auto, value: "0" },
+                      { label: L.nColumns(2), value: "2" },
+                      { label: L.nColumns(3), value: "3" },
+                      { label: L.nColumns(4), value: "4" },
+                      { label: L.nColumns(5), value: "5" },
+                      { label: L.nColumns(6), value: "6" },
                     ]}
                     value={columns}
                     onChange={setColumns}
                   />
                   <BlockStack gap="100">
-                    <Text as="p" variant="bodySm" tone="subdued">Boşluk: {margin}px</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">{L.margin(margin)}</Text>
                     <RangeSlider label="" min={0} max={100} step={5} value={margin} onChange={(v) => setMargin(typeof v === "number" ? v : v[0])} />
                   </BlockStack>
-                  <Checkbox label="Parçaların üzerine sipariş etiketi bas" checked={labels} onChange={setLabels} />
+                  <Checkbox label={L.printLabels} checked={labels} onChange={setLabels} />
                   <Banner tone="info">
-                    <p>ZIP içinde ön/arka sheet PNG, cut-list CSV, orders-summary HTML ve manifest JSON oluşur.</p>
+                    <p>{L.zipInfo}</p>
                   </Banner>
                   <Button variant="primary" onClick={buildZip} loading={downloading} disabled={!selectedIds.length}>
-                    Paketi Oluştur
+                    {L.buildPackage}
                   </Button>
                 </BlockStack>
               </Box>
@@ -310,23 +302,23 @@ export default function PrintQueue() {
               <Box padding="400">
                 <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingMd">Baskı Kuyruğu</Text>
+                    <Text as="h2" variant="headingMd">{L.title}</Text>
                     <InlineStack gap="200">
                       <Button size="slim" variant="plain" onClick={toggleAll}>
-                        {selectedKeys.length === groups.length ? "Tümünü Kaldır" : "Tümünü Seç"}
+                        {selectedKeys.length === groups.length ? L.deselectAll : L.selectAll}
                       </Button>
                       <Button size="slim" onClick={() => setBulkStatus("printed")} loading={fetcher.state === "submitting"} disabled={!selectedIds.length}>
-                        Basıldı İşaretle
+                        {L.markPrinted}
                       </Button>
                       <Button size="slim" onClick={() => setBulkStatus("ready")} loading={fetcher.state === "submitting"} disabled={!selectedIds.length}>
-                        Hazır İşaretle
+                        {L.markReady}
                       </Button>
                     </InlineStack>
                   </InlineStack>
                   <Divider />
                   {groups.length === 0 ? (
                     <Box padding="800">
-                      <Text as="p" tone="subdued" alignment="center">Baskı dosyası hazır bekleyen sipariş yok.</Text>
+                      <Text as="p" tone="subdued" alignment="center">{L.empty}</Text>
                     </Box>
                   ) : (
                     <BlockStack gap="200">
@@ -346,14 +338,14 @@ export default function PrintQueue() {
                           >
                             <InlineStack gap="300" blockAlign="center">
                               <Checkbox label="" checked={selected} onChange={() => toggleGroup(group.key)} />
-                              {group.previewUrl && <Thumbnail source={group.previewUrl} alt="Tasarım" size="small" />}
+                              {group.previewUrl && <Thumbnail source={group.previewUrl} alt={L.designAlt} size="small" />}
                               <BlockStack gap="100">
                                 <InlineStack gap="200" blockAlign="center">
                                   <Text as="span" variant="bodySm" fontWeight="semibold">{group.orderNumber}</Text>
-                                  <Badge tone="warning">{`${group.totalQty} adet`}</Badge>
-                                  <Badge tone={group.status === "pending" ? "attention" : "info"}>{STATUS_LABELS[group.status] ?? group.status}</Badge>
-                                  {group.hasFront && <Badge tone="success">Ön</Badge>}
-                                  {group.hasBack && <Badge>Arka</Badge>}
+                                  <Badge tone="warning">{L.qty(group.totalQty)}</Badge>
+                                  <Badge tone={group.status === "pending" ? "attention" : "info"}>{L.statusLabels[group.status] ?? group.status}</Badge>
+                                  {group.hasFront && <Badge tone="success">{L.front}</Badge>}
+                                  {group.hasBack && <Badge>{L.back}</Badge>}
                                 </InlineStack>
                                 <Text as="span" variant="bodySm" tone="subdued">
                                   {group.customerName} · {group.productName}

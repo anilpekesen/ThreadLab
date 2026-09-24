@@ -8,6 +8,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
-  if (!shop) return json({ error: "shop parametresi eksik" }, { status: 400 });
+  if (!shop) return json({ error: (url.searchParams.get("locale") ?? "tr").toLowerCase().startsWith("tr") ? "shop parametresi eksik" : "Missing shop parameter" }, { status: 400 });
   return handleWaveSpeedRemoveBackground(request, shop);
 };

@@ -4,6 +4,8 @@ import {
   TextField, Banner, Divider, Checkbox, Select,
 } from "@shopify/polaris";
 import type { MockupOpeningRect, MockupWrap, Rect, TemplateMockup } from "~/lib/slots";
+import { useDict, useTranslation } from "~/i18n";
+import mockupDict from "~/i18n/studio/mockup-editor";
 
 /**
  * Mockup editörü — varyanta göre ürün görselleri.
@@ -28,6 +30,8 @@ export interface MockupEditorProps {
 }
 
 export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorProps) {
+  const L = useDict(mockupDict);
+  const { lang } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [uyari, setUyari] = useState("");
@@ -81,25 +85,23 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
       const fd = new FormData();
       fd.append("image", file);
       fd.append("folder", "personalizer-mockup");
+      fd.append("_lang", lang);
       const ipucu = olcu ? acikliklar.current[olcu] : undefined;
       if (ipucu) fd.append("openingHint", JSON.stringify(ipucu));
 
       const res = await fetch("/api/personalizer/upload-image", { method: "POST", body: fd });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Yüklenemedi");
+      if (!res.ok || data.error) throw new Error(data.error || L.uploadFailed);
       // Yeni görselde eski elle çizilmiş alan geçersiz
       patch(i, { url: data.url, source_url: data.sourceUrl || data.url, opening: undefined });
 
       if (data.opening && olcu) acikliklar.current[olcu] = data.opening;
       if (data.uyari) setUyari(data.uyari);
       else if (data.openingCut) {
-        setBilgi(
-          "Görselin ortası şeffaf değildi, fotoğrafın gireceği alan otomatik açıldı. "
-          + "Yanlış yerdeyse \"Fotoğraf alanını çiz\" ile düzeltin.",
-        );
+        setBilgi(L.openingCut);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Yüklenemedi");
+      setError(err instanceof Error ? err.message : L.uploadFailed);
     } finally {
       setBusy(false);
     }
@@ -116,7 +118,7 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
         opening: { ...rect, aspect: natural.w / natural.h },
       });
       setDrawing(null);
-      setBilgi("Fotoğraf alanı ayarlandı. Kaydetmeyi unutmayın.");
+      setBilgi(L.areaSet);
       return;
     }
     setBusy(true);
@@ -126,19 +128,19 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
       const res = await fetch("/api/personalizer/mockup-opening", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceUrl: m.source_url || m.url, rect }),
+        body: JSON.stringify({ sourceUrl: m.source_url || m.url, rect, _lang: lang }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Alan kesilemedi");
+      if (!res.ok || data.error) throw new Error(data.error || L.cutFailed);
       patch(i, {
         url: data.url,
         source_url: m.source_url || m.url,
         opening: data.opening as MockupOpeningRect,
       });
       setDrawing(null);
-      setBilgi("Fotoğraf alanı çizdiğiniz yere açıldı. Kaydetmeyi unutmayın.");
+      setBilgi(L.areaOpened);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Alan kesilemedi");
+      setError(err instanceof Error ? err.message : L.cutFailed);
     } finally {
       setBusy(false);
     }
@@ -160,18 +162,17 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
       <BlockStack gap="400">
         <InlineStack align="space-between" blockAlign="center" gap="300">
           <BlockStack gap="050">
-            <Text as="h2" variant="headingMd">Varyant görselleri</Text>
+            <Text as="h2" variant="headingMd">{L.title}</Text>
             <Text as="p" variant="bodySm" tone="subdued">
-              Müşteri fotoğrafını seçtiği varyantın ürün görselinde görür. Zorunlu değil.
+              {L.subtitle}
             </Text>
           </BlockStack>
-          <Button onClick={ekle}>Görsel ekle</Button>
+          <Button onClick={ekle}>{L.addImage}</Button>
         </InlineStack>
 
         {mockups.length === 0 && (
           <Text as="p" tone="subdued" variant="bodySm">
-            Henüz görsel eklenmemiş. Eklerseniz müşteri düzenlemesini gerçek ürünün üstünde
-            yapar; eklemezseniz yalnızca baskı tuvalini görür.
+            {L.empty}
           </Text>
         )}
 
@@ -198,32 +199,32 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
             <BlockStack gap="300">
               <InlineStack gap="300" blockAlign="center" align="space-between" wrap={false}>
                 <InlineStack gap="200" blockAlign="center" wrap={false}>
-                  {!m.url && <Badge tone="warning">Görsel yok</Badge>}
+                  {!m.url && <Badge tone="warning">{L.noImage}</Badge>}
                   {m.url && (
                     m.opening
-                      ? <Badge tone="success">Fotoğraf alanı elle çizildi</Badge>
+                      ? <Badge tone="success">{L.areaManual}</Badge>
                       : m.blend === "multiply"
-                        ? <Badge tone="warning">Fotoğraf alanı çizilmedi</Badge>
-                        : <Badge>Fotoğraf alanı otomatik</Badge>
+                        ? <Badge tone="warning">{L.areaMissing}</Badge>
+                        : <Badge>{L.areaAuto}</Badge>
                   )}
                   <Button
                     size="slim"
                     loading={busy && drawing === null}
                     onClick={() => { hedef.current = i; fileInput.current?.click(); }}
                   >
-                    {m.url ? "Görseli değiştir" : "Görsel yükle"}
+                    {m.url ? L.replaceImage : L.uploadImage}
                   </Button>
                   {m.url && drawing !== i && yanCizen !== i && (
-                    <Button size="slim" onClick={() => setDrawing(i)}>Fotoğraf alanını çiz</Button>
+                    <Button size="slim" onClick={() => setDrawing(i)}>{L.drawArea}</Button>
                   )}
                   {m.url && m.opening && drawing !== i && yanCizen !== i && (
                     <Button size="slim" onClick={() => setYanCizen(i)}>
-                      {m.wrap ? "Yan yüzü düzenle" : "Yan yüzü çiz"}
+                      {m.wrap ? L.editSide : L.drawSide}
                     </Button>
                   )}
-                  {m.wrap && <Badge tone="success">Yan yüz çizildi</Badge>}
+                  {m.wrap && <Badge tone="success">{L.sideDrawn}</Badge>}
                 </InlineStack>
-                <Button tone="critical" variant="plain" onClick={() => sil(i)}>Sil</Button>
+                <Button tone="critical" variant="plain" onClick={() => sil(i)}>{L.delete}</Button>
               </InlineStack>
 
               {m.url && (
@@ -256,10 +257,10 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
               <InlineStack gap="300" wrap>
                 <Box minWidth="220px">
                   <Select
-                    label="Görsel türü"
+                    label={L.imageType}
                     options={[
-                      { label: "Çerçeve — ortası şeffaf, fotoğraf içine girer", value: "frame" },
-                      { label: "Kanvas / düz yüzey — doku fotoğrafın üstüne işlenir", value: "surface" },
+                      { label: L.typeFrame, value: "frame" },
+                      { label: L.typeSurface, value: "surface" },
                     ]}
                     value={m.blend === "multiply" ? "surface" : "frame"}
                     onChange={(v) => patch(i, v === "surface"
@@ -267,26 +268,26 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
                       ? { blend: "multiply", url: m.source_url || m.url }
                       : { blend: undefined })}
                     helpText={m.blend === "multiply"
-                      ? "Beyaz yüzey fotoğrafı değiştirmez; keten dokusu ve kenar gölgesi fotoğrafa işlenir."
-                      : "Görselin ortası şeffaf olmalı; değilse alanı elle çizin."}
+                      ? L.surfaceHelp
+                      : L.frameHelp}
                   />
                 </Box>
                 <Box minWidth="220px">
                   <TextField
-                    label="Seçenek değeri"
+                    label={L.optionValue}
                     autoComplete="off"
                     value={m.key}
-                    placeholder="Ceviz"
-                    helpText="Shopify'daki değerle birebir aynı olmalı; boş bırakılırsa varsayılan olur"
+                    placeholder={L.optionValuePlaceholder}
+                    helpText={L.optionValueHelp}
                     onChange={(v) => patch(i, { key: v })}
                   />
                 </Box>
                 <Box minWidth="220px">
                   <TextField
-                    label="Görünen ad"
+                    label={L.displayName}
                     autoComplete="off"
                     value={m.label}
-                    placeholder="Ceviz çerçeve"
+                    placeholder={L.displayNamePlaceholder}
                     onChange={(v) => patch(i, { label: v })}
                   />
                 </Box>
@@ -299,9 +300,7 @@ export function MockupEditor({ mockups, onChange, designAspect }: MockupEditorPr
           <>
             <Divider />
             <Text as="p" variant="bodySm" tone="subdued">
-              Görselin fotoğrafın görüneceği kısmı şeffafsa alan otomatik bulunur. Bulunamazsa ya da
-              yanlış yerdeyse alanı elle çizin. Paspartu baskıdan geliyorsa görselde paspartu
-              bulunmamalı; yoksa iki kez uygulanmış görünür.
+              {L.footer}
             </Text>
           </>
         )}
@@ -362,6 +361,7 @@ function OpeningDrawer({
   const [lock, setLock] = useState(Boolean(designAspect));
   const [rect, setRect] = useState<Rect | null>(initial ?? null);
   const [drag, setDrag] = useState<DragMode | null>(null);
+  const L = useDict(mockupDict);
 
   // Görsel yüklenince, çizilmiş alan yoksa ortada makul bir başlangıç alanı
   useEffect(() => {
@@ -437,8 +437,7 @@ function OpeningDrawer({
   return (
     <BlockStack gap="300">
       <Text as="p" variant="bodySm">
-        Müşterinin tasarımının görüneceği alanı görselin üstünde sürükleyerek çizin. Alanın içinden
-        tutup taşıyabilir, sağ alt köşeden boyutlandırabilirsiniz.
+        {L.drawIntro}
       </Text>
       <div className="fs-mockup-preview">
         <div
@@ -465,22 +464,22 @@ function OpeningDrawer({
       </div>
       {designAspect && (
         <Checkbox
-          label="Tasarımın oranına kilitle"
+          label={L.lockAspect}
           checked={lock}
           onChange={(v) => {
             setLock(v);
             if (v && rect && natural) setRect(lockHeight(rect));
           }}
           helpText={aspectOff
-            ? "Alanın oranı tasarımdan farklı; müşteri sayfasında tasarım bu alana esnetilerek sığdırılır."
-            : "Tasarım alanın içine esnemeden oturur."}
+            ? L.aspectOff
+            : L.aspectOk}
         />
       )}
       <InlineStack gap="200">
         <Button variant="primary" loading={busy} disabled={!rect || !natural} onClick={() => rect && natural && onApply(rect, natural)}>
-          Alanı uygula
+          {L.applyArea}
         </Button>
-        <Button onClick={onCancel} disabled={busy}>Vazgeç</Button>
+        <Button onClick={onCancel} disabled={busy}>{L.cancel}</Button>
       </InlineStack>
     </BlockStack>
   );
@@ -514,6 +513,7 @@ function WrapDrawer({
   // Yaygın gerdirmeli tuval kalınlığı 2 cm; tasarımın o kadarlık şeridi yana sarılır
   const [depth, setDepth] = useState(String(initial?.depth_mm ?? 20));
   const [drag, setDrag] = useState<DragMode | null>(null);
+  const L = useDict(mockupDict);
 
   function norm(e: { clientX: number; clientY: number }) {
     const r = boxRef.current!.getBoundingClientRect();
@@ -570,8 +570,7 @@ function WrapDrawer({
   return (
     <BlockStack gap="300">
       <Text as="p" variant="bodySm">
-        Tuvalin görselde görünen yan yüzünü sürükleyerek çizin — mavi çerçeve ön yüz.
-        Tasarımın o kenardaki şeridi bu alana yansır, tuvalin yanı beyaz kalmaz.
+        {L.sideIntro}
       </Text>
       <div className="fs-mockup-preview">
         <div ref={boxRef} className="fs-mockup-frame is-drawing" onPointerDown={(e) => start(e, "draw")}>
@@ -597,21 +596,21 @@ function WrapDrawer({
       </div>
       <Box minWidth="220px">
         <TextField
-          label="Tuval kalınlığı (mm)"
+          label={L.depth}
           type="number"
           autoComplete="off"
           value={depth}
           onChange={setDepth}
-          error={!gecerli && depth.trim() !== "" ? "1–100 mm arası bir değer girin" : undefined}
-          helpText="Tasarımın kaç milimetrelik kenarı yana sarılıyor. Gerdirmeli tuvalde genelde 20 mm."
+          error={!gecerli && depth.trim() !== "" ? L.depthError : undefined}
+          helpText={L.depthHelp}
         />
       </Box>
       <InlineStack gap="200">
         <Button variant="primary" disabled={!rect || !gecerli} onClick={() => rect && gecerli && onApply(rect, mm)}>
-          Yan yüzü uygula
+          {L.applySide}
         </Button>
-        <Button onClick={onCancel}>Vazgeç</Button>
-        {initial && <Button tone="critical" variant="plain" onClick={onClear}>Yan yüzü kaldır</Button>}
+        <Button onClick={onCancel}>{L.cancel}</Button>
+        {initial && <Button tone="critical" variant="plain" onClick={onClear}>{L.removeSide}</Button>}
       </InlineStack>
     </BlockStack>
   );

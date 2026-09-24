@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   BlockStack, InlineStack, Text, Button, Checkbox, Select, TextField, Banner, ButtonGroup,
 } from "@shopify/polaris";
@@ -14,6 +14,8 @@ import {
 import { SLOT_SHAPES, shapePath } from "~/lib/slot-shapes";
 import { NumberField } from "./NumberField";
 import { TextSlotSettings } from "./TextSlotSettings";
+import { useDict, useTranslation } from "~/i18n";
+import inspectorDict from "~/i18n/studio/inspector";
 
 /**
  * Sağ panel — seçimin ayarları.
@@ -51,6 +53,7 @@ export function StudioInspector(props: StudioInspectorProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Overview({ slots, issues, onSelect }: StudioInspectorProps) {
+  const L = useDict(inspectorDict);
   const images = slots.filter(isImageSlot);
   const texts = slots.filter(isTextSlot);
   const errors = issues.filter((i) => i.level === "error");
@@ -58,19 +61,18 @@ function Overview({ slots, issues, onSelect }: StudioInspectorProps) {
   return (
     <BlockStack gap="400">
       <BlockStack gap="100">
-        <Text as="h2" variant="headingSm">Bu tasarım</Text>
+        <Text as="h2" variant="headingSm">{L.thisDesign}</Text>
         <Text as="p" tone="subdued" variant="bodySm">
-          {`${images.length} fotoğraf alanı · ${texts.length} yazı alanı`}
+          {L.slotCounts(images.length, texts.length)}
         </Text>
       </BlockStack>
 
       {slots.length === 0 ? (
         <Text as="p" tone="subdued">
-          Soldan hazır bir düzen seçin ya da "Fotoğraf alanı" ile kendiniz ekleyin. Alanı
-          seçince ölçüsü, şekli ve açısı burada görünür.
+          {L.emptyHint}
         </Text>
       ) : errors.length === 0 && warnings.length === 0 ? (
-        <Banner tone="success">Denetimden geçti. Kaydedip deneme baskısı alabilirsiniz.</Banner>
+        <Banner tone="success">{L.passed}</Banner>
       ) : (
         <BlockStack gap="200">
           {[...errors, ...warnings].map((issue, i) => (
@@ -88,16 +90,11 @@ function Overview({ slots, issues, onSelect }: StudioInspectorProps) {
       )}
 
       <BlockStack gap="150">
-        <Text as="h3" variant="headingXs">Kısayollar</Text>
+        <Text as="h3" variant="headingXs">{L.shortcuts}</Text>
         <dl className="fs-shortcuts">
-          <dt>Shift + tıkla</dt><dd>Birden fazla alan seç (boş yerden sürükleyerek de)</dd>
-          <dt>Ok tuşları</dt><dd>1 mm kaydır (Shift ile 10 mm)</dd>
-          <dt>⌘/Ctrl + Z</dt><dd>Geri al</dd>
-          <dt>⌘/Ctrl + D</dt><dd>Çoğalt</dd>
-          <dt>⌘/Ctrl + G</dt><dd>Seçili fotoğraf alanlarını birleştir</dd>
-          <dt>⌘/Ctrl + A</dt><dd>Tümünü seç</dd>
-          <dt>Sil</dt><dd>Seçimi kaldır</dd>
-          <dt>Alt ile sürükle</dt><dd>Hizalama çizgilerini kapat</dd>
+          {L.shortcutList.map(([key, what]) => (
+            <Fragment key={key}><dt>{key}</dt><dd>{what}</dd></Fragment>
+          ))}
         </dl>
       </BlockStack>
     </BlockStack>
@@ -106,13 +103,13 @@ function Overview({ slots, issues, onSelect }: StudioInspectorProps) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ALIGN_BUTTONS: Array<{ mode: AlignMode; label: string }> = [
-  { mode: "left", label: "Sola" },
-  { mode: "hcenter", label: "Yatay orta" },
-  { mode: "right", label: "Sağa" },
-  { mode: "top", label: "Üste" },
-  { mode: "vcenter", label: "Dikey orta" },
-  { mode: "bottom", label: "Alta" },
+const ALIGN_BUTTONS: Array<{ mode: AlignMode; labelKey: "alignLeft" | "alignHCenter" | "alignRight" | "alignTop" | "alignVCenter" | "alignBottom" }> = [
+  { mode: "left", labelKey: "alignLeft" },
+  { mode: "hcenter", labelKey: "alignHCenter" },
+  { mode: "right", labelKey: "alignRight" },
+  { mode: "top", labelKey: "alignTop" },
+  { mode: "vcenter", labelKey: "alignVCenter" },
+  { mode: "bottom", labelKey: "alignBottom" },
 ];
 
 function AlignGroup({ ids, canvas, onTransform, hint }: {
@@ -121,13 +118,14 @@ function AlignGroup({ ids, canvas, onTransform, hint }: {
   onTransform: StudioInspectorProps["onTransform"];
   hint: string;
 }) {
+  const L = useDict(inspectorDict);
   return (
     <BlockStack gap="200">
-      <Text as="h3" variant="headingXs">Hizala</Text>
+      <Text as="h3" variant="headingXs">{L.align}</Text>
       <div className="fs-align-grid">
         {ALIGN_BUTTONS.map((b) => (
           <Button key={b.mode} size="slim" onClick={() => onTransform((slots) => alignSlots(slots, ids, b.mode, canvas))}>
-            {b.label}
+            {L[b.labelKey]}
           </Button>
         ))}
       </div>
@@ -137,24 +135,25 @@ function AlignGroup({ ids, canvas, onTransform, hint }: {
 }
 
 function MultiSelection({ canvas, dpi, selectedSlots, onMerge, onTransform, onDelete, onDuplicate }: StudioInspectorProps) {
+  const L = useDict(inspectorDict);
   const ids = selectedSlots.map((s) => s.id);
   const imageCount = selectedSlots.filter(isImageSlot).length;
   const letters = selectedSlots.filter((s): s is ImageSlot => isImageSlot(s) && Boolean(s.mask_path));
   return (
     <BlockStack gap="400">
       <InlineStack align="space-between" blockAlign="center" gap="200" wrap={false}>
-        <Text as="h2" variant="headingSm">{`${selectedSlots.length} alan seçili`}</Text>
+        <Text as="h2" variant="headingSm">{L.selectedCount(selectedSlots.length)}</Text>
         <ButtonGroup variant="segmented">
-          <Button size="slim" onClick={onDuplicate}>Çoğalt</Button>
-          <Button size="slim" tone="critical" onClick={onDelete}>Sil</Button>
+          <Button size="slim" onClick={onDuplicate}>{L.duplicate}</Button>
+          <Button size="slim" tone="critical" onClick={onDelete}>{L.delete}</Button>
         </ButtonGroup>
       </InlineStack>
 
       {imageCount > 1 && (
         <BlockStack gap="200">
-          <Button variant="primary" onClick={onMerge}>{`${imageCount} fotoğraf alanını birleştir`}</Button>
+          <Button variant="primary" onClick={onMerge}>{L.mergeCount(imageCount)}</Button>
           <Text as="p" tone="subdued" variant="bodySm">
-            Seçili alanları kaplayan tek büyük alan olur; ilk alanın adı ve ayarları korunur.
+            {L.mergeHelp}
           </Text>
         </BlockStack>
       )}
@@ -162,7 +161,7 @@ function MultiSelection({ canvas, dpi, selectedSlots, onMerge, onTransform, onDe
       {letters.length > 0 && (
         <BlockStack gap="200">
           <NumberField
-            label={`Harf kalınlığı (${letters.length} harf)`}
+            label={L.letterStrokeCount(letters.length)}
             value={letterStrokeMm(letters[0], canvas, dpi)}
             min={0}
             onCommit={(v) => onTransform((slots) => slots.map((s) => (
@@ -170,31 +169,31 @@ function MultiSelection({ canvas, dpi, selectedSlots, onMerge, onTransform, onDe
             )))}
           />
           <Text as="p" tone="subdued" variant="bodySm">
-            Harfler yerinde kalır, gövdeleri kalınlaşır. Harfler birbirine değerse "Eşit aralıkla dağıt" ile açın.
+            {L.letterStrokeHelp}
           </Text>
         </BlockStack>
       )}
 
-      <AlignGroup ids={ids} canvas={canvas} onTransform={onTransform} hint="Alanlar birbirine göre hizalanır." />
+      <AlignGroup ids={ids} canvas={canvas} onTransform={onTransform} hint={L.alignMultiHint} />
 
       <BlockStack gap="200">
-        <Text as="h3" variant="headingXs">Eşit aralıkla dağıt</Text>
+        <Text as="h3" variant="headingXs">{L.distribute}</Text>
         <div className="fs-grid-2">
           <Button size="slim" disabled={selectedSlots.length < 3}
-            onClick={() => onTransform((slots) => distributeSlots(slots, ids, "x", canvas))}>Yatayda</Button>
+            onClick={() => onTransform((slots) => distributeSlots(slots, ids, "x", canvas))}>{L.horizontally}</Button>
           <Button size="slim" disabled={selectedSlots.length < 3}
-            onClick={() => onTransform((slots) => distributeSlots(slots, ids, "y", canvas))}>Dikeyde</Button>
+            onClick={() => onTransform((slots) => distributeSlots(slots, ids, "y", canvas))}>{L.vertically}</Button>
         </div>
-        {selectedSlots.length < 3 && <Text as="p" tone="subdued" variant="bodySm">En az 3 alan seçin.</Text>}
+        {selectedSlots.length < 3 && <Text as="p" tone="subdued" variant="bodySm">{L.selectAtLeast3}</Text>}
       </BlockStack>
 
       <BlockStack gap="200">
-        <Text as="h3" variant="headingXs">Aynı boyut</Text>
+        <Text as="h3" variant="headingXs">{L.sameSize}</Text>
         <div className="fs-grid-2">
-          <Button size="slim" onClick={() => onTransform((slots) => matchSize(slots, ids, "w"))}>Genişlik</Button>
-          <Button size="slim" onClick={() => onTransform((slots) => matchSize(slots, ids, "h"))}>Yükseklik</Button>
+          <Button size="slim" onClick={() => onTransform((slots) => matchSize(slots, ids, "w"))}>{L.width}</Button>
+          <Button size="slim" onClick={() => onTransform((slots) => matchSize(slots, ids, "h"))}>{L.height}</Button>
         </div>
-        <Text as="p" tone="subdued" variant="bodySm">İlk seçilen alanın ölçüsü alınır.</Text>
+        <Text as="p" tone="subdued" variant="bodySm">{L.sameSizeHelp}</Text>
       </BlockStack>
     </BlockStack>
   );
@@ -205,6 +204,7 @@ function MultiSelection({ canvas, dpi, selectedSlots, onMerge, onTransform, onDe
 function SingleSelection({
   canvas, dpi, slots, selected, issues, onPatchSlot, onDelete, onDuplicate, onTransform, onSplit,
 }: StudioInspectorProps & { selected: Slot }) {
+  const L = useDict(inspectorDict);
   const mm = rectToMm(selected.rect, canvas, dpi);
   const setMm = (patch: Partial<typeof mm>, key: string) => {
     let rect: Rect = rectFromMm({ ...mm, ...patch }, canvas, dpi);
@@ -221,11 +221,11 @@ function SingleSelection({
     <BlockStack gap="400">
       <InlineStack align="space-between" blockAlign="center" gap="200" wrap={false}>
         <Text as="h2" variant="headingSm">
-          {isImageSlot(selected) ? `${selected.order}. fotoğraf alanı` : "Yazı alanı"}
+          {isImageSlot(selected) ? L.photoSlotTitle(selected.order) : L.textSlotTitle}
         </Text>
         <ButtonGroup variant="segmented">
-          <Button size="slim" onClick={onDuplicate}>Çoğalt</Button>
-          <Button size="slim" tone="critical" onClick={onDelete}>Sil</Button>
+          <Button size="slim" onClick={onDuplicate}>{L.duplicate}</Button>
+          <Button size="slim" tone="critical" onClick={onDelete}>{L.delete}</Button>
         </ButtonGroup>
       </InlineStack>
 
@@ -235,7 +235,7 @@ function SingleSelection({
 
       {isImageSlot(selected) && (
         <TextField
-          label="Müşterinin göreceği ad"
+          label={L.customerLabel}
           autoComplete="off"
           value={selected.label}
           onChange={(v) => onPatchSlot(selected.id, { label: v }, `label:${selected.id}`)}
@@ -243,17 +243,17 @@ function SingleSelection({
       )}
 
       <BlockStack gap="200">
-        <Text as="h3" variant="headingXs">Konum ve boyut</Text>
+        <Text as="h3" variant="headingXs">{L.positionSize}</Text>
         <div className="fs-grid-2">
-          <NumberField label="Soldan" value={mm.x} onCommit={(v) => setMm({ x: v }, `x:${selected.id}`)} />
-          <NumberField label="Üstten" value={mm.y} onCommit={(v) => setMm({ y: v }, `y:${selected.id}`)} />
-          <NumberField label="Genişlik" value={mm.w} min={1} onCommit={(v) => setMm({ w: v }, `w:${selected.id}`)} />
-          <NumberField label="Yükseklik" value={mm.h} min={1} onCommit={(v) => setMm({ h: v }, `h:${selected.id}`)} />
+          <NumberField label={L.fromLeft} value={mm.x} onCommit={(v) => setMm({ x: v }, `x:${selected.id}`)} />
+          <NumberField label={L.fromTop} value={mm.y} onCommit={(v) => setMm({ y: v }, `y:${selected.id}`)} />
+          <NumberField label={L.width} value={mm.w} min={1} onCommit={(v) => setMm({ w: v }, `w:${selected.id}`)} />
+          <NumberField label={L.height} value={mm.h} min={1} onCommit={(v) => setMm({ h: v }, `h:${selected.id}`)} />
         </div>
         <InlineStack gap="200" blockAlign="end" wrap={false}>
           <div style={{ flex: 1 }}>
             <NumberField
-              label="Açı"
+              label={L.angle}
               suffix="°"
               step={1}
               value={selected.rotation ?? 0}
@@ -264,11 +264,11 @@ function SingleSelection({
             disabled={!selected.rotation}
             onClick={() => onPatchSlot(selected.id, { rotation: undefined })}
           >
-            Düzelt
+            {L.straighten}
           </Button>
         </InlineStack>
         <Text as="p" tone="subdued" variant="bodySm">
-          Kesim kenarından ölçülür. Açıyı tuvaldeki yuvarlak tutamakla da değiştirebilirsiniz.
+          {L.positionHelp}
         </Text>
       </BlockStack>
 
@@ -276,7 +276,7 @@ function SingleSelection({
         ids={[selected.id]}
         canvas={canvas}
         onTransform={onTransform}
-        hint="Tek alan seçiliyken kesim alanına göre hizalanır."
+        hint={L.alignSingleHint}
       />
 
       {isImageSlot(selected) && (
@@ -325,6 +325,8 @@ function ImageSettings({
   const px = rectToPx(slot.rect, canvas.canvasWidth, canvas.canvasHeight);
   const radiusMm = radiusToMm(slot, canvas, dpi);
   const [split, setSplit] = useState({ cols: 2, rows: 1, gap: 4 });
+  const L = useDict(inspectorDict);
+  const { lang } = useTranslation();
 
   function setShape(next: SlotShape) {
     // Hazır bir şekil seçilince harf maskesi de kalkar; ikisi birlikte olamaz
@@ -351,18 +353,18 @@ function ImageSettings({
   }
 
   const options: Array<{ id: SlotShape; label: string }> = [
-    { id: "rect", label: "Köşeli" },
-    { id: "rounded", label: "Yuvarlak köşe" },
-    { id: "circle", label: "Daire" },
-    ...SLOT_SHAPES,
+    { id: "rect", label: L.shapeRect },
+    { id: "rounded", label: L.shapeRounded },
+    { id: "circle", label: L.shapeCircle },
+    ...SLOT_SHAPES.map((sh) => ({ id: sh.id, label: lang === "en" ? sh.labelEn : sh.label })),
   ];
   const sameAs = slots.filter((s): s is ImageSlot => isImageSlot(s) && s.id !== slot.id);
 
   return (
     <BlockStack gap="400">
       <BlockStack gap="200">
-        <Text as="h3" variant="headingXs">Şekil</Text>
-        <div className="fs-shape-grid" role="group" aria-label="Alan şekli">
+        <Text as="h3" variant="headingXs">{L.shape}</Text>
+        <div className="fs-shape-grid" role="group" aria-label={L.shapeGroup}>
           {options.map((o) => (
             <button
               key={o.id}
@@ -379,10 +381,10 @@ function ImageSettings({
         {shape === "letter" && (
           <BlockStack gap="200">
             <Text as="span" variant="bodySm" tone="subdued">
-              {`Harf şekli${slot.mask_label ? ` (${slot.mask_label})` : ""}. Başka bir şekil seçerseniz harf şekli kalkar.`}
+              {L.letterShape(slot.mask_label ?? "")}
             </Text>
             <NumberField
-              label="Harf kalınlığı"
+              label={L.letterStroke}
               value={letterStrokeMm(slot, canvas, dpi)}
               min={0}
               onCommit={(v) => onPatch(slot.id, withLetterStroke(slot, Math.min(15, v), canvas, dpi), `stroke:${slot.id}`)}
@@ -391,12 +393,12 @@ function ImageSettings({
         )}
         {shape === "mask" && (
           <InlineStack gap="200" blockAlign="center">
-            <Text as="span" variant="bodySm" tone="subdued">Tasarımdaki delikten alınmış özel şekil.</Text>
+            <Text as="span" variant="bodySm" tone="subdued">{L.maskShape}</Text>
           </InlineStack>
         )}
         {shape === "rounded" && (
           <NumberField
-            label="Köşe yuvarlaklığı"
+            label={L.cornerRadius}
             value={radiusMm}
             min={0}
             onCommit={(v) => onPatch(slot.id, { radius: radiusFromMm(v, canvas, dpi) }, `radius:${slot.id}`)}
@@ -405,70 +407,70 @@ function ImageSettings({
       </BlockStack>
 
       <Select
-        label="Fotoğraf alana nasıl yerleşsin"
+        label={L.fitLabel}
         options={[
-          { label: "Alanı doldursun (kenarlar kırpılır)", value: "cover" },
-          { label: "Tamamı görünsün (boşluk kalabilir)", value: "contain" },
+          { label: L.fitCover, value: "cover" },
+          { label: L.fitContain, value: "contain" },
         ]}
         value={slot.fit}
         onChange={(v) => onPatch(slot.id, { fit: v === "contain" ? "contain" : "cover" })}
       />
 
       <BlockStack gap="100">
-        <Text as="h3" variant="headingXs">Müşteri</Text>
+        <Text as="h3" variant="headingXs">{L.customer}</Text>
         <Checkbox
-          label="Fotoğrafı alan içinde kaydırabilir"
+          label={L.allowPan}
           checked={slot.allow.pan}
           onChange={(v) => onPatch(slot.id, { allow: { ...slot.allow, pan: v } })}
         />
         <Checkbox
-          label="Fotoğrafı yakınlaştırabilir"
+          label={L.allowZoom}
           checked={slot.allow.zoom}
           onChange={(v) => onPatch(slot.id, { allow: { ...slot.allow, zoom: v } })}
         />
         <Checkbox
-          label="Fotoğrafı 90° döndürebilir"
+          label={L.allowRotate}
           checked={slot.allow.rotate}
           onChange={(v) => onPatch(slot.id, { allow: { ...slot.allow, rotate: v } })}
-          helpText="Telefonla yan çekilmiş fotoğrafları düzeltmek için."
+          helpText={L.allowRotateHelp}
         />
       </BlockStack>
 
       {sameAs.length > 0 && (
         <Select
-          label="Hangi fotoğrafı göstersin"
+          label={L.sourceLabel}
           options={[
-            { label: "Kendi fotoğrafı (müşteri ayrı yükler)", value: slot.id },
+            { label: L.sourceOwn, value: slot.id },
             ...sameAs
               .filter((s) => (s.source || s.id) === s.id)
-              .map((s) => ({ label: `${s.order}. alanla aynı fotoğraf`, value: s.id })),
+              .map((s) => ({ label: L.sourceSameAs(s.order), value: s.id })),
           ]}
           value={slot.source === slot.id ? slot.id : slot.source}
           onChange={(v) => onPatch(slot.id, { source: v })}
-          helpText="Aynı fotoğrafı birden fazla yerde tekrarlamak için."
+          helpText={L.sourceHelp}
         />
       )}
 
       <BlockStack gap="200">
-        <Text as="h3" variant="headingXs">Alanı böl</Text>
+        <Text as="h3" variant="headingXs">{L.split}</Text>
         <div className="fs-grid-2">
-          <NumberField label="Sütun" suffix="" step={1} min={1} value={split.cols}
+          <NumberField label={L.columns} suffix="" step={1} min={1} value={split.cols}
             onCommit={(v) => setSplit({ ...split, cols: Math.max(1, Math.round(v)) })} />
-          <NumberField label="Satır" suffix="" step={1} min={1} value={split.rows}
+          <NumberField label={L.rows} suffix="" step={1} min={1} value={split.rows}
             onCommit={(v) => setSplit({ ...split, rows: Math.max(1, Math.round(v)) })} />
         </div>
-        <NumberField label="Aralık" min={0} value={split.gap}
+        <NumberField label={L.gap} min={0} value={split.gap}
           onCommit={(v) => setSplit({ ...split, gap: Math.max(0, v) })} />
         <Button
           disabled={split.cols * split.rows < 2}
           onClick={() => onSplit(split.cols, split.rows, split.gap)}
         >
-          {`${split.cols * split.rows} alana böl`}
+          {L.splitInto(split.cols * split.rows)}
         </Button>
       </BlockStack>
 
       <Text as="p" tone="subdued" variant="bodySm">
-        {`Net baskı için müşterinin fotoğrafı en az ${px.width} × ${px.height} piksel olmalı (${dpi} dpi).`}
+        {L.minPixels(px.width, px.height, dpi)}
       </Text>
     </BlockStack>
   );

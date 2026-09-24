@@ -59,7 +59,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     body = await request.json();
   } catch {
-    return json({ error: "Geçersiz istek" }, { status: 400, headers: CORS });
+    const queryEn = String(new URL(request.url).searchParams.get("locale") ?? "").toLowerCase().startsWith("en");
+    return json({ error: queryEn ? "Invalid request" : "Geçersiz istek" }, { status: 400, headers: CORS });
   }
 
   const isTr = !String(body.locale ?? "tr").toLowerCase().startsWith("en");

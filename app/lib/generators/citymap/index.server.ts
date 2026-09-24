@@ -106,7 +106,7 @@ function resolvePoint(config: CitymapConfig, fields: Record<string, string>): Re
     const lon = parseCoord(fields.lon, -180, 180);
     if (lat !== null || lon !== null) {
       if (lat === null || lon === null || Number.isNaN(lat) || Number.isNaN(lon)) {
-        throw new GeneratorInputError("Enlem -80 ile 84, boylam -180 ile 180 arasında bir sayı olmalı (ör. 41.0082 ve 28.9784)");
+        throw new GeneratorInputError("Enlem -80 ile 84, boylam -180 ile 180 arasında bir sayı olmalı (ör. 41.0082 ve 28.9784)", "Latitude must be between -80 and 84 and longitude between -180 and 180 (e.g. 41.0082 and 28.9784)");
       }
       // ~100 m'ye yuvarlanır: önbellek aynı mahalle için tekrar kullanılabilsin
       const rl = Math.round(lat * 1000) / 1000;

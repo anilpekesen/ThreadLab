@@ -2,7 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useFetcher, useNavigate } from "@remix-run/react";
 import { Banner, Button, Page, Text, TextField } from "@shopify/polaris";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { authenticate } from "~/lib/authenticate.server";
 import {
   createPersonalizerTemplate,
@@ -11,41 +11,68 @@ import {
   type ScatterTemplateConfig,
   type TextFieldDef,
 } from "~/models/personalizer.server";
-import { DEFAULT_WORDART } from "~/lib/wordart";
+import { DEFAULT_WORDART, normalizeWordArtConfig } from "~/lib/wordart";
 import { GENERATOR_CONFIGS } from "~/lib/generators/configs";
-import { GENERATOR_KINDS, isGeneratorKind, type GeneratorKind } from "~/lib/generators/types";
+import { GENERATOR_KINDS, isGeneratorKind, type GeneratorConfigBase, type GeneratorKind } from "~/lib/generators/types";
+import { pickDict, useDict, useTranslation, type Lang } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import dict from "~/i18n/personalizer/new";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate(request);
   return json({ ok: true });
 };
 
-function defaultAiTextFields(): TextFieldDef[] {
+function defaultAiTextFields(L: typeof dict.tr): TextFieldDef[] {
   return [
     {
-      id: "name", label: "İsim", placeholder: "Örn: ELİF",
+      id: "name", label: L.aiNameLabel, placeholder: L.aiNamePlaceholder,
       x: 1200, y: 2520, font_size: 180, color: "#111111",
       bold: true, max_length: 20, align: "center",
     },
     {
-      id: "story", label: "Hikâye / Not", placeholder: "Kısa bir cümle yazın",
+      id: "story", label: L.aiStoryLabel, placeholder: L.aiStoryPlaceholder,
       x: 1200, y: 2730, font_size: 78, color: "#444444",
       bold: false, max_length: 160, align: "center",
     },
   ];
 }
 
+const EN_WORDART_SAMPLE_WORDS = ["*I Love You", "My Love", "Sweetheart", "Forever", "Soulmate", "Always", "My Heart"];
+
+/** Yönetim dili İngilizceyse yeni kelime sanatı şablonu İngilizce örnek kelimelerle başlar */
+function defaultWordArt(lang: Lang) {
+  if (lang !== "en") return DEFAULT_WORDART;
+  return normalizeWordArtConfig({ ...DEFAULT_WORDART, sampleWords: EN_WORDART_SAMPLE_WORDS });
+}
+
+/** Yönetim dili İngilizceyse üreticinin metin varsayılanları İngilizce kurulur */
+function defaultGeneratorConfig(kind: GeneratorKind, lang: Lang): GeneratorConfigBase {
+  const mod = GENERATOR_CONFIGS[kind];
+  if (lang !== "en") return mod.defaults;
+  const overrides: Record<GeneratorKind, Record<string, unknown>> = {
+    song: { sampleTitle: "Our Song", sampleArtist: "You and Me" },
+    monogram: {},
+    starmap: { language: "en", defaultTitle: "The Night We Met" },
+    citymap: { labelLanguage: "en" },
+    birthflower: { titlePlaceholder: "Mom's Garden" },
+  };
+  return mod.normalize({ ...mod.defaults, ...overrides[kind] });
+}
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate(request);
   const form = await request.formData();
+  const lang = langFromRequest(request, form);
+  const L = pickDict(dict, lang);
   const name = String(form.get("name") ?? "").trim();
   const description = String(form.get("description") ?? "").trim();
   const category = normalizePersonalizerCategory(form.get("category"));
-  if (!name) return json({ error: "Şablon adı gerekli" }, { status: 400 });
+  if (!name) return json({ error: L.nameRequired }, { status: 400 });
 
   const generatorKind = String(form.get("generator_kind") ?? "");
   if (category === "generator" && !isGeneratorKind(generatorKind)) {
-    return json({ error: "Tasarım türü seçilmedi" }, { status: 400 });
+    return json({ error: L.kindMissing }, { status: 400 });
   }
   const layoutMode = category === "boxer" ? "scatter" : category === "ai" ? "ai"
     : category === "wordart" ? "wordart" : category === "generator" ? "generator" : "mask";
@@ -73,12 +100,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     photo_y: 600,
     photo_width: 1600,
     photo_height: 1600,
-    text_fields: category === "ai" ? defaultAiTextFields() : [],
+    text_fields: category === "ai" ? defaultAiTextFields(L) : [],
     ai_style: "caricature",
     scatter_config: scatterConfig,
-    wordart_config: category === "wordart" ? DEFAULT_WORDART : undefined,
+    wordart_config: category === "wordart" ? defaultWordArt(lang) : undefined,
     generator_config: category === "generator"
-      ? GENERATOR_CONFIGS[generatorKind as GeneratorKind].defaults
+      ? defaultGeneratorConfig(generatorKind as GeneratorKind, lang)
       : undefined,
     sort_order: 0,
   });
@@ -92,87 +119,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   });
 };
 
-const BASE_TYPES: Array<{
+type WizardType = {
+  key: string;
   id: PersonalizerCategory;
+  generatorKind?: GeneratorKind;
   title: string;
   description: string;
   tags: string[];
   flow: Array<{ title: string; description: string }>;
-}> = [
-  {
-    id: "apparel",
-    title: "Tişört ve giyim",
-    description: "Tişört, sweatshirt ve benzeri ürünlerde baskı alanına yerleşen tasarımlar.",
-    tags: ["Tek görsel", "Ön / arka yüz"],
-    flow: [
-      { title: "Tasarımı yükleyin", description: "Müşteri fotoğrafının yerleşeceği tasarımı ekleyin." },
-      { title: "Baskı alanını ayarlayın", description: "Görselin ürün üzerinde görüneceği alanı belirleyin." },
-      { title: "Ürüne bağlayın", description: "Şablonu ilgili Shopify ürününe ve yüzüne bağlayın." },
-    ],
-  },
-  {
-    id: "boxer",
-    title: "Boxer ve tekrarlı desen",
-    description: "Müşteri fotoğrafını ve süslemeyi baskı yüzeyine tekrar eden desen olarak yayın.",
-    tags: ["Tekrarlı desen", "Süsleme"],
-    flow: [
-      { title: "Deseni ayarlayın", description: "Fotoğraf sayısını, boyutunu ve desen yoğunluğunu belirleyin." },
-      { title: "Süslemeyi ekleyin", description: "Kalp, yıldız veya ürüne özel saydam görseli yükleyin." },
-      { title: "Müşteri seçeneklerini açın", description: "Boyut, yoğunluk ve farklı dizilim seçeneklerini belirleyin." },
-    ],
-  },
-  {
-    id: "frame",
-    title: "Fotoğraflı çerçeve",
-    description: "Tek fotoğraflı, kolaj veya birden fazla parçadan oluşan çerçeve ürünleri.",
-    tags: ["Çoklu fotoğraf", "Set desteği"],
-    flow: [
-      { title: "Ölçüyü seçin", description: "Hazır bir ölçü seçin ya da kendi ölçünüzü (ör. 30×40 cm) tanımlayın." },
-      { title: "Düzeni kurun", description: "Hazır düzenlerden birini seçin, alanları sürükleyip boyutlandırın, yazı ekleyin." },
-      { title: "Deneyip ürüne bağlayın", description: "Deneme baskısıyla kontrol edin, sonra Shopify ürününe bağlayın." },
-    ],
-  },
-  {
-    id: "wordart",
-    title: "Kelime sanatı",
-    description: "Müşterinin yazdığı kelimeler kalp, yıldız ya da bir harf silüetinin içine dizilir.",
-    tags: ["Fotoğrafsız", "Şekil ve renk seçimi"],
-    flow: [
-      { title: "Şekilleri seçin", description: "Müşteriye açılacak siluetleri (kalp, daire, harf...) belirleyin." },
-      { title: "Font ve renkleri seçin", description: "Kullanılabilecek yazı tiplerini ve renk paletlerini işaretleyin." },
-      { title: "Ürüne bağlayın", description: "Şablonu ilgili Shopify ürününe ve yüzüne bağlayın." },
-    ],
-  },
-  {
-    id: "ai",
-    title: "AI portre",
-    description: "Müşteri fotoğrafından seçtiğiniz stile uygun sanatsal portre üretin.",
-    tags: ["Ayrı akış", "Stil seçimi"],
-    flow: [
-      { title: "Portre stilini seçin", description: "Karikatür, suluboya veya diğer görsel stilini belirleyin." },
-      { title: "Müşteri alanlarını düzenleyin", description: "Fotoğraf, isim ve kısa not alanlarını hazırlayın." },
-      { title: "Çıktıyı ürüne bağlayın", description: "Üretilecek baskı dosyasını ilgili ürüne bağlayın." },
-    ],
-  },
-];
+};
+
+const BASE_TYPE_IDS = ["apparel", "boxer", "frame", "wordart", "ai"] as const;
 
 /** Sihirbazdaki kartlar: temel türler + her hazır üretici ayrı bir kart */
-const TYPES: Array<(typeof BASE_TYPES)[number] & { key: string; generatorKind?: GeneratorKind }> = [
-  ...BASE_TYPES.map((t) => ({ ...t, key: t.id })),
-  ...GENERATOR_KINDS.map((g) => ({
-    key: `generator:${g.kind}`,
-    id: "generator" as PersonalizerCategory,
-    generatorKind: g.kind,
-    title: g.label,
-    description: g.description,
-    tags: g.tags,
-    flow: [
-      { title: "Seçenekleri belirleyin", description: "Müşteriye açılacak stilleri, renkleri ve yazı tiplerini seçin." },
-      { title: "Önizleyin", description: "Örnek bilgilerle çıktıyı yönetim ekranında görün." },
-      { title: "Ürüne bağlayın", description: "Şablonu ilgili Shopify ürününe ve yüzüne bağlayın." },
-    ],
-  })),
-];
+function wizardTypes(L: typeof dict.tr, lang: Lang): WizardType[] {
+  return [
+    ...BASE_TYPE_IDS.map((id) => ({ key: id, id: id as PersonalizerCategory, ...L.types[id] })),
+    ...GENERATOR_KINDS.map((g) => ({
+      key: `generator:${g.kind}`,
+      id: "generator" as PersonalizerCategory,
+      generatorKind: g.kind,
+      title: lang === "en" ? g.labelEn : g.label,
+      description: lang === "en" ? g.descriptionEn : g.description,
+      tags: lang === "en" ? g.tagsEn : g.tags,
+      flow: L.generatorFlow,
+    })),
+  ];
+}
 
 function TypeIcon({ category }: { category: PersonalizerCategory }) {
   const line = {
@@ -190,6 +163,9 @@ function TypeIcon({ category }: { category: PersonalizerCategory }) {
 export default function NewPersonalizerTemplate() {
   const fetcher = useFetcher<{ error?: string; redirectTo?: string }>();
   const navigate = useNavigate();
+  const { lang } = useTranslation();
+  const L = useDict(dict);
+  const TYPES = useMemo(() => wizardTypes(L, lang), [L, lang]);
   const [step, setStep] = useState(1);
   const [category, setCategory] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -205,7 +181,7 @@ export default function NewPersonalizerTemplate() {
     if (step === 1 && category) setStep(2);
     if (step === 2) {
       if (!name.trim()) {
-        setNameError("Şablon adı gerekli");
+        setNameError(L.nameRequired);
         return;
       }
       setNameError("");
@@ -220,24 +196,21 @@ export default function NewPersonalizerTemplate() {
       description: description.trim(),
       category: selected.id,
       generator_kind: selected.generatorKind ?? "",
+      _lang: lang,
     }, { method: "POST" });
   }
 
-  const flow = selected?.flow ?? [
-    { title: "Ürün yolunu seçin", description: "Satacağınız ürüne uygun kurulum akışını açın." },
-    { title: "Temel bilgileri girin", description: "Ekibinizin kolay bulacağı bir ad ve açıklama ekleyin." },
-    { title: "Gelişmiş kurulumu tamamlayın", description: "Baskı ve müşteri seçeneklerini editörde ayarlayın." },
-  ];
+  const flow = selected?.flow ?? L.defaultFlow;
 
   return (
     <Page
-      title="Yeni şablon"
-      subtitle="Ürününüze uygun akışla başlayın; teknik ayarları bir sonraki ekranda tamamlayın."
-      backAction={{ content: "Şablonlar", onAction: () => navigate("/app/personalizer") }}
+      title={L.pageTitle}
+      subtitle={L.pageSubtitle}
+      backAction={{ content: L.back, onAction: () => navigate("/app/personalizer") }}
     >
       <div className="pl-new-shell">
-        <div className="pl-stepper" aria-label="Şablon oluşturma adımları">
-          {["Tür", "Temel bilgiler", "Kurulum"].map((label, index) => {
+        <div className="pl-stepper" aria-label={L.stepsAria}>
+          {L.steps.map((label, index) => {
             const number = index + 1;
             const state = number === step ? "is-active" : number < step ? "is-complete" : "";
             return (
@@ -257,8 +230,8 @@ export default function NewPersonalizerTemplate() {
               {step === 1 ? (
                 <>
                   <div className="pl-new-heading">
-                    <Text as="h2" variant="headingLg">Ne oluşturacaksınız?</Text>
-                    <p>Doğru ürün grubunu seçtiğinizde yalnızca ihtiyacınız olan ayarlar hazırlanır.</p>
+                    <Text as="h2" variant="headingLg">{L.step1Title}</Text>
+                    <p>{L.step1Body}</p>
                   </div>
                   <div className="pl-type-list">
                     {TYPES.map((item) => (
@@ -286,27 +259,27 @@ export default function NewPersonalizerTemplate() {
               {step === 2 ? (
                 <>
                   <div className="pl-new-heading">
-                    <Text as="h2" variant="headingLg">Temel bilgiler</Text>
-                    <p>Şablonu listenizde kolayca ayırt edebileceğiniz kısa bilgiler girin.</p>
+                    <Text as="h2" variant="headingLg">{L.step2Title}</Text>
+                    <p>{L.step2Body}</p>
                   </div>
                   <div className="pl-details-form">
                     <TextField
-                      label="Şablon adı"
+                      label={L.nameLabel}
                       value={name}
                       onChange={(value) => { setName(value); if (value.trim()) setNameError(""); }}
                       error={nameError}
                       autoComplete="off"
-                      placeholder={selected?.id === "boxer" ? "Örn: Kalpli boxer deseni" : selected?.id === "frame" ? "Örn: 12 fotoğraflı 30×40 çerçeve" : selected?.id === "wordart" ? "Örn: Kalp içinde isimler" : selected?.generatorKind ? GENERATOR_KINDS.find((g) => g.kind === selected.generatorKind)?.namePlaceholder : "Örn: Anneler Günü tasarımı"}
-                      helpText="Bu ad yalnızca yönetim ekranında görünür."
+                      placeholder={selected?.id === "boxer" ? L.placeholderBoxer : selected?.id === "frame" ? L.placeholderFrame : selected?.id === "wordart" ? L.placeholderWordart : selected?.generatorKind ? (() => { const g = GENERATOR_KINDS.find((k) => k.kind === selected.generatorKind); return lang === "en" ? g?.namePlaceholderEn : g?.namePlaceholder; })() : L.placeholderDefault}
+                      helpText={L.nameHelp}
                     />
                     <TextField
-                      label="Açıklama"
+                      label={L.descriptionLabel}
                       value={description}
                       onChange={setDescription}
                       autoComplete="off"
                       multiline={3}
-                      placeholder="Şablonun ne zaman ve hangi ürünlerde kullanıldığını yazın."
-                      helpText="İsteğe bağlı"
+                      placeholder={L.descriptionPlaceholder}
+                      helpText={L.optional}
                     />
                   </div>
                 </>
@@ -315,21 +288,21 @@ export default function NewPersonalizerTemplate() {
               {step === 3 && selected ? (
                 <>
                   <div className="pl-new-heading">
-                    <Text as="h2" variant="headingLg">Şablonu oluşturun</Text>
-                    <p>Temel kayıt oluşturulduktan sonra gelişmiş kurulum ekranına geçeceksiniz.</p>
+                    <Text as="h2" variant="headingLg">{L.step3Title}</Text>
+                    <p>{L.step3Body}</p>
                   </div>
                   <div className="pl-review">
-                    <div className="pl-review-row"><span className="pl-review-label">Ürün grubu</span><span className="pl-review-value">{selected.title}</span></div>
-                    <div className="pl-review-row"><span className="pl-review-label">Şablon adı</span><span className="pl-review-value">{name}</span></div>
+                    <div className="pl-review-row"><span className="pl-review-label">{L.reviewGroup}</span><span className="pl-review-value">{selected.title}</span></div>
+                    <div className="pl-review-row"><span className="pl-review-label">{L.reviewName}</span><span className="pl-review-value">{name}</span></div>
                     <div className="pl-review-row">
-                      <span className="pl-review-label">Sonraki adım</span>
+                      <span className="pl-review-label">{L.reviewNext}</span>
                       <span className="pl-review-value">
-                        {selected.id === "boxer" ? "Desen ve süsleme ayarları" : selected.id === "frame" ? "Çerçeve Stüdyosu açılır" : selected.id === "ai" ? "Portre stili ve çıktı ayarları" : selected.id === "wordart" ? "Şekil, font ve renk ayarları" : selected.id === "generator" ? "Tasarım seçenekleri ve önizleme" : "Tasarım ve baskı alanı"}
+                        {selected.id === "boxer" ? L.nextBoxer : selected.id === "frame" ? L.nextFrame : selected.id === "ai" ? L.nextAi : selected.id === "wordart" ? L.nextWordart : selected.id === "generator" ? L.nextGenerator : L.nextApparel}
                       </span>
                     </div>
                   </div>
                   <div style={{ marginTop: 20 }}>
-                    <Banner tone="info">Şablon henüz bir ürüne bağlı değildir. Önizleme ve baskı ayarlarını tamamladıktan sonra Shopify ürününe bağlayabilirsiniz.</Banner>
+                    <Banner tone="info">{L.notLinkedInfo}</Banner>
                   </div>
                 </>
               ) : null}
@@ -337,19 +310,19 @@ export default function NewPersonalizerTemplate() {
 
             <div className="pl-new-actions">
               <Button variant="plain" onClick={() => step === 1 ? navigate("/app/personalizer") : setStep(step - 1)}>
-                {step === 1 ? "Vazgeç" : "Geri"}
+                {step === 1 ? L.cancel : L.backStep}
               </Button>
               {step < 3 ? (
-                <Button variant="primary" onClick={next} disabled={step === 1 && !category}>Devam et</Button>
+                <Button variant="primary" onClick={next} disabled={step === 1 && !category}>{L.continue}</Button>
               ) : (
-                <Button variant="primary" onClick={createTemplate} loading={fetcher.state !== "idle"}>Şablonu oluştur</Button>
+                <Button variant="primary" onClick={createTemplate} loading={fetcher.state !== "idle"}>{L.create}</Button>
               )}
             </div>
           </section>
 
           <aside className="pl-new-aside">
-            <h3>Bu akışta</h3>
-            <p>{selected ? `${selected.title} için önerilen kurulum sırası` : "Seçiminize göre kurulum adımları burada gösterilir."}</p>
+            <h3>{L.asideTitle}</h3>
+            <p>{selected ? L.asideFor(selected.title) : L.asideEmpty}</p>
             <ol className="pl-flow-list">
               {flow.map((item, index) => (
                 <li key={item.title}>

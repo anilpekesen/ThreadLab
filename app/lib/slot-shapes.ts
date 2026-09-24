@@ -12,13 +12,13 @@
 
 export type SlotShapeId = "oval" | "heart" | "star" | "hexagon" | "diamond" | "arch";
 
-export const SLOT_SHAPES: Array<{ id: SlotShapeId; label: string }> = [
-  { id: "oval", label: "Oval" },
-  { id: "heart", label: "Kalp" },
-  { id: "star", label: "Yıldız" },
-  { id: "hexagon", label: "Altıgen" },
-  { id: "diamond", label: "Elmas" },
-  { id: "arch", label: "Kemer" },
+export const SLOT_SHAPES: Array<{ id: SlotShapeId; label: string; labelEn: string }> = [
+  { id: "oval", label: "Oval", labelEn: "Oval" },
+  { id: "heart", label: "Kalp", labelEn: "Heart" },
+  { id: "star", label: "Yıldız", labelEn: "Star" },
+  { id: "hexagon", label: "Altıgen", labelEn: "Hexagon" },
+  { id: "diamond", label: "Elmas", labelEn: "Diamond" },
+  { id: "arch", label: "Kemer", labelEn: "Arch" },
 ];
 
 export function isSlotShapeId(value: unknown): value is SlotShapeId {

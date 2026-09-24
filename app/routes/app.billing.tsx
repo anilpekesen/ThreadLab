@@ -3,7 +3,9 @@ import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useActionData, Form, useNavigation } from "@remix-run/react";
 import * as Sentry from "@sentry/remix";
 import { useEffect } from "react";
-import { useTranslation } from "~/i18n";
+import { useDict, useTranslation, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import billingDict, { type DowngradeReason } from "~/i18n/admin/billing";
 import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Layout, Card, Text, BlockStack, Badge, Button, Box,
@@ -209,22 +211,22 @@ async function getDowngradeRestrictions(shop: string, analytics: Awaited<ReturnT
   const templateCount = Number(tplResult.rows[0]?.count ?? 0);
 
   const currentIdx = PLAN_ORDER.indexOf(analytics.planKey);
-  const blockedReasons: Partial<Record<PlanKey, string[]>> = {};
+  const blockedReasons: Partial<Record<PlanKey, DowngradeReason[]>> = {};
 
   for (const pk of PLAN_ORDER) {
     const pkIdx = PLAN_ORDER.indexOf(pk);
     if (pkIdx >= currentIdx) continue; // upgrade or same — always allowed
     const target = PLANS[pk];
-    const reasons: string[] = [];
+    const reasons: DowngradeReason[] = [];
 
     if (target.removeBgMonthlyQuota !== -1 && analytics.bgThisMonth > target.removeBgMonthlyQuota) {
-      reasons.push(`Bu ay ${analytics.bgThisMonth} arka plan kaldırma kullandınız (${pk}: ${target.removeBgMonthlyQuota} limit)`);
+      reasons.push({ kind: "bg", used: analytics.bgThisMonth, plan: pk, limit: target.removeBgMonthlyQuota });
     }
     if (target.maxProductTypes !== -1 && productTypeCount > target.maxProductTypes) {
-      reasons.push(`${productTypeCount} ürün kategoriniz var (${pk}: max ${target.maxProductTypes})`);
+      reasons.push({ kind: "productTypes", used: productTypeCount, plan: pk, limit: target.maxProductTypes });
     }
     if (target.maxShopTemplates !== -1 && templateCount > target.maxShopTemplates) {
-      reasons.push(`${templateCount} şablonunuz var (${pk}: max ${target.maxShopTemplates === 0 ? "yok" : target.maxShopTemplates})`);
+      reasons.push({ kind: "templates", used: templateCount, plan: pk, limit: target.maxShopTemplates });
     }
     if (reasons.length) blockedReasons[pk] = reasons;
   }
@@ -278,13 +280,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = session.shop;
   const form = await request.formData();
   const intent = form.get("intent") as string;
+  const B = pickDict(billingDict, langFromRequest(request, form));
 
   const accessToken = await getValidAccessToken(shop);
   if (!accessToken) return redirect(`/auth/login?shop=${encodeURIComponent(shop)}`);
 
   if (intent === "subscribe") {
     const planKey = form.get("plan") as PlanKey;
-    if (!PLAN_ORDER.includes(planKey)) return json({ error: "Geçersiz plan" }, { status: 400 });
+    if (!PLAN_ORDER.includes(planKey)) return json({ error: B.invalidPlan }, { status: 400 });
 
     // Downgrade protection
     const currentSub = await getShopSubscription(shop);
@@ -297,7 +300,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const { blockedReasons } = await getDowngradeRestrictions(shop, analytics);
       const reasons = blockedReasons[planKey];
       if (reasons?.length) {
-        return json({ error: `${planKey} planına geçiş engellenmiştir:\n• ${reasons.join("\n• ")}` }, { status: 400 });
+        return json({ error: B.downgradeBlocked(planKey, reasons.map(B.reason)) }, { status: 400 });
       }
     }
 
@@ -319,7 +322,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         { headers: { "Set-Cookie": makeBillingReturnShopCookie(shop) } },
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Bilinmeyen hata";
+      const message = err instanceof Error ? err.message : B.unknownError;
       console.error("[billing] subscription create error:", message);
       Sentry.captureException(err, { tags: { fn: "subscriptionCreate", plan: planKey } });
       if (shouldUseManagedPricingFallback(message)) {
@@ -329,7 +332,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           { headers: { "Set-Cookie": makeBillingReturnShopCookie(shop) } },
         );
       }
-      return json({ error: `Shopify aboneliği oluşturulamadı: ${message}` }, { status: 500 });
+      return json({ error: B.createFailed(message) }, { status: 500 });
     }
   }
 
@@ -340,10 +343,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         await cancelShopifySubscription(shop, accessToken, subscriptionId);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Bilinmeyen hata";
+      const message = err instanceof Error ? err.message : B.unknownError;
       console.error("[billing] subscription cancel error:", message);
       Sentry.captureException(err, { tags: { fn: "subscriptionCancel" } });
-      return json({ error: `Shopify aboneliği iptal edilemedi: ${message}` }, { status: 500 });
+      return json({ error: B.cancelFailed(message) }, { status: 500 });
     }
     const sub = await getShopSubscription(shop);
     await upsertShopSubscription(shop, {
@@ -362,6 +365,7 @@ export default function BillingPage() {
   const actionData = useActionData<{ error?: string; redirectUrl?: string }>();
   const nav = useNavigation();
   const { t, lang } = useTranslation();
+  const L = useDict(billingDict);
   const isLoading = nav.state === "submitting" || Boolean(actionData?.redirectUrl);
   const isActive = analytics.subscriptionStatus === "active";
   const isTrial = analytics.subscriptionStatus === "trial";
@@ -444,7 +448,7 @@ export default function BillingPage() {
                 <Divider />
                 <BlockStack gap="100">
                   <InlineStack align="space-between">
-                    <Text as="p" variant="bodySm">✦ Yapay Zeka Görseli (bu ay)</Text>
+                    <Text as="p" variant="bodySm">{L.aiThisMonth}</Text>
                     <Text as="p" variant="bodySm">
                       {analytics.aiThisMonth ?? 0} / {analytics.aiQuota ?? 0}
                     </Text>
@@ -466,6 +470,7 @@ export default function BillingPage() {
                     </Text>
                     <Form method="post">
                       <input type="hidden" name="intent" value="cancel" />
+                      <input type="hidden" name="_lang" value={lang} />
                       <input type="hidden" name="subscriptionId" value={analytics.shopifySubscriptionId ?? ""} />
                       <Button tone="critical" variant="plain" submit loading={isLoading}>
                         {t("billing.cancelSubscription")}
@@ -498,7 +503,7 @@ export default function BillingPage() {
                             <Text as="h3" variant="headingMd">{planKey}</Text>
                             {isRecommended && !isCurrent && !isBlocked && <Badge tone="info">{t("billing.recommended")}</Badge>}
                             {isCurrent && <Badge tone="success">{t("billing.active")}</Badge>}
-                            {isBlocked && <Badge tone="critical">Kısıtlı</Badge>}
+                            {isBlocked && <Badge tone="critical">{L.restricted}</Badge>}
                           </InlineStack>
                           <InlineStack blockAlign="end" gap="100">
                             <Text as="p" variant="headingXl">${plan.price}</Text>
@@ -518,9 +523,9 @@ export default function BillingPage() {
                         {isBlocked && (
                           <Banner tone="critical">
                             <BlockStack gap="100">
-                              <Text as="p" variant="bodySm" fontWeight="semibold">Bu plana geçemezsiniz:</Text>
+                              <Text as="p" variant="bodySm" fontWeight="semibold">{L.cannotSwitch}</Text>
                               {blockReasons.map((r, i) => (
-                                <Text key={i} as="p" variant="bodySm">• {r}</Text>
+                                <Text key={i} as="p" variant="bodySm">• {L.reason(r)}</Text>
                               ))}
                             </BlockStack>
                           </Banner>
@@ -529,11 +534,12 @@ export default function BillingPage() {
                         {isCurrent ? (
                           <Button fullWidth disabled>{t("billing.currentPlanBtn")}</Button>
                         ) : isBlocked ? (
-                          <Button fullWidth disabled tone="critical">Geçiş Engellendi</Button>
+                          <Button fullWidth disabled tone="critical">{L.switchBlocked}</Button>
                         ) : (
                           <Form method="post">
                             <input type="hidden" name="intent" value="subscribe" />
                             <input type="hidden" name="plan" value={planKey} />
+                            <input type="hidden" name="_lang" value={lang} />
                             <Button fullWidth variant="primary" submit loading={isLoading}>
                               {isActive || isTrial ? t("billing.changePlan") : t("billing.choosePlan")} → {planKey}
                             </Button>
@@ -572,7 +578,7 @@ export default function BillingPage() {
                       { label: t("billing.ordersPerMonth"), values: PLAN_ORDER.map((k) => PLANS[k].maxMonthlyOrders === -1 ? t("billing.unlimited") : String(PLANS[k].maxMonthlyOrders)) },
                       { label: t("billing.backSurface"), values: PLAN_ORDER.map((k) => PLANS[k].allowBackSurface ? "✓" : "—") },
                       { label: t("billing.bgRemoval"), values: PLAN_ORDER.map((k) => String(PLANS[k].removeBgMonthlyQuota)) },
-                      { label: "✦ Yapay Zeka Görseli/ay", values: PLAN_ORDER.map((k) => String(PLANS[k].aiImageMonthlyQuota ?? 0)) },
+                      { label: L.aiPerMonth, values: PLAN_ORDER.map((k) => String(PLANS[k].aiImageMonthlyQuota ?? 0)) },
                       { label: t("billing.templates"), values: PLAN_ORDER.map((k) => PLANS[k].maxShopTemplates === -1 ? t("billing.unlimited") : PLANS[k].maxShopTemplates === 0 ? "—" : String(PLANS[k].maxShopTemplates)) },
                       { label: t("billing.freeTrial"), values: PLAN_ORDER.map(() => t("billing.trialDays")) },
                     ].map(({ label, values }) => (

@@ -18,7 +18,9 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
 import { shopifyGraphQL } from "~/lib/shopify.server";
-import { useTranslation } from "~/i18n";
+import { useTranslation, useDict, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import creditsDict from "~/i18n/admin/credits";
 import { getValidAccessToken } from "~/lib/session.server";
 import { query } from "~/lib/db.server";
 import { getShopSettings } from "~/models/shop-settings.server";
@@ -71,7 +73,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const form = await request.formData();
   const packKey = form.get("packKey") as PackKey;
   const pack = CREDIT_PACKS[packKey];
-  if (!pack) return json({ error: "Geçersiz paket" }, { status: 400 });
+  const L = pickDict(creditsDict, langFromRequest(request, form));
+  if (!pack) return json({ error: L.invalidPack }, { status: 400 });
 
   const { session } = await authenticate(request);
   const accessToken = await getValidAccessToken(session.shop);
@@ -90,7 +93,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }`,
     {
-      name: pack.label,
+      name: L.packLabel(pack.credits),
       price: { amount: pack.price.toFixed(2), currencyCode: "USD" },
       returnUrl,
       test,
@@ -127,7 +130,8 @@ export default function CreditsPage() {
     }
   }, [actionData]);
 
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
+  const L = useDict(creditsDict);
   const packList = Object.values(CREDIT_PACKS);
   const totalBonus = activePurchasedBonus + permanentBonus;
 
@@ -144,13 +148,13 @@ export default function CreditsPage() {
         ${Number(p.price_usd).toFixed(2)}
       </span>,
       <span key="date" style={isExpired ? { opacity: 0.5 } : undefined}>
-        {new Date(p.created_at).toLocaleDateString("tr-TR")}
+        {new Date(p.created_at).toLocaleDateString(L.dateLocale)}
       </span>,
       <span key="expires" style={isExpired ? { opacity: 0.5 } : undefined}>
         {isExpired ? (
           <Badge tone="critical">{t("credits.expired")}</Badge>
         ) : (
-          new Date(p.expires_at).toLocaleDateString()
+          new Date(p.expires_at).toLocaleDateString(L.dateLocale)
         )}
       </span>,
     ];
@@ -163,7 +167,7 @@ export default function CreditsPage() {
           <BlockStack gap="400">
             <Banner tone="warning">
               <Text as="p" variant="bodyMd">
-                ⚠️ AI kredi paketleri dijital ürün niteliğindedir. Satın alım onaylandıktan sonra iade veya iptal yapılamaz. Krediler 30 gün içinde kullanılmadığında sona erer.
+                {L.refundWarning}
               </Text>
             </Banner>
             {totalBonus > 0 && (
@@ -188,7 +192,7 @@ export default function CreditsPage() {
                 <Card key={pack.key}>
                   <BlockStack gap="300">
                     <Text as="h2" variant="headingMd">
-                      {pack.label}
+                      {L.packLabel(pack.credits)}
                     </Text>
                     <Text as="p" variant="bodyLg">
                       <strong>${pack.price.toFixed(2)}</strong> USD
@@ -202,6 +206,7 @@ export default function CreditsPage() {
                     <Box paddingBlockStart="200">
                       <Form method="post">
                         <input type="hidden" name="packKey" value={pack.key} />
+                        <input type="hidden" name="_lang" value={lang} />
                         <Button
                           variant="primary"
                           submit
@@ -234,7 +239,7 @@ export default function CreditsPage() {
                   </Text>
                   <DataTable
                     columnContentTypes={["text", "numeric", "text", "text", "text"]}
-                    headings={[t("credits.pack"), t("credits.amount"), t("credits.price"), t("credits.pack"), t("credits.expiry")]}
+                    headings={[t("credits.pack"), t("credits.amount"), t("credits.price"), L.dateHeading, t("credits.expiry")]}
                     rows={purchaseRows}
                   />
                 </BlockStack>

@@ -1,5 +1,6 @@
 import { json, type ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "~/lib/authenticate.server";
+import { langFromRequest } from "~/i18n/server";
 import { loadFont } from "~/lib/text-render.server";
 import { isLibraryFontUrl } from "~/lib/font-library";
 import { getR2KeyFromPublicUrl } from "~/lib/r2.server";
@@ -24,22 +25,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   await authenticate(request);
   if (request.method !== "POST") return json({ error: "Method not allowed" }, { status: 405 });
 
-  let body: { text?: string; fontUrl?: string };
+  let body: { text?: string; fontUrl?: string; _lang?: string };
   try { body = await request.json(); }
-  catch { return json({ error: "Geçersiz istek" }, { status: 400 }); }
+  catch { return json({ error: langFromRequest(request) === "en" ? "Invalid request" : "Geçersiz istek" }, { status: 400 }); }
+  const lang = body._lang === "en" || body._lang === "tr" ? body._lang : langFromRequest(request);
+  const en = lang === "en";
 
   const text = String(body.text ?? "").trim();
-  if (!text) return json({ error: "Harflere çevrilecek yazıyı girin" }, { status: 400 });
+  if (!text) return json({ error: en ? "Enter the text to turn into letters" : "Harflere çevrilecek yazıyı girin" }, { status: 400 });
   if ([...text].length > MAX_CHARS) {
-    return json({ error: `En fazla ${MAX_CHARS} karakter; her harf ayrı fotoğraf alanı olur` }, { status: 400 });
+    return json({ error: en ? `Up to ${MAX_CHARS} characters; each letter becomes its own photo slot` : `En fazla ${MAX_CHARS} karakter; her harf ayrı fotoğraf alanı olur` }, { status: 400 });
   }
 
   const fontUrl = String(body.fontUrl ?? "");
   const allowed = isLibraryFontUrl(fontUrl) || Boolean(getR2KeyFromPublicUrl(fontUrl, ["personalizer-font/"]));
-  if (!allowed) return json({ error: "Font kütüphaneden ya da yüklediğiniz fontlardan olmalı" }, { status: 400 });
+  if (!allowed) return json({ error: en ? "The font must come from the library or your uploaded fonts" : "Font kütüphaneden ya da yüklediğiniz fontlardan olmalı" }, { status: 400 });
 
   const font = await loadFont(fontUrl);
-  if (!font) return json({ error: "Font okunamadı" }, { status: 400 });
+  if (!font) return json({ error: en ? "Couldn't read the font" : "Font okunamadı" }, { status: 400 });
 
   try {
     const paths = font.getPaths(text, 0, 0, UNITS);
@@ -63,11 +66,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         h: round(h),
       });
     }
-    if (glyphs.length === 0) return json({ error: "Bu font yazıyı çizemedi" }, { status: 400 });
+    if (glyphs.length === 0) return json({ error: en ? "This font couldn't draw the text" : "Bu font yazıyı çizemedi" }, { status: 400 });
     return json({ glyphs, units: UNITS });
   } catch (err) {
     console.error("[letter-shapes] çizilemedi:", err);
-    return json({ error: "Bu font yazıyı çizemedi; başka bir font deneyin" }, { status: 400 });
+    return json({ error: en ? "This font couldn't draw the text; try another font" : "Bu font yazıyı çizemedi; başka bir font deneyin" }, { status: 400 });
   }
 };
 

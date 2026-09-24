@@ -17,53 +17,54 @@
 export interface PaletteColor {
   hex: string;
   label: string;
+  labelEn: string;
   /** Panelde renkleri satırlara ayırmak için; müşteri tarafına gitmiyor */
   group: PaletteGroup;
 }
 
 export type PaletteGroup = "notr" | "sicak" | "kirmizi" | "soguk" | "mor";
 
-export const PALETTE_GROUPS: Array<{ id: PaletteGroup; label: string }> = [
-  { id: "notr", label: "Nötr" },
-  { id: "sicak", label: "Sıcak ve metalik" },
-  { id: "kirmizi", label: "Kırmızı ve pembe" },
-  { id: "soguk", label: "Mavi ve yeşil" },
-  { id: "mor", label: "Mor" },
+export const PALETTE_GROUPS: Array<{ id: PaletteGroup; label: string; labelEn: string }> = [
+  { id: "notr", label: "Nötr", labelEn: "Neutral" },
+  { id: "sicak", label: "Sıcak ve metalik", labelEn: "Warm and metallic" },
+  { id: "kirmizi", label: "Kırmızı ve pembe", labelEn: "Red and pink" },
+  { id: "soguk", label: "Mavi ve yeşil", labelEn: "Blue and green" },
+  { id: "mor", label: "Mor", labelEn: "Purple" },
 ];
 
 export const TEXT_PALETTE: PaletteColor[] = [
-  { hex: "#1a1a1a", label: "Siyah", group: "notr" },
-  { hex: "#3d3d3d", label: "Antrasit", group: "notr" },
-  { hex: "#6b6b6b", label: "Gri", group: "notr" },
-  { hex: "#9e9e9e", label: "Açık gri", group: "notr" },
-  { hex: "#ffffff", label: "Beyaz", group: "notr" },
-  { hex: "#f4ece1", label: "Krem", group: "notr" },
-  { hex: "#8a7f6d", label: "Vizon", group: "notr" },
+  { hex: "#1a1a1a", label: "Siyah", labelEn: "Black", group: "notr" },
+  { hex: "#3d3d3d", label: "Antrasit", labelEn: "Anthracite", group: "notr" },
+  { hex: "#6b6b6b", label: "Gri", labelEn: "Grey", group: "notr" },
+  { hex: "#9e9e9e", label: "Açık gri", labelEn: "Light grey", group: "notr" },
+  { hex: "#ffffff", label: "Beyaz", labelEn: "White", group: "notr" },
+  { hex: "#f4ece1", label: "Krem", labelEn: "Cream", group: "notr" },
+  { hex: "#8a7f6d", label: "Vizon", labelEn: "Taupe", group: "notr" },
 
-  { hex: "#b08d57", label: "Altın", group: "sicak" },
-  { hex: "#c9a227", label: "Hardal", group: "sicak" },
-  { hex: "#b87333", label: "Bakır", group: "sicak" },
-  { hex: "#8c6239", label: "Bronz", group: "sicak" },
-  { hex: "#6b4423", label: "Kahve", group: "sicak" },
-  { hex: "#d9b98a", label: "Bej", group: "sicak" },
+  { hex: "#b08d57", label: "Altın", labelEn: "Gold", group: "sicak" },
+  { hex: "#c9a227", label: "Hardal", labelEn: "Mustard", group: "sicak" },
+  { hex: "#b87333", label: "Bakır", labelEn: "Copper", group: "sicak" },
+  { hex: "#8c6239", label: "Bronz", labelEn: "Bronze", group: "sicak" },
+  { hex: "#6b4423", label: "Kahve", labelEn: "Brown", group: "sicak" },
+  { hex: "#d9b98a", label: "Bej", labelEn: "Beige", group: "sicak" },
 
-  { hex: "#7b2d3b", label: "Bordo", group: "kirmizi" },
-  { hex: "#a0522d", label: "Kiremit", group: "kirmizi" },
-  { hex: "#c85a54", label: "Mercan", group: "kirmizi" },
-  { hex: "#b76e79", label: "Rose gold", group: "kirmizi" },
-  { hex: "#8c4a5f", label: "Gül kurusu", group: "kirmizi" },
-  { hex: "#d8a0a6", label: "Pudra", group: "kirmizi" },
+  { hex: "#7b2d3b", label: "Bordo", labelEn: "Burgundy", group: "kirmizi" },
+  { hex: "#a0522d", label: "Kiremit", labelEn: "Terracotta", group: "kirmizi" },
+  { hex: "#c85a54", label: "Mercan", labelEn: "Coral", group: "kirmizi" },
+  { hex: "#b76e79", label: "Rose gold", labelEn: "Rose gold", group: "kirmizi" },
+  { hex: "#8c4a5f", label: "Gül kurusu", labelEn: "Dusty rose", group: "kirmizi" },
+  { hex: "#d8a0a6", label: "Pudra", labelEn: "Powder pink", group: "kirmizi" },
 
-  { hex: "#1f3a5f", label: "Gece mavisi", group: "soguk" },
-  { hex: "#2f4858", label: "Lacivert", group: "soguk" },
-  { hex: "#3f7c9e", label: "Petrol", group: "soguk" },
-  { hex: "#7fa8c9", label: "Gök mavisi", group: "soguk" },
-  { hex: "#2f5d50", label: "Çam", group: "soguk" },
-  { hex: "#4a6741", label: "Zeytin", group: "soguk" },
-  { hex: "#6b7f5e", label: "Adaçayı", group: "soguk" },
+  { hex: "#1f3a5f", label: "Gece mavisi", labelEn: "Midnight blue", group: "soguk" },
+  { hex: "#2f4858", label: "Lacivert", labelEn: "Navy", group: "soguk" },
+  { hex: "#3f7c9e", label: "Petrol", labelEn: "Petrol blue", group: "soguk" },
+  { hex: "#7fa8c9", label: "Gök mavisi", labelEn: "Sky blue", group: "soguk" },
+  { hex: "#2f5d50", label: "Çam", labelEn: "Pine", group: "soguk" },
+  { hex: "#4a6741", label: "Zeytin", labelEn: "Olive", group: "soguk" },
+  { hex: "#6b7f5e", label: "Adaçayı", labelEn: "Sage", group: "soguk" },
 
-  { hex: "#5b3a5c", label: "Mürdüm", group: "mor" },
-  { hex: "#9b8aa6", label: "Lavanta", group: "mor" },
+  { hex: "#5b3a5c", label: "Mürdüm", labelEn: "Plum", group: "mor" },
+  { hex: "#9b8aa6", label: "Lavanta", labelEn: "Lavender", group: "mor" },
 ];
 
 /** Yalnızca #rrggbb kabul ediliyor; kısa biçim genişletiliyor. */
@@ -104,6 +105,7 @@ export function isLightColor(hex: string): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 > 200;
 }
 
-export function colorLabel(hex: string): string {
-  return TEXT_PALETTE.find((c) => c.hex === normalizeHex(hex))?.label ?? hex;
+export function colorLabel(hex: string, lang: "tr" | "en" = "tr"): string {
+  const c = TEXT_PALETTE.find((x) => x.hex === normalizeHex(hex));
+  return (lang === "en" ? c?.labelEn : c?.label) ?? hex;
 }

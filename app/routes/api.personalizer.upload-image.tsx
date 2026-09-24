@@ -4,6 +4,7 @@ import {
 } from "@remix-run/node";
 import sharp from "sharp";
 import { authenticate } from "~/lib/authenticate.server";
+import { langFromRequest } from "~/i18n/server";
 import { uploadToR2 } from "~/lib/r2.server";
 import { cutOpening, hasUsableOpening, type OpeningRect } from "~/lib/mockup-opening.server";
 
@@ -25,12 +26,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Method not allowed" }, { status: 405 });
   }
 
+  let en = langFromRequest(request) === "en";
   try {
     const uploadHandler = unstable_createMemoryUploadHandler({ maxPartSize: MAX });
     const form = await unstable_parseMultipartFormData(request, uploadHandler);
+    en = langFromRequest(request, form) === "en";
     const file = form.get("image");
     if (!(file instanceof File) || file.size === 0) {
-      return json({ error: "Görsel yüklenmedi" }, { status: 400 });
+      return json({ error: en ? "No image uploaded" : "Görsel yüklenmedi" }, { status: 400 });
     }
 
     // Klasör istemciden geliyor; tanınmayan bir değer depoda rastgele yollar
@@ -41,7 +44,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const buf = Buffer.from(await file.arrayBuffer());
     const meta = await sharp(buf).metadata();
     if (!meta.width || !meta.height) {
-      return json({ error: "Görsel okunamadı" }, { status: 400 });
+      return json({ error: en ? "Couldn't read the image" : "Görsel okunamadı" }, { status: 400 });
     }
 
     let cikti: Buffer = buf;
@@ -75,9 +78,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           opening = kesim.opening;
           acildi = true;
         } else {
-          uyari = "Bu görselde fotoğrafın gireceği şeffaf alan yok ve otomatik açılamadı. "
-            + "Ortası şeffaf bir PNG yükleyin — aksi halde müşteri fotoğrafını çerçevenin "
-            + "içinde göremez.";
+          uyari = en
+            ? "This image has no transparent area for the photo and one couldn't be opened automatically. "
+              + "Upload a PNG with a transparent center — otherwise customers won't see their photo "
+              + "inside the frame."
+            : "Bu görselde fotoğrafın gireceği şeffaf alan yok ve otomatik açılamadı. "
+              + "Ortası şeffaf bir PNG yükleyin — aksi halde müşteri fotoğrafını çerçevenin "
+              + "içinde göremez.";
         }
       }
     }
@@ -102,6 +109,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   } catch (err) {
     console.error("[upload-image] hata:", err);
-    return json({ error: "Görsel yüklenemedi" }, { status: 500 });
+    return json({ error: en ? "Couldn't upload the image" : "Görsel yüklenemedi" }, { status: 500 });
   }
 };

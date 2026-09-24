@@ -1,6 +1,8 @@
 import { BlockStack, InlineStack, Text, Badge } from "@shopify/polaris";
 import type { PrintProduct } from "~/lib/print-spec";
 import { isImageSlot, isTextSlot, type TemplatePiece } from "~/lib/slots";
+import { useDict } from "~/i18n";
+import summaryDict from "~/i18n/studio/summary";
 
 /**
  * Şablon sayfasında stüdyonun kaydettiği düzenin özeti.
@@ -16,6 +18,7 @@ export function StudioSummary({
   printProducts: PrintProduct[];
   mockupCount: number;
 }) {
+  const L = useDict(summaryDict);
   return (
     <BlockStack gap="300">
       <InlineStack gap="400" wrap>
@@ -34,7 +37,7 @@ export function StudioSummary({
                 viewBox={`0 0 ${w} ${h}`}
                 preserveAspectRatio="xMidYMid meet"
                 role="img"
-                aria-label={`${piece.name} düzeni`}
+                aria-label={L.layoutAria(piece.name)}
                 style={{ flex: "none", background: "#fff", border: "1px solid #d4d4d4", borderRadius: 4 }}
               >
                 {piece.slots.map((slot) => (
@@ -51,10 +54,10 @@ export function StudioSummary({
               <BlockStack gap="050">
                 {pieces.length > 1 && <Text as="p" fontWeight="semibold">{piece.name}</Text>}
                 <Text as="p" variant="bodySm">
-                  {product ? `${product.name} (${product.width_mm / 10}×${product.height_mm / 10} cm)` : "Ölçü seçilmedi"}
+                  {product ? `${product.name} (${product.width_mm / 10}×${product.height_mm / 10} cm)` : L.noSize}
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {`${images} fotoğraf alanı · ${texts} yazı alanı`}
+                  {L.slotCounts(images, texts)}
                 </Text>
               </BlockStack>
             </InlineStack>
@@ -62,9 +65,9 @@ export function StudioSummary({
         })}
       </InlineStack>
       <InlineStack gap="200">
-        {pieces.length > 1 && <Badge tone="info">{`${pieces.length} parçalı set`}</Badge>}
+        {pieces.length > 1 && <Badge tone="info">{L.pieceSet(pieces.length)}</Badge>}
         <Badge tone={mockupCount > 0 ? "success" : undefined}>
-          {mockupCount > 0 ? `${mockupCount} ürün görseli` : "Ürün görseli yok"}
+          {mockupCount > 0 ? L.mockupCount(mockupCount) : L.noMockups}
         </Badge>
       </InlineStack>
     </BlockStack>

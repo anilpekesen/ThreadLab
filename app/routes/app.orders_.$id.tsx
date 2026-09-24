@@ -2,7 +2,9 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
 import { useMemo, type CSSProperties } from "react";
-import { useTranslation } from "~/i18n";
+import { useTranslation, useDict, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import detailDict from "~/i18n/admin/order-detail";
 
 const APP_URL = "https://app.printlabapp.com";
 
@@ -75,6 +77,7 @@ import {
 
 function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHref?: string }) {
   const { t } = useTranslation();
+  const L = useDict(detailDict);
   // curvedText: tasarımcıdaki kavisli yazı aracının özel fabric tipi
   const isText = obj.type === "i-text" || obj.type === "textbox" || obj.type === "curvedText";
   const isImage = obj.type === "image";
@@ -118,7 +121,7 @@ function DesignObjectCard({ obj, downloadHref }: { obj: DesignObject; downloadHr
             )}
             {obj.fontWeight && String(obj.fontWeight) !== "normal" && <MetaChip label={t("orderDetail.thickness")} value={String(obj.fontWeight)} />}
             {obj.fontStyle === "italic" && <MetaChip label={t("orderDetail.style")} value="italic" />}
-            {obj.underline && <MetaChip label={t("orderDetail.underline")} value="var" />}
+            {obj.underline && <MetaChip label={t("orderDetail.underline")} value={L.underlineYes} />}
             {obj.textAlign && obj.textAlign !== "left" && <MetaChip label={t("orderDetail.alignment")} value={obj.textAlign} />}
           </div>
         )}
@@ -260,7 +263,7 @@ export const headers = () => ({
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const order = await getOrder(params.id ?? "");
-  if (!order) throw new Response("Sipariş bulunamadı", { status: 404 });
+  if (!order) throw new Response(pickDict(detailDict, langFromRequest(request)).orderNotFound, { status: 404 });
 
   const orderShop = order.shop || session.shop;
   const [design, allSiblings, driveConn] = await Promise.all([
@@ -294,10 +297,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const form = await request.formData();
   const intent = form.get("intent");
   const appOrderId = params.id ?? "";
+  const S = pickDict(detailDict, langFromRequest(request, form));
 
   if (intent === "googleDriveExport") {
     const order = await getOrder(appOrderId);
-    if (!order) return json({ ok: false, error: "Sipariş bulunamadı" }, { status: 404 });
+    if (!order) return json({ ok: false, error: S.orderNotFound }, { status: 404 });
     const orderShop = order.shop || session.shop;
     const siblings = await getSiblingOrders(orderShop, order.shopifyOrderId, "").catch(() => [] as Order[]);
     const allRows = [order, ...siblings.filter((row) => row.id !== order.id)];
@@ -307,7 +311,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     );
 
     if (!hasAnyFile) {
-      return json({ ok: false, error: "Yüklenecek tasarım dosyası bulunamadı" }, { status: 400 });
+      return json({ ok: false, error: S.noDesignFileToUpload }, { status: 400 });
     }
 
     try {
@@ -370,6 +374,7 @@ export default function OrderDetail() {
   const fetcher = useFetcher();
   const driveFetcher = useFetcher<{ ok?: boolean; error?: string; folderUrl?: string; uploaded?: number }>();
   const { t, lang } = useTranslation();
+  const L = useDict(detailDict);
   const driveSubmitting = driveFetcher.state !== "idle";
   const driveResult = driveFetcher.data;
 
@@ -416,7 +421,7 @@ export default function OrderDetail() {
   // ölçüsü ve taşma payı biliniyor. Tişört tasarımında kesim yok.
   const kesimPdfVar = (design?.designJson as { type?: string } | undefined)?.type === "personalizer-slots";
   const pdfUrl = (piece: number) =>
-    `/api/print-pdf?${pdfQuery}&id=${encodeURIComponent(order.id)}&piece=${piece}`;
+    `/api/print-pdf?${pdfQuery}&id=${encodeURIComponent(order.id)}&piece=${piece}&_lang=${lang}`;
   const hasDesignFiles = Boolean(frontPreviewUrl || backPreviewUrl || frontPrintUrl || backPrintUrl);
 
   // İndirilen dosya adına bedeni ekle — 3 bedenin önizlemesi karışmasın
@@ -437,6 +442,7 @@ export default function OrderDetail() {
         onAction: () => {
           const fd = new FormData();
           fd.set("status", next);
+          fd.set("_lang", lang);
           fetcher.submit(fd, { method: "post" });
         },
       } : undefined}
@@ -553,7 +559,7 @@ export default function OrderDetail() {
                                 <Text as="p" variant="bodySm" tone="subdued">{compactVariants(group.rows, t("orderDetail.noVariant"))}</Text>
                               </BlockStack>
                             </InlineStack>
-                            {selected && <Badge tone="success">Açık</Badge>}
+                            {selected && <Badge tone="success">{L.openBadge}</Badge>}
                           </InlineStack>
 
                           <InlineStack gap="200" wrap>
@@ -624,6 +630,7 @@ export default function OrderDetail() {
                       onClick={() => {
                         const fd = new FormData();
                         fd.set("intent", "googleDriveExport");
+                        fd.set("_lang", lang);
                         driveFetcher.submit(fd, { method: "post" });
                       }}
                     >
@@ -673,7 +680,7 @@ export default function OrderDetail() {
                     {setDosyalari.length > 1 && (
                       <a href={`/api/production-zip?${zipQuery}&ids=${order.id}`} download>
                         <Button variant="primary" size="slim">
-                          {`Hepsini indir (${setDosyalari.length} dosya)`}
+                          {L.downloadAll(setDosyalari.length)}
                         </Button>
                       </a>
                     )}
@@ -684,7 +691,7 @@ export default function OrderDetail() {
                       ? setDosyalari.map((u, i) => (
                           <InlineStack key={u} gap="100" blockAlign="center" wrap={false}>
                             <a href={dlUrl(u, `baski-${i + 1}.png`)} download>
-                              <Button variant="secondary" size="slim">{`${i + 1}. baskı dosyası`}</Button>
+                              <Button variant="secondary" size="slim">{L.printFileN(i + 1)}</Button>
                             </a>
                             {kesimPdfVar && (
                               <a href={pdfUrl(i)} download>

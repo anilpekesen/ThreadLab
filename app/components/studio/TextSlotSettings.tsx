@@ -8,6 +8,8 @@ import type { PrintCanvas } from "~/lib/print-spec";
 import { FONT_LIBRARY, findLibraryFont, isLibraryFontUrl } from "~/lib/font-library";
 import { TEXT_PALETTE, PALETTE_GROUPS, isLightColor, normalizeHex } from "~/lib/text-palette";
 import { NumberField } from "./NumberField";
+import { useDict, useTranslation } from "~/i18n";
+import textSlotDict from "~/i18n/studio/text-slot";
 
 /**
  * Metin alanının ayarları — slot tahtası ve Çerçeve Stüdyosu ortak kullanır.
@@ -27,10 +29,7 @@ export const FONT_FACE_CSS = FONT_LIBRARY
   .map((f) => `@font-face{font-family:"${f.family}";src:url("${f.url}") format("truetype");font-display:swap;}`)
   .join("\n");
 
-const FONT_SECENEKLERI = [
-  { label: "Font seçilmedi (sunucu fontu)", value: "" },
-  ...FONT_LIBRARY.map((f) => ({ label: f.label, value: f.url })),
-];
+const FONT_KUTUPHANE_SECENEKLERI = FONT_LIBRARY.map((f) => ({ label: f.label, value: f.url }));
 
 /**
  * Bileşen dışında tanımlı olmalı: render içinde üretilen bir bileşen her
@@ -57,6 +56,9 @@ export interface TextSlotSettingsProps {
 }
 
 export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }: TextSlotSettingsProps) {
+  const L = useDict(textSlotDict);
+  const { lang } = useTranslation();
+  const FONT_SECENEKLERI = [{ label: L.noFont, value: "" }, ...FONT_KUTUPHANE_SECENEKLERI];
   const [fontBusy, setFontBusy] = useState(false);
   const [fontError, setFontError] = useState("");
   const [ozelRenk, setOzelRenk] = useState("#1a1a1a");
@@ -66,7 +68,7 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
   const musteriRenkleri = slot.color_choices ?? [];
   /** Mağazanın yüklediği font listede yok; seçili görünsün diye satır eklenir */
   const fontSecenekleri = slot.font_url && !isLibraryFontUrl(slot.font_url)
-    ? [...FONT_SECENEKLERI, { label: "Yüklediğim font", value: "__yuklenen" }]
+    ? [...FONT_SECENEKLERI, { label: L.uploadedFont, value: "__yuklenen" }]
     : FONT_SECENEKLERI;
 
   async function uploadFont(file: File) {
@@ -75,12 +77,13 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
     try {
       const fd = new FormData();
       fd.append("font", file);
+      fd.append("_lang", lang);
       const res = await fetch("/api/fonts/upload", { method: "POST", body: fd });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Font yüklenemedi");
+      if (!res.ok || data.error) throw new Error(data.error || L.fontUploadFailed);
       onPatch({ font_url: data.url, font_family: data.family });
     } catch (err) {
-      setFontError(err instanceof Error ? err.message : "Font yüklenemedi");
+      setFontError(err instanceof Error ? err.message : L.fontUploadFailed);
     } finally {
       setFontBusy(false);
     }
@@ -96,34 +99,34 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
       <FormLayout>
         <Group>
           <TextField
-            label="Etiket" autoComplete="off" value={slot.label}
-            helpText="Müşteriye gösterilen ad"
+            label={L.label} autoComplete="off" value={slot.label}
+            helpText={L.labelHelp}
             onChange={(v) => onPatch({ label: v })}
           />
           <Select
-            label="Müşteri ne yapabilir"
+            label={L.mode}
             options={[
-              { label: "Serbest yazar", value: "free" },
-              { label: "Listeden seçer", value: "preset" },
-              { label: "Değiştiremez (sabit)", value: "fixed" },
+              { label: L.modeFree, value: "free" },
+              { label: L.modePreset, value: "preset" },
+              { label: L.modeFixed, value: "fixed" },
             ]}
             value={slot.mode}
             onChange={(v) => onPatch({ mode: v as TextSlot["mode"] })}
           />
           <TextField
-            label="En fazla karakter" type="number" autoComplete="off"
+            label={L.maxLength} type="number" autoComplete="off"
             value={String(slot.max_length)}
             onChange={(v) => onPatch({ max_length: Math.max(0, Number(v) || 0) })}
           />
         </Group>
         <Group>
           <TextField
-            label="Varsayılan metin" autoComplete="off" value={slot.default_value}
-            helpText="Müşteri boş bırakırsa basılacak metin"
+            label={L.defaultValue} autoComplete="off" value={slot.default_value}
+            helpText={L.defaultValueHelp}
             onChange={(v) => onPatch({ default_value: v })}
           />
           <NumberField
-            label="Yazı boyutu"
+            label={L.fontSize}
             value={fontSizeToMm(slot.font_size, canvas, dpi)}
             min={1}
             onCommit={(mm) => onPatch({ font_size: fontSizeFromMm(mm, canvas, dpi) })}
@@ -131,13 +134,13 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
           <InlineStack gap="200" blockAlign="end" wrap={false}>
             <div style={{ flex: 1 }}>
               <TextField
-                label="Renk" autoComplete="off" value={slot.color}
+                label={L.color} autoComplete="off" value={slot.color}
                 onChange={(v) => onPatch({ color: v })}
               />
             </div>
             <input
               type="color"
-              aria-label="Yazı rengini seç"
+              aria-label={L.pickColor}
               value={normalizeHex(slot.color) ?? "#000000"}
               onChange={(e) => onPatch({ color: e.target.value })}
               style={{ width: 36, height: 36, padding: 0, border: "1px solid #c9cccf", borderRadius: 8, background: "none", cursor: "pointer" }}
@@ -146,27 +149,27 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
         </Group>
         <Group>
           <Select
-            label="Hizalama"
+            label={L.align}
             options={[
-              { label: "Ortalı", value: "center" },
-              { label: "Sola", value: "left" },
-              { label: "Sağa", value: "right" },
+              { label: L.alignCenter, value: "center" },
+              { label: L.alignLeft, value: "left" },
+              { label: L.alignRight, value: "right" },
             ]}
             value={slot.align}
             onChange={(v) => onPatch({ align: v as TextSlot["align"] })}
           />
           <Select
-            label="Taşarsa"
+            label={L.overflow}
             options={[
-              { label: "Otomatik küçült", value: "shrink" },
-              { label: "Kırp", value: "clip" },
+              { label: L.overflowShrink, value: "shrink" },
+              { label: L.overflowClip, value: "clip" },
             ]}
             value={slot.overflow}
             onChange={(v) => onPatch({ overflow: v as TextSlot["overflow"] })}
           />
           <Select
-            label="Kalınlık"
-            options={[{ label: "Normal", value: "no" }, { label: "Kalın", value: "yes" }]}
+            label={L.weight}
+            options={[{ label: L.weightNormal, value: "no" }, { label: L.weightBold, value: "yes" }]}
             value={slot.bold ? "yes" : "no"}
             onChange={(v) => onPatch({ bold: v === "yes" })}
           />
@@ -178,14 +181,14 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
       <Box background="bg-surface-secondary" padding="300" borderRadius="200">
         <BlockStack gap="300">
           <InlineStack gap="200" blockAlign="center" wrap={false}>
-            <Text as="span" variant="bodySm" fontWeight="semibold">Font</Text>
+            <Text as="span" variant="bodySm" fontWeight="semibold">{L.font}</Text>
             {slot.font_url
-              ? <Badge tone="success">{slot.font_family || "Seçildi"}</Badge>
-              : <Badge tone="warning">Seçilmedi</Badge>}
+              ? <Badge tone="success">{slot.font_family || L.fontSelected}</Badge>
+              : <Badge tone="warning">{L.fontNotSelected}</Badge>}
           </InlineStack>
 
           <Select
-            label="Hazır fontlar"
+            label={L.libraryFonts}
             options={fontSecenekleri}
             value={
               isLibraryFontUrl(slot.font_url) ? slot.font_url!
@@ -198,10 +201,11 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
                 : { font_url: undefined, font_family: undefined });
             }}
             helpText={
-              findLibraryFont(slot.font_url)?.role
+              (lang === "en" ? findLibraryFont(slot.font_url)?.roleEn : undefined)
+              ?? findLibraryFont(slot.font_url)?.role
               ?? (slot.font_url
-                ? "Mağazanın yüklediği font kullanılıyor."
-                : "Font seçilmezse baskıda sunucunun kendi fontu kullanılır ve tasarımdan sapar.")
+                ? L.storeFontInUse
+                : L.noFontHelp)
             }
           />
 
@@ -212,7 +216,7 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
                 fontSize: 22, lineHeight: 1.35, textAlign: "center",
                 color: "#1a1a1a", wordBreak: "break-word",
               }}>
-                {slot.default_value?.trim() || "İyi ki doğdun · ĞÜŞİÖÇ 123"}
+                {slot.default_value?.trim() || L.previewSample}
               </div>
             </Box>
           )}
@@ -222,13 +226,13 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
           {/* Liste boşsa seçim kapalı, dolu ise açık: ayrı bir anahtar yok */}
           <BlockStack gap="200">
             <InlineStack gap="200" blockAlign="center" wrap={false}>
-              <Text as="span" variant="bodySm" fontWeight="semibold">Müşterinin seçebileceği fontlar</Text>
+              <Text as="span" variant="bodySm" fontWeight="semibold">{L.customerFonts}</Text>
               {musteriFontlari.length > 0 && (
-                <Badge tone="success">{`${musteriFontlari.length} açık`}</Badge>
+                <Badge tone="success">{L.openCount(musteriFontlari.length)}</Badge>
               )}
             </InlineStack>
             <Text as="p" variant="bodySm" tone="subdued">
-              Hiçbirini işaretlemezseniz müşteri fontu değiştiremez.
+              {L.customerFontsHelp}
             </Text>
             <InlineStack gap="200" wrap>
               {FONT_LIBRARY.map((f) => {
@@ -252,10 +256,10 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
             {musteriFontlari.length > 0 && (
               <InlineStack gap="200">
                 <Button variant="plain" onClick={() => onPatch({ font_choices: FONT_LIBRARY.map((f) => f.url) })}>
-                  Hepsini aç
+                  {L.enableAll}
                 </Button>
                 <Button variant="plain" tone="critical" onClick={() => onPatch({ font_choices: [] })}>
-                  Seçimi kapat
+                  {L.disableChoice}
                 </Button>
               </InlineStack>
             )}
@@ -267,10 +271,10 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
               Normal her zaman seçili başlar ve listede kalır. */}
           <BlockStack gap="200">
             <Checkbox
-              label="Müşteri yazı boyutunu değiştirebilsin"
+              label={L.allowSize}
               checked={(slot.size_choices ?? []).length > 0}
               onChange={(v) => onPatch({ size_choices: v ? TEXT_SIZE_STEPS.filter((st) => st.value !== 1).map((st) => st.value) : [] })}
-              helpText="Yazı büyüdükçe kutusu da ortasından büyür; yakındaki yazılarla çakışmayacak kadar yer bırakın."
+              helpText={L.allowSizeHelp}
             />
             {(slot.size_choices ?? []).length > 0 && (
               <InlineStack gap="200" wrap>
@@ -289,7 +293,7 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
                         onPatch({ size_choices: next.sort((a, b) => a - b) });
                       }}
                     >
-                      {`${st.label} (%${Math.round(st.value * 100)})`}
+                      {lang === "en" ? `${st.labelEn} (${Math.round(st.value * 100)}%)` : `${st.label} (%${Math.round(st.value * 100)})`}
                     </Button>
                   );
                 })}
@@ -301,20 +305,19 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
 
           <BlockStack gap="200">
             <Checkbox
-              label="Müşteri istediği rengi seçebilsin (renk seçici)"
+              label={L.allowFreeColor}
               checked={slot.color_free === true}
               onChange={(v) => onPatch({ color_free: v })}
-              helpText="Aşağıdaki renklerin yanına bir renk seçici eklenir. Açık renkler beyaz zeminde okunmaz basılabilir."
+              helpText={L.allowFreeColorHelp}
             />
             <InlineStack gap="200" blockAlign="center" wrap={false}>
-              <Text as="span" variant="bodySm" fontWeight="semibold">Müşterinin seçebileceği renkler</Text>
+              <Text as="span" variant="bodySm" fontWeight="semibold">{L.customerColors}</Text>
               {musteriRenkleri.length > 0 && (
-                <Badge tone="success">{`${musteriRenkleri.length} açık`}</Badge>
+                <Badge tone="success">{L.openCount(musteriRenkleri.length)}</Badge>
               )}
             </InlineStack>
             <Text as="p" variant="bodySm" tone="subdued">
-              Şablonun kendi rengi her zaman varsayılan olarak gösterilir. Zeminle karışacak
-              renkleri açmayın; yazı okunmaz basılır.
+              {L.customerColorsHelp}
             </Text>
             {PALETTE_GROUPS.map((g) => {
               const grupRenkleri = TEXT_PALETTE.filter((c) => c.group === g.id);
@@ -322,7 +325,7 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
               return (
                 <BlockStack key={g.id} gap="100">
                   <InlineStack gap="200" blockAlign="center" wrap={false}>
-                    <Text as="span" variant="bodySm" tone="subdued">{g.label}</Text>
+                    <Text as="span" variant="bodySm" tone="subdued">{lang === "en" ? g.labelEn : g.label}</Text>
                     <Button
                       variant="plain"
                       onClick={() => onPatch({
@@ -334,7 +337,7 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
                             ],
                       })}
                     >
-                      {hepsiAcik ? "kaldır" : "tümü"}
+                      {hepsiAcik ? L.groupNone : L.groupAll}
                     </Button>
                   </InlineStack>
                   <InlineStack gap="200" wrap>
@@ -344,8 +347,8 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
                         <button
                           key={c.hex}
                           type="button"
-                          title={c.label}
-                          aria-label={c.label}
+                          title={lang === "en" ? c.labelEn : c.label}
+                          aria-label={lang === "en" ? c.labelEn : c.label}
                           aria-pressed={acik}
                           onClick={() => onPatch({
                             color_choices: acik
@@ -371,7 +374,7 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
                 type="color"
                 value={ozelRenk}
                 onChange={(e) => setOzelRenk(e.target.value)}
-                aria-label="Özel renk"
+                aria-label={L.customColor}
                 style={{ width: 38, height: 30, padding: 0, border: "1px solid #c9cccf", borderRadius: 6, background: "none", cursor: "pointer" }}
               />
               <Button
@@ -382,11 +385,11 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
                   if (hex) onPatch({ color_choices: [...musteriRenkleri, hex] });
                 }}
               >
-                Bu rengi ekle
+                {L.addColor}
               </Button>
               {musteriRenkleri.length > 0 && (
                 <Button variant="plain" tone="critical" onClick={() => onPatch({ color_choices: [] })}>
-                  Seçimi kapat
+                  {L.disableChoice}
                 </Button>
               )}
             </InlineStack>
@@ -395,13 +398,13 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
                 yoksa kaldırmanın yolu kalmıyor */}
             {musteriRenkleri.filter((h) => !TEXT_PALETTE.some((c) => c.hex === h)).length > 0 && (
               <InlineStack gap="200" blockAlign="center" wrap>
-                <Text as="span" variant="bodySm" tone="subdued">Eklediğiniz renkler:</Text>
+                <Text as="span" variant="bodySm" tone="subdued">{L.addedColors}</Text>
                 {musteriRenkleri.filter((h) => !TEXT_PALETTE.some((c) => c.hex === h)).map((h) => (
                   <button
                     key={h}
                     type="button"
-                    title={`${h} rengini kaldır`}
-                    aria-label={`${h} rengini kaldır`}
+                    title={L.removeColor(h)}
+                    aria-label={L.removeColor(h)}
                     onClick={() => onPatch({ color_choices: musteriRenkleri.filter((x) => x !== h) })}
                     style={{
                       width: 28, height: 28, borderRadius: "50%", padding: 0,
@@ -418,8 +421,8 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
           <Divider />
 
           <Text as="p" variant="bodySm" tone="subdued">
-            Listede olmayan bir font gerekiyorsa kendi lisanslı dosyanızı yükleyin:
-            <b> .ttf, .otf veya .woff</b> (.woff2 okunamıyor).
+            {L.uploadHintBefore}
+            <b>{L.uploadHintFormats}</b>{L.uploadHintAfter}
           </Text>
           <input
             ref={fontInputRef}
@@ -434,11 +437,11 @@ export function TextSlotSettings({ slot, canvas, dpi, onPatch, compact = false }
           />
           <InlineStack gap="200">
             <Button onClick={() => fontInputRef.current?.click()} loading={fontBusy}>
-              Kendi fontumu yükle
+              {L.uploadOwnFont}
             </Button>
             {slot.font_url && !isLibraryFontUrl(slot.font_url) && (
               <Button variant="plain" tone="critical" onClick={() => onPatch({ font_url: undefined, font_family: undefined })}>
-                Kaldır
+                {L.remove}
               </Button>
             )}
           </InlineStack>

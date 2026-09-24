@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
  */
 
 export function QuantityStepper({
-  value, onChange, min = 0, max = 999, size = 'md', label,
+  value, onChange, min = 0, max = 999, size = 'md', label, locale,
 }: {
   value: number;
   onChange: (next: number) => void;
@@ -19,7 +19,9 @@ export function QuantityStepper({
   /** sm: beden ızgarasındaki dar hücreler, md: tek adetli ürün */
   size?: 'sm' | 'md';
   label?: string;
+  locale?: string;
 }) {
+  const isTurkish = !locale || locale.startsWith('tr');
   const [draft, setDraft] = useState(String(value));
   const [editing, setEditing] = useState(false);
 
@@ -46,7 +48,7 @@ export function QuantityStepper({
         type="button"
         onClick={() => onChange(Math.max(min, value - 1))}
         disabled={value <= min}
-        aria-label={label ? `${label} azalt` : 'Azalt'}
+        aria-label={isTurkish ? (label ? `${label} azalt` : 'Azalt') : (label ? `Decrease ${label}` : 'Decrease')}
         className={cn(btn, value <= min && 'opacity-40')}
       >−</button>
       <input
@@ -54,7 +56,7 @@ export function QuantityStepper({
         inputMode="numeric"
         pattern="[0-9]*"
         value={draft}
-        aria-label={label ?? 'Adet'}
+        aria-label={label ?? (isTurkish ? 'Adet' : 'Quantity')}
         onFocus={(e) => { setEditing(true); e.currentTarget.select(); }}
         onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
         onBlur={(e) => { setEditing(false); commit(e.target.value); }}
@@ -73,7 +75,7 @@ export function QuantityStepper({
         type="button"
         onClick={() => onChange(Math.min(max, value + 1))}
         disabled={value >= max}
-        aria-label={label ? `${label} artır` : 'Artır'}
+        aria-label={isTurkish ? (label ? `${label} artır` : 'Artır') : (label ? `Increase ${label}` : 'Increase')}
         className={cn(btn, value >= max && 'opacity-40')}
       >+</button>
     </div>

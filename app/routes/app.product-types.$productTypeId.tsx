@@ -1,7 +1,9 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Form, useLoaderData, useNavigate, useNavigation } from "@remix-run/react";
-import { useTranslation } from "~/i18n";
+import { useTranslation, useDict, pickDict } from "~/i18n";
+import { langFromRequest } from "~/i18n/server";
+import productTypesDict from "~/i18n/admin/product-types";
 import {
   Page, Card, Text, BlockStack, Box, Badge, Button,
   InlineStack, TextField, Select, Divider, Thumbnail,
@@ -14,8 +16,6 @@ import { fetchShopifyProducts, saveProductConfig, buildDefaultConfig, normalizeP
 import type { SurfaceMode } from "~/models/product-config.server";
 import { normalizeProductType } from "~/models/product-config.server";
 
-const TYPE_SUGGESTIONS = ["Tişört", "Sweatshirt", "Hoodie", "Polo", "Bez Çanta", "Kupa", "Boxer", "Şort", "Diğer"];
-
 function PrintTypeField({
   value,
   onChange,
@@ -24,6 +24,7 @@ function PrintTypeField({
   onChange: (v: string) => void;
 }) {
   const { t } = useTranslation();
+  const L = useDict(productTypesDict);
   return (
     <BlockStack gap="200">
       <TextField
@@ -36,7 +37,7 @@ function PrintTypeField({
         helpText={t("productTypes.categoryHelp")}
       />
       <InlineStack gap="150" wrap>
-        {TYPE_SUGGESTIONS.map((s) => (
+        {L.typeSuggestions.map((s) => (
           <button
             key={s}
             type="button"
@@ -70,7 +71,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const productTypeId = params.productTypeId!;
 
   const productType = await getProductTypeById(productTypeId, shop);
-  if (!productType) throw new Response("Ürün tipi bulunamadı", { status: 404 });
+  if (!productType) throw new Response(pickDict(productTypesDict, langFromRequest(request)).notFound, { status: 404 });
 
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
@@ -135,7 +136,7 @@ export default function ProductTypeDetail() {
   const { productType, products, q } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const nav = useNavigation();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const isSaving = nav.state === "submitting";
 
   const [name, setName] = useState(productType.name);
@@ -155,6 +156,7 @@ export default function ProductTypeDetail() {
           <Box padding="400">
             <Form method="post">
               <input type="hidden" name="intent" value="update" />
+              <input type="hidden" name="_lang" value={lang} />
               <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">{t("productTypes.typeSettings")}</Text>
                 <PrintTypeField value={name} onChange={setName} />
@@ -185,6 +187,7 @@ export default function ProductTypeDetail() {
                 {productType.shopify_product_id && (
                   <Form method="post" style={{ display: "inline" }}>
                     <input type="hidden" name="intent" value="remove_product" />
+                    <input type="hidden" name="_lang" value={lang} />
                     <Button tone="critical" variant="plain" size="slim" submit>{t("productTypes.removeProduct")}</Button>
                   </Form>
                 )}
@@ -262,6 +265,7 @@ export default function ProductTypeDetail() {
                           </BlockStack>
                           <Form method="post">
                             <input type="hidden" name="intent" value="assign_product" />
+                            <input type="hidden" name="_lang" value={lang} />
                             <input type="hidden" name="productId" value={product.id} />
                             <input type="hidden" name="productTitle" value={product.title} />
                             <input type="hidden" name="productHandle" value={product.handle} />

@@ -68,6 +68,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Method not allowed" }, { status: 405, headers: CORS });
   }
 
+  // Mağaza dili adresten okunur (?locale=): form çözümlenemediğinde (ör.
+  // dosya çok büyük) de müşteriye kendi dilinde mesaj dönebilelim. İngilizce
+  // mağazada müşteri Türkçe hata görüyordu.
+  const lang: "tr" | "en" = (new URL(request.url).searchParams.get("locale") ?? "tr").toLowerCase().startsWith("tr") ? "tr" : "en";
+  const m = (tr: string, en: string) => (lang === "en" ? en : tr);
+
   try {
     const form = await unstable_parseMultipartFormData(
       request,
@@ -82,17 +88,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const customerDecoration = form.get("decoration");
 
     if (!shop || !productId) {
-      return json({ error: "shop ve productId gerekli" }, { status: 400, headers: CORS });
+      return json({ error: m("shop ve productId gerekli", "shop and productId are required") }, { status: 400, headers: CORS });
     }
     const template = await getPersonalizerTemplateByProduct(shop, productId, side, variantId);
     if (!template) {
-      return json({ error: "Bu ürünün bu yüzüne bağlı şablon yok" }, { status: 404, headers: CORS });
+      return json({ error: m("Bu ürünün bu yüzüne bağlı şablon yok", "No template is linked to this side of the product") }, { status: 404, headers: CORS });
     }
 
     // ── Hazır tasarım üreticileri ────────────────────────────────────────
     if (template.layout_mode === "generator") {
       const cfg = template.generator_config;
-      if (!cfg) return json({ error: "Şablonun üretici ayarı eksik" }, { status: 404, headers: CORS });
+      if (!cfg) return json({ error: m("Şablonun üretici ayarı eksik", "The template's generator settings are missing") }, { status: 404, headers: CORS });
       let fields: Record<string, string> = {};
       let genChoices: Record<string, string | number | boolean> = {};
       try { fields = JSON.parse(String(form.get("fields") ?? "{}")); } catch { /* yoksay */ }
@@ -112,7 +118,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return json({ url, width: result.width, height: result.height, templateName: template.name }, { headers: CORS });
       } catch (err) {
         if (err instanceof GeneratorInputError) {
-          return json({ error: err.message }, { status: 400, headers: CORS });
+          return json({ error: err.messageFor(lang) }, { status: 400, headers: CORS });
         }
         throw err;
       }
@@ -128,14 +134,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         String(form.get("words") ?? ""),
         choices,
       );
-      if ("error" in resolved) return json({ error: resolved.error }, { status: 400, headers: CORS });
+      if ("error" in resolved) return json({ error: m(resolved.error, resolved.errorEn) }, { status: 400, headers: CORS });
 
       // "Fotoğrafım" şekli: fotoğrafın arka planı silinip siluet maske olur.
       // Silme mağazanın arka plan kotasından düşer (diğer akışlarla aynı).
       let silhouette: Buffer | null = null;
       if (resolved.shape === "photo") {
         if (!(photo instanceof File) || photo.size === 0) {
-          return json({ error: "Fotoğraf şekli için bir fotoğraf seçin" }, { status: 400, headers: CORS });
+          return json({ error: m("Fotoğraf şekli için bir fotoğraf seçin", "Choose a photo for the photo shape") }, { status: 400, headers: CORS });
         }
         const raw = await sharp(Buffer.from(await photo.arrayBuffer()), { limitInputPixels: false })
           .rotate()
@@ -165,7 +171,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (!(photo instanceof File) || photo.size === 0) {
-      return json({ error: "Fotoğraf yüklenmedi" }, { status: 400, headers: CORS });
+      return json({ error: m("Fotoğraf yüklenmedi", "No photo was uploaded") }, { status: 400, headers: CORS });
     }
 
     // ── Dağıtımlı şablon ────────────────────────────────────────────────
@@ -203,10 +209,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       let decoration: Buffer | null = null;
       if (customerDecoration instanceof File && customerDecoration.size > 0) {
         if (!/^image\/(png|webp)$/.test(customerDecoration.type)) {
-          return json({ error: "Süsleme görseli PNG veya WebP olmalı" }, { status: 400, headers: CORS });
+          return json({ error: m("Süsleme görseli PNG veya WebP olmalı", "The decoration image must be PNG or WebP") }, { status: 400, headers: CORS });
         }
         if (customerDecoration.size > 10 * 1024 * 1024) {
-          return json({ error: "Süsleme görseli en fazla 10 MB olabilir" }, { status: 400, headers: CORS });
+          return json({ error: m("Süsleme görseli en fazla 10 MB olabilir", "The decoration image can be at most 10 MB") }, { status: 400, headers: CORS });
         }
         decoration = await sharp(Buffer.from(await customerDecoration.arrayBuffer()))
           .rotate()
@@ -314,7 +320,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         // teknik metni gösterme.
         if (err instanceof AiProviderError && err.rejected) {
           return json(
-            { error: "Bu fotoğraf işlenemedi. Yüzün net göründüğü başka bir fotoğraf deneyin." },
+            { error: m("Bu fotoğraf işlenemedi. Yüzün net göründüğü başka bir fotoğraf deneyin.", "This photo could not be processed. Try another photo where the face is clearly visible.") },
             { status: 422, headers: CORS },
           );
         }
@@ -323,12 +329,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (!template.template_url) {
-      return json({ error: "Şablon görseli yüklenmemiş" }, { status: 404, headers: CORS });
+      return json({ error: m("Şablon görseli yüklenmemiş", "The template image has not been uploaded") }, { status: 404, headers: CORS });
     }
 
     const tplRes = await fetch(template.template_url, { signal: AbortSignal.timeout(20_000) });
     if (!tplRes.ok) {
-      return json({ error: `Şablon indirilemedi (${tplRes.status})` }, { status: 502, headers: CORS });
+      return json({ error: m(`Şablon indirilemedi (${tplRes.status})`, `Could not download the template (${tplRes.status})`) }, { status: 502, headers: CORS });
     }
     const templateBuf = Buffer.from(await tplRes.arrayBuffer());
     const photoBuf = Buffer.from(await photo.arrayBuffer());
@@ -342,7 +348,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const hole = scan?.holes[0];
     if (!scan || !hole) {
       return json(
-        { error: "Şablonda fotoğrafın gireceği boşluk bulunamadı. Yönetim panelinden boşluğa tıklayarak seçin." },
+        { error: m("Şablonda fotoğrafın gireceği boşluk bulunamadı. Yönetim panelinden boşluğa tıklayarak seçin.", "No photo area was found in the template.") },
         { status: 422, headers: CORS },
       );
     }
@@ -374,10 +380,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Boyut aşımında müşteriye ham hata metni değil ne yapacağı söylenmeli
     if (/exceeded upload size|maxPartSize/i.test(String(err))) {
       return json(
-        { error: "Fotoğraf çok büyük. Daha küçük bir fotoğraf seçin ya da telefonunuzdan yeniden çekip deneyin." },
+        { error: m("Fotoğraf çok büyük. Daha küçük bir fotoğraf seçin ya da telefonunuzdan yeniden çekip deneyin.", "The photo is too large. Choose a smaller photo or retake it on your phone.") },
         { status: 413, headers: CORS },
       );
     }
-    return json({ error: `Tasarım oluşturulamadı: ${String(err)}` }, { status: 500, headers: CORS });
+    return json({ error: m(`Tasarım oluşturulamadı: ${String(err)}`, `Could not create the design: ${String(err)}`) }, { status: 500, headers: CORS });
   }
 };

@@ -6,7 +6,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
   const shop = url.searchParams.get("shop") ?? "";
-  const copy = myOrderCopy(resolveMyOrderLang(url, shop));
+  const copy = myOrderCopy(resolveMyOrderLang(url, shop, request.headers.get("Accept-Language") ?? ""));
 
   if (!token) {
     return new Response(errorPage(copy.errorInvalidTitle, copy.errorInvalidMessage, copy.lang), {
@@ -104,12 +104,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 type MyOrderLang = "tr" | "en";
 
-function resolveMyOrderLang(url: URL, shop: string): MyOrderLang {
+function resolveMyOrderLang(url: URL, shop: string, acceptLanguage = ""): MyOrderLang {
   const explicit = (url.searchParams.get("lang") || url.searchParams.get("locale") || "").toLowerCase();
   if (explicit.startsWith("en")) return "en";
   if (explicit.startsWith("tr")) return "tr";
   const shopKey = shop.toLowerCase();
   if (shopKey.includes("iabvsb-jv") || shopKey.includes("bikafa") || shopKey.includes("whanotify-dev")) return "tr";
+  // Adres ve mağaza dil vermiyorsa tarayıcının ilk tercih ettiği dil
+  const preferred = acceptLanguage.split(",")[0]?.trim().toLowerCase() ?? "";
+  if (preferred.startsWith("tr")) return "tr";
   return "en";
 }
 

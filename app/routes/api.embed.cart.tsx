@@ -29,8 +29,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  // Mağaza dili adresten (?locale=) ya da gövdeden (locale) okunur; yoksa Türkçe
+  const localeRaw = new URL(request.url).searchParams.get("locale") ?? (typeof body?.locale === "string" ? body.locale : "tr");
+  const lang: "tr" | "en" = localeRaw.toLowerCase().startsWith("tr") ? "tr" : "en";
+  const m = (tr: string, en: string) => (lang === "en" ? en : tr);
   if (!body) {
-    return json({ error: "Geçersiz body" }, { status: 400, headers: CORS_HEADERS });
+    return json({ error: m("Geçersiz body", "Invalid request body") }, { status: 400, headers: CORS_HEADERS });
   }
 
   const shop        = typeof body.shop === "string"        ? body.shop.trim()        : "";
@@ -42,15 +46,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     : {};
 
   if (!ALLOWED_SHOPS.includes(shop)) {
-    return json({ error: "Bu mağaza için yetki yok." }, { status: 403, headers: CORS_HEADERS });
+    return json({ error: m("Bu mağaza için yetki yok.", "Not authorized for this store.") }, { status: 403, headers: CORS_HEADERS });
   }
 
   if (!variantId) {
-    return json({ error: "variantId gerekli" }, { status: 400, headers: CORS_HEADERS });
+    return json({ error: m("variantId gerekli", "variantId is required") }, { status: 400, headers: CORS_HEADERS });
   }
 
   if (!STOREFRONT_TOKEN) {
-    return json({ error: "Storefront API token tanımlı değil." }, { status: 500, headers: CORS_HEADERS });
+    return json({ error: m("Storefront API token tanımlı değil.", "Storefront API token is not configured.") }, { status: 500, headers: CORS_HEADERS });
   }
 
   // GID formatına çevir: numeric veya zaten GID olabilir
@@ -109,7 +113,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const err = await sfRes.text();
     console.error("[embed/cart] Storefront API error:", err);
     return json(
-      { error: `Storefront API hatası: ${sfRes.status}` },
+      { error: m(`Storefront API hatası: ${sfRes.status}`, `Storefront API error: ${sfRes.status}`) },
       { status: 502, headers: CORS_HEADERS },
     );
   }
@@ -136,7 +140,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const checkoutUrl = data.data?.cartCreate?.cart?.checkoutUrl;
   if (!checkoutUrl) {
     console.error("[embed/cart] checkoutUrl yok:", JSON.stringify(data));
-    return json({ error: "Checkout URL alınamadı." }, { status: 500, headers: CORS_HEADERS });
+    return json({ error: m("Checkout URL alınamadı.", "Could not get the checkout URL.") }, { status: 500, headers: CORS_HEADERS });
   }
 
   console.log(`[embed/cart] cart → ${checkoutUrl}`);

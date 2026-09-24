@@ -181,7 +181,7 @@ export default function SongModal({ assets: raw, isTurkish, garment, initial, on
       lastLookup.current = value;
       setLookup('loading');
       try {
-        const res = await fetch(`/apps/tshirt-designer/spotify-info?link=${encodeURIComponent(value)}`);
+        const res = await fetch(`/apps/tshirt-designer/spotify-info?locale=${isTurkish ? 'tr' : 'en'}&link=${encodeURIComponent(value)}`);
         if (!res.ok) throw new Error(String(res.status));
         const info = await res.json() as { title?: string; artist?: string; durationSec?: number; coverUrl?: string };
         if (info.title) setTitle(Array.from(info.title).slice(0, assets.limits.title).join(''));

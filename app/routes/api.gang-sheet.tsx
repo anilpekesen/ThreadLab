@@ -1,4 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
+import { langFromRequest } from "~/i18n/server";
 import { authenticate } from "~/lib/authenticate.server";
 import { getOrdersByIds } from "~/models/orders.server";
 import { query } from "~/lib/db.server";
@@ -27,7 +28,12 @@ const SHEET_PRESETS: Record<string, { width: number; height: number | null; pxPe
  */
 const MAX_SHEET_PIXELS = 300_000_000;
 
-class SheetTooLargeError extends Error {}
+/** Sayfa tek seferde işlenemeyecek kadar uzun; mesaj yönetim diline göre loader'da kurulur */
+class SheetTooLargeError extends Error {
+  constructor(readonly cm: number) {
+    super(`sheet too large: ${cm} cm`);
+  }
+}
 
 const CANVAS_LOGICAL_W = 960;
 const CANVAS_LOGICAL_H = 1160;
@@ -143,10 +149,7 @@ async function buildGangSheet(
   const pixels = sheetWidth * Math.max(totalHeight, 100);
   if (pixels > MAX_SHEET_PIXELS) {
     const cm = Math.round((totalHeight / (300 / 25.4)) / 10);
-    throw new SheetTooLargeError(
-      `Bu seçim ${cm} cm uzunluğunda bir sayfa üretiyor ve tek seferde işlenemiyor. `
-      + `Siparişleri iki gruba bölüp ayrı ayrı indirin.`,
-    );
+    throw new SheetTooLargeError(cm);
   }
 
   const compositeOps: sharp.OverlayOptions[] = await Promise.all(
@@ -300,7 +303,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ]);
   } catch (err) {
     if (err instanceof SheetTooLargeError) {
-      return new Response(err.message, { status: 413, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+      const msg = langFromRequest(request) === "en"
+        ? `This selection makes a ${err.cm} cm long sheet and cannot be processed at once. Split the orders into two groups and download them separately.`
+        : `Bu seçim ${err.cm} cm uzunluğunda bir sayfa üretiyor ve tek seferde işlenemiyor. Siparişleri iki gruba bölüp ayrı ayrı indirin.`;
+      return new Response(msg, { status: 413, headers: { "Content-Type": "text/plain; charset=utf-8" } });
     }
     throw err;
   }
@@ -316,7 +322,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Ön ve arka ayrı ayrı sınırın altında kalsa bile birleşimi aşabilir.
     if (sheetWidth * totalH > MAX_SHEET_PIXELS) {
       return new Response(
-        "Ön ve arka baskılar birlikte tek sayfaya sığmıyor. Siparişleri bölüp ayrı ayrı indirin.",
+        langFromRequest(request) === "en"
+          ? "Front and back prints together do not fit on one sheet. Split the orders and download them separately."
+          : "Ön ve arka baskılar birlikte tek sayfaya sığmıyor. Siparişleri bölüp ayrı ayrı indirin.",
         { status: 413, headers: { "Content-Type": "text/plain; charset=utf-8" } },
       );
     }
