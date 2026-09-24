@@ -4,10 +4,12 @@ const tr = {
   tooLarge: "Dosya 5 MB sınırını aşıyor",
   genericError: "Hata",
   unknownAction: "Bilinmeyen işlem",
+  libraryTitle: "PrintLab kütüphanesi",
+  libraryNote: "Bu grafikler PrintLab tarafından bütün mağazalara sunulur; müşterileriniz tasarım aracında bunları sizin klipartlarınızla birlikte görür. Bu listeyi değiştiremezsiniz.",
   help: [
     {
       title: "Bu sayfa ne işe yarar?",
-      body: "Klipart Kütüphanesi, müşterinin ürün tasarım aracında kullanabileceği hazır grafikleri yönetir. Müşteri bunları tasarım aracının \"İlham al\" sekmesinde, \"Grafik Kütüphanesi\" başlığı altında görür. Bir klipartı tıkladığında klipart baskı alanının ortasına eklenir; müşteri onu taşıyıp boyutlandırabilir.",
+      body: "Klipart Kütüphanesi, müşterinin ürün tasarım aracında kullanabileceği hazır grafikleri yönetir. Müşteri bunları tasarım aracının \"İlham al\" sekmesinde, \"Grafik Kütüphanesi\" başlığı altında görür. Bir klipartı tıkladığında klipart baskı alanının ortasına eklenir; müşteri onu taşıyıp boyutlandırabilir.\n\nBu sayfada eklediğiniz klipartlar yalnızca sizin mağazanızda görünür. Sayfanın altındaki \"PrintLab kütüphanesi\" ise bütün mağazalara sunulan ortak grafiklerdir; müşterileriniz ikisini birlikte görür.",
     },
     {
       title: "Adım adım klipart ekleme",
@@ -15,7 +17,7 @@ const tr = {
     },
     {
       title: "Hangi format kullanılmalı?",
-      body: "Klipartları SVG olarak yükleyin. Tasarım aracı klipartları vektör (SVG) olarak yükler; sayfa PNG, JPG ve WebP dosyalarını da kabul etse de bu dosyalar müşterinin tasarımına eklenmez. SVG ayrıca her boyutta net basılır. Yeni bir klipart ekledikten sonra mağazanızda bir ürünün tasarım aracını açıp klipartı tuvale ekleyerek deneyin.",
+      body: "SVG önerilir: vektör olduğu için her boyutta net basılır. PNG (şeffaf zeminli), JPG ve WebP de çalışır; bunlar tasarıma görsel olarak eklenir ve büyütüldükçe netliğini kaybedebilir — en az 1000 px genişlikte yükleyin. Yeni bir klipart ekledikten sonra mağazanızda bir ürünün tasarım aracını açıp klipartı tuvale ekleyerek deneyin.",
     },
     {
       title: "Aktif, Pasif ve Sil",
@@ -30,10 +32,12 @@ const en: typeof tr = {
   tooLarge: "File exceeds the 5 MB limit",
   genericError: "Error",
   unknownAction: "Unknown action",
+  libraryTitle: "PrintLab library",
+  libraryNote: "These graphics are provided by PrintLab to every store; your customers see them in the design tool together with your own cliparts. You can't change this list.",
   help: [
     {
       title: "What is this page for?",
-      body: "The clipart library holds ready-made graphics customers can use in the product design tool. Customers find them in the design tool's \"Inspiration\" tab, under \"Graphic Library\". Clicking a clipart drops it in the middle of the print area, where the customer can move and resize it.",
+      body: "The clipart library holds ready-made graphics customers can use in the product design tool. Customers find them in the design tool's \"Inspiration\" tab, under \"Graphic Library\". Clicking a clipart drops it in the middle of the print area, where the customer can move and resize it.\n\nCliparts you add here appear only in your store. The \"PrintLab library\" at the bottom of the page is a shared set offered to every store; your customers see both together.",
     },
     {
       title: "Adding a clipart, step by step",
@@ -41,7 +45,7 @@ const en: typeof tr = {
     },
     {
       title: "Which format should I use?",
-      body: "Upload cliparts as SVG. The design tool loads cliparts as vector (SVG) graphics; this page also accepts PNG, JPG and WebP files, but those aren't added to the customer's design. SVG also prints sharp at any size. After adding a new clipart, open the design tool on one of your products and add it to the canvas to check.",
+      body: "SVG is recommended: it's vector, so it prints sharp at any size. PNG (with a transparent background), JPG and WebP also work; they're added to the design as images and can lose sharpness when enlarged — upload them at least 1000 px wide. After adding a new clipart, open the design tool on one of your products and add it to the canvas to check.",
     },
     {
       title: "Active, inactive and delete",

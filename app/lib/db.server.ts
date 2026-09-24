@@ -659,6 +659,12 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS cliparts_category_sort
       ON cliparts (category, sort_order ASC)
   `);
+  // Klipartlar mağazaya ait olmalı. Eskiden mağaza ayrımı yoktu: bir mağaza
+  // klipart ekleyince, silince ya da kapatınca bu PrintLab'i kullanan bütün
+  // mağazaların müşterilerini etkiliyordu. Boş değer ('') PrintLab'in herkese
+  // açık ortak kütüphanesidir (yalnızca /admin panelinden yönetilir).
+  await query(`ALTER TABLE cliparts ADD COLUMN IF NOT EXISTS shop TEXT NOT NULL DEFAULT ''`);
+  await query(`CREATE INDEX IF NOT EXISTS cliparts_shop_sort ON cliparts (shop, sort_order ASC)`);
   await query(`
     CREATE TABLE IF NOT EXISTS personalizer_templates (
       id           TEXT PRIMARY KEY,

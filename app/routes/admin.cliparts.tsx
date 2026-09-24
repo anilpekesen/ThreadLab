@@ -8,7 +8,8 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useRevalidator, Form } from "@remix-run/react";
 import { useState } from "react";
 import {
-  getAllCliparts,
+  listCliparts,
+  LIBRARY_SHOP,
   addClipart,
   deleteClipart,
   toggleClipartActive,
@@ -36,7 +37,8 @@ function isAuthed(request: Request): boolean {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!isAuthed(request)) return redirect("/admin");
-  const cliparts = await getAllCliparts();
+  // Bu panel PrintLab'in herkese açık kütüphanesini yönetir
+  const cliparts = await listCliparts(LIBRARY_SHOP);
   return json({ cliparts });
 };
 
@@ -58,7 +60,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!(file instanceof File) || file.size === 0)
         return json({ error: "Dosya seçilmedi" }, { status: 400 });
       try {
-        await addClipart(name, category, file, request.url);
+        await addClipart(LIBRARY_SHOP, name, category, file, request.url);
       } catch (err) {
         return json({ error: err instanceof Error ? err.message : "Hata" }, { status: 500 });
       }
@@ -71,14 +73,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "delete") {
     const id = String(form.get("id") || "");
-    if (id) await deleteClipart(id);
+    if (id) await deleteClipart(id, LIBRARY_SHOP);
     return json({ ok: true });
   }
 
   if (intent === "toggle") {
     const id = String(form.get("id") || "");
     const active = form.get("active") === "1";
-    if (id) await toggleClipartActive(id, active);
+    if (id) await toggleClipartActive(id, active, LIBRARY_SHOP);
     return json({ ok: true });
   }
 

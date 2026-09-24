@@ -12,7 +12,9 @@ import {
 import { useState, useEffect } from "react";
 import { authenticate } from "~/lib/authenticate.server";
 import {
-  getAllCliparts,
+  listCliparts,
+  getActiveCliparts,
+  LIBRARY_SHOP,
   addClipart,
   deleteClipart,
   toggleClipartActive,
@@ -26,13 +28,19 @@ import clipartsDict from "~/i18n/admin/cliparts";
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate(request);
-  const cliparts = await getAllCliparts();
-  return json({ cliparts });
+  const { session } = await authenticate(request);
+  // Mağaza yalnızca kendi klipartlarını yönetir; PrintLab kütüphanesi salt
+  // okunur gösterilir (müşteri ikisini birlikte görür)
+  const [cliparts, library] = await Promise.all([
+    listCliparts(session.shop),
+    getActiveCliparts(LIBRARY_SHOP),
+  ]);
+  return json({ cliparts, library });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  await authenticate(request);
+  const { session } = await authenticate(request);
+  const shop = session.shop;
 
   const contentType = request.headers.get("content-type") ?? "";
 
@@ -54,7 +62,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return json({ error: L.tooLarge }, { status: 400 });
 
       try {
-        await addClipart(name, category, file, request.url);
+        await addClipart(shop, name, category, file, request.url);
       } catch (err) {
         return json({ error: err instanceof Error ? err.message : L.genericError }, { status: 500 });
       }
@@ -68,14 +76,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "delete") {
     const id = String(form.get("id") || "");
-    if (id) await deleteClipart(id);
+    if (id) await deleteClipart(id, shop);
     return json({ ok: true });
   }
 
   if (intent === "toggle") {
     const id = String(form.get("id") || "");
     const active = form.get("active") === "1";
-    if (id) await toggleClipartActive(id, active);
+    if (id) await toggleClipartActive(id, active, shop);
     return json({ ok: true });
   }
 
@@ -135,7 +143,7 @@ function ClipartCard({ c, catLabel }: { c: Clipart; catLabel: string }) {
 
 // ─── Sayfa ──────────────────────────────────────────────────────────
 export default function ClipartsRoute() {
-  const { cliparts } = useLoaderData<typeof loader>();
+  const { cliparts, library } = useLoaderData<typeof loader>();
   const { revalidate } = useRevalidator();
   const { t, lang } = useTranslation();
   const L = useDict(clipartsDict);
@@ -322,6 +330,31 @@ export default function ClipartsRoute() {
             ))
           )}
         </BlockStack>
+
+        {/* PrintLab kütüphanesi: salt okunur */}
+        {library.length > 0 && (
+          <Card>
+            <Box padding="400">
+              <BlockStack gap="300">
+                <Text as="h2" variant="headingMd">{L.libraryTitle} ({library.length})</Text>
+                <Text as="p" tone="subdued" variant="bodySm">{L.libraryNote}</Text>
+                <InlineStack gap="200" wrap>
+                  {library.map((c) => (
+                    <div key={c.id} title={c.name} style={{ width: 72, textAlign: "center" }}>
+                      <Thumbnail
+                        source={c.imageUrl.startsWith("https://assets.printlabapp.com/")
+                          ? `/api/img-proxy?url=${encodeURIComponent(c.imageUrl)}`
+                          : c.imageUrl}
+                        alt={c.name}
+                        size="medium"
+                      />
+                    </div>
+                  ))}
+                </InlineStack>
+              </BlockStack>
+            </Box>
+          </Card>
+        )}
       </BlockStack>
     </Page>
   );

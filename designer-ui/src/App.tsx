@@ -1561,6 +1561,24 @@ export default function App() {
     applyConfig(readConfig(), setConfig);
   }, [setConfig]);
 
+  // Klipartlar: PrintLab kütüphanesi + bu mağazanın klipartları. Mağaza
+  // bilinmeden yalnızca kütüphane gelir; config gelince mağazanınkiler eklenir.
+  // Eskiden mağaza gönderilmiyordu ve klipartlar mağazalar arasında ortaktı.
+  useEffect(() => {
+    const appUrl = (window as typeof window & { __DESIGNER_CONFIG__?: { uploadEndpoint?: string } })
+      .__DESIGNER_CONFIG__?.uploadEndpoint?.split('/apps/')[0]
+      ?? window.location.origin;
+    const shop = config?.shop ? `?shop=${encodeURIComponent(config.shop)}` : '';
+    let cancelled = false;
+    fetch(`${appUrl}/api/cliparts${shop}`)
+      .then((r) => r.json())
+      .then((data: { cliparts?: import('@/components/panels/TemplatesPanel').GlobalClipart[] }) => {
+        if (!cancelled && Array.isArray(data.cliparts)) setGlobalCliparts(data.cliparts);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [config?.shop]);
+
   // Mağazanın kendi şablonlarını çek
   // Shop domain'i proxy.$.tsx'teki Liquid sayfası postMessage ile gönderir
   useEffect(() => {
@@ -1576,13 +1594,6 @@ export default function App() {
         })
         .catch(() => {});
     };
-
-    fetch(`${appUrl}/api/cliparts`)
-      .then((r) => r.json())
-      .then((data: { cliparts?: import('@/components/panels/TemplatesPanel').GlobalClipart[] }) => {
-        if (Array.isArray(data.cliparts)) setGlobalCliparts(data.cliparts);
-      })
-      .catch(() => {});
 
     const handleShopInit = (event: MessageEvent) => {
       const payload = event.data;
@@ -4252,7 +4263,12 @@ export default function App() {
                       <TemplatesPanel
                         onApply={handleApplyTemplate}
                         onAddImage={handleAddImage}
-                        onAddClipart={(url) => getActiveCanvasHandle()?.addSVGClipart(url)}
+                        onAddClipart={(url) => {
+                          // SVG vektör olarak eklenir; PNG/JPG/WebP klipart normal görsel olarak
+                          // (eskiden hepsi SVG sanılıyordu ve raster klipartlar hiç eklenmiyordu)
+                          if (/^data:image\/svg|\.svg(\?|#|$)/i.test(url)) getActiveCanvasHandle()?.addSVGClipart(url);
+                          else void handleAddImage(url);
+                        }}
                         shopTemplates={shopTemplates}
                         globalCliparts={globalCliparts}
                         locale={config?.locale}
