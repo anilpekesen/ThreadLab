@@ -48,7 +48,7 @@ export const MONOGRAM_SWATCHES: Array<{ hex: string; label: string; labelEn: str
   { hex: "#c0c0c0", label: "Gümüş", labelEn: "Silver" },
   { hex: "#b76e79", label: "Gül kurusu", labelEn: "Rose gold" },
   { hex: "#2f5d3a", label: "Zümrüt", labelEn: "Emerald" },
-  { hex: "#8a8a8a", label: "Gri", labelEn: "Grey" },
+  { hex: "#8a8a8a", label: "Gri", labelEn: "Gray" },
 ];
 
 /** El yazısı fontlar: harf aralığı daraltılır, küçük yazılar eşlikçi serif ile */

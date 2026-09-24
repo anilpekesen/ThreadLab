@@ -11,7 +11,7 @@ const en: typeof tr = {
   invalidPack: "Invalid pack",
   packLabel: (n) => `${n} AI credits`,
   refundWarning:
-    "⚠️ AI credit packs are digital products. Purchases can't be refunded or cancelled once approved. Credits expire if not used within 30 days.",
+    "⚠️ AI credit packs are digital products. Purchases can't be refunded or canceled once approved. Credits expire if not used within 30 days.",
   dateHeading: "Date",
   dateLocale: "en-US",
 };

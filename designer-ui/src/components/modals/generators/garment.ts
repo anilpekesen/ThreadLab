@@ -72,5 +72,5 @@ export function garmentWarning(isTurkish: boolean, garment: Garment | null | und
   const tone = garment?.dark ? (isTurkish ? 'koyu' : 'dark') : (isTurkish ? 'açık' : 'light');
   return isTurkish
     ? `Bu renk ${tone} renkli tişörtte zor görünür; önizlemede kontrol edin ya da başka bir renk seçin.`
-    : `This colour is hard to see on a ${tone} shirt; check the preview or pick another colour.`;
+    : `This color is hard to see on a ${tone} shirt; check the preview or pick another color.`;
 }

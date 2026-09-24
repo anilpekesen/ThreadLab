@@ -30,9 +30,9 @@ export const BIRTH_MONTHS: Array<{ month: number; label: string; labelEn: string
 ];
 
 export const BIRTHFLOWER_STYLES: Array<{ id: BirthflowerStyle; label: string; labelEn: string; hint: string; hintEn: string }> = [
-  { id: "lineart", label: "Çizgi", labelEn: "Line art", hint: "Tek renk kontur, zarif ve minimal", hintEn: "Single-colour outline, elegant and minimal" },
-  { id: "color", label: "Renkli", labelEn: "Colour", hint: "Kontur + yumuşak renk dolgular (tam renkli baskı gerekir)", hintEn: "Outline + soft colour fills (needs full-colour printing)" },
-  { id: "silhouette", label: "Siluet", labelEn: "Silhouette", hint: "Dolu tek renk, kâğıt kesiği görünümü", hintEn: "Solid single colour, paper-cut look" },
+  { id: "lineart", label: "Çizgi", labelEn: "Line art", hint: "Tek renk kontur, zarif ve minimal", hintEn: "Single-color outline, elegant and minimal" },
+  { id: "color", label: "Renkli", labelEn: "Color", hint: "Kontur + yumuşak renk dolgular (tam renkli baskı gerekir)", hintEn: "Outline + soft color fills (needs full-color printing)" },
+  { id: "silhouette", label: "Siluet", labelEn: "Silhouette", hint: "Dolu tek renk, kâğıt kesiği görünümü", hintEn: "Solid single color, paper-cut look" },
 ];
 
 export const BIRTHFLOWER_LAYOUTS: Array<{ id: BirthflowerLayout; label: string; labelEn: string; hint: string; hintEn: string }> = [

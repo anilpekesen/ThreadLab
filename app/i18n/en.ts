@@ -856,7 +856,7 @@ const en = {
   "cliparts.pageTitle": "Clipart Library",
   "cliparts.pageSubtitle": "Ready-made graphic library shown in all customer design tools. SVG format recommended.",
   "cliparts.infoBannerTitle": "These cliparts are visible to all customers",
-  "cliparts.infoBannerBody": "Uploaded images appear instantly in the \"Clipart\" tab of all product design tools. SVG uploads allow customers to change colours. For PNG/JPG, transparent backgrounds are recommended.",
+  "cliparts.infoBannerBody": "Uploaded images appear instantly in the \"Clipart\" tab of all product design tools. SVG uploads allow customers to change colors. For PNG/JPG, transparent backgrounds are recommended.",
   "cliparts.uploadTitle": "Add New Clipart",
   "cliparts.filePickerLabel": "Click to select an image",
   "cliparts.filePickerHint": "SVG, PNG, JPG — max 5 MB",

@@ -69,7 +69,7 @@ export default function StarmapModal({ assets: raw, isTurkish, garment, initial,
         timeHint: 'Yerel saat; yaz saati otomatik hesaplanır.' }
     : { date: 'Date', time: 'Time', city: 'City', search: 'Search city…', noCity: 'No city found',
         title: 'Title', subtitle: 'Subtitle', subtitleHint: 'Names or a short note',
-        theme: 'Colour', font: 'Title font', lines: 'Constellation lines', grid: 'Coordinate grid',
+        theme: 'Color', font: 'Title font', lines: 'Constellation lines', grid: 'Coordinate grid',
         noDate: 'Please pick a date', range: 'Date must be between', turkey: 'Turkey', world: 'World',
         timeHint: 'Local time; daylight saving is handled automatically.' };
 

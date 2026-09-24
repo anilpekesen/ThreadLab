@@ -35,8 +35,8 @@ export const PALETTE_GROUPS: Array<{ id: PaletteGroup; label: string; labelEn: s
 export const TEXT_PALETTE: PaletteColor[] = [
   { hex: "#1a1a1a", label: "Siyah", labelEn: "Black", group: "notr" },
   { hex: "#3d3d3d", label: "Antrasit", labelEn: "Anthracite", group: "notr" },
-  { hex: "#6b6b6b", label: "Gri", labelEn: "Grey", group: "notr" },
-  { hex: "#9e9e9e", label: "Açık gri", labelEn: "Light grey", group: "notr" },
+  { hex: "#6b6b6b", label: "Gri", labelEn: "Gray", group: "notr" },
+  { hex: "#9e9e9e", label: "Açık gri", labelEn: "Light gray", group: "notr" },
   { hex: "#ffffff", label: "Beyaz", labelEn: "White", group: "notr" },
   { hex: "#f4ece1", label: "Krem", labelEn: "Cream", group: "notr" },
   { hex: "#8a7f6d", label: "Vizon", labelEn: "Taupe", group: "notr" },

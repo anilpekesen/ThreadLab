@@ -55,7 +55,7 @@ export default function BirthflowerModal({ assets: raw, isTurkish, garment, init
         title: 'Başlık (isteğe bağlı)', style: 'Çizim', layout: 'Düzen', font: 'Yazı tipi', ink: 'Renk',
         singleNote: 'Tek çiçek düzeninde yalnızca ilk kişi çizilir.', needMonth: 'Her kişi için doğum ayını seçin', max: 'En fazla' }
     : { people: 'People', name: 'Name', month: 'Birth month', pickMonth: 'Month', add: '+ Add person', remove: 'Remove person',
-        title: 'Title (optional)', style: 'Style', layout: 'Layout', font: 'Font', ink: 'Colour',
+        title: 'Title (optional)', style: 'Style', layout: 'Layout', font: 'Font', ink: 'Color',
         singleNote: 'The single flower layout draws only the first person.', needMonth: 'Choose a birth month for everyone', max: 'At most' };
 
   const isSingle = layout === 'single';

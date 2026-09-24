@@ -202,7 +202,7 @@ export const songGenerator: GeneratorServerModule<SongConfig> = {
     if (config.showCode && link) {
       const ref = parseSpotifyLink(link);
       if (!ref) {
-        throw new GeneratorInputError("Spotify bağlantısı tanınmadı. Spotify'da şarkı → Paylaş → Şarkı bağlantısını kopyala ile alınan bağlantıyı yapıştırın.", "Spotify link not recognised. In Spotify, open the song → Share → Copy Song Link and paste it here.");
+        throw new GeneratorInputError("Spotify bağlantısı tanınmadı. Spotify'da şarkı → Paylaş → Şarkı bağlantısını kopyala ile alınan bağlantıyı yapıştırın.", "Spotify link not recognized. In Spotify, open the song → Share → Copy Song Link and paste it here.");
       }
       const res = await fetchSpotifyCode(ref);
       if (res.ok) code = res.shape;

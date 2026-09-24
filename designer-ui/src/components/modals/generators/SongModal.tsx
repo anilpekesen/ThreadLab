@@ -168,7 +168,7 @@ export default function SongModal({ assets: raw, isTurkish, garment, initial, on
         useCover: 'Use album cover', lookupLoading: 'Fetching song details…', lookupOk: 'Song details filled from Spotify; edit if you like.', lookupFail: 'Could not fetch song details; fill them in yourself.',
         photoOptional: 'optional', title: 'Song title', artist: 'Artist', link: 'Spotify song link',
         linkHint: 'In Spotify: song → Share → Copy Song Link', linkBad: 'This does not look like a Spotify song link',
-        optional: 'optional', duration: 'Song length', durationBad: 'e.g. 3:45', style: 'Style', theme: 'Colour', font: 'Font',
+        optional: 'optional', duration: 'Song length', durationBad: 'e.g. 3:45', style: 'Style', theme: 'Color', font: 'Font',
       };
 
   const linkBad = link.trim() !== '' && !LINK_RE.test(link.trim());

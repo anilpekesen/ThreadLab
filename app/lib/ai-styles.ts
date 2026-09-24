@@ -32,7 +32,7 @@ export const AI_STYLES: Record<string, AiStyleDef> = {
     label: "Karikatür",
     labelEn: "Caricature",
     description: "Fotoğrafı renkli ve eğlenceli, baskıya uygun bir illüstrasyona dönüştürür.",
-    descriptionEn: "Turns the photo into a colourful, playful illustration ready for print.",
+    descriptionEn: "Turns the photo into a colorful, playful illustration ready for print.",
     style:
       "a modern caricature illustration: clean confident outlines, smooth digital shading, vivid natural colours. "
       + "Stylise only the faces — softer, warmer features and expressive eyes. Keep real head-to-body proportions; no "
@@ -43,7 +43,7 @@ export const AI_STYLES: Record<string, AiStyleDef> = {
     label: "Suluboya",
     labelEn: "Watercolor",
     description: "Fotoğrafı yumuşak ve sanatsal bir suluboya portresine dönüştürür.",
-    descriptionEn: "Turns the photo into a soft, artistic watercolour portrait.",
+    descriptionEn: "Turns the photo into a soft, artistic watercolor portrait.",
     style:
       "a watercolour portrait: delicate brushwork, translucent pigment layers, natural colour variation, soft blended "
       + "edges, paper texture. The brushwork follows the photo's own shapes and light and never reshapes them. Faces "
@@ -65,7 +65,7 @@ export const AI_STYLES: Record<string, AiStyleDef> = {
     label: "Pop Art",
     labelEn: "Pop art",
     description: "Canlı renkler ve çizgi roman estetiğiyle güçlü bir baskı tasarımı oluşturur.",
-    descriptionEn: "Creates a bold print design with vivid colours and a comic-book look.",
+    descriptionEn: "Creates a bold print design with vivid colors and a comic-book look.",
     style:
       "a bold pop-art illustration: strong black outlines, flat comic-book shading, halftone texture, vivid magenta, "
       + "yellow, cyan, blue, black and white. Colours may change but the drawing underneath stays true to the photo. "
@@ -212,7 +212,7 @@ export const AI_PROVIDERS: Record<AiProvider, AiProviderDef> = {
         id: "flux-kontext-pro",
         label: "FLUX Kontext Pro",
         note: "En iyi baskı kalitesi: güçlü kontrast, temiz beyaz zemin, göz/saç rengini korur. ~11-15 sn, ~$0.04. İçerik filtresi katı — bazı fotoğrafları reddeder.",
-        noteEn: "Best print quality: strong contrast, clean white background, keeps eye and hair colour. ~11-15 s, ~$0.04. Strict content filter — rejects some photos.",
+        noteEn: "Best print quality: strong contrast, clean white background, keeps eye and hair color. ~11-15 s, ~$0.04. Strict content filter — rejects some photos.",
       },
     ],
   },
@@ -223,7 +223,7 @@ export const AI_PROVIDERS: Record<AiProvider, AiProviderDef> = {
         id: "flux-2-klein-9b",
         label: "FLUX.2 Klein 9B",
         note: "3 kat hızlı (~3 sn), ~$0.017. Girdi 512px'e düşürülür, çizgiler daha soluk, göz rengini değiştirebilir. Önizleme için uygun.",
-        noteEn: "3x faster (~3 s), ~$0.017. Input is downscaled to 512 px, lines are fainter and eye colour may change. Good for previews.",
+        noteEn: "3x faster (~3 s), ~$0.017. Input is downscaled to 512 px, lines are fainter and eye color may change. Good for previews.",
       },
       {
         id: "flux-2-klein-4b",

@@ -89,7 +89,7 @@ export default function TemplateWordArtModal({ assets, isTurkish, garment, initi
         photoHint: 'Tek kişinin ya da evcil hayvanın net göründüğü bir fotoğraf seçin; arka planı otomatik silinir.',
         needPhoto: 'Önce bir fotoğraf seçin', photoBusy: 'Hazırlanıyor… (arka plan siliniyor, ~10 sn)' }
     : { title: 'Create your word design', words: 'Words', wordsHint: 'Write one word or name per line. Put * in front of a word to make it big.',
-        shape: 'Shape', letter: 'Letter', font: 'Font', colors: 'Colours',
+        shape: 'Shape', letter: 'Letter', font: 'Font', colors: 'Colors',
         make: 'Create Design', again: 'Another layout', ok: 'Use This', cancel: 'Cancel', edit: 'Edit',
         busy: 'Preparing…', count: 'words', tooMany: 'At most', empty: 'Write at least one word',
         photo: 'Photo', pickPhoto: 'Choose photo', changePhoto: 'Change photo',

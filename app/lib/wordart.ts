@@ -59,7 +59,7 @@ export const WORDART_PALETTES: Array<{ id: string; label: string; labelEn: strin
   { id: "mono", label: "Gri tonları", labelEn: "Greyscale", colors: ["#111111", "#424242", "#616161", "#212121"] },
   // Her kelime fotoğrafta durduğu yerin rengini alır; yalnızca "Fotoğrafım"
   // şekliyle anlamlı. Renkler çizim anında fotoğraftan okunur.
-  { id: "photo", label: "Fotoğrafın renkleri", labelEn: "Photo colours", colors: [] },
+  { id: "photo", label: "Fotoğrafın renkleri", labelEn: "Photo colors", colors: [] },
 ];
 
 /** Fotoğraftan renk alan palet — yalnızca fotoğraf şekliyle geçerli */

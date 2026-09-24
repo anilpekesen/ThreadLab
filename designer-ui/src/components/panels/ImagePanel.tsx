@@ -368,7 +368,7 @@ export default function ImagePanel({ onAddImage, onRemoveBg, canRemoveBg, active
                     </button>
                   </div>
                   <p className="mt-2 text-center text-[10px] text-gray-400">
-                    {tr ? 'Plaka rengi' : 'Plate colour'}:{' '}
+                    {tr ? 'Plaka rengi' : 'Plate color'}:{' '}
                     <span className="inline-block h-2 w-2 translate-y-px rounded-full align-middle" style={{ backgroundColor: DEFAULT_PLATE_COLOR }} /> {DEFAULT_PLATE_COLOR}
                   </p>
                 </>

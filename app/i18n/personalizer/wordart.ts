@@ -35,7 +35,7 @@ const tr = {
 
 const en: typeof tr = {
   shapesTitle: "Shapes available to customers",
-  shapesHelp: "The first shape you select becomes the default. With the letter shape, customers choose their own letter. With \"My photo\", the background of the customer's photo is removed and the words fill the person's silhouette (this uses your background removal quota); with the \"Photo colours\" palette, each word takes its colour from the photo.",
+  shapesHelp: "The first shape you select becomes the default. With the letter shape, customers choose their own letter. With \"My photo\", the background of the customer's photo is removed and the words fill the person's silhouette (this uses your background removal quota); with the \"Photo colors\" palette, each word takes its color from the photo.",
   defaultLetter: "Default letter",
   fontsTitle: "Fonts",
   palettesTitle: "Color palettes",

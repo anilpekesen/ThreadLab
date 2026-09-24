@@ -97,7 +97,7 @@ export default function MonogramModal({ assets: rawAssets, isTurkish, garment, i
         empty: 'En az bir harf yazın', ringHint: 'Yazılı dairede üst ve alt yazı dairenin kenarına yazılır.' }
     : { letters: 'Initials', lettersHint: assets.maxLetters === 1 ? 'One letter or number' : `Up to ${assets.maxLetters} letters`,
         top: 'Top text', topPh: 'E.g. ANNA & JAMES', bottom: 'Bottom text', bottomPh: 'E.g. 12.06.2026 or EST. 2020', optional: 'optional',
-        layout: 'Layout', frame: 'Frame', joiner: 'Between letters', font: 'Font', color: 'Colour',
+        layout: 'Layout', frame: 'Frame', joiner: 'Between letters', font: 'Font', color: 'Color',
         empty: 'Type at least one letter', ringHint: 'With the text circle, the top and bottom text run around the ring.' };
 
   const showJoiner = layout === 'classic' && Array.from(letters).length === 2 && assets.joiners.length > 1;

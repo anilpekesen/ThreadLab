@@ -45,7 +45,7 @@ export default function GeneratorModalShell({
               <img src={preview} alt={previewAlt} className="mx-auto max-h-[52vh] w-auto object-contain" />
               {backdrop && (
                 <p className="mt-2 text-center text-[10px]" style={{ color: luminance(backdrop) < 0.35 ? '#d1d5db' : '#6b7280' }}>
-                  {isTurkish ? 'Tişört renginde önizleme' : 'Preview on the shirt colour'}
+                  {isTurkish ? 'Tişört renginde önizleme' : 'Preview on the shirt color'}
                 </p>
               )}
             </div>

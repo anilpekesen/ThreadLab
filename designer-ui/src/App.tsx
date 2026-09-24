@@ -5124,7 +5124,7 @@ export default function App() {
               ? (isTurkish ? `Tasarımın ${sideName} hazır.` : `Your design is ready ${sideName}.`)
               : gen ? (isTurkish ? gen.hintTr : gen.hintEn)
               : isWordArt
-                ? (isTurkish ? 'Kelimelerini yaz, şekil ve renk seç; tasarım tişörte yerleşsin.' : 'Write your words, pick a shape and colours; the design goes on the shirt.')
+                ? (isTurkish ? 'Kelimelerini yaz, şekil ve renk seç; tasarım tişörte yerleşsin.' : 'Write your words, pick a shape and colors; the design goes on the shirt.')
                 : (isTurkish ? 'Fotoğrafını yükle; tasarım tişörte yerleşsin.' : 'Upload your photo; the design goes on the shirt.');
             const label = templateBusy
               ? (isTurkish ? 'Hazırlanıyor…' : 'Preparing…')
