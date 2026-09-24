@@ -33,6 +33,11 @@ const T = {
         { value: "5 dk", label: "tema kurulumu" },
       ],
     },
+    video: {
+      eyebrow: "PRINTLAB'İ İZLEYİN",
+      title: "Bir dakikada PrintLab",
+      sub: "Müşterinin ürün sayfasında tasarlamasından baskıya hazır siparişe kadar bütün akış.",
+    },
     how: {
       eyebrow: "NASIL ÇALIŞIR",
       title: "Üç adımda, kurulumdan kargoya.",
@@ -159,6 +164,11 @@ const T = {
         { value: "TR/EN", label: "customer and admin UI" },
         { value: "5 min", label: "theme setup" },
       ],
+    },
+    video: {
+      eyebrow: "SEE PRINTLAB IN ACTION",
+      title: "PrintLab in about a minute",
+      sub: "The whole flow, from the customer designing on your product page to a print-ready order.",
     },
     how: {
       eyebrow: "HOW IT WORKS",
@@ -427,6 +437,9 @@ function buildHtml(lang: Lang): string {
     .trust-chips{margin-top:18px;display:flex;flex-wrap:wrap;justify-content:center;gap:10px;}
     .trust-chips a{font-size:14px;font-weight:600;color:#4b5563;background:#fff;border:1px solid #e5e7eb;padding:7px 14px;border-radius:99px;text-decoration:none;transition:all .15s;}
     .trust-chips a:hover{color:#7c3aed;border-color:#c4b5fd;background:#f5f3ff;}
+    .section-video{padding-top:40px;}
+    .promo-video{max-width:1040px;margin:0 auto;border-radius:20px;overflow:hidden;box-shadow:0 24px 60px rgba(49,46,129,.16);background:#eef2ff;aspect-ratio:16/9;}
+    .promo-video video{display:block;width:100%;height:100%;object-fit:cover;}
     /* ── Templates gallery ── */
     .tpl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;max-width:1040px;margin:0 auto;}
     @media (max-width:900px){.tpl-grid{grid-template-columns:repeat(2,1fr);gap:14px;}}
@@ -603,6 +616,35 @@ function buildHtml(lang: Lang): string {
     <div class="trust-chips">${t.hero.trustItems.map((x) => `<a href="#sablonlar">${x}</a>`).join("")}</div>
   </div>
 </section>
+
+<!-- ===== Video ===== -->
+<section class="section section-video" id="video">
+  <div class="section-inner">
+    <div class="section-head">
+      <div class="eyebrow eyebrow-indigo">${t.video.eyebrow}</div>
+      <h2 class="section-title">${t.video.title}</h2>
+      <p class="section-sub">${t.video.sub}</p>
+    </div>
+    <div class="promo-video">
+      <video id="promo-video" controls muted playsinline loop preload="none" poster="/video/printlab-${lang}-poster.jpg" width="1280" height="720">
+        <source src="/video/printlab-${lang}.mp4" type="video/mp4" />
+      </video>
+    </div>
+  </div>
+</section>
+<script>
+  // Video ekrana girince sessiz başlar, çıkınca durur; ekran dışındayken hiç indirilmez
+  (function () {
+    var v = document.getElementById("promo-video");
+    if (!v || !("IntersectionObserver" in window)) return;
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+        else if (!v.paused) v.pause();
+      });
+    }, { threshold: 0.5 }).observe(v);
+  })();
+</script>
 
 <!-- ===== How it works ===== -->
 <section class="section" id="nasil">
