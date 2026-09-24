@@ -63,7 +63,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   ]);
   const cookieHeader = request.headers.get("Cookie") ?? "";
   const langMatch = cookieHeader.match(/(?:^|; )dk_lang=([^;]*)/);
-  const lang: Lang = langMatch?.[1] === "en" ? "en" : "tr";
+  // Kullanıcı dil seçtiyse o geçerli. Seçmediyse Shopify yönetim panelinin
+  // dili: Shopify gömülü uygulamayı ?locale=en-US gibi bir parametreyle açar.
+  // Eskiden varsayılan hep Türkçeydi; App Store'dan kuran yabancı mağaza
+  // sahibi uygulamayı Türkçe görüyor, dil düğmesini aramak zorunda kalıyordu.
+  const shopifyLocale = new URL(request.url).searchParams.get("locale") ?? "";
+  const lang: Lang = langMatch?.[1] === "en" || langMatch?.[1] === "tr"
+    ? (langMatch[1] as Lang)
+    : shopifyLocale && !shopifyLocale.toLowerCase().startsWith("tr") ? "en" : "tr";
   const planKey = (sub?.plan_key ?? "Pro") as PlanKey;
   const planFeatures = PLANS[planKey] ?? PLANS["Pro"];
   const hasActiveSubscription = sub?.subscription_status === "active" || sub?.subscription_status === "trial";
