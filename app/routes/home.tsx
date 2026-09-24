@@ -17,7 +17,7 @@ const T = {
     htmlLang: "tr",
     nav: {
       features: "Özellikler", templates: "Şablonlar", how: "Nasıl çalışır", pricing: "Fiyatlandırma",
-      faq: "SSS", blog: "Blog", login: "Giriş yap", cta: "Shopify'a ekle",
+      faq: "SSS", blog: "Blog", cta: "Shopify'a ekle",
     },
     hero: {
       eyebrow: "SHOPIFY ÜRÜN KİŞİSELLEŞTİRME UYGULAMASI",
@@ -151,7 +151,7 @@ const T = {
     htmlLang: "en",
     nav: {
       features: "Features", templates: "Templates", how: "How it works", pricing: "Pricing",
-      faq: "FAQ", blog: "Blog", login: "Sign in", cta: "Add to Shopify",
+      faq: "FAQ", blog: "Blog", cta: "Add to Shopify",
     },
     hero: {
       eyebrow: "SHOPIFY PRODUCT PERSONALIZATION APP",
@@ -441,7 +441,9 @@ function buildHtml(lang: Lang): string {
     .trust-chips{margin-top:18px;display:flex;flex-wrap:wrap;justify-content:center;gap:10px;}
     .trust-chips a{font-size:14px;font-weight:600;color:#4b5563;background:#fff;border:1px solid #e5e7eb;padding:7px 14px;border-radius:99px;text-decoration:none;transition:all .15s;}
     .trust-chips a:hover{color:#7c3aed;border-color:#c4b5fd;background:#f5f3ff;}
-    .section-video{padding-top:40px;}
+    /* Hero içeriği kadar yer kaplasın: ekran yüksekliğine uzayınca altında boşluk kalıyordu */
+    .hero{min-height:0;padding-bottom:40px;}
+    .section-video{padding-top:48px;}
     .promo-video{max-width:1040px;margin:0 auto;border-radius:20px;overflow:hidden;box-shadow:0 24px 60px rgba(49,46,129,.16);background:#eef2ff;aspect-ratio:16/9;}
     .promo-video-link{text-align:center;margin:18px 0 0;font-size:15px;}
     .promo-video-link a{color:#4f46e5;font-weight:600;text-decoration:none;}
@@ -502,7 +504,6 @@ function buildHtml(lang: Lang): string {
         <a href="/" class="${lang === "tr" ? "active" : ""}" onclick="document.cookie='dk_lang=tr;path=/;max-age=31536000';">TR</a>
         <a href="/" class="${lang === "en" ? "active" : ""}" onclick="document.cookie='dk_lang=en;path=/;max-age=31536000';">EN</a>
       </div>
-      <a class="link-muted" href="/app">${t.nav.login}</a>
       <a class="btn btn-primary btn-sm" href="${SHOPIFY_APP_URL}">
         ${t.nav.cta} ${arrowIcon}
       </a>
