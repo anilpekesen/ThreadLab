@@ -25,7 +25,8 @@ const T = {
       sub: "PrintLab, Shopify mağazaları için ürün kişiselleştirme ve baskı tasarım aracıdır. Müşteri ürün sayfasında kendi tasarımını yapar ya da hazır şablonlardan birini birkaç bilgiyle kişiselleştirir — fotoğraflı çerçeveler, kelime sanatı, Spotify şarkısı, yıldız ve şehir haritası, monogram, doğum çiçeği. Siz baskıya hazır siparişi alırsınız.",
       cta1: "14 gün ücretsiz başla", cta2: "Demo mağazayı gör →",
       b1: "Kurulum 5 dakika", b2: "Kredi kartı gerekmiyor", b3: "Türkçe destek",
-      trustLabel: "Shopify mağazaları için kişiselleştirme ve baskı yönetimi",
+      trustLabel: "Tek uygulamada hazır kişiselleştirme şablonları",
+      trustItems: ["Fotoğraf şablonu", "Kelime sanatı", "Spotify şarkısı", "Yıldız haritası", "Şehir haritası", "Monogram", "Doğum çiçeği", "Çerçeve ve kanvas", "Pola kart", "Tekrarlı desen", "Yapay zeka portre"],
       kpis: [
         { value: "300 DPI", label: "baskıya hazır çıktı" },
         { value: "TR/EN", label: "müşteri ve admin dili" },
@@ -151,7 +152,8 @@ const T = {
       sub: "PrintLab is a Shopify product personalization and print designer app embedded directly on your product pages. Customers create their own design or personalize a ready-made template in a few steps — photo frames, word art, Spotify songs, star and city maps, monograms, birth flowers. You receive a print-ready order.",
       cta1: "Start free for 14 days", cta2: "See demo store →",
       b1: "5-minute setup", b2: "No credit card required", b3: "English support",
-      trustLabel: "Product personalization and print workflow for Shopify stores",
+      trustLabel: "Ready-made personalization templates in one app",
+      trustItems: ["Photo template", "Word art", "Spotify song", "Star map", "City map", "Monogram", "Birth flower", "Frames and canvas", "Polaroid cards", "Repeat pattern", "AI portrait"],
       kpis: [
         { value: "300 DPI", label: "print-ready output" },
         { value: "TR/EN", label: "customer and admin UI" },
@@ -422,6 +424,9 @@ function buildHtml(lang: Lang): string {
     .cp-credits-label{font-size:13px;font-weight:600;color:#6b7280;margin:4px 0 12px;text-transform:uppercase;letter-spacing:.04em;}
     .cp-price{font-size:28px;font-weight:800;color:#4f46e5;margin-bottom:6px;}
     .cp-desc{font-size:13px;color:#9ca3af;margin-bottom:20px;}
+    .trust-chips{margin-top:18px;display:flex;flex-wrap:wrap;justify-content:center;gap:10px;}
+    .trust-chips a{font-size:14px;font-weight:600;color:#4b5563;background:#fff;border:1px solid #e5e7eb;padding:7px 14px;border-radius:99px;text-decoration:none;transition:all .15s;}
+    .trust-chips a:hover{color:#7c3aed;border-color:#c4b5fd;background:#f5f3ff;}
     /* ── Templates gallery ── */
     .tpl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;max-width:1040px;margin:0 auto;}
     @media (max-width:900px){.tpl-grid{grid-template-columns:repeat(2,1fr);gap:14px;}}
@@ -595,6 +600,7 @@ function buildHtml(lang: Lang): string {
 
   <div class="trustbar">
     <div class="trustbar-label">${t.hero.trustLabel}</div>
+    <div class="trust-chips">${t.hero.trustItems.map((x) => `<a href="#sablonlar">${x}</a>`).join("")}</div>
   </div>
 </section>
 
