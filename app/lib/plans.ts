@@ -1,6 +1,8 @@
 export const PLANS = {
   Starter: {
     price: 9.99,
+    /** Ücretsiz deneme günü; Partners'taki yönetilen planla aynı olmalı */
+    trialDays: 14,
     maxProductTypes: 1,
     maxMonthlyOrders: 100,
     allowBackSurface: true,
@@ -29,6 +31,7 @@ export const PLANS = {
   },
   Growth: {
     price: 19.99,
+    trialDays: 14,
     maxProductTypes: 2,
     maxMonthlyOrders: 500,
     allowBackSurface: true,
@@ -59,6 +62,7 @@ export const PLANS = {
   },
   Pro: {
     price: 49.99,
+    trialDays: 0,
     maxProductTypes: 4,
     maxMonthlyOrders: 2000,
     allowBackSurface: true,
@@ -92,7 +96,8 @@ export const PLANS = {
     },
   },
   Business: {
-    price: 99.99,
+    price: 99,
+    trialDays: 14,
     maxProductTypes: -1,
     maxMonthlyOrders: -1,
     allowBackSurface: true,

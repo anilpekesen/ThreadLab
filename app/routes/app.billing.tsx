@@ -21,7 +21,6 @@ import { PLANS, type PlanKey } from "~/lib/plans";
 import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/models/billing.server";
 
 const PLAN_ORDER: PlanKey[] = ["Starter", "Growth", "Pro", "Business"];
-const TRIAL_DAYS = 14;
 const MANAGED_PRICING_APP_HANDLE = process.env.SHOPIFY_APP_HANDLE ?? "printlab";
 
 function isBillingTestCharge(shop: string): boolean {
@@ -124,7 +123,7 @@ async function createShopifySubscription(
       ],
       returnUrl,
       test,
-      trialDays: TRIAL_DAYS,
+      trialDays: plan.trialDays,
       replacementBehavior: "APPLY_IMMEDIATELY",
     },
   );
@@ -509,7 +508,7 @@ export default function BillingPage() {
                             <Text as="p" variant="headingXl">${plan.price}</Text>
                             <Text as="p" variant="bodySm" tone="subdued">{t("billing.perMonth")}</Text>
                           </InlineStack>
-                          <Text as="p" variant="bodySm" tone="subdued">{t("billing.trialLabel")}</Text>
+                          {plan.trialDays > 0 && <Text as="p" variant="bodySm" tone="subdued">{t("billing.trialLabel")}</Text>}
                         </BlockStack>
 
                         <Divider />
@@ -580,7 +579,7 @@ export default function BillingPage() {
                       { label: t("billing.bgRemoval"), values: PLAN_ORDER.map((k) => String(PLANS[k].removeBgMonthlyQuota)) },
                       { label: L.aiPerMonth, values: PLAN_ORDER.map((k) => String(PLANS[k].aiImageMonthlyQuota ?? 0)) },
                       { label: t("billing.templates"), values: PLAN_ORDER.map((k) => PLANS[k].maxShopTemplates === -1 ? t("billing.unlimited") : PLANS[k].maxShopTemplates === 0 ? "—" : String(PLANS[k].maxShopTemplates)) },
-                      { label: t("billing.freeTrial"), values: PLAN_ORDER.map(() => t("billing.trialDays")) },
+                      { label: t("billing.freeTrial"), values: PLAN_ORDER.map((k) => (PLANS[k].trialDays > 0 ? t("billing.trialDays") : "—")) },
                     ].map(({ label, values }) => (
                       <tr key={label} style={{ borderBottom: "1px solid #f4f4f4" }}>
                         <td style={{ padding: "8px 12px", color: "#6d7175" }}>{label}</td>

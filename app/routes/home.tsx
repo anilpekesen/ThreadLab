@@ -102,7 +102,7 @@ const T = {
     pricing: {
       eyebrow: "FİYATLANDIRMA",
       title: "Mağazanız büyüdükçe ödeyin.",
-      sub: "Tüm planlar 14 gün ücretsiz. İstediğiniz zaman iptal.",
+      sub: "Starter, Growth ve Business'ta 14 gün ücretsiz deneme. İstediğiniz zaman iptal.",
       per: "/ay",
       creditsTitle: "Ek Kredi Satın Al",
       creditsSub: "Aylık yapay zeka görsel kotanız bittiğinde tek seferlik ek kredi paketi satın alabilirsiniz. Kredi kullanım süresi sınırsızdır.",
@@ -115,8 +115,8 @@ const T = {
       plans: [
         { name: "Starter", amt: "9.99", cur: "$", desc: "Başlamak için ideal.", feat: ["100 sipariş/ay", "1 ürün kategorisi", "Ön + arka yüz baskı", "100 arka plan kaldırma/ay", "✦ 50 yapay zeka görseli/ay"], cta: "14 gün ücretsiz başla", featured: false },
         { name: "Growth", amt: "19.99", cur: "$", desc: "Büyüyen mağazalar için.", feat: ["500 sipariş/ay", "2 ürün kategorisi", "Ön + arka yüz baskı", "500 arka plan kaldırma/ay", "✦ 150 yapay zeka görseli/ay", "10 özel şablon"], cta: "14 gün ücretsiz başla", featured: true, badge: "EN POPÜLER" },
-        { name: "Pro", amt: "49.99", cur: "$", desc: "Yüksek hacimli mağazalar için.", feat: ["2.000 sipariş/ay", "4 ürün kategorisi", "1.500 arka plan kaldırma/ay", "✦ 450 yapay zeka görseli/ay", "20 özel şablon", "Üretim & Gang Sheet", "Öncelikli destek"], cta: "14 gün ücretsiz başla", featured: false },
-        { name: "Business", amt: "99.99", cur: "$", desc: "Daha büyük ekipler için.", feat: ["Sınırsız sipariş", "Sınırsız ürün kategorisi", "4.000 arka plan kaldırma/ay", "✦ 900 yapay zeka görseli/ay", "Sınırsız özel şablon", "Üretim & Gang Sheet", "Özel onboarding & destek"], cta: "14 gün ücretsiz başla", featured: false },
+        { name: "Pro", amt: "49.99", cur: "$", desc: "Yüksek hacimli mağazalar için.", feat: ["2.000 sipariş/ay", "4 ürün kategorisi", "1.500 arka plan kaldırma/ay", "✦ 450 yapay zeka görseli/ay", "20 özel şablon", "Üretim & Gang Sheet", "Öncelikli destek"], cta: "Pro'yu başlat", featured: false },
+        { name: "Business", amt: "99", cur: "$", desc: "Daha büyük ekipler için.", feat: ["Sınırsız sipariş", "Sınırsız ürün kategorisi", "4.000 arka plan kaldırma/ay", "✦ 900 yapay zeka görseli/ay", "Sınırsız özel şablon", "Üretim & Gang Sheet", "Özel onboarding & destek"], cta: "14 gün ücretsiz başla", featured: false },
       ],
     },
     faq: {
@@ -236,7 +236,7 @@ const T = {
     pricing: {
       eyebrow: "PRICING",
       title: "Pay as your store grows.",
-      sub: "All plans include a 14-day free trial. Cancel any time.",
+      sub: "14-day free trial on Starter, Growth and Business. Cancel any time.",
       per: "/mo",
       creditsTitle: "Buy Extra Credits",
       creditsSub: "When your monthly AI image quota runs out, you can purchase a one-time credit pack. Credits never expire.",
@@ -249,8 +249,8 @@ const T = {
       plans: [
         { name: "Starter", amt: "9.99", cur: "$", desc: "Great to get started.", feat: ["100 orders/month", "1 product category", "Front + back surface print", "100 background removals/month", "✦ 50 AI images/month"], cta: "Start free for 14 days", featured: false },
         { name: "Growth", amt: "19.99", cur: "$", desc: "For stores that are scaling.", feat: ["500 orders/month", "2 product categories", "Front + back surface print", "500 background removals/month", "✦ 150 AI images/month", "10 custom templates"], cta: "Start free for 14 days", featured: true, badge: "MOST POPULAR" },
-        { name: "Pro", amt: "49.99", cur: "$", desc: "For higher-volume stores.", feat: ["2,000 orders/month", "4 product categories", "1,500 background removals/month", "✦ 450 AI images/month", "20 custom templates", "Production & Gang Sheet", "Priority support"], cta: "Start free for 14 days", featured: false },
-        { name: "Business", amt: "99.99", cur: "$", desc: "For larger teams.", feat: ["Unlimited orders", "Unlimited product categories", "4,000 background removals/month", "✦ 900 AI images/month", "Unlimited custom templates", "Production & Gang Sheet", "Custom onboarding & support"], cta: "Start free for 14 days", featured: false },
+        { name: "Pro", amt: "49.99", cur: "$", desc: "For higher-volume stores.", feat: ["2,000 orders/month", "4 product categories", "1,500 background removals/month", "✦ 450 AI images/month", "20 custom templates", "Production & Gang Sheet", "Priority support"], cta: "Start Pro", featured: false },
+        { name: "Business", amt: "99", cur: "$", desc: "For larger teams.", feat: ["Unlimited orders", "Unlimited product categories", "4,000 background removals/month", "✦ 900 AI images/month", "Unlimited custom templates", "Production & Gang Sheet", "Custom onboarding & support"], cta: "Start free for 14 days", featured: false },
       ],
     },
     faq: {
@@ -416,7 +416,7 @@ function buildHtml(lang: Lang): string {
   <meta name="twitter:image" content="https://printlabapp.com/logo.png" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"PrintLab","applicationCategory":"BusinessApplication","operatingSystem":"Shopify","url":"https://printlabapp.com/home","description":"${metaDescription}","sameAs":["${SHOPIFY_APP_URL}"],"offers":{"@type":"AggregateOffer","lowPrice":"9.99","highPrice":"99.99","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"PrintLab","url":"https://printlabapp.com","logo":"https://printlabapp.com/logo.png"}}
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"PrintLab","applicationCategory":"BusinessApplication","operatingSystem":"Shopify","url":"https://printlabapp.com/home","description":"${metaDescription}","sameAs":["${SHOPIFY_APP_URL}"],"offers":{"@type":"AggregateOffer","lowPrice":"9.99","highPrice":"99","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"PrintLab","url":"https://printlabapp.com","logo":"https://printlabapp.com/logo.png"}}
   </script>
   <link rel="stylesheet" href="/landing-tokens.css" />
   <link rel="stylesheet" href="/landing.css" />
