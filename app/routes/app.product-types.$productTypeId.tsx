@@ -4,6 +4,7 @@ import { Form, useLoaderData, useNavigate, useNavigation } from "@remix-run/reac
 import { useTranslation, useDict, pickDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import productTypesDict from "~/i18n/admin/product-types";
+import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Text, BlockStack, Box, Badge, Button,
   InlineStack, TextField, Select, Divider, Thumbnail,
@@ -12,7 +13,7 @@ import {
 import { useState } from "react";
 import { authenticate } from "~/lib/authenticate.server";
 import { getProductTypeById, updateProductType } from "~/models/product-types.server";
-import { fetchShopifyProducts, saveProductConfig, buildDefaultConfig, normalizeProductConfig } from "~/models/product-config.server";
+import { fetchShopifyProducts, saveProductConfig, buildDefaultConfig, normalizeProductConfig, readSettingsMap } from "~/models/product-config.server";
 import type { SurfaceMode } from "~/models/product-config.server";
 import { normalizeProductType } from "~/models/product-config.server";
 
@@ -110,11 +111,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       shopify_product_handle: productHandle,
     });
 
-    // Activate product in designer — does NOT touch pricingBands or surchargeVariantId
+    // Ürünü tasarımcıda etkinleştir. Ürünün mevcut ayarı varsa korunur ve
+    // yalnızca tip/yüz/ad alanları güncellenir. Eskiden ayar varsayılanlarla
+    // baştan yazılıyordu: fiyat bantları, renk mockup'ları, beden tablosu ve
+    // baskı ücreti varyantı sessizce sıfırlanıyordu.
     const productStub = { id: productId, title: productTitle, handle: productHandle, productType: "", status: "", images: [], variants: [] };
     const defaultCfg = buildDefaultConfig(productStub);
     const productType = normalizeProductType(typeName);
-    const cfg = normalizeProductConfig({ isActive: true, productType, surfaceMode, productTitle, productHandle }, defaultCfg);
+    const existing = (await readSettingsMap(shop))[productId];
+    const base = existing ? normalizeProductConfig(existing, defaultCfg) : defaultCfg;
+    const cfg = normalizeProductConfig({ ...base, isActive: true, productType, surfaceMode, productTitle, productHandle }, defaultCfg);
     await saveProductConfig(shop, productId, cfg);
 
     return json({ saved: true });
@@ -137,6 +143,7 @@ export default function ProductTypeDetail() {
   const navigate = useNavigate();
   const nav = useNavigation();
   const { t, lang } = useTranslation();
+  const L = useDict(productTypesDict);
   const isSaving = nav.state === "submitting";
 
   const [name, setName] = useState(productType.name);
@@ -150,6 +157,7 @@ export default function ProductTypeDetail() {
       backAction={{ content: t("productTypes.title"), onAction: () => navigate("/app/product-types") }}
     >
       <BlockStack gap="500">
+        <PageHelper sections={L.detailHelp} />
 
         {/* Temel Ayarlar */}
         <Card>

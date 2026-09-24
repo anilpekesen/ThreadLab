@@ -18,6 +18,7 @@ import { printCanvas, aspectLabel, type PrintProduct } from "~/lib/print-spec";
 import { useDict, useTranslation, pickDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import dict from "~/i18n/admin/print-products";
+import { PageHelper } from "~/components/PageHelper";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
@@ -147,6 +148,7 @@ export default function PrintProductsPage() {
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
+            <PageHelper sections={L.help} />
             <Banner tone="info">
               <p>
                 {L.aspectInfoPre}<b>{L.aspectInfoBold}</b>{L.aspectInfoPost}

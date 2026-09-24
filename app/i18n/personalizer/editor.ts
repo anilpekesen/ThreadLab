@@ -362,6 +362,57 @@ const tr = {
   templateId: "Şablon kimliği: ",
   embedUrl: "Embed adresi (VARIANT_ID ve SHOP değerlerini değiştirin):",
   viaLinkedProduct: "Bağlı ürün üzerinden:",
+
+  // ── Yardım (PageHelper) ──
+  // Genel bölümler; türe özel bölüm sayfada ilk bölümden sonra araya girer.
+  help: [
+    {
+      title: "Bu sayfa ne işe yarar?",
+      body: "Bir kişiselleştirme şablonunun bütün ayarları burada. Sayfa şablonun türüne göre farklı bölümler gösterir; \"Temel bilgiler\"deki \"Ürün türü\"nü değiştirirseniz bölümler de değişir. En üstteki \"Kurulum durumu\" listesi kaydedilmiş hâle bakarak neyin eksik olduğunu gösterir; eksik satırdaki düğme sizi ilgili bölüme götürür.",
+    },
+    {
+      title: "Kaydet, aktifleştir, ürüne bağla",
+      body: "1. Ayarları yapıp sağ üstteki \"Kaydet\"e basın. Kaydedilmemiş değişiklik müşteriye yansımaz.\n2. \"Ürüne bağla\" bölümünden Shopify ürününü seçip bağlayın. Liste son güncellenen 50 aktif ürünü gösterir; ürününüz yoksa adıyla arayın. Bir ürüne bağlanmayan şablon müşteriye görünmez.\n3. \"Kurulum durumu\" kartındaki \"Şablonu aktifleştir\"e basın. Pasif şablon ürün sayfasında açılmaz.\n4. Ürün sayfasında doğru bloğun ekli olduğunu kontrol edin (listedeki son satır, \"Tema düzenleyiciyi aç\" düğmesi). Uygulama bunu kendisi göremez; blok mağaza başına bir kez eklenir.",
+    },
+    {
+      title: "Ön/arka yüz ve varyant seçimi",
+      body: "• \"Ürünün hangi yüzü\": tek yüzlü ürünlerde (çerçeve gibi) \"Ön yüz\" yeterli. Tişörtte arka yüzde de kişiselleştirme istiyorsanız \"Arka yüz\"ü de işaretleyin. İşaretlemediğiniz yüze dokunulmaz; o yüz başka bir şablona bağlıysa öyle kalır.\n• AI portre şablonu her zaman ön ve arka yüze birlikte bağlanır; bu yüzden yüz seçimi gösterilmez.\n• \"Hangi varyantlar\": çoğu ürün için \"Tüm varyantlar (varsayılan)\" doğrudur; sonradan eklenen varyantlar da şablonu açar. Tasarım varyanta göre değişiyorsa tek varyant seçip her varyant için ayrı bağlayın.\n• \"Bağlı ürünler\" listesinden ürünü mağazada açabilir ya da \"Bağlantıyı kaldır\" ile ayırabilirsiniz.",
+    },
+    {
+      title: "Müşteri şablonu nerede görür?",
+      body: "• Fotoğraf alanı olan çerçeve şablonları: ürün sayfasında ayrı bir \"PrintLab Kişiselleştirici\" kutusunda açılır. Bunun için uygulama bağlama sırasında ürüne Shopify'da bir alan (personalizer.template_id metafield'ı) yazar; sizin bir şey yapmanız gerekmez.\n• Diğer tüm türler (tişört, boxer, AI portre, kelime sanatı, tasarım üreticileri): ürün sayfasındaki DesignKit tasarımcısının içinde açılır. Bu türlerde o alan yazılmaz, eski bir değer varsa silinir.\n• Kelime sanatı ve tasarım üreticilerinde pencere ürün sayfası açılınca kendiliğinden açılır. Siparişte baskı dosyası yüksek çözünürlüklü (yaklaşık 300 DPI) PNG olarak otomatik hazırlanır.",
+    },
+    {
+      title: "Sık sorunlar",
+      body: "• \"Bağlantı kaydedildi ama Shopify'a yazılamadı\" uyarısı: ürün sayfasındaki kutu açılmaz. Uyarıdaki değeri Shopify yöneticisinde ürünün metafield'ına elle girin ya da şablon listesinde \"Bağlantıları denetle\"ye basın.\n• \"Önce değişiklikleri kaydedin\" uyarısı: fotoğraf alanlarında kaydedilmemiş değişiklik var. Bağlama kayıtlı şablona bakar; önce kaydedin, sonra bağlayın.\n• \"Yerleşim yöntemi değişecek\" uyarısı: türü değiştirdiniz. Kaydederseniz müşterinin gördüğü akış değişir; istemiyorsanız türü eski hâline getirin.\n• Tasarım çıkmıyor: şablon aktif mi, ürün \"Bağlı ürünler\"de görünüyor mu, blok temada var mı, sırayla kontrol edin. Adım adım anlatım için \"Nasıl çalışır?\" düğmesine bakın.",
+    },
+  ],
+  helpFlow: {
+    apparel: {
+      title: "Tişört ve giyim şablonunda",
+      body: "• \"Tasarım ve fotoğraf alanı\" bölümünde tasarımınızı (PNG önerilir) yükleyin, sonra \"🎯 Resmin gireceği boşluk\" ile görselde fotoğrafın görüneceği boş alana tıklayın. Şekli sistem bulur; dikdörtgen çizmeniz gerekmez.\n• Boşluk seçmezseniz tasarımdaki şeffaf delik otomatik aranır.\n• Şeffaf delikli tasarımda çerçeve ve yazıların fotoğrafın üstünde kalması için aynı dosyayı \"Gelişmiş ayarlar\"daki \"Üst katman (isteğe bağlı)\" alanına da yükleyin.\n• Birden çok fotoğraf alanı gerekiyorsa ürün türünü \"Fotoğraflı çerçeve\" yapıp kaydedin; Çerçeve Stüdyosu açılır.",
+    },
+    frame: {
+      title: "Çerçeve şablonunda",
+      body: "• Ölçü, fotoğraf alanları, yazılar, set parçaları ve ürün görselleri Çerçeve Stüdyosu'nda kurulur: \"Çerçeve Stüdyosu'nu aç\" / \"Stüdyoda düzenle\".\n• Stüdyoya geçmeden önce bu sayfadaki değişiklikleri kaydedin; stüdyo kendi kaydını ayrı yapar.\n• \"Kurulum durumu\"ndaki \"Baskı ebadı seçildi\" ve \"Fotoğraf alanları yerleştirildi\" satırlarının düğmeleri sizi doğrudan stüdyoya götürür.\n• Fotoğraf alanı olmayan bir çerçeve şablonu ürün sayfasında kutu açmaz; önce stüdyoda alan ekleyip kaydedin.",
+    },
+    boxer: {
+      title: "Boxer ve tekrarlı desen şablonunda",
+      body: "• Tasarım dosyası yüklemezsiniz. \"Desen ayarları\"nda kaç yüz, kaç süsleme ve boyutlarını belirleyin; müşterinin fotoğrafından yüz kesilip baskı alanına dağıtılır.\n• Süsleme görseli arka planı saydam PNG olmalı. \"Arka planı otomatik temizle\" işaretliyse beyaz zemin yüklemeden önce silinir; görsel zaten saydamsa kota harcanmaz.\n• \"Müşteriye açılan seçenekler\": müşteri sayıları değiştiremez, yalnızca yoğunluk, boyut ve farklı dizilim seçimi yapar.\n• Bağlı ürünün baskı alanı Ürünler sayfasında tanımlı değilse desen varsayılan ölçüye düşer; \"Kurulum durumu\"ndaki \"Ürün ayarları\" düğmesiyle tanımlayın. Tuval oranı baskı kutusunun oranına eşit değilse kenarlarda boşluk kalır.",
+    },
+    ai: {
+      title: "AI portre şablonunda",
+      body: "• \"Görsel stili\" varsayılan stildir. \"Müşterinin seçebileceği stiller\"den hiçbirini işaretlemezseniz müşteri stil seçmez, tüm siparişlerde bu stil kullanılır. Çoğu ürün için tek stil daha tutarlı sonuç verir.\n• Tişört baskısı için \"Baskı dosyasını şeffaf arka planla hazırla\"yı açık tutun; üretilen görselin düz zemini kaldırılır.\n• \"Gelişmiş üretim ayarları\"nda AI sağlayıcısı, model ve baskı genişliği/yüksekliği bulunur; emin değilseniz değiştirmeyin.\n• Bu şablon ürüne bağlanırken ön ve arka yüze birlikte bağlanır (\"Ürünü iki yüze bağla\").",
+    },
+    wordart: {
+      title: "Kelime sanatı şablonunda",
+      body: "• Tasarım dosyası ya da fotoğraf gerekmez. Müşteriye açılacak şekilleri, yazı tiplerini ve renk paletlerini seçin; ilk işaretlenen şekil varsayılan olur.\n• \"Fotoğrafım\" şekli istisnadır: müşterinin fotoğrafının arka planı silinir ve kelimeler kişinin siluetine dizilir (arka plan silme kotanızdan düşer).\n• Koyu ürünler için Beyaz ya da Neon paletini açık tutun. Müşteri penceresi tişört rengini bilir ve görünmeyecek bir renkte uyarır.\n• Kaydetmeden önce \"Örnek kelimelerle önizle\" ile sonucu kontrol edin.",
+    },
+    generator: {
+      title: "Tasarım üreticisi şablonunda",
+      body: "• Müşteriye açılacak stilleri, temaları, yazı tiplerini ve mürekkep renklerini seçin; \"Örnek bilgilerle önizle\" ile sonucu görün. Tasarım türü kaydedildikten sonra değişmez.\n• Müşteri penceresi tişört rengine göre görünür mürekkepten başlar ve görünmeyecek bir seçimde uyarır. Ürününüz tek renkse yalnızca ona uyan mürekkepleri açık tutun (siyah tişörte beyaz, beyaz tişörte siyah).\n• Fotoğraf gerekmez; yalnızca şarkı tasarımında \"Fotoğraf zorunlu\" varsayılan olarak açıktır ve kapatılabilir.\n• Şehir haritasında lisans gereği baskının altına \"© OpenStreetMap katkıda bulunanlar\" yazısı her zaman basılır; kapatılamaz.",
+    },
+  } as Record<"apparel" | "frame" | "boxer" | "ai" | "wordart" | "generator", { title: string; body: string }>,
 };
 
 const en: typeof tr = {
@@ -703,6 +754,55 @@ const en: typeof tr = {
   templateId: "Template ID: ",
   embedUrl: "Embed URL (replace VARIANT_ID and SHOP):",
   viaLinkedProduct: "Via linked product:",
+
+  help: [
+    {
+      title: "What is this page for?",
+      body: "This page holds every setting for one personalization template. The sections change with the template type; if you change \"Product type\" under \"Basic information\", the sections change too. The \"Setup status\" list at the top checks the saved template and shows what's missing; the button on a missing row takes you to the right section.",
+    },
+    {
+      title: "Save, activate, link a product",
+      body: "1. Make your changes and click \"Save\" in the top right. Unsaved changes don't reach customers.\n2. In the \"Link product\" section, pick a Shopify product and link it. The list shows the 50 most recently updated active products; if yours isn't there, search by name. A template that isn't linked to a product is invisible to customers.\n3. Click \"Activate template\" in the \"Setup status\" card. Inactive templates don't open on the product page.\n4. Check that the right block is on the product page (the last row of the list, \"Open theme editor\"). The app can't detect this by itself; you add the block once per store.",
+    },
+    {
+      title: "Front/back side and variants",
+      body: "• \"Which side of the product\": for single-sided products like frames, \"Front\" is enough. On a t-shirt, also check \"Back\" if you want personalization on the back. Sides you leave unchecked aren't touched; if one is linked to another template, it stays that way.\n• AI portrait templates are always linked to both the front and the back, so the side choice isn't shown.\n• \"Which variants\": \"All variants (default)\" is right for most products, and variants added later open the template too. If the design differs by variant, pick a single variant and link each one separately.\n• From \"Linked products\" you can view the product in your store or detach it with \"Remove link\".",
+    },
+    {
+      title: "Where customers see the template",
+      body: "• Frame templates with photo slots open in a separate \"PrintLab Personalizer\" box on the product page. When you link the product, the app writes a field to it in Shopify (the personalizer.template_id metafield); you don't need to do anything.\n• Every other type (t-shirt, boxer, AI portrait, word art, design generators) opens inside the DesignKit designer on the product page. For these types that field isn't written, and an old value is removed.\n• For word art and design generators, the window opens by itself when the product page loads. When an order comes in, the print file is created automatically as a high-resolution PNG (around 300 DPI).",
+    },
+    {
+      title: "Common problems",
+      body: "• \"Link saved, but it couldn't be written to Shopify\": the box won't open on the product page. Enter the value shown in the warning into the product's metafield in the Shopify admin, or click \"Check links\" in the template list.\n• \"Save your changes first\": the photo slots have unsaved changes. Linking uses the saved template, so save first, then link.\n• \"The layout method will change\": you changed the type. Saving changes the flow customers see; if you don't want that, switch the type back.\n• Nothing shows up: check in order that the template is active, the product appears under \"Linked products\", and the block is in your theme. For a step-by-step guide, click \"How does it work?\".",
+    },
+  ],
+  helpFlow: {
+    apparel: {
+      title: "For t-shirt and apparel templates",
+      body: "• In \"Design and photo area\", upload your design (PNG recommended), then use \"🎯 Photo opening\" and click the empty area where the photo should appear. The app finds the shape; you don't need to draw a rectangle.\n• If you don't pick an opening, the app looks for a transparent hole in the design.\n• For a design with a transparent hole, upload the same file to \"Top layer (optional)\" under \"Advanced settings\" so the frame and text stay on top of the photo.\n• If you need more than one photo slot, change the product type to \"Photo frames\" and save; Frame Studio opens.",
+    },
+    frame: {
+      title: "For frame templates",
+      body: "• The size, photo slots, text, set pieces and product images are all set up in Frame Studio: \"Open Frame Studio\" / \"Edit in studio\".\n• Save the changes on this page before going to the studio; the studio saves its own work separately.\n• The buttons on the \"Print size selected\" and \"Photo slots placed\" rows in \"Setup status\" take you straight to the studio.\n• A frame template with no photo slots doesn't open a box on the product page. Add slots in the studio and save first.",
+    },
+    boxer: {
+      title: "For boxer and repeat pattern templates",
+      body: "• No design file needed. In \"Pattern settings\", set how many faces and decorations to use and how big they are; the face is cut out of the customer's photo and spread across the print area.\n• The decoration image must be a PNG with a transparent background. With \"Remove background automatically\" checked, a white background is removed before upload; if the image is already transparent, no quota is used.\n• \"Options offered to the customer\": customers can't change your numbers; they only choose density, size and a different arrangement.\n• If the linked product has no print area set on the Products page, the pattern falls back to a default size; set it with the \"Product settings\" button in \"Setup status\". If the canvas ratio doesn't match the print box ratio, you'll get empty space at the edges.",
+    },
+    ai: {
+      title: "For AI portrait templates",
+      body: "• \"Image style\" is the default style. If you don't check any \"Styles the customer can choose\", customers don't pick a style and every order uses this one. A single style gives more consistent results for most products.\n• For t-shirt printing, keep \"Prepare the print file with a transparent background\" on; the flat background of the generated image is removed.\n• \"Advanced generation settings\" holds the AI provider, model and print width/height; leave them as they are unless you're sure.\n• This template is linked to the front and back together (\"Link product to both sides\").",
+    },
+    wordart: {
+      title: "For word art templates",
+      body: "• No design file or photo needed. Choose the shapes, typefaces and color palettes customers can pick; the first shape you check becomes the default.\n• The \"My photo\" shape is the exception: the background of the customer's photo is removed and the words fill the person's silhouette (this uses your background removal quota).\n• For dark products, keep the White or Neon palette on. The customer window knows the t-shirt color and warns about colors that won't show up.\n• Check the result with \"Preview with sample words\" before saving.",
+    },
+    generator: {
+      title: "For design generator templates",
+      body: "• Choose the styles, themes, typefaces and ink colors customers can pick, and check the result with \"Preview with sample details\". The design type can't be changed after saving.\n• The customer window starts with an ink that shows up on the t-shirt color and warns if a choice won't be visible. If your product comes in one color, only keep the inks that suit it (white on a black t-shirt, black on a white one).\n• No photo needed; only the song design has \"Photo required\" on by default, and you can turn it off.\n• City maps always print a \"© OpenStreetMap contributors\" credit below the map, as the license requires; it can't be turned off.",
+    },
+  },
 };
 
 export default { tr, en };

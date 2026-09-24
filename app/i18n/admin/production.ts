@@ -40,6 +40,28 @@ const tr = {
   colStatus: "Durum",
   colPrintFile: "Baskı Dosyası",
   zipFooter: "ZIP İndir: seçilen siparişlerin baskı dosyalarını tek bir ZIP'e paketler. Hiçbir şey seçilmezse listelenen tüm siparişler dahil edilir.",
+  help: [
+    {
+      title: "Bu sayfa ne işe yarar?",
+      body: "Üretim, günlük baskı iş listenizdir. Varsayılan görünüm \"Bekliyor\" ve \"Hazırlanıyor\" durumundaki tüm tasarımlı siparişleri gösterir; aynı siparişin her bedeni ayrı satırdır. Üstteki kartlar listedeki sipariş sayısını, baskı dosyası hazır olanları ve dosyası eksik olanları gösterir. Sayfa Pro ve Business planlarında açılır.",
+    },
+    {
+      title: "Baskı dosyaları nereden indirilir?",
+      body: "• Satırdaki \"⬇ Ön\" / \"⬇ Arka\": o siparişin yüksek çözünürlüklü baskı PNG'sini indirir.\n• Sağ üstteki \"ZIP İndir\": seçtiğiniz siparişlerin, hiçbir şey seçmediyseniz listedeki tüm siparişlerin dosyalarını tek ZIP'te toplar. Her sipariş kendi klasöründedir (on-baski.png, arka-baski.png; set ürünlerinde her parça ayrı dosya).\n• Satır seçince açılan mavi şeritteki \"⬇ Seçilenleri ZIP İndir\" aynı işi yalnızca seçilenler için yapar.\n• Dosyaları sheet'e dizilmiş almak için \"Gang Sheet\" (tek PNG) ya da \"Baskı Kuyruğu\" (etiketli sheet + kesim listesi) düğmelerini kullanın.",
+    },
+    {
+      title: "Önerilen günlük akış",
+      body: "1. Basacağınız siparişleri işaretleyin ve \"→ Hazırlanıyor İşaretle\" deyin.\n2. Dosyaları \"ZIP İndir\" ile alın. Çok sayıda küçük baskıyı tek dosyada basacaksanız \"Gang Sheet Oluştur\"a, etiketli bir parti hazırlayacaksanız \"Baskı Kuyruğu\"na geçin.\n3. Bastıktan sonra siparişleri seçip \"→ Basıldı İşaretle\" deyin.\n4. Hazır ve Gönderildi adımlarını Siparişler sayfasından ilerletin. Gönderildi, siparişi Shopify'da da gönderildi (fulfilled) yapar ve müşteriye kargo bildirimi gider.",
+    },
+    {
+      title: "Filtreler",
+      body: "• \"Tümü (Bugün)\": tarihe bakmaksızın Bekliyor ve Hazırlanıyor durumundaki tüm siparişler.\n• \"Bekliyor\", \"Hazırlanıyor\", \"Basıldı\": yalnızca o durumdaki siparişler.\n• \"📅 Sadece Bugün\": yalnızca bugün gelen Bekliyor ve Hazırlanıyor siparişleri. Tekrar basınca tam listeye dönersiniz.",
+    },
+    {
+      title: "Sık sorunlar",
+      body: "• \"Dosya yok\": baskı dosyası sepete eklendikten sonra arka planda hazırlanır; birkaç dakika sonra \"Yenile\"ye basın. Hâlâ yoksa sipariş detayını açın: \"Baskı dosyası eksik\" uyarısı varsa müşteri dosya yüklenmeden sayfadan ayrılmıştır, müşteriden tasarımı yeniden sepete eklemesini isteyin.\n• Basıldı yaptığım sipariş kayboldu: varsayılan görünüm yalnızca Bekliyor ve Hazırlanıyor gösterir; \"Basıldı\" filtresine basın.\n• \"Gang Sheet\" ve \"Baskı Kuyruğu\" düğmeleri pasif: listede baskı dosyası olan sipariş yok.",
+    },
+  ],
 };
 
 const en: typeof tr = {
@@ -84,6 +106,28 @@ const en: typeof tr = {
   colStatus: "Status",
   colPrintFile: "Print file",
   zipFooter: "Download ZIP: packs the print files of the selected orders into one ZIP. If nothing is selected, all listed orders are included.",
+  help: [
+    {
+      title: "What is this page for?",
+      body: "Production is your daily print work list. By default it shows every design order in \"Pending\" or \"Preparing\"; each size of the same order is its own row. The cards at the top show how many orders are listed, how many have print files ready and how many are missing files. The page is available on the Pro and Business plans.",
+    },
+    {
+      title: "Where do I download print files?",
+      body: "• \"⬇ Front\" / \"⬇ Back\" on a row: downloads that order's high-resolution print PNG.\n• \"Download ZIP\" (top right): bundles the files of the orders you selected, or of every listed order if nothing is selected. Each order gets its own folder (on-baski.png, arka-baski.png; set products get one file per piece).\n• When you select rows, the blue bar offers \"⬇ Download selected as ZIP\", which does the same for the selection only.\n• To get the files already packed onto a sheet, use \"Gang Sheet\" (one PNG) or \"Print queue\" (labeled sheets plus a cut list).",
+    },
+    {
+      title: "Suggested daily flow",
+      body: "1. Select the orders you're going to print and click \"→ Mark as preparing\".\n2. Grab the files with \"Download ZIP\". To print lots of small designs in one file, use \"Create gang sheet\"; to prepare a labeled print run, go to \"Print queue\".\n3. After printing, select the orders and click \"→ Mark as printed\".\n4. Move orders on to Ready and Shipped from the Orders page. Shipped also marks the order as fulfilled in Shopify, which sends the customer their shipping notification.",
+    },
+    {
+      title: "Filters",
+      body: "• \"All (today)\": every Pending and Preparing order, regardless of date.\n• \"Pending\", \"Preparing\", \"Printed\": only orders in that status.\n• \"📅 Today only\": only Pending and Preparing orders that came in today. Click it again to return to the full list.",
+    },
+    {
+      title: "Common issues",
+      body: "• \"No file\": print files are generated in the background after the item is added to the cart, so click \"Refresh\" after a few minutes. If it's still missing, open the order: a \"Print file missing\" warning means the customer left before the file finished uploading, so ask them to add the design to the cart again.\n• An order I marked as printed disappeared: the default view only shows Pending and Preparing; click the \"Printed\" filter.\n• \"Gang Sheet\" and \"Print queue\" are disabled: none of the listed orders has a print file.",
+    },
+  ],
 };
 
 export default { tr, en };

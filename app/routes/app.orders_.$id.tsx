@@ -5,6 +5,7 @@ import { useMemo, type CSSProperties } from "react";
 import { useTranslation, useDict, pickDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import detailDict from "~/i18n/admin/order-detail";
+import { PageHelper } from "~/components/PageHelper";
 
 const APP_URL = "https://app.printlabapp.com";
 
@@ -453,6 +454,7 @@ export default function OrderDetail() {
       }
     >
       <BlockStack gap="500">
+        <PageHelper sections={L.help} />
 
         {/* Baskı dosyası sepete eklendikten sonra arka planda yükleniyor; müşteri
             yükleme bitmeden sayfadan ayrıldıysa dosya hiç oluşmadı */}

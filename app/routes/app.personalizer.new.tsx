@@ -17,6 +17,7 @@ import { GENERATOR_KINDS, isGeneratorKind, type GeneratorConfigBase, type Genera
 import { pickDict, useDict, useTranslation, type Lang } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import dict from "~/i18n/personalizer/new";
+import { PageHelper } from "~/components/PageHelper";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate(request);
@@ -209,6 +210,7 @@ export default function NewPersonalizerTemplate() {
       backAction={{ content: L.back, onAction: () => navigate("/app/personalizer") }}
     >
       <div className="pl-new-shell">
+        <PageHelper sections={L.help} />
         <div className="pl-stepper" aria-label={L.stepsAria}>
           {L.steps.map((label, index) => {
             const number = index + 1;

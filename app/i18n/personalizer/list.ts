@@ -61,6 +61,29 @@ const tr = {
   activate: "Aktifleştir",
   duplicate: "Kopyala",
   remove: "Sil",
+  // yardım (PageHelper)
+  help: [
+    {
+      title: "Bu sayfa ne işe yarar?",
+      body: "Kişiselleştirici şablonlarınızın tamamı burada. Şablon, müşterinin ürün sayfasında neyi kişiselleştireceğini (fotoğraf, isim, şarkı, harita...) ve baskı dosyasının nasıl hazırlanacağını tarif eder. Şablonlar türlerine göre gruplanır: Tişört ve giyim, Boxer ve tekrarlı desen, Fotoğraflı çerçeve, AI portre, Kelime sanatı ve Hazır tasarım üreticileri.",
+    },
+    {
+      title: "Kurulum sırası",
+      body: "1. Sağ üstten \"Yeni şablon\"a basın, türü seçip bir ad verin.\n2. Açılan şablon sayfasında tasarımı kurun ve Kaydet'e basın (çerçeve şablonları doğrudan Çerçeve Stüdyosu'nda açılır).\n3. Aynı sayfadaki \"Ürüne bağla\" bölümünden şablonu bir Shopify ürününe bağlayın.\n4. \"Şablonu aktifleştir\" ile açın ve ürün sayfasında bloğun ekli olduğundan emin olun.\nAyrıntılı anlatım için \"Nasıl kurulur?\" düğmesine bakın.",
+    },
+    {
+      title: "Durum rozetleri ne anlatır?",
+      body: "• Yayında: şablon aktif ve en az bir ürüne bağlı; müşteri o ürünün sayfasında görür.\n• Ürüne bağlı değil: şablon aktif ama hiçbir ürüne bağlanmamış, bu yüzden hiçbir müşteriye görünmez.\n• Pasif: şablon kapalı; bağlı ürün olsa bile ürün sayfasında açılmaz.\n\"Bağlı ürün\" sütunu şablonun kaç ürüne bağlı olduğunu gösterir.",
+    },
+    {
+      title: "Satırdaki ⋯ menüsü",
+      body: "• Düzenle: şablon sayfasını açar.\n• Aktifleştir / Pasife al: şablonu müşteriye açar ya da kapatır.\n• Kopyala: şablonun bir kopyasını oluşturur; benzer bir ürün için sıfırdan kurmak yerine kopyalayıp değiştirin.\n• Sil: şablonu kalıcı olarak siler.",
+    },
+    {
+      title: "Ürün sayfasında görünmüyorsa",
+      body: "• Rozet \"Yayında\" mı? Değilse şablonu aktifleştirin ya da bir ürüne bağlayın.\n• Ürün sayfasına doğru blok eklendi mi? Çok fotoğraflı çerçeve şablonları \"PrintLab Kişiselleştirici\" bloğunda, diğer tüm türler DesignKit tasarımcısının içinde açılır.\n• Çerçeve şablonuna sonradan fotoğraf alanı eklediyseniz \"Bağlantıları denetle\"ye basın: bu düğme bağlı her ürünün Shopify'daki kişiselleştirme alanını şablonun güncel hâline göre açar ya da kapatır ve sonucu sayfanın üstünde gösterir.",
+    },
+  ],
 };
 
 const en: typeof tr = {
@@ -122,6 +145,28 @@ const en: typeof tr = {
   activate: "Activate",
   duplicate: "Duplicate",
   remove: "Delete",
+  help: [
+    {
+      title: "What is this page for?",
+      body: "All of your personalizer templates live here. A template defines what the customer personalizes on the product page (a photo, a name, a song, a map...) and how the print file is built. Templates are grouped by type: T-shirts and apparel, Boxers and repeat patterns, Photo frames, AI portrait, Word art and Design generators.",
+    },
+    {
+      title: "Setup order",
+      body: "1. Click \"New template\" in the top right, pick a type and give it a name.\n2. Build the design on the template page and click Save (frame templates open straight in Frame Studio).\n3. Use the \"Link product\" section on the same page to link the template to a Shopify product.\n4. Turn it on with \"Activate template\" and make sure the block is on the product page.\nFor the full walkthrough, see \"How to set up\".",
+    },
+    {
+      title: "What the status badges mean",
+      body: "• Live: the template is active and linked to at least one product; customers see it on that product's page.\n• Not linked to a product: the template is active but not linked anywhere, so no customer can see it.\n• Inactive: the template is turned off and won't open on the product page, even if a product is linked.\nThe \"Linked products\" column shows how many products a template is linked to.",
+    },
+    {
+      title: "The ⋯ menu on each row",
+      body: "• Edit: opens the template page.\n• Activate / Deactivate: turns the template on or off for customers.\n• Duplicate: makes a copy. For a similar product, duplicate and adjust instead of starting from scratch.\n• Delete: permanently deletes the template.",
+    },
+    {
+      title: "If it doesn't show up on the product page",
+      body: "• Is the badge \"Live\"? If not, activate the template or link it to a product.\n• Is the right block on the product page? Multi-photo frame templates open in the \"PrintLab Personalizer\" block; every other type opens inside the DesignKit designer.\n• If you added photo slots to a frame template after linking it, click \"Check links\". It turns personalization on or off in Shopify for every linked product to match the template's current state, and shows the result at the top of the page.",
+    },
+  ],
 };
 
 export default { tr, en };

@@ -767,3 +767,16 @@
   .fs-shape,
   .fs-slot { transition: none; }
 }
+
+/* Stüdyo rotası: üstteki yardım şeridiyle birlikte ekranı doldur, sayfa kaymasın */
+.pl-studio-fill {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 52px);
+}
+.pl-studio-fill > .fs-shell {
+  flex: 1 1 auto;
+  height: auto;
+  /* Küçük ekranda stüdyo ezilmesin: eski alt sınır korunur, gerekirse sayfa kayar */
+  min-height: 560px;
+}

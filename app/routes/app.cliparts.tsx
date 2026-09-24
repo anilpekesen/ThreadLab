@@ -18,7 +18,8 @@ import {
   toggleClipartActive,
   type Clipart,
 } from "~/models/cliparts.server";
-import { useTranslation, pickDict } from "~/i18n";
+import { useTranslation, useDict, pickDict } from "~/i18n";
+import { PageHelper } from "~/components/PageHelper";
 import { langFromRequest } from "~/i18n/server";
 import clipartsDict from "~/i18n/admin/cliparts";
 
@@ -137,6 +138,7 @@ export default function ClipartsRoute() {
   const { cliparts } = useLoaderData<typeof loader>();
   const { revalidate } = useRevalidator();
   const { t, lang } = useTranslation();
+  const L = useDict(clipartsDict);
   const uploadFetcher = useFetcher<{ ok?: boolean; error?: string }>();
   const isUploading = uploadFetcher.state !== "idle";
   const uploadOk = !isUploading && uploadFetcher.data?.ok === true;
@@ -179,6 +181,7 @@ export default function ClipartsRoute() {
       subtitle={t("cliparts.pageSubtitle")}
     >
       <BlockStack gap="500">
+        <PageHelper sections={L.help} />
         {uploadOk && <Banner tone="success" title={t("cliparts.uploadSuccess")} onDismiss={() => {}} />}
         {uploadError && <Banner tone="critical" title={String(uploadError)} onDismiss={() => {}} />}
 

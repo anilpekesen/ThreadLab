@@ -49,6 +49,7 @@ import { StudioSummary } from "~/components/studio/StudioSummary";
 import { useTranslation, useDict, pickDict, type Lang } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import dict from "~/i18n/personalizer/editor";
+import { PageHelper } from "~/components/PageHelper";
 
 const MAX_UPLOAD = 20 * 1024 * 1024;
 
@@ -1842,6 +1843,10 @@ function PersonalizerEditor() {
       }}
     >
       <Layout>
+        <Layout.Section>
+          {/* Genel yardım + şablon türüne özel bölüm (ilk bölümden sonra) */}
+          <PageHelper sections={[L.help[0], L.helpFlow[flow], ...L.help.slice(1)]} />
+        </Layout.Section>
         {fetcher.data?.error && (
           <Layout.Section>
             <Banner tone="critical">{fetcher.data.error}</Banner>

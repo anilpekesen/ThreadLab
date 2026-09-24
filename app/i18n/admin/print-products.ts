@@ -42,6 +42,28 @@ const tr = {
   publish: "Yayınla",
   edit: "Düzenle",
   delete: "Sil",
+  help: [
+    {
+      title: "Bu sayfa ne işe yarar?",
+      body: "Baskı ebatları, Kişiselleştirici'deki çerçeve, kolaj ve fotoğraf şablonlarının fiziksel ölçüsünü tanımlar: kesim ölçüsü (mm), çözünürlük (dpi), taşma payı ve güvenli alan. Müşterinin tasarımı bu değerlere göre baskı dosyasına dönüştürülür; fotoğraf alanları da bu ölçüde çizilir.\n\nTişört gibi tekstil ürünleri bu sayfayı kullanmaz. Onların baskı ölçüsü, ürün sayfasındaki baskı alanından gelir.",
+    },
+    {
+      title: "Adım adım kurulum",
+      body: "1. Liste boşsa \"Yaygın ebatları ekle\" ile hazır ebatları (yapışan çerçeve 20x20, 30x30, 20x30, 30x40; kanvas 20x25; poster 50x70; kupa 325 ml) tek tıkla ekleyin ya da \"Yeni ebat\" ile kendiniz tanımlayın.\n2. Genişlik ve Yükseklik: ürünün kesimden sonraki ölçüsü, milimetre olarak.\n3. Çözünürlük (dpi): matbaanızın istediği değer; genellikle 300.\n4. Taşma payı: her kenara eklenir. Formun altındaki \"Üretilecek dosya\" satırı taşma dahil dosya boyutunu piksel olarak gösterir.\n5. Güvenli alan: kesim çizgisinden bu kadar içeride kalan bölge; yazı ve yüzler burada kalmalı.\n6. Kaydet. Sonra Kişiselleştirici'de şablonu açıp Çerçeve Stüdyosu'nda bu ebadı seçin.",
+    },
+    {
+      title: "Aynı şablon hangi ebatlarda kullanılabilir?",
+      body: "Şablonlar yerleşimi ölçüden bağımsız, orana göre tutar. Bu yüzden aynı en-boy oranındaki ebatlar (20×20 ile 30×30 gibi) aynı şablonu paylaşabilir. Oranı farklı bir ebada geçerseniz (30×40'tan 50×70'e gibi) fotoğraf alanları esneyebilir; Çerçeve Stüdyosu bu durumda uyarır, alanları kontrol edin. Listede her ebadın yanında oranı rozet olarak görünür.",
+    },
+    {
+      title: "\"Kapat\" ve \"Sil\" nelere dikkat edilmeli?",
+      body: "• Çerçeve Stüdyosu'nun ebat listesinde yalnızca \"Yayında\" olan ebatlar görünür.\n• Yayındaki bir şablonun kullandığı ebadı kapatır ya da silerseniz o şablonu açan müşteri tasarım yapamaz; \"Bu şablona baskı ebadı bağlanmamış\" mesajını görür. Kapatmadan ya da silmeden önce şablonlarınızı stüdyoda başka bir ebada geçirin.\n• Bir ebadı düzenlemek (ölçü, dpi, taşma) onu kullanan bütün şablonların bundan sonraki baskı dosyalarını değiştirir.",
+    },
+    {
+      title: "İpuçları",
+      body: "• Sipariş detayındaki \"Kesim çizgili PDF\", ölçüyü ve taşma payını bu ebattan alır; matbaanız kesim işaretli dosya istiyorsa taşma payını doğru girin.\n• Güvenli alanın dışına taşan fotoğraf alanları için Çerçeve Stüdyosu \"kesimde kırpılabilir\" uyarısı verir.\n• Çerçeve Stüdyosu'ndaki \"Yeni ölçü tanımla\" ile eklediğiniz ebatlar da bu listeye düşer.",
+    },
+  ],
 };
 
 const en: typeof tr = {
@@ -87,6 +109,28 @@ const en: typeof tr = {
   publish: "Publish",
   edit: "Edit",
   delete: "Delete",
+  help: [
+    {
+      title: "What is this page for?",
+      body: "Print sizes define the physical side of the frame, collage and photo templates in the Personalizer: trim size (mm), resolution (dpi), bleed and safe area. The customer's design is turned into a print file using these values, and photo slots are drawn at this size.\n\nTextile products such as t-shirts don't use this page. Their print size comes from the print area on the product page.",
+    },
+    {
+      title: "Setting up, step by step",
+      body: "1. If the list is empty, click \"Add common sizes\" to add ready-made sizes in one go (adhesive frames 20x20, 30x30, 20x30, 30x40; canvas 20x25; poster 50x70; 325 ml mug), or create your own with \"New size\".\n2. Width and Height: the finished size of the product after trimming, in millimeters.\n3. Resolution (dpi): whatever your printer asks for, usually 300.\n4. Bleed: added to every edge. The \"Output file\" line under the form shows the file size in pixels, bleed included.\n5. Safe area: the zone this far inside the trim line; keep text and faces inside it.\n6. Save. Then open the template in the Personalizer and pick this size in Frame Studio.",
+    },
+    {
+      title: "Which sizes can share a template?",
+      body: "Templates store their layout relative to the canvas, not in millimeters, so sizes with the same aspect ratio (like 20×20 and 30×30) can share a template. If you switch to a size with a different ratio (say, from 30×40 to 50×70), photo slots can stretch; Frame Studio warns you when that happens, so check the slots. Each size in the list shows its ratio as a badge.",
+    },
+    {
+      title: "Before you turn off or delete a size",
+      body: "• Only \"Live\" sizes appear in Frame Studio's size list.\n• If you turn off or delete a size that a live template uses, customers opening that template can't design; they see \"This template has no print size.\" Move your templates to another size in Frame Studio first.\n• Editing a size (dimensions, dpi, bleed) changes the print files of every template that uses it from then on.",
+    },
+    {
+      title: "Tips",
+      body: "• The \"PDF with crop marks\" button on the order page takes its dimensions and bleed from this size, so set the bleed correctly if your printer wants files with crop marks.\n• Frame Studio warns you when a photo slot sits outside the safe area and may be trimmed.\n• Sizes you add with \"Define new size\" in Frame Studio also show up in this list.",
+    },
+  ],
 };
 
 export default { tr, en };

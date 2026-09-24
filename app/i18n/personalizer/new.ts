@@ -110,6 +110,29 @@ const tr = {
   asideTitle: "Bu akışta",
   asideFor: (title: string) => `${title} için önerilen kurulum sırası`,
   asideEmpty: "Seçiminize göre kurulum adımları burada gösterilir.",
+  // yardım (PageHelper)
+  help: [
+    {
+      title: "Bu sayfa ne işe yarar?",
+      body: "Yeni bir kişiselleştirme şablonunu üç adımda oluşturursunuz: Tür, Temel bilgiler, Kurulum. Burada yalnızca şablonun kaydı açılır; tasarım ayarları bir sonraki ekranda yapılır. Sağdaki \"Bu akışta\" kutusu seçtiğiniz tür için önerilen kurulum sırasını gösterir.",
+    },
+    {
+      title: "Hangi türü seçmeliyim?",
+      body: "• Tişört ve giyim: tişört, sweatshirt gibi ürünler. Hazır bir tasarım PNG'si yüklersiniz; müşterinin fotoğrafı tasarımdaki boşluğa girer.\n• Boxer ve tekrarlı desen: müşterinin fotoğrafından yüz kesilir ve süslemelerle (kalp, yıldız...) birlikte baskı yüzeyine desen olarak dağıtılır. Tasarım dosyası gerekmez.\n• Fotoğraflı çerçeve: tek fotoğraflı ya da kolaj çerçeve, kanvas, 3'lü set, pola kart tabakası. Ölçü ve fotoğraf alanları Çerçeve Stüdyosu'nda kurulur.\n• AI portre: müşterinin fotoğrafı seçtiğiniz stile (karikatür, suluboya, karakalem, pop art, tek çizgi) çevrilir; isim ve kısa not eklenebilir.\n• Kelime sanatı: müşterinin yazdığı kelimeler kalp, daire ya da harf gibi bir şeklin içine dizilir. Fotoğraf gerekmez.",
+    },
+    {
+      title: "Hazır tasarım üreticileri",
+      body: "Müşteri birkaç bilgi girer, tasarım sunucuda sıfırdan çizilir. Fotoğraf gerekmez (şarkı tasarımı hariç).\n• Şarkı / Spotify: şarkı adı, sanatçı, fotoğraf ve Spotify bağlantısıyla çalar görünümlü tasarım; altına telefonla okutulabilen Spotify kodu basılabilir. Fotoğraf varsayılan olarak zorunludur, şablon ayarlarından kapatılabilir.\n• Monogram / baş harf: iki-üç baş harf, çerçeve ve yazı tipiyle tek renk, şeffaf zeminli monogram.\n• Yıldız haritası: seçilen tarih, saat ve şehirde gökyüzünün gerçek görünümü; altında başlık ve not. Tişört ve poster/çerçeve ürünlerine uygun temaları var.\n• Şehir haritası: seçilen şehrin ya da noktanın sokak haritası, başlık ve koordinatlarla. Harita verisi OpenStreetMap'ten gelir; lisans gereği baskının altına küçük bir \"© OpenStreetMap katkıda bulunanlar\" yazısı her zaman basılır.\n• Doğum çiçeği ve isim: her kişinin doğum ayının çiçeği ve adı; tek kişi ya da aile buketi.",
+    },
+    {
+      title: "Şablonu oluşturduktan sonra",
+      body: "• Çerçeve şablonları doğrudan Çerçeve Stüdyosu'nda açılır; diğer türler şablon sayfasında açılır.\n• Şablon henüz hiçbir ürüne bağlı değildir ve müşteriye görünmez. Ayarları bitirince şablon sayfasındaki \"Ürüne bağla\" bölümünden bağlayın.\n• Tasarım üreticilerinde tasarım türü kaydedildikten sonra değişmez; farklı bir tür için yeni şablon açın.\n• Şablon adı yalnızca yönetim ekranında görünür; müşteri görmez.",
+    },
+    {
+      title: "Müşteri ne görür?",
+      body: "• Çok fotoğraflı çerçeve şablonları ürün sayfasında ayrı bir \"PrintLab Kişiselleştirici\" kutusunda açılır. Diğer tüm türler ürün sayfasındaki DesignKit tasarımcısının içinde açılır.\n• Kelime sanatı ve tasarım üreticilerinin penceresi ürün sayfası açılınca kendiliğinden açılır.\n• Bu pencereler tişörtün rengini bilir: varsayılan mürekkebi o renkte görünen seçenekten başlatır, görünmeyecek bir renk seçilirse uyarır.\n• Siparişte baskı dosyası yüksek çözünürlüklü (yaklaşık 300 DPI) PNG olarak otomatik hazırlanır.",
+    },
+  ],
 };
 
 const en: typeof tr = {
@@ -218,6 +241,28 @@ const en: typeof tr = {
   asideTitle: "In this flow",
   asideFor: (title) => `Recommended setup order for ${title}`,
   asideEmpty: "Setup steps for your choice will appear here.",
+  help: [
+    {
+      title: "What is this page for?",
+      body: "You create a new personalization template in three steps: Type, Basics, Setup. This page only creates the template record; you set up the design on the next screen. The \"In this flow\" box on the right shows the recommended setup order for the type you pick.",
+    },
+    {
+      title: "Which type should I pick?",
+      body: "• T-shirts and apparel: t-shirts, sweatshirts and similar products. You upload a finished design PNG and the customer's photo goes into the opening in the design.\n• Boxers and repeat patterns: the customer's face is cut out of their photo and spread across the print surface as a pattern, together with decorations (hearts, stars...). No design file needed.\n• Photo frames: single-photo or collage frames, canvas prints, 3-frame sets, polaroid card sheets. The size and photo slots are set up in Frame Studio.\n• AI portrait: the customer's photo is turned into the style you choose (caricature, watercolor, pencil sketch, pop art, line art), with an optional name and short note.\n• Word art: the words the customer types are arranged inside a shape such as a heart, a circle or a letter. No photo needed.",
+    },
+    {
+      title: "Design generators",
+      body: "The customer enters a few details and the design is drawn from scratch on the server. No photo needed (except for the song design).\n• Song / Spotify: a player-style design with the song title, artist, a photo and a Spotify link; a scannable Spotify code can be printed underneath. The photo is required by default; you can turn that off in the template settings.\n• Monogram / initials: two or three initials with a frame and a typeface, printed in one color on a transparent background.\n• Star map: the real night sky at the chosen date, time and city, with a title and note below. Includes themes for t-shirts and for posters or frames.\n• City map: a street map of the chosen city or place, with a title and coordinates. Map data comes from OpenStreetMap, and the license requires a small \"© OpenStreetMap contributors\" credit, which is always printed below the map.\n• Birth flower and name: each person's birth month flower and name, for one person or a family bouquet.",
+    },
+    {
+      title: "After you create the template",
+      body: "• Frame templates open straight in Frame Studio; every other type opens on the template page.\n• The template isn't linked to any product yet, so customers can't see it. When the settings are done, link it in the \"Link product\" section of the template page.\n• For design generators, the design type can't be changed after saving. Create a new template for a different type.\n• The template name is only shown in the admin; customers never see it.",
+    },
+    {
+      title: "What customers see",
+      body: "• Multi-photo frame templates open in a separate \"PrintLab Personalizer\" box on the product page. Every other type opens inside the DesignKit designer on the product page.\n• For word art and design generators, the window opens by itself when the product page loads.\n• These windows know the t-shirt color: they start with an ink that shows up on it, and warn the customer if they pick a color that won't be visible.\n• When an order comes in, the print file is created automatically as a high-resolution PNG (around 300 DPI).",
+    },
+  ],
 };
 
 export default { tr, en };

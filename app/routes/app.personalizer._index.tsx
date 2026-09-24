@@ -14,6 +14,7 @@ import {
   type PersonalizerTemplate,
 } from "~/models/personalizer.server";
 import { generatorMeta } from "~/lib/generators/types";
+import { PageHelper } from "~/components/PageHelper";
 import { pickDict, useDict, useTranslation, type Lang } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import dict from "~/i18n/personalizer/list";
@@ -167,6 +168,7 @@ export default function PersonalizerIndex() {
       ]}
     >
       <BlockStack gap="400">
+        <PageHelper sections={L.help} />
         {fetcher.data?.error ? <Banner tone="critical">{fetcher.data.error}</Banner> : null}
         {fetcher.data?.synced ? (
           <Banner tone={fetcher.data.hatalar?.length ? "warning" : "success"}>

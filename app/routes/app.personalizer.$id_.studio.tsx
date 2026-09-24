@@ -12,7 +12,8 @@ import { normalizeGridConfig, normalizeMockups, normalizePieces, type TemplatePi
 import { SINGLE_PIECE_ID, piecesToTemplateFields } from "~/lib/frame-studio";
 import type { PrintProduct } from "~/lib/print-spec";
 import { FrameStudio, type NewSizeInput, type StudioSavePayload } from "~/components/studio/FrameStudio";
-import { pickDict, useTranslation } from "~/i18n";
+import { pickDict, useDict, useTranslation } from "~/i18n";
+import { PageHelper } from "~/components/PageHelper";
 import { langFromRequest } from "~/i18n/server";
 import dict from "~/i18n/personalizer/studio";
 import studioStyles from "~/styles/frame-studio.css?url";
@@ -136,6 +137,7 @@ export default function PersonalizerStudioRoute() {
   const data = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const { lang } = useTranslation();
+  const L = useDict(dict);
   const saveFetcher = useFetcher<{ ok?: boolean; saved?: boolean; error?: string }>();
   const sizeFetcher = useFetcher<{ ok?: boolean; createdSizeId?: string; error?: string }>();
   const [saveCount, setSaveCount] = useState(0);
@@ -149,6 +151,13 @@ export default function PersonalizerStudioRoute() {
   }, [saveFetcher.state, saveFetcher.data]);
 
   return (
+    // Stüdyo ekranı dolduruyor; yardım şeridi üstüne eklenince sayfa ~50 px
+    // kayıyordu. Şerit + stüdyo aynı yükseklikte bir sütuna alınır, stüdyo
+    // kalan alanı doldurur (bkz. .pl-studio-fill kuralı frame-studio.css'te).
+    <div className="pl-studio-fill">
+    <div style={{ padding: "8px 16px 0", flex: "none" }}>
+      <PageHelper sections={L.help} />
+    </div>
     <FrameStudio
       // Kaydedilen hâl sunucudan yeniden yüklenince stüdyo sıfırlanmasın:
       // durum stüdyoda, yükleyici yalnızca ilk açılışı besliyor.
@@ -174,5 +183,6 @@ export default function PersonalizerStudioRoute() {
         { method: "POST", encType: "application/json" },
       )}
     />
+    </div>
   );
 }

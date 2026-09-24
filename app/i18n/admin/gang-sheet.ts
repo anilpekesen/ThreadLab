@@ -34,6 +34,28 @@ const tr = {
   autoSize: "Otomatik boyut",
   frontAndBack: "Ön + Arka",
   printsCount: (n: number) => `(${n} baskı)`,
+  help: [
+    {
+      title: "Bu sayfa ne işe yarar?",
+      body: "Gang Sheet, seçtiğiniz siparişlerin baskı dosyalarını tek bir büyük PNG'ye yan yana dizer; DTF transfer ya da film baskı için tek dosya çıkarırsınız. Her tasarım sipariş adedi kadar tekrarlanır. Ön yüz baskıları dosyanın üst kısmına, arka yüz baskıları altına yerleşir. Dosya 300 dpi üretilir. Sayfa Pro ve Business planlarında açılır.\n\nSipariş etiketi ve kesim listesi de istiyorsanız Baskı Kuyruğu'nu kullanın; orijinal dosyaları tek tek almak için Üretim sayfası yeterlidir.",
+    },
+    {
+      title: "Hangi siparişler listelenir?",
+      body: "• Üretim ya da Baskı Kuyruğu sayfasındaki \"Gang Sheet\" düğmesiyle gelirseniz orada seçtiğiniz siparişler listelenir.\n• Menüden doğrudan açarsanız baskı dosyası olan ve Gönderildi ya da iptal olmayan tüm siparişler gelir; buna Basıldı ve Hazır durumundakiler de dahildir. Daha önce bastıklarınızın işaretini kaldırmayı unutmayın.\n\nSayfa açıldığında tüm siparişler seçili gelir. Bir kartın üzerine tıklamak seçimi açar/kapatır.",
+    },
+    {
+      title: "Adım adım",
+      body: "1. Sayfa Boyutu: DTF Rulo 60cm/100cm'de genişlik sabittir, uzunluk tasarımlara göre uzar. A3/A4 sabit tek sayfadır.\n2. Kenar Boşluğu (px): tasarımlar arasındaki ve kenarlardaki boşluk.\n3. Sütun sayısı: \"Otomatik (fiziksel boyut)\" her tasarımı gerçek baskı ölçüsünde bırakır. Bir sayı seçerseniz her satıra en az o kadar tasarım sığacak şekilde geniş tasarımlar küçültülür; bu durumda gerçek ölçü korunmaz.\n4. Basılacak siparişleri seçin; ayarlar kartında toplam baskı adedini görürsünüz.\n5. \"Gang Sheet Oluştur\"a basın; PNG bilgisayarınıza iner.",
+    },
+    {
+      title: "Ölçüler nasıl belirleniyor?",
+      body: "Her tasarımın kenarlarındaki boş alan kırpılır, sonra tasarım ürün sayfasında girdiğiniz baskı alanı ölçüsüne (cm) göre gerçek boyutuna ölçeklenir. Ürünün baskı alanı kaydı yoksa dosyanın piksel boyutu kullanılır ve baskı gerçek ölçüde çıkmayabilir. Ürünlerinizin baskı alanlarını Ürün Ayarlama sayfasından tanımlamış olun.",
+    },
+    {
+      title: "Sık sorunlar",
+      body: "• \"Bu seçim … cm uzunluğunda bir sayfa üretiyor\" hatası: tek dosyanın sınırı aşıldı. Siparişleri iki gruba bölüp ayrı ayrı indirin.\n• \"Ön ve arka baskılar birlikte tek sayfaya sığmıyor\": ön ve arka ayrı ayrı sığıyor ama birlikte sığmıyor; siparişleri bölün.\n• A3/A4'e hepsi sığmadı: bu boyutlarda ikinci sayfa açılmaz. Çok sayıda tasarım için DTF rulo seçin ya da daha az sipariş seçin.\n• Tasarımdaki beyaz alanlar kayboldu: dosya hazırlanırken beyaza çok yakın pikseller arka planı temizlemek için saydam yapılır. Beyaz baskı içeren tasarımlar için sipariş detayındaki orijinal baskı dosyasını kullanın.\n• \"Baskı dosyası olan sipariş bulunamadı\": seçili siparişlerin henüz baskı dosyası yok; sipariş detayındaki uyarılara bakın.",
+    },
+  ],
 };
 
 const en: typeof tr = {
@@ -72,6 +94,28 @@ const en: typeof tr = {
   autoSize: "Automatic size",
   frontAndBack: "Front + back",
   printsCount: (n) => `(${n} prints)`,
+  help: [
+    {
+      title: "What is this page for?",
+      body: "A gang sheet packs the print files of the orders you select side by side into one large PNG, so you get a single file for DTF transfer or film printing. Each design is repeated once per unit ordered. Front prints go in the top part of the file and back prints below them. The file is rendered at 300 dpi. The page is available on the Pro and Business plans.\n\nIf you also want order labels and a cut list, use the print queue; to grab the original files one by one, the Production page is enough.",
+    },
+    {
+      title: "Which orders are listed?",
+      body: "• If you arrive with the \"Gang Sheet\" button on the Production or Print queue page, you see the orders you selected there.\n• If you open it straight from the menu, you see every order that has a print file and isn't shipped or canceled, including Printed and Ready orders. Remember to deselect anything you've already printed.\n\nAll orders are selected when the page opens. Click a card to toggle it.",
+    },
+    {
+      title: "Step by step",
+      body: "1. Sheet Size: DTF rolls (60 cm / 100 cm) have a fixed width and grow in length to fit your designs. A3/A4 are a single fixed page.\n2. Margin (px): the gap between designs and around the edges.\n3. Columns: \"Automatic (physical size)\" keeps every design at its real print size. If you pick a number, wide designs are scaled down so at least that many fit in each row, and real size is no longer kept.\n4. Select the orders to print; the settings card shows the total number of prints.\n5. Click \"Build Gang Sheet\" and the PNG downloads.",
+    },
+    {
+      title: "How are sizes worked out?",
+      body: "The empty space around each design is trimmed, then the design is scaled to its real size using the print area dimensions (cm) you set on the product page. If a product has no saved print area, the file's pixel size is used and the print may not come out at real size. Make sure your products' print areas are set up under Product Setup.",
+    },
+    {
+      title: "Common issues",
+      body: "• \"This selection makes a … cm long sheet\" error: the single-file limit was exceeded. Split the orders into two groups and download them separately.\n• \"Front and back prints together do not fit on one sheet\": each side fits on its own but not both together; split the orders.\n• Not everything fit on A3/A4: those sizes never add a second page. Use a DTF roll or select fewer orders.\n• White parts of a design disappeared: while building the file, near-white pixels are made transparent to clean up backgrounds. For designs that print white, use the original print file from the order page.\n• \"No orders with print files found\": the selected orders don't have print files yet; check the warnings on the order page.",
+    },
+  ],
 };
 
 export default { tr, en };

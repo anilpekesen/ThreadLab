@@ -21,6 +21,7 @@ import { shopifyGraphQL } from "~/lib/shopify.server";
 import { useTranslation, useDict, pickDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import creditsDict from "~/i18n/admin/credits";
+import { PageHelper } from "~/components/PageHelper";
 import { getValidAccessToken } from "~/lib/session.server";
 import { query } from "~/lib/db.server";
 import { getShopSettings } from "~/models/shop-settings.server";
@@ -165,6 +166,7 @@ export default function CreditsPage() {
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
+            <PageHelper sections={L.help} />
             <Banner tone="warning">
               <Text as="p" variant="bodyMd">
                 {L.refundWarning}

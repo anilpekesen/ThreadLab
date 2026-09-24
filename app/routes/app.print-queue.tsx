@@ -27,6 +27,7 @@ import { planKeyFromName } from "~/lib/billing.server";
 import { useDict, useTranslation, pickDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import dict from "~/i18n/admin/print-queue";
+import { PageHelper } from "~/components/PageHelper";
 
 const SHEET_PRESET_VALUES = ["dtf60", "dtf100", "a3", "a3l", "a4", "a4l"];
 
@@ -225,6 +226,7 @@ export default function PrintQueue() {
       ]}
     >
       <BlockStack gap="500">
+        <PageHelper sections={L.help} />
         {error && <Banner tone="critical" title={L.buildFailed} onDismiss={() => setError(null)}><p>{error}</p></Banner>}
 
         <Grid>

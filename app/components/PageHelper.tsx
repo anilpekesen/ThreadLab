@@ -3,10 +3,15 @@ import { BlockStack, Text, Box, InlineStack } from "@shopify/polaris";
 import { useTranslation } from "~/i18n";
 import type { TranslationKey } from "~/i18n/tr";
 
-interface Section {
-  titleKey: TranslationKey;
-  bodyKey: TranslationKey;
-}
+/**
+ * Bölüm iki biçimde verilebilir: ortak tr.ts/en.ts anahtarlarıyla
+ * (`titleKey`/`bodyKey`) ya da sayfanın kendi sözlüğünden gelen hazır metinle
+ * (`title`/`body`). Yeni sayfalar ikincisini kullanır; ortak dosyada yüzlerce
+ * yardım anahtarı birikmesin.
+ */
+type Section =
+  | { titleKey: TranslationKey; bodyKey: TranslationKey }
+  | { title: string; body: string };
 
 interface Props {
   sections: Section[];
@@ -56,12 +61,12 @@ export function PageHelper({ sections }: Props) {
               <BlockStack key={i} gap="100">
                 <InlineStack gap="150" blockAlign="center">
                   <span style={{ fontSize: 14, fontWeight: 700, color: "#1e3a5f" }}>
-                    {t(s.titleKey)}
+                    {"titleKey" in s ? t(s.titleKey) : s.title}
                   </span>
                 </InlineStack>
                 <Box>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {t(s.bodyKey)}
+                    <span style={{ whiteSpace: "pre-line" }}>{"bodyKey" in s ? t(s.bodyKey) : s.body}</span>
                   </Text>
                 </Box>
               </BlockStack>

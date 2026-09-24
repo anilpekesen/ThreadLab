@@ -4,6 +4,7 @@ import { useLoaderData, useNavigate } from "@remix-run/react";
 import { useState, useCallback, useMemo } from "react";
 import { useTranslation, useDict } from "~/i18n";
 import gangDict from "~/i18n/admin/gang-sheet";
+import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
   Box, Select, RangeSlider, Thumbnail, Checkbox, Banner,
@@ -212,6 +213,7 @@ export default function GangSheet() {
       }}
     >
       <BlockStack gap="500">
+        <PageHelper sections={L.help} />
         <Text as="p" tone="subdued">{t("gangSheet.desc")}</Text>
 
         {error && <Banner tone="critical" title={error} onDismiss={() => setError(null)} />}

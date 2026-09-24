@@ -46,6 +46,28 @@ const tr = {
   qty: (n: number) => `${n} adet`,
   front: "Ön",
   back: "Arka",
+  help: [
+    {
+      title: "Bu sayfa ne işe yarar?",
+      body: "Baskı Kuyruğu, baskı dosyası hazır olan \"Bekliyor\" ve \"Hazırlanıyor\" durumundaki siparişleri listeler ve seçtiklerinizden tek seferde bir üretim paketi (ZIP) hazırlar. Paketin içinde:\n• Ön ve arka yüzler için ayrı dizilmiş sheet PNG'leri\n• cut-list.csv: sheet'teki her parçanın sipariş, ürün ve varyant bilgisi\n• orders-summary.html: yazdırılabilir sipariş özeti ve sheet doluluk oranı\n• manifest.json: paketin teknik özeti\nHer tasarım sipariş adedi kadar tekrarlanır. Sayfa Pro ve Business planlarında (aktif ya da deneme aboneliğinde) açılır.",
+    },
+    {
+      title: "Üretim, Baskı Kuyruğu ve Gang Sheet: hangisi ne zaman?",
+      body: "• Üretim: günlük iş listesi. Siparişlerin orijinal baskı dosyalarını tek tek ya da her sipariş ayrı klasörde olacak şekilde ZIP olarak indirirsiniz. Tasarımları kendi baskı yazılımınızda dizecekseniz bunu kullanın.\n• Baskı Kuyruğu (bu sayfa): seçilen siparişleri sheet'e dizer, parçaların üzerine sipariş etiketi basar, kesim listesi ve özet ekler. Bir baskı partisini baştan sona hazırlamak için.\n• Gang Sheet: aynı dizmeyi etiketsiz, tek bir PNG olarak verir (ön yüzler üstte, arka yüzler altta). Yalnızca baskıya gidecek dosyaya ihtiyacınız varsa.",
+    },
+    {
+      title: "Adım adım paket hazırlama",
+      body: "1. Listeden basılacak siparişleri seçin. Sayfa açıldığında hepsi seçili gelir; bir satıra tıklamak seçimi açar/kapatır, \"Tümünü Kaldır\" hepsini bırakır.\n2. Sheet boyutu: DTF Rulo 60cm/100cm'de genişlik sabittir, uzunluk içeriğe göre uzar. A3/A4 sabit tek sayfadır.\n3. Sütun: \"Otomatik\" parçaları gerçek baskı ölçüsünde bırakır. Sütun sayısı seçerseniz o kadar parça yan yana sığsın diye geniş parçalar küçültülür.\n4. Boşluk, parçalar ve kenarlar arasındaki mesafedir. \"Parçaların üzerine sipariş etiketi bas\" açıkken her parçanın üstüne sipariş no · varyant · kaçıncı adet olduğu yazılır.\n5. \"Paketi Oluştur\"a basın; ZIP bilgisayarınıza iner.\n6. Bastıktan sonra siparişleri seçili bırakıp \"Basıldı İşaretle\" (ya da \"Hazır İşaretle\") deyin. Kuyruk yalnızca Bekliyor/Hazırlanıyor siparişleri gösterdiği için işaretlenenler listeden düşer.",
+    },
+    {
+      title: "Sık sorunlar",
+      body: "• Sipariş listede yok: baskı dosyası henüz oluşmamış olabilir (sipariş detayında \"Baskı dosyası eksik\" uyarısına bakın) ya da durumu Basıldı, Hazır veya Gönderildi'ye geçmiştir.\n• Parçalar gerçek ölçüde değil: ölçü, ürün sayfasında girdiğiniz baskı alanı ölçüsünden (cm) hesaplanır. Ürünün baskı alanı kaydı yoksa dosyanın piksel boyutu kullanılır.\n• A3/A4'e her şey sığmadı: bu boyutlarda ikinci sayfa açılmaz. Çok sayıda parça için DTF rulo seçin ya da siparişleri gruplara bölün.\n• Tasarımdaki beyaz kısımlar kayboldu: paket hazırlanırken beyaza çok yakın pikseller arka planı temizlemek için saydam yapılır. Beyaz baskı içeren tasarımlarda sipariş detayındaki orijinal baskı dosyasını kullanın.",
+    },
+    {
+      title: "İpuçları",
+      body: "• DTF rulo sheet'leri 150 dpi, A3/A4 sheet'leri 300 dpi üretilir. Rulo için daha yüksek çözünürlük gerekiyorsa Gang Sheet'i kullanın (300 dpi).\n• orders-summary.html'i tarayıcıda açıp yazdırarak üretim föyü olarak kullanabilirsiniz; cut-list.csv Excel ya da Google Sheets'te açılır.\n• Siparişi Gönderildi yapmak için Siparişler sayfasını kullanın; bu, siparişi Shopify'da da gönderildi olarak işaretler.",
+    },
+  ],
 };
 
 const en: typeof tr = {
@@ -96,6 +118,28 @@ const en: typeof tr = {
   qty: (n) => `${n} pcs`,
   front: "Front",
   back: "Back",
+  help: [
+    {
+      title: "What is this page for?",
+      body: "The print queue lists \"Pending\" and \"Preparing\" orders whose print files are ready, and turns the ones you select into a single production package (ZIP). The package contains:\n• Packed sheet PNGs, one for front prints and one for back prints\n• cut-list.csv: order, product and variant for every piece on the sheet\n• orders-summary.html: a printable order summary with sheet fill rates\n• manifest.json: a technical summary of the package\nEach design is repeated once per unit ordered. The page is available on the Pro and Business plans (active or trial subscription).",
+    },
+    {
+      title: "Production, print queue or gang sheet?",
+      body: "• Production: your daily work list. Download each order's original print files one by one, or as a ZIP with one folder per order. Use it if you lay out designs in your own print software.\n• Print queue (this page): packs the selected orders onto sheets, prints an order label on each piece, and adds a cut list and summary. Use it to prepare a whole print run in one go.\n• Gang sheet: the same packing as a single PNG without labels (fronts on top, backs below). Use it when all you need is the file that goes to the printer.",
+    },
+    {
+      title: "Building a package step by step",
+      body: "1. Select the orders to print. Everything is selected when the page opens; click a row to toggle it, or use \"Deselect all\".\n2. Sheet size: DTF rolls (60 cm / 100 cm) have a fixed width and grow in length to fit. A3/A4 are a single fixed page.\n3. Columns: \"Auto\" keeps every piece at its real print size. If you pick a column count, wider pieces are scaled down so that many fit side by side.\n4. Spacing is the gap between pieces and around the edges. With \"Print order labels on pieces\" on, each piece gets a label with order number · variant · unit count.\n5. Click \"Build package\" and the ZIP downloads.\n6. Once printed, keep the orders selected and click \"Mark as printed\" (or \"Mark as ready\"). The queue only shows Pending and Preparing orders, so marked orders drop off the list.",
+    },
+    {
+      title: "Common issues",
+      body: "• An order is missing: its print file may not exist yet (look for the \"Print file missing\" warning on the order page), or it has already moved to Printed, Ready or Shipped.\n• Pieces aren't at real size: sizes come from the print area dimensions (cm) you set on the product page. If a product has no saved print area, the file's pixel size is used instead.\n• Not everything fit on A3/A4: those sizes never add a second page. For many pieces, choose a DTF roll or split the orders into batches.\n• White parts of a design disappeared: while building the package, near-white pixels are made transparent to clean up backgrounds. For designs that print white, use the original print file from the order page.",
+    },
+    {
+      title: "Tips",
+      body: "• DTF roll sheets are rendered at 150 dpi and A3/A4 sheets at 300 dpi. If you need higher resolution on a roll, use the gang sheet (300 dpi).\n• Open orders-summary.html in your browser and print it as a job sheet; cut-list.csv opens in Excel or Google Sheets.\n• Mark orders as Shipped from the Orders page; that also marks the order as fulfilled in Shopify.",
+    },
+  ],
 };
 
 export default { tr, en };

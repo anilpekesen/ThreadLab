@@ -4,6 +4,7 @@ import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import { useState, useCallback } from "react";
 import { useTranslation, useDict } from "~/i18n";
 import dict from "~/i18n/admin/production";
+import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Card, Badge, Button, InlineStack, Box, Text, BlockStack,
   Thumbnail, IndexTable, useIndexResourceState, Banner, Grid,
@@ -303,6 +304,7 @@ export default function Production() {
       ]}
     >
       <BlockStack gap="400">
+        <PageHelper sections={L.help} />
         {/* İstatistikler */}
         <Grid>
           <Grid.Cell columnSpan={{ xs: 6, sm: 2, md: 2, lg: 4, xl: 4 }}>
