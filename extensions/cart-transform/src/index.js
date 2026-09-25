@@ -48,10 +48,7 @@ const LABELS = {
 };
 
 const FIELD_MAP = [
-  ['totalQuantity', 'totalQuantity'],
   ['productUnitPrice', 'productUnitPrice'],
-  ['productSubtotal', 'productSubtotal'],
-  ['totalPrice', 'totalPrice'],
   ['frontSize', 'frontSize'],
   ['frontPrintPrice', 'frontPrintPrice'],
   ['frontPriceBand', 'frontPriceBand'],
@@ -62,8 +59,6 @@ const FIELD_MAP = [
   ['backPriceBand', 'backPriceBand'],
   ['backPrintCount', 'backPrintCount'],
   ['backPrintBreakdown', 'backPrintBreakdown'],
-  ['bulkDiscount', 'bulkDiscount'],
-  ['printDiscount', 'printDiscount'],
 ];
 
 function attrValue(line, key) {
@@ -104,6 +99,35 @@ function pushAttr(attrs, key, value) {
   if (value != null && value !== '') attrs.push({ key, value: String(value) });
 }
 
+/**
+ * Uygulamanın ürüne yazdığı fiyat kaydı: { v, s: ücret varyantı gid,
+ * f/b: ön/arka en düşük bant ücreti, d: en yüksek toplu indirim yüzdesi }.
+ * Kaydı olmayan ürün PrintLab ürünü değildir; dokunulmaz.
+ */
+function pricingRecord(line) {
+  const raw = line.merchandise?.product?.pricing?.jsonValue;
+  if (!raw || typeof raw !== 'object') return null;
+  if (typeof raw.s !== 'string' || !raw.s.startsWith('gid://shopify/ProductVariant/')) return null;
+  const num = (x) => (Number.isFinite(Number(x)) && Number(x) >= 0 ? Number(x) : 0);
+  return { s: raw.s, f: num(raw.f), b: num(raw.b), d: Math.min(100, num(raw.d)) };
+}
+
+/**
+ * Baskı ücretinin alt sınırı. Sepetteki tutar müşteri tarafından
+ * değiştirilebilir; en az, tasarımı olan her yüzün en ucuz bandı kadar
+ * (toplu indirim düşülerek) olmalıdır. "Tasarım yok" beyanı da güvenilir
+ * değil: genişletilmek istenen satırda en az bir yüz basılıyordur.
+ */
+function minimumSurcharge(record, hasFront, hasBack) {
+  const factor = 1 - record.d / 100;
+  let min = (hasFront ? record.f : 0) + (hasBack ? record.b : 0);
+  if (!hasFront && !hasBack) {
+    const sides = [record.f, record.b].filter((x) => x > 0);
+    min = sides.length ? Math.min(...sides) : 0;
+  }
+  return Math.round(min * factor * 100) / 100;
+}
+
 export function run(input) {
   const operations = [];
 
@@ -112,12 +136,19 @@ export function run(input) {
     if (role === 'base_expanded' || role === 'surcharge_child') continue;
     if (role !== 'pending_expand') continue;
 
-    const baseUnit = parseFloat(line.baseUnit?.value ?? '0');
-    const surchargeUnit = parseFloat(line.surchargeUnit?.value ?? '0');
-    const surchargeGid = line.surchargeGid?.value;
+    const record = pricingRecord(line);
+    if (!record) continue;
+
+    // Ürün fiyatı: Shopify'daki gerçek birim fiyat (sepet alanı değil)
+    const baseUnit = parseFloat(line.cost?.amountPerQuantity?.amount ?? '0');
     if (!Number.isFinite(baseUnit) || baseUnit <= 0) continue;
-    if (!Number.isFinite(surchargeUnit) || surchargeUnit <= 0) continue;
-    if (!surchargeGid) continue;
+
+    const hasFront = /^yes$/i.test(resolveFrontDesign(line));
+    const hasBack = /^yes$/i.test(resolveBackDesign(line));
+    const claimed = parseFloat(line.surchargeUnit?.value ?? '0');
+    const floor = minimumSurcharge(record, hasFront, hasBack);
+    const surchargeUnit = Math.max(Number.isFinite(claimed) ? claimed : 0, floor);
+    if (!(surchargeUnit > 0)) continue;
 
     const labels = isTurkish(line) ? LABELS.tr : LABELS.en;
     const baseAttrs = [{ key: '_design_role', value: 'base_expanded' }];
@@ -136,6 +167,8 @@ export function run(input) {
     for (const [field, labelKey] of FIELD_MAP) {
       pushAttr(baseAttrs, labels[labelKey], attrValue(line, field));
     }
+    // Ücret alt sınıra çekildiyse siparişte görünsün
+    if (surchargeUnit > claimed) pushAttr(baseAttrs, '_pl_surcharge_floor_applied', surchargeUnit.toFixed(2));
 
     operations.push({
       expand: {
@@ -152,7 +185,7 @@ export function run(input) {
             attributes: baseAttrs,
           },
           {
-            merchandiseId: surchargeGid,
+            merchandiseId: record.s,
             quantity: 1,
             price: {
               adjustment: {
