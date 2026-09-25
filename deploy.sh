@@ -44,7 +44,8 @@ pm2 reload shopify-app --update-env
 # bildiği pid'ler dışında kalan shopify-app süreçleri kapatılır.
 sleep 10
 KNOWN_PIDS=" $(pm2 pid shopify-app | tr '\n' ' ') "
-for pid in $(pgrep -f "$(pwd)/node_modules/@remix-run/serve/dist/cli.js"); do
+# PM2 süreç başlığını kısaltıyor ("…/node_modules/@remix-run/s"), tam yol eşleşmez
+for pid in $(pgrep -f "$(pwd)/node_modules/@remix-run/s" || true); do
   case "$KNOWN_PIDS" in
     *" $pid "*) ;;
     *)
