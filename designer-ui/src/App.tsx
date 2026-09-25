@@ -36,6 +36,7 @@ import {
   RefreshCw,
   Save,
   Crop,
+  ScanFace,
   ShoppingBag,
   Sparkles,
   Trash2,
@@ -1341,6 +1342,9 @@ export default function App() {
   const [isCartLoading, setIsCartLoading] = useState(false);
   const [showSizeErrorModal, setShowSizeErrorModal] = useState(false);
   const [showMinQtyErrorModal, setShowMinQtyErrorModal] = useState(false);
+  // "Yüzü kes": iki biçimin seçildiği küçük menü ve işlem durumu
+  const [faceMenuOpen, setFaceMenuOpen] = useState(false);
+  const [isFaceCutting, setIsFaceCutting] = useState(false);
   const [cropModalState, setCropModalState] = useState<{ src: string; rect: CropRect } | null>(null);
   const minOrderQty = personalization.minOrderQuantity ?? 1;
   const [noSizeQuantity, setNoSizeQuantity] = useState(minOrderQty);
@@ -2902,6 +2906,66 @@ export default function App() {
       showToast(t.errorBgSelected, 'error');
     }
   }, [addUploadedImage, applyUrlToImageObject, getSelectedImageObject, handleRemoveBg, isBgRemoving, isTurkish, showToast]);
+
+  /**
+   * Seçili fotoğraftan yüzü keser (sunucu: ~/models/face-cutout.server).
+   * head = arka plan silinir, yalnız kafa kalır (arka plan hakkından düşer);
+   * oval = fotoğraf kafa etrafında yumuşak ovalle kırpılır.
+   * Kesit, eski görselin kutusuna oranı korunarak sığdırılır.
+   */
+  const faceCutoutSelectedImage = async (mode: 'head' | 'oval') => {
+    const selectedImage = getSelectedImageObject();
+    if (!selectedImage || isFaceCutting || isBgRemoving) return;
+    const sourceImage = selectedImage as SourceBackedImage;
+    const sourceUrl = sourceImage.sourceUrl || selectedImage.getSrc();
+    if (!sourceUrl) return;
+    setFaceMenuOpen(false);
+    setIsFaceCutting(true);
+    try {
+      const fetchUrl = sourceUrl.startsWith('https://assets.printlabapp.com/')
+        ? `/api/img-proxy?url=${encodeURIComponent(sourceUrl)}`
+        : sourceUrl;
+      const blob = await fetch(fetchUrl).then((r) => r.blob());
+      const form = new FormData();
+      form.append('image_file', blob, 'photo.png');
+      form.append('productId', config?.productId || '');
+      form.append('handle', config?.productHandle || '');
+      form.append('session_id', getBgSessionId());
+      const qs = new URLSearchParams({ mode, locale: isTurkish ? 'tr' : 'en' });
+      if (config?.shop) qs.set('shop', config.shop);
+      const res = await fetch(`/apps/tshirt-designer/face-cutout?${qs.toString()}`, { method: 'POST', body: form });
+      if (!res.ok) {
+        const error = await res.json().catch(() => null) as { error?: string } | null;
+        showToast(error?.error || (isTurkish ? 'Yüz kesilemedi, lütfen tekrar deneyin' : 'Could not cut out the face, please try again'), 'error');
+        return;
+      }
+      if (res.headers.get('X-Face-Detected') === '0') {
+        showToast(isTurkish
+          ? 'Yüz net bulunamadı; kesimi kontrol edin, gerekirse geri alın'
+          : 'The face was not clearly found; check the cutout and undo if needed', 'warning');
+      }
+      const out = await res.blob();
+      const bitmap = await createImageBitmap(out);
+      const fit = Math.min(selectedImage.getScaledWidth() / bitmap.width, selectedImage.getScaledHeight() / bitmap.height);
+      const target = { w: bitmap.width * fit, h: bitmap.height * fit };
+      bitmap.close();
+      const url = await uploadBlob(out, 'user-upload') ?? await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.readAsDataURL(out);
+      });
+      if (mode === 'head') sourceImage.backgroundRemoved = true;
+      addUploadedImage({
+        id: generateId(), dataUrl: url, serverUrl: url, name: isTurkish ? 'Yüz' : 'Face', addedAt: Date.now(),
+        backgroundRemoved: mode === 'head',
+      });
+      await applyUrlToImageObject(selectedImage, url, target);
+    } catch {
+      showToast(isTurkish ? 'Yüz kesilemedi, lütfen tekrar deneyin' : 'Could not cut out the face, please try again', 'error');
+    } finally {
+      setIsFaceCutting(false);
+    }
+  };
 
   const openCropForSelectedImage = useCallback(() => {
     const selectedImage = getSelectedImageObject();
@@ -4654,9 +4718,12 @@ export default function App() {
                       </button>
                     </div>
                     {!isActiveSelection(selectedObj) && isImageSelection(selectedObj) && (
+                      <>
                       <div className={cn(
                         'grid gap-1.5 border-t border-gray-100 px-2 pb-2 pt-1.5',
-                        (selectedObj as SourceBackedImage).autoTrimRect ? 'grid-cols-2' : 'grid-cols-1',
+                        (selectedObj as SourceBackedImage).autoTrimRect
+                          ? (personalization.removeBgAvailable ? 'grid-cols-3' : 'grid-cols-2')
+                          : (personalization.removeBgAvailable ? 'grid-cols-2' : 'grid-cols-1'),
                       )}>
                         {(selectedObj as SourceBackedImage).autoTrimRect && (
                           <button
@@ -4674,7 +4741,48 @@ export default function App() {
                           <Crop className="h-4 w-4" />
                           {t.imageCrop}
                         </button>
+                        {personalization.removeBgAvailable && (
+                          <button
+                            onClick={() => setFaceMenuOpen((v) => !v)}
+                            disabled={isFaceCutting || isBgRemoving}
+                            aria-expanded={faceMenuOpen}
+                            className={cn(
+                              'flex w-full items-center justify-center gap-2 rounded-xl py-2 text-[11px] font-semibold transition-colors',
+                              faceMenuOpen ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100',
+                              (isFaceCutting || isBgRemoving) && 'cursor-wait opacity-50',
+                            )}
+                          >
+                            <ScanFace className="h-4 w-4" />
+                            {isFaceCutting ? (isTurkish ? 'Kesiliyor…' : 'Cutting…') : (isTurkish ? 'Yüzü kes' : 'Cut out face')}
+                          </button>
+                        )}
                       </div>
+                      {faceMenuOpen && personalization.removeBgAvailable && (
+                        <div className="grid grid-cols-2 gap-1.5 px-2 pb-2">
+                          {([
+                            {
+                              mode: 'head' as const,
+                              title: isTurkish ? 'Sadece kafa' : 'Head only',
+                              hint: isTurkish ? 'Arka plan silinir, saç dahil kafa kalır' : 'Background removed, head and hair kept',
+                            },
+                            {
+                              mode: 'oval' as const,
+                              title: isTurkish ? 'Oval portre' : 'Oval portrait',
+                              hint: isTurkish ? 'Yüz, yumuşak kenarlı ovalde' : 'The face in a soft-edged oval',
+                            },
+                          ]).map((o) => (
+                            <button
+                              key={o.mode}
+                              onClick={() => void faceCutoutSelectedImage(o.mode)}
+                              className="flex flex-col items-start gap-0.5 rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-left transition-colors hover:border-gray-400"
+                            >
+                              <span className="text-[11px] font-bold text-gray-800">{o.title}</span>
+                              <span className="text-[10px] leading-snug text-gray-500">{o.hint}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      </>
                     )}
                     </div>
                   )}

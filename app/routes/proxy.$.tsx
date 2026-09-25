@@ -1,3 +1,4 @@
+import { handleFaceCutout } from "~/models/face-cutout.server";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { randomBytes } from "node:crypto";
@@ -222,6 +223,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   if (path === "remove-background") {
     return handleWaveSpeedRemoveBackground(request, shop);
+  }
+
+  if (path === "face-cutout") {
+    return handleFaceCutout(request, shop);
   }
 
   // POST /apps/tshirt-designer/designs

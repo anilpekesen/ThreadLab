@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { query } from "~/lib/db.server";
 
-type FeatureKey = "ai_generate" | "bg_remove";
+type FeatureKey = "ai_generate" | "bg_remove" | "face_detect";
 
 function getClientIp(request: Request): string {
   const forwarded = request.headers.get("cf-connecting-ip")

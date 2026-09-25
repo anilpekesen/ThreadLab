@@ -284,6 +284,8 @@ export async function extractHeadCutout(transparentSubject: Buffer): Promise<Hea
 export async function applySoftOvalMask(
   headCutout: Buffer,
   feather = 0.06,
+  /** Oval yarıçapları, genişlik/yüksekliğe oran */
+  radius: { x: number; y: number } = { x: 0.46, y: 0.5 },
 ): Promise<Buffer> {
   const { data, info } = await sharp(headCutout).ensureAlpha().raw()
     .toBuffer({ resolveWithObject: true });
@@ -293,8 +295,8 @@ export async function applySoftOvalMask(
   const cx = W / 2;
   const cy = H / 2;
   // Yatayda biraz dar, dikeyde tam: kafa ovali genelde dikey uzundur
-  const rx = W * 0.46;
-  const ry = H * 0.50;
+  const rx = W * radius.x;
+  const ry = H * radius.y;
   const soft = Math.max(0.001, feather);
 
   for (let y = 0; y < H; y++) {
