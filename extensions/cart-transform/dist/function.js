@@ -62,10 +62,7 @@ var LABELS = {
   }
 };
 var FIELD_MAP = [
-  ["totalQuantity", "totalQuantity"],
   ["productUnitPrice", "productUnitPrice"],
-  ["productSubtotal", "productSubtotal"],
-  ["totalPrice", "totalPrice"],
   ["frontSize", "frontSize"],
   ["frontPrintPrice", "frontPrintPrice"],
   ["frontPriceBand", "frontPriceBand"],
@@ -75,9 +72,7 @@ var FIELD_MAP = [
   ["backPrintPrice", "backPrintPrice"],
   ["backPriceBand", "backPriceBand"],
   ["backPrintCount", "backPrintCount"],
-  ["backPrintBreakdown", "backPrintBreakdown"],
-  ["bulkDiscount", "bulkDiscount"],
-  ["printDiscount", "printDiscount"]
+  ["backPrintBreakdown", "backPrintBreakdown"]
 ];
 function attrValue(line, key) {
   return line[key]?.value ?? "";
@@ -105,18 +100,74 @@ function resolveBackDesign(line) {
 function pushAttr(attrs, key, value) {
   if (value != null && value !== "") attrs.push({ key, value: String(value) });
 }
+function pricingRecord(line) {
+  const raw = line.merchandise?.product?.pricing?.jsonValue;
+  if (!raw || typeof raw !== "object") return null;
+  if (typeof raw.s !== "string" || !raw.s.startsWith("gid://shopify/ProductVariant/")) return null;
+  const num = (x) => Number.isFinite(Number(x)) && Number(x) >= 0 ? Number(x) : 0;
+  return { s: raw.s, f: num(raw.f), b: num(raw.b), d: Math.min(100, num(raw.d)), o: num(raw.o) };
+}
+function minimumSurcharge(record, hasFront, hasBack) {
+  const factor = 1 - record.d / 100;
+  let min = (hasFront ? record.f : 0) + (hasBack ? record.b : 0);
+  if (!hasFront && !hasBack) {
+    const sides = [record.f, record.b].filter((x) => x > 0);
+    min = sides.length ? Math.min(...sides) : 0;
+  }
+  return Math.round(min * factor * 100) / 100;
+}
+function expandOptions(line, record) {
+  const baseUnit = parseFloat(line.cost?.amountPerQuantity?.amount ?? "0");
+  if (!Number.isFinite(baseUnit) || baseUnit <= 0) return null;
+  const claimed = parseFloat(line.surchargeUnit?.value ?? "0");
+  const feeUnit = Math.round(Math.max(Number.isFinite(claimed) ? claimed : 0, record.o) * 100) / 100;
+  if (!(feeUnit > 0)) return null;
+  const baseAttrs = [{ key: "_design_role", value: "base_expanded" }];
+  pushAttr(baseAttrs, "_design_token", resolveDesignToken(line));
+  pushAttr(baseAttrs, "_front_print_url", attrValue(line, "frontPrintUrl"));
+  if (feeUnit > claimed) pushAttr(baseAttrs, "_pl_surcharge_floor_applied", feeUnit.toFixed(2));
+  return {
+    expand: {
+      cartLineId: line.id,
+      expandedCartItems: [
+        {
+          merchandiseId: line.merchandise.id,
+          quantity: 1,
+          price: { adjustment: { fixedPricePerUnit: { amount: baseUnit.toFixed(2) } } },
+          attributes: baseAttrs
+        },
+        {
+          merchandiseId: record.s,
+          quantity: 1,
+          price: { adjustment: { fixedPricePerUnit: { amount: feeUnit.toFixed(2) } } },
+          attributes: [{ key: "_design_role", value: "surcharge_child" }]
+        }
+      ]
+    }
+  };
+}
 function run(input) {
   const operations = [];
   for (const line of input.cart.lines) {
     const role = line.designRole?.value;
     if (role === "base_expanded" || role === "surcharge_child") continue;
+    if (role === "pending_options") {
+      const record2 = pricingRecord(line);
+      const op = record2 ? expandOptions(line, record2) : null;
+      if (op) operations.push(op);
+      continue;
+    }
     if (role !== "pending_expand") continue;
-    const baseUnit = parseFloat(line.baseUnit?.value ?? "0");
-    const surchargeUnit = parseFloat(line.surchargeUnit?.value ?? "0");
-    const surchargeGid = line.surchargeGid?.value;
+    const record = pricingRecord(line);
+    if (!record) continue;
+    const baseUnit = parseFloat(line.cost?.amountPerQuantity?.amount ?? "0");
     if (!Number.isFinite(baseUnit) || baseUnit <= 0) continue;
-    if (!Number.isFinite(surchargeUnit) || surchargeUnit <= 0) continue;
-    if (!surchargeGid) continue;
+    const hasFront = /^yes$/i.test(resolveFrontDesign(line));
+    const hasBack = /^yes$/i.test(resolveBackDesign(line));
+    const claimed = parseFloat(line.surchargeUnit?.value ?? "0");
+    const floor = minimumSurcharge(record, hasFront, hasBack);
+    const surchargeUnit = Math.max(Number.isFinite(claimed) ? claimed : 0, floor);
+    if (!(surchargeUnit > 0)) continue;
     const labels = isTurkish(line) ? LABELS.tr : LABELS.en;
     const baseAttrs = [{ key: "_design_role", value: "base_expanded" }];
     pushAttr(baseAttrs, "_design_token", resolveDesignToken(line));
@@ -128,6 +179,7 @@ function run(input) {
     for (const [field, labelKey] of FIELD_MAP) {
       pushAttr(baseAttrs, labels[labelKey], attrValue(line, field));
     }
+    if (surchargeUnit > claimed) pushAttr(baseAttrs, "_pl_surcharge_floor_applied", surchargeUnit.toFixed(2));
     operations.push({
       expand: {
         cartLineId: line.id,
@@ -143,7 +195,7 @@ function run(input) {
             attributes: baseAttrs
           },
           {
-            merchandiseId: surchargeGid,
+            merchandiseId: record.s,
             quantity: 1,
             price: {
               adjustment: {
