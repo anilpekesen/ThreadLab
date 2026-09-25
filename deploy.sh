@@ -37,6 +37,25 @@ fi
 # --update-env env değişikliklerinin de alınmasını sağlar.
 pm2 reload shopify-app --update-env
 
+# Artık worker temizliği: reload bazen eski worker'ı PM2'nin listesinden
+# düşürüp öldürmeden bırakıyor. O süreç aynı portu paylaşmayı sürdürüyor ve
+# trafiğin bir kısmına ESKİ derlemeyle cevap veriyor (25 Eyl: yeni rota
+# istekler arasında bir çalışıp bir 404/yönlendirme veriyordu). PM2'nin
+# bildiği pid'ler dışında kalan shopify-app süreçleri kapatılır.
+sleep 10
+KNOWN_PIDS=" $(pm2 pid shopify-app | tr '\n' ' ') "
+for pid in $(pgrep -f "$(pwd)/node_modules/@remix-run/serve/dist/cli.js"); do
+  case "$KNOWN_PIDS" in
+    *" $pid "*) ;;
+    *)
+      echo "Artık worker kapatılıyor: $pid"
+      kill -TERM "$pid" 2>/dev/null || true
+      sleep 5
+      kill -KILL "$pid" 2>/dev/null || true
+      ;;
+  esac
+done
+
 # WhatsApp microservice — install deps and restart (or start if first time)
 if [ -d whatsapp-service ]; then
   cd whatsapp-service && npm install --production 2>&1 | tail -3 && cd ..
