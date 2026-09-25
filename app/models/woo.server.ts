@@ -264,7 +264,7 @@ export async function listWooTemplates(shop: string) {
     .map((t) => ({
       id: t.id,
       name: t.name,
-      previewUrl: t.mockup_url || t.template_url || "",
+      previewUrl: t.mockup_url || t.template_url || t.overlay_url || "",
       photos: t.slots?.length ?? 0,
     }));
 }
