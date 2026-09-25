@@ -1,3 +1,4 @@
+import { DISTINCT_TYPE_COUNT_SQL } from "~/models/product-types.server";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useActionData, Form, useNavigation } from "@remix-run/react";
@@ -212,7 +213,7 @@ async function cancelShopifySubscription(
 
 async function getDowngradeRestrictions(shop: string, analytics: Awaited<ReturnType<typeof getAnalytics>>) {
   const [ptResult, tplResult] = await Promise.all([
-    query<{ count: string }>("SELECT COUNT(*) AS count FROM product_categories WHERE shop = $1 AND deleted_at IS NULL", [shop]),
+    query<{ count: string }>(DISTINCT_TYPE_COUNT_SQL, [shop]),
     query<{ count: string }>("SELECT COUNT(*) AS count FROM shop_templates WHERE shop = $1", [shop]),
   ]);
   const productTypeCount = Number(ptResult.rows[0]?.count ?? 0);

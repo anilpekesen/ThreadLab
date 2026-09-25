@@ -88,7 +88,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "create") {
     const quota = await canCreateProductType(shop);
-    if (!quota.allowed) return json({ error: L.planLimitReached }, { status: 403 });
+    // Sınır ayrı tür ADI sayısı: var olan bir adla yeni satır sayıyı artırmaz
+    const newName = String(form.get("name") || "").trim().toLowerCase();
+    const sameName = (await getProductTypesForShop(shop)).some((pt) => pt.name.trim().toLowerCase() === newName);
+    if (!quota.allowed && !sameName) return json({ error: L.planLimitReached }, { status: 403 });
     const pt = await createProductType(shop, {
       name: String(form.get("name") || "").trim() || L.defaultTypeName,
       product_type: String(form.get("name") || "apparel"),

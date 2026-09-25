@@ -33,12 +33,19 @@ export async function getProductTypeById(id: string, shop: string): Promise<Shop
   return result.rows[0] ?? null;
 }
 
-// Active count — for display / downgrade checks
+/**
+ * Plan sınırında sayılan tür sayısı: ayrı tür ADI sayısı.
+ *
+ * Her tasarımcı ürünü kendi kategori satırını taşır (ürün ayarı ona bağlı,
+ * bkz. db.server'daki devre dışı bırakma). Eskiden satırlar sayılıyordu ve
+ * Starter'da tek tasarımcı ürünü kurulabiliyordu; aynı ayarı paylaşan 50
+ * tişört artık tek tür ("Tişört") sayılır.
+ */
+export const DISTINCT_TYPE_COUNT_SQL =
+  "SELECT COUNT(DISTINCT lower(btrim(name))) AS count FROM product_categories WHERE shop = $1 AND deleted_at IS NULL";
+
 export async function getActiveProductTypeCount(shop: string): Promise<number> {
-  const result = await query<{ count: string }>(
-    "SELECT COUNT(*) AS count FROM product_categories WHERE shop = $1 AND deleted_at IS NULL",
-    [shop],
-  );
+  const result = await query<{ count: string }>(DISTINCT_TYPE_COUNT_SQL, [shop]);
   return Number(result.rows[0]?.count ?? 0);
 }
 
@@ -117,4 +124,33 @@ export async function deleteProductType(id: string, shop: string): Promise<{ sho
     [id, shop],
   );
   return { shopify_product_id: result.rows[0]?.shopify_product_id ?? null };
+}
+
+/**
+ * Ürünün kategori satırını kopyalanan ayarın türüyle açar ya da günceller.
+ * Satır olmadan ürün ayarı bir sonraki yeniden başlatmada kapanıyor.
+ */
+export async function ensureCategoryForProduct(
+  shop: string,
+  product: { id: string; title: string; handle: string },
+  type: { name: string; product_type: string; surface_mode: "front_only" | "front_back" },
+): Promise<void> {
+  const existing = await query<{ id: string }>(
+    "SELECT id FROM product_categories WHERE shop = $1 AND shopify_product_id = $2 AND deleted_at IS NULL LIMIT 1",
+    [shop, product.id],
+  );
+  if (existing.rows[0]) {
+    await query(
+      `UPDATE product_categories SET name = $3, product_type = $4, surface_mode = $5,
+         shopify_product_title = $6, shopify_product_handle = $7 WHERE id = $1 AND shop = $2`,
+      [existing.rows[0].id, shop, type.name, type.product_type, type.surface_mode, product.title, product.handle],
+    );
+    return;
+  }
+  const id = `cat_${Date.now().toString(36)}_${randomBytes(3).toString("hex")}`;
+  await query(
+    `INSERT INTO product_categories (id, shop, name, product_type, surface_mode, shopify_product_id, shopify_product_title, shopify_product_handle)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [id, shop, type.name, type.product_type, type.surface_mode, product.id, product.title, product.handle],
+  );
 }

@@ -1,6 +1,8 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, useActionData, useLoaderData, useNavigate, useNavigation, useSearchParams } from "@remix-run/react";
+import { Form, useActionData, useFetcher, useLoaderData, useNavigate, useNavigation, useSearchParams } from "@remix-run/react";
+import { useAppBridge } from "@shopify/app-bridge-react";
+import { copyProductSetup } from "~/models/product-copy.server";
 import { FormSaveBar, useFormDirty } from "~/components/FormSaveBar";
 import {
   Badge,
@@ -739,6 +741,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const productId = decodeProductToken(productToken);
   const form = await request.formData();
 
+  // Kayıtlı ayarı ürün seçicisinden gelen ürünlere kopyala
+  if (form.get("intent") === "copy_to_products") {
+    let list: Array<{ id?: unknown; title?: unknown; handle?: unknown }> = [];
+    try { list = JSON.parse(String(form.get("products") ?? "[]")); } catch { /* boş liste */ }
+    const targets = list
+      .map((p) => ({ id: String(p.id ?? ""), title: String(p.title ?? "").slice(0, 255), handle: String(p.handle ?? "").slice(0, 255) }))
+      .filter((p) => p.id.startsWith("gid://shopify/Product/") && p.id !== productId)
+      .slice(0, 250);
+    const result = await copyProductSetup(shop, productId, targets);
+    return json({ copy: result });
+  }
+
   const fallback: ProductConfig = {
     isActive: true,
     productTitle: String(form.get("productTitle") || ""),
@@ -862,6 +876,8 @@ function ProductSettingsInner({ onDiscard }: { onDiscard: () => void }) {
   const { t, lang } = useTranslation();
   const L = useDict(productDetailDict);
   const actionData = useActionData<typeof action>();
+  const copyFetcher = useFetcher<{ copy?: { copied: string[]; limited: string[]; missingSource?: boolean } }>();
+  const appBridge = useAppBridge();
   const hasMounted = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [showSavedToast, setShowSavedToast] = useState(false);
@@ -1045,6 +1061,43 @@ function ProductSettingsInner({ onDiscard }: { onDiscard: () => void }) {
               <Badge tone="success">{t("common.active")}</Badge>
             </InlineStack>
           </Box>
+        </Card>
+
+        {/* Toplu kurulum: kayıtlı ayar seçilen ürünlere kopyalanır */}
+        <Card>
+          <BlockStack gap="300">
+            <InlineStack align="space-between" blockAlign="center" gap="300">
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingMd">{L.copyTitle}</Text>
+                <Text as="p" tone="subdued">{dirty ? L.copySaveFirst : L.copyHint}</Text>
+              </BlockStack>
+              <Button
+                disabled={dirty}
+                loading={copyFetcher.state !== "idle"}
+                onClick={async () => {
+                  const picked = await appBridge.resourcePicker({ type: "product", multiple: true, filter: { variants: false } });
+                  if (!picked?.length) return;
+                  const fd = new FormData();
+                  fd.set("intent", "copy_to_products");
+                  fd.set("_lang", lang);
+                  fd.set("products", JSON.stringify(picked.map((p) => ({ id: p.id, title: (p as { title?: string }).title ?? "", handle: (p as { handle?: string }).handle ?? "" }))));
+                  copyFetcher.submit(fd, { method: "POST" });
+                }}
+              >
+                {L.copyButton}
+              </Button>
+            </InlineStack>
+            {copyFetcher.data?.copy && (
+              <Banner tone={copyFetcher.data.copy.limited.length || copyFetcher.data.copy.missingSource ? "warning" : "success"}>
+                <BlockStack gap="100">
+                  {copyFetcher.data.copy.missingSource
+                    ? <p>{L.copyMissingSource}</p>
+                    : <p>{L.copyDone(copyFetcher.data.copy.copied.length)}</p>}
+                  {copyFetcher.data.copy.limited.length > 0 && <p>{L.copyLimited(copyFetcher.data.copy.limited.join(", "))}</p>}
+                </BlockStack>
+              </Banner>
+            )}
+          </BlockStack>
         </Card>
 
         <FormSaveBar
