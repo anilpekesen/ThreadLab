@@ -311,7 +311,7 @@ final class PrintLab_Plugin {
 		return array( 'variants' => $variants, 'optionNames' => array_values( $names ) );
 	}
 
-	/** Tişört tasarımcısı: ürün özetinin altında tam genişlikte */
+	/** Tişört tasarımcısı: ürün özetinin altında, içerik sütunu genişliğinde */
 	public function render_designer() {
 		global $product;
 		if ( ! $product instanceof WC_Product || ! self::is_designer( $product->get_id() ) ) {
@@ -357,8 +357,11 @@ final class PrintLab_Plugin {
 			)
 		);
 		// Temanın kendi sepete ekle formu gizlenir: tasarımsız sipariş olmasın
-		echo '<style>.single-product form.cart{display:none!important}'
-			. '.printlab-designer{position:relative;width:100vw;max-width:100vw;margin:0 calc(50% - 50vw) 2em;clear:both;background:#f3f4f6}'
+		// Storefront'un yapışkan "Seçenekleri seç" çubuğu da gizli forma götürüyor
+		echo '<style>.single-product form.cart,.storefront-sticky-add-to-cart{display:none!important}'
+			// Temaların ürün kutusu çoğu zaman overflow:hidden; 100vw taşması kırpılıyor.
+			// İçerik sütununun tam genişliği her temada güvenli.
+			. '.printlab-designer{width:100%;margin:0 0 2em;clear:both;background:#f3f4f6}'
 			. '.printlab-designer iframe{display:block;width:100%;height:960px;border:0}'
 			. '@media (max-width:859px){.printlab-designer iframe{height:1320px}}</style>';
 		echo '<div class="printlab-designer"><iframe id="printlab-designer-frame" src="' . esc_url( $app . '/designer-app/' ) . '" allow="camera; microphone" title="' . esc_attr__( 'Design your product', 'printlab' ) . '"></iframe></div>';
@@ -435,11 +438,14 @@ final class PrintLab_Plugin {
 		if ( ! $product || ! self::is_designer( $product_id ) || ! is_array( $items_raw ) || ! $items_raw ) {
 			wp_send_json_error( array( 'message' => 'product' ), 400 );
 		}
+		// Adresler esc_url_raw ile: sanitize_text_field %3A gibi kodlanmış
+		// karakterleri siler ve bağlantıyı bozar (shop=woo%3A... → shop=woo...)
 		$clean = function ( $arr ) {
 			$out = array();
 			foreach ( (array) $arr as $k => $v ) {
 				if ( is_scalar( $v ) ) {
-					$out[ sanitize_text_field( (string) $k ) ] = sanitize_text_field( (string) $v );
+					$key         = sanitize_text_field( (string) $k );
+					$out[ $key ] = '_url' === substr( $key, -4 ) ? esc_url_raw( (string) $v ) : sanitize_text_field( (string) $v );
 				}
 			}
 			return $out;
@@ -474,7 +480,7 @@ final class PrintLab_Plugin {
 			$extra = array();
 			foreach ( self::DESIGNER_KEYS as $k ) {
 				if ( isset( $p[ $k ] ) && '' !== $p[ $k ] ) {
-					$extra[ 'printlab' . $k ] = false !== strpos( $k, '_url' ) ? esc_url_raw( $p[ $k ] ) : $p[ $k ];
+					$extra[ 'printlab' . $k ] = $p[ $k ];
 				}
 			}
 			$data = array(
