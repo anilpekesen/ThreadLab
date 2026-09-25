@@ -580,6 +580,23 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS support_tickets_status_created
       ON support_tickets (status, created_at DESC)
   `);
+  // Sipariş sonrası baskı ücreti kontrolü: ödenen ile tasarımdan yeniden
+  // hesaplanan birim baskı ücreti (lib/print-price-check.server.ts)
+  await query(`
+    CREATE TABLE IF NOT EXISTS order_price_checks (
+      shop         TEXT NOT NULL,
+      order_id     TEXT NOT NULL,
+      order_name   TEXT NOT NULL DEFAULT '',
+      design_token TEXT NOT NULL,
+      quantity     INT NOT NULL DEFAULT 1,
+      paid         NUMERIC NOT NULL DEFAULT 0,
+      expected     NUMERIC NOT NULL DEFAULT 0,
+      underpaid    BOOLEAN NOT NULL DEFAULT FALSE,
+      detail       JSONB NOT NULL DEFAULT '{}',
+      checked_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (shop, order_id, design_token)
+    )
+  `);
   // Tasarımcının mağazada en son ne zaman açıldığı: ana sayfadaki "kurulum
   // durumu" kartı tema bloğunun gerçekten çalıştığını buradan anlar
   await query(`
