@@ -1,8 +1,10 @@
 import { sendEmail } from "~/lib/email.server";
 import { sendWhatsAppMessage } from "~/lib/whatsapp.server";
 import { getShopSettings } from "~/models/shop-settings.server";
+import { publicAppUrl } from "~/lib/app-url.server";
+import { orderAdminUrl, shopHandle } from "~/lib/platform";
 
-const APP_URL = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") || "https://app.printlabapp.com";
+const APP_URL = publicAppUrl();
 
 // Bu mağazada müşteri ve mağaza sipariş e-postaları devre dışıdır.
 // WhatsApp bildirimleri bu engelden etkilenmez.
@@ -69,7 +71,7 @@ export async function notifyOrderPaid(payload: OrderNotificationPayload): Promis
   }
   const senderName = emailSenderName?.trim()
     || shopDisplayName?.trim()
-    || payload.shop.replace(/\.myshopify\.com$/i, "");
+    || shopHandle(payload.shop);
 
   const promises: Promise<void>[] = [];
 
@@ -120,8 +122,7 @@ async function sendMerchantEmail(
   p: OrderNotificationPayload,
   fromName?: string,
 ): Promise<void> {
-  const shopDomain = p.shop.replace(".myshopify.com", "");
-  const adminUrl = `https://admin.shopify.com/store/${shopDomain}/orders/${p.shopifyOrderId}`;
+  const adminUrl = orderAdminUrl(p.shop, p.shopifyOrderId);
 
   const previewImgs = [
     p.designFrontUrl ? `<img src="${p.designFrontUrl}" alt="Ön Tasarım" style="max-width:240px;border-radius:8px;margin:4px">` : null,
@@ -298,8 +299,7 @@ async function sendCustomerEmail(
 
 // ── WhatsApp ──────────────────────────────────────────────────────────
 async function sendOrderWhatsApp(phone: string, p: OrderNotificationPayload): Promise<void> {
-  const shopDomain = p.shop.replace(".myshopify.com", "");
-  const adminUrl = `https://admin.shopify.com/store/${shopDomain}/orders/${p.shopifyOrderId}`;
+  const adminUrl = orderAdminUrl(p.shop, p.shopifyOrderId);
 
   const lines: string[] = [
     `🛍 *Yeni Sipariş: ${p.orderName}*`,

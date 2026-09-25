@@ -1,7 +1,9 @@
 import { sendEmail } from "~/lib/email.server";
 import { sendWhatsAppMessage } from "~/lib/whatsapp.server";
+import { publicAppUrl } from "~/lib/app-url.server";
+import { shopHandle } from "~/lib/platform";
 
-const APP_URL = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") || "https://app.printlabapp.com";
+const APP_URL = publicAppUrl();
 
 /**
  * Merchant'ın yazabileceği destek WhatsApp numarası (yalnız rakam, ülke
@@ -23,7 +25,7 @@ export async function notifySupportTicket(p: {
   category: string;
   kind: "new" | "reply" | "onboarding";
 }): Promise<void> {
-  const shopName = p.shop.replace(".myshopify.com", "");
+  const shopName = shopHandle(p.shop);
   const title =
     p.kind === "onboarding" ? "🤝 Kurulum desteği istendi"
     : p.kind === "reply" ? "💬 Destek talebine yanıt"

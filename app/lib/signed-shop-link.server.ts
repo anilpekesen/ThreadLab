@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { isValidShop } from "~/lib/platform";
 
 /**
  * Mağaza adına imzalı bağlantı.
@@ -33,7 +34,7 @@ function signature(shop: string, pathname: string, exp: number): string {
 }
 
 export function isValidShopDomain(shop: string): boolean {
-  return /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/.test(shop);
+  return isValidShop(shop);
 }
 
 /**

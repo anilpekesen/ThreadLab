@@ -8,6 +8,7 @@ import { getUploadsDir } from "~/lib/storage.server";
 import { newR2Key, putR2Object, uploadToR2 } from "~/lib/r2.server";
 import { schedulePrintJob } from "~/lib/print-jobs.server";
 import { canWriteReservation, markReservationUploaded } from "~/lib/print-reservations.server";
+import { publicAppUrl } from "~/lib/app-url.server";
 
 const MAX_UPLOAD_BYTES = 120 * 1024 * 1024; // 120MB — 300 DPI print dosyaları için
 const MIME_TYPES: Record<string, string> = {
@@ -94,7 +95,7 @@ export async function handleDesignerUpload(request: Request) {
       const filename = `${side}-${randomBytes(12).toString("hex")}.${ext}`;
       const filePath = path.join(getUploadsDir(), filename);
       await writeFile(filePath, buffer);
-      const baseUrl = process.env.SHOPIFY_APP_URL || new URL(request.url).origin;
+      const baseUrl = publicAppUrl(new URL(request.url).origin);
       url = `${baseUrl}/uploads/${filename}`;
       await schedulePrintJob({ storage: "disk", location: filePath, side });
     }
@@ -125,7 +126,7 @@ export async function handleDesignerUpload(request: Request) {
   const filename = `${side}-${randomBytes(12).toString("hex")}.${ext}`;
   const uploadDir = getUploadsDir();
   await writeFile(path.join(uploadDir, filename), buffer);
-  const baseUrl = process.env.SHOPIFY_APP_URL || new URL(request.url).origin;
+  const baseUrl = publicAppUrl(new URL(request.url).origin);
   return json({ url: `${baseUrl}/uploads/${filename}`, serverMs: Math.round(performance.now() - startedAt) });
 }
 

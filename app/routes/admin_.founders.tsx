@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { listPromoRedemptions, PROMO_CAMPAIGNS } from "~/models/promo.server";
+import { shopHandle } from "~/lib/platform";
 
 const AUTH_COOKIE = "panel_auth";
 
@@ -70,7 +71,7 @@ export default function AdminFounders() {
             <tbody>
               {rows.map((r) => (
                 <tr key={`${r.campaign}-${r.shop}`}>
-                  <td><a href={`https://${r.shop}`} target="_blank" rel="noreferrer">{r.shop.replace(".myshopify.com", "")}</a></td>
+                  <td><a href={`https://${r.shop.startsWith("woo:") ? shopHandle(r.shop) : r.shop}`} target="_blank" rel="noreferrer">{shopHandle(r.shop)}</a></td>
                   <td>{r.code}</td>
                   <td>{r.plan_key}</td>
                   <td><span className={`badge ${r.status}`}>{r.status === "active" ? "Aktif" : "Bekliyor"}</span></td>

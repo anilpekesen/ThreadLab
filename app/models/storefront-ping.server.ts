@@ -1,13 +1,13 @@
 import { query } from "~/lib/db.server";
+import { isValidShop } from "~/lib/platform";
 
 /** Aynı mağaza için en fazla bu sıklıkta yazılır; vitrin isteklerini yavaşlatmasın */
 const WRITE_EVERY_MS = 10 * 60 * 1000;
 const lastWrite = new Map<string, number>();
-const SHOP_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
 
 /** Tasarımcı vitrinde yüklendi: kurulum durumu kartı için son görülme zamanı */
 export function markStorefrontSeen(shop: string): void {
-  if (!SHOP_RE.test(shop)) return;
+  if (!isValidShop(shop)) return;
   const now = Date.now();
   if (now - (lastWrite.get(shop) ?? 0) < WRITE_EVERY_MS) return;
   lastWrite.set(shop, now);

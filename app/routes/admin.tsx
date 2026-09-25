@@ -10,6 +10,7 @@ import React from "react";
 import { LanguageProvider, useTranslation, type Lang } from "~/i18n";
 import trDict, { type TranslationKey } from "~/i18n/tr";
 import enDict from "~/i18n/en";
+import { shopHandle as platformShopHandle } from "~/lib/platform";
 
 const AUTH_COOKIE = "panel_auth";
 const PARTNER_COOKIE = "partner_auth";
@@ -977,7 +978,7 @@ function pct(part: number, total: number): number {
 }
 
 function shopHandle(shop: string): string {
-  return shop.replace(".myshopify.com", "");
+  return platformShopHandle(shop);
 }
 
 function shopPerformanceScore(shop: ShopRow): number {
@@ -1552,7 +1553,7 @@ function AiLogsTab({ logs, count, page, filterShop }: {
                 <td style={{ ...css.td, fontSize: 12 }}>
                   <a href={`/admin?tab=ai-logs&shop=${encodeURIComponent(log.shop)}`}
                     style={{ color: "#94a3b8", textDecoration: "none" }}>
-                    {log.shop.replace(".myshopify.com", "")}
+                    {platformShopHandle(log.shop)}
                   </a>
                 </td>
                 <td style={{ ...css.td, maxWidth: 240 }}>
@@ -1694,7 +1695,7 @@ function SupportTab({ tickets, status, search }: { tickets: TicketRow[]; status:
                       {ticket.id}
                     </td>
                     <td style={{ ...css.td, fontSize: 12 }}>
-                      <span style={{ color: "#f1f5f9", fontWeight: 700 }}>{ticket.shop.replace(".myshopify.com", "")}</span>
+                      <span style={{ color: "#f1f5f9", fontWeight: 700 }}>{platformShopHandle(ticket.shop)}</span>
                       <br /><span style={{ color: "#64748b" }}>{ticket.shop}</span>
                     </td>
                     <td style={{ ...css.td, maxWidth: 300 }}>

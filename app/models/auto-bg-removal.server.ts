@@ -10,6 +10,7 @@ import { uploadToR2 } from "~/lib/r2.server";
 import sharp from "sharp";
 import { hasMeaningfulTransparency, rebuildCutoutAtSourceResolution } from "~/lib/image-matting.server";
 import { tryFlatArtKeying } from "~/lib/flat-art-key.server";
+import { publicAppUrl } from "~/lib/app-url.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 const WAVESPEED_MODEL = "ideogram-ai/remove-background";
@@ -166,7 +167,7 @@ export async function processOrderBgRemoval(shop: string, designToken: string): 
     return;
   }
 
-  const appUrl = process.env.SHOPIFY_APP_URL?.replace(/\/$/, "") ?? "";
+  const appUrl = publicAppUrl("");
 
   // Collect all unique image URLs in the design (front + back)
   const allObjects = [

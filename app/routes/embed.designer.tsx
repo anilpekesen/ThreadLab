@@ -1,4 +1,5 @@
 import { type LoaderFunctionArgs } from "@remix-run/node";
+import { publicAppUrl } from "~/lib/app-url.server";
 
 const ALLOWED_SHOPS = (process.env.OWNER_SHOPS || "")
   .split(",")
@@ -16,7 +17,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return new Response("Bu mağaza için embed yetkisi yok.", { status: 403 });
   }
 
-  const appUrl = process.env.SHOPIFY_APP_URL ?? url.origin;
+  const appUrl = publicAppUrl(url.origin);
   const params = new URLSearchParams({ shop, locale });
   if (handle)    params.set("handle", handle);
   if (productId) params.set("productId", productId);

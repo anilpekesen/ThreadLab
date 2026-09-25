@@ -14,6 +14,7 @@ import { langFromRequest } from "~/i18n/server";
 import supportDict from "~/i18n/admin/support";
 import type { TranslationKey } from "~/i18n/tr";
 import { notifySupportTicket, supportWhatsAppNumber } from "~/lib/support-notify.server";
+import { shopHandle } from "~/lib/platform";
 
 interface Message { role: "merchant" | "admin"; text: string; at: string }
 
@@ -233,7 +234,7 @@ export default function SupportPage() {
                 {supportWhatsapp && (
                   <Box>
                     <Button
-                      url={`https://wa.me/${supportWhatsapp}?text=${encodeURIComponent(S.whatsappGreeting(shop.replace(".myshopify.com", "")))}`}
+                      url={`https://wa.me/${supportWhatsapp}?text=${encodeURIComponent(S.whatsappGreeting(shopHandle(shop)))}`}
                       target="_blank"
                       variant="primary"
                       tone="success"

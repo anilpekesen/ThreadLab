@@ -12,6 +12,7 @@ import path from "node:path";
 import { getUploadsDir } from "~/lib/storage.server";
 import { checkAndIncrementIpQuota } from "~/models/ip-quota.server";
 import { logAiPrompt } from "~/models/ai-prompt-logs.server";
+import { publicAppUrl } from "~/lib/app-url.server";
 
 const WAVESPEED_BASE = "https://api.wavespeed.ai/api/v3";
 // WaveSpeed model id'si üç segmentli olmalı — iki segmentli "wavespeed-ai/z-image"
@@ -163,7 +164,7 @@ async function persistRemoteImage(imageUrl: string, requestUrl: string, prefix: 
     console.warn("[ai-generate] R2 upload failed, falling back to local storage:", r2Err);
     const filename = `${prefix.replace(/[^a-z0-9/_-]/gi, "-")}-${randomBytes(8).toString("hex")}.${ext}`;
     await writeFile(path.join(getUploadsDir(), path.basename(filename)), buffer);
-    const baseUrl = process.env.SHOPIFY_APP_URL || new URL(requestUrl).origin;
+    const baseUrl = publicAppUrl(new URL(requestUrl).origin);
     return `${baseUrl}/uploads/${path.basename(filename)}`;
   }
 }

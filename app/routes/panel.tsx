@@ -160,6 +160,7 @@ const STATUS_COLOR: Record<string, string> = { active: "#10b981", trial: "#f59e0
 // ── Components ────────────────────────────────────────────────────────────────
 
 import React from "react";
+import { shopHandle } from "~/lib/platform";
 
 function LoginPage({ error }: { error?: string }) {
   return (
@@ -209,7 +210,7 @@ function ShopsTab({ shops }: { shops: ShopRow[] }) {
               onMouseEnter={(e) => (e.currentTarget.style.background = "#162032")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
               <td style={css.td}>
-                <span style={{ fontWeight: 600, color: "#f1f5f9" }}>{s.shop.replace(".myshopify.com", "")}</span>
+                <span style={{ fontWeight: 600, color: "#f1f5f9" }}>{shopHandle(s.shop)}</span>
                 <br /><span style={{ fontSize: 11, color: "#475569" }}>{s.shop}</span>
               </td>
               <td style={css.td}><span style={css.badge(PLAN_COLOR[s.plan_key] ?? "#6b7280")}>{s.plan_key}</span></td>
@@ -275,7 +276,7 @@ function AiLogsTab({ logs, count, page, filterShop }: {
                 <td style={{ ...css.td, fontSize: 12 }}>
                   <a href={`/panel?tab=ai-logs&shop=${encodeURIComponent(log.shop)}`}
                     style={{ color: "#94a3b8", textDecoration: "none" }}>
-                    {log.shop.replace(".myshopify.com", "")}
+                    {shopHandle(log.shop)}
                   </a>
                 </td>
                 <td style={{ ...css.td, maxWidth: 240 }}>

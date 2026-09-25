@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { getActiveCliparts } from "~/models/cliparts.server";
+import { isValidShop } from "~/lib/platform";
 
 /**
  * Tasarımcının klipart listesi: PrintLab kütüphanesi + (?shop= verilirse) o
@@ -11,7 +12,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const origin = url.origin;
   const rawShop = (url.searchParams.get("shop") ?? "").trim().toLowerCase();
-  const shop = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(rawShop) ? rawShop : null;
+  const shop = isValidShop(rawShop) ? rawShop : null;
   const cliparts = await getActiveCliparts(shop);
   return json(
     { cliparts },

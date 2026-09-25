@@ -1,6 +1,7 @@
 import { type LoaderFunctionArgs } from "@remix-run/node";
 import { getPersonalizerTemplateByProduct, getPersonalizerTemplatePublic, listPersonalizerFrames } from "~/models/personalizer.server";
 import { buildSlotResponse } from "~/lib/slot-embed.server";
+import { publicAppUrl } from "~/lib/app-url.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -95,7 +96,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const resolvedTemplateId = template.id;
   const frames = await listPersonalizerFrames(resolvedTemplateId);
 
-  const appUrl = process.env.SHOPIFY_APP_URL ?? url.origin;
+  const appUrl = publicAppUrl(url.origin);
   const hasVariant = Boolean(variantId && variantId !== "VARIANT_ID" && variantId !== "undefined" && variantId !== "null");
 
   const textFieldsJson = JSON.stringify(template.text_fields.map(localizeTextField));

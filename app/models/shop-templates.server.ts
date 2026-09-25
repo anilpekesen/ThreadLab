@@ -6,6 +6,8 @@ import path from "node:path";
 import { getUploadsDir } from "~/lib/storage.server";
 import { PLANS } from "~/lib/plans";
 import { getShopPlan } from "~/models/bg-removal-usage.server";
+import { publicAppUrl } from "~/lib/app-url.server";
+import { shopHandle } from "~/lib/platform";
 
 export interface ShopTemplate {
   id: string;
@@ -77,11 +79,11 @@ export async function addShopTemplate(
   let imageUrl: string;
 
   if (useR2) {
-    imageUrl = await uploadToR2(buffer, ext, `templates/${shop.replace(".myshopify.com", "")}`);
+    imageUrl = await uploadToR2(buffer, ext, `templates/${shopHandle(shop)}`);
   } else {
     const filename = `tmpl-${randomBytes(12).toString("hex")}.${ext}`;
     await writeFile(path.join(getUploadsDir(), filename), buffer);
-    const base = process.env.SHOPIFY_APP_URL ?? new URL(requestUrl).origin;
+    const base = publicAppUrl(new URL(requestUrl).origin);
     imageUrl = `${base}/uploads/${filename}`;
   }
 

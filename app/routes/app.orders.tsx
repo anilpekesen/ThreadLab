@@ -39,6 +39,7 @@ import {
   uploadOrderProductsToDrive,
   withOrderDriveExportLock,
 } from "~/lib/order-drive-export.server";
+import { orderAdminUrl } from "~/lib/platform";
 
 const STATUSES = [
   { labelKey: "status.all" as const, value: "" },
@@ -380,11 +381,10 @@ export default function Orders() {
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(groups.map((g) => ({ id: g.shopifyOrderId })));
 
-  const shopDomain = shop.replace(".myshopify.com", "");
 
   const rowMarkup = groups.map((g, index) => {
     const next = NEXT_STATUS[g.status];
-    const shopifyOrderUrl = `https://admin.shopify.com/store/${shopDomain}/orders/${g.shopifyOrderId}`;
+    const shopifyOrderUrl = orderAdminUrl(shop, g.shopifyOrderId);
 
     return (
       <IndexTable.Row

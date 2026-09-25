@@ -1,3 +1,4 @@
+import { isShopifyShop } from "~/lib/platform";
 const COOKIE_NAME = "__printlab_billing_shop";
 const MAX_AGE_SECONDS = 15 * 60;
 
@@ -6,7 +7,7 @@ function isSecureCookie(): boolean {
 }
 
 function isValidShop(shop: string): boolean {
-  return /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/.test(shop);
+  return isShopifyShop(shop);
 }
 
 export function getBillingReturnShop(request: Request): string | null {

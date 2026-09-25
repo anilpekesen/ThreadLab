@@ -1,3 +1,4 @@
+import { importOrder, shopifyOrderToIncoming } from "~/models/order-import.server";
 import { createPrintfulDraft } from "~/models/printful.server";
 import { checkOrderPrintPricing } from "~/lib/print-price-check.server";
 import { activatePendingPromo } from "~/models/promo.server";
@@ -156,19 +157,6 @@ function getDesignToken(attrs: Attr[] | undefined): string | undefined {
   return getAttr(attrs, "_design_token") ?? getAttr(attrs, "design_token");
 }
 
-function normalizeColorValue(v: string): string {
-  return v.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-// Tasarımcıda müşterinin seçtiği renk (_pl_color) ile Shopify'a giden
-// varyantın rengi uyuşuyor mu — uyuşmazsa yanlış renkte üretim riski var
-// (bkz. tasarımcı tarafındaki baseVariantForSize renk-fallback düzeltmesi)
-function hasColorMismatch(variantTitle: string | undefined, selectedColor: string | undefined): boolean {
-  if (!selectedColor || !variantTitle) return false;
-  const segments = variantTitle.split("/").map(normalizeColorValue);
-  return !segments.includes(normalizeColorValue(selectedColor));
-}
-
 function extractCustomerEmail(payload: OrderPayload): string {
   return (payload.customer?.email || payload.email || payload.contact_email || "").trim();
 }
@@ -186,159 +174,6 @@ function extractDesignToken(payload: OrderPayload): string | undefined {
     if (token) return token;
   }
   return undefined;
-}
-
-async function importOrderFromWebhook(shop: string, payload: OrderPayload): Promise<void> {
-  const shopifyOrderId = String(payload.id ?? "");
-  if (!shopifyOrderId) return;
-
-  const orderToken = getDesignToken(payload.note_attributes) ?? getDesignToken(payload.attributes);
-  const lineItems = payload.line_items ?? [];
-  const designItems = lineItems.filter(
-    (li) =>
-      getDesignToken(li.properties) !== undefined ||
-      getDesignToken(li.attributes) !== undefined ||
-      Boolean(getAttr(li.properties, "_front_print_url")) ||
-      Boolean(getAttr(li.attributes, "_front_print_url")),
-  );
-  const itemsToProcess =
-    designItems.length > 0 ? designItems : lineItems.filter((li) => li.requires_shipping);
-
-  if (!orderToken && designItems.length === 0) return;
-  if (itemsToProcess.length === 0) return;
-
-  const orderFrontPreviewUrl =
-    getAttr(payload.note_attributes, "_front_preview_url") ??
-    getAttr(payload.attributes, "_front_preview_url") ??
-    "";
-  const orderFrontPrintUrl =
-    getAttr(payload.note_attributes, "_front_print_url") ??
-    getAttr(payload.attributes, "_front_print_url") ??
-    "";
-  const customerName =
-    [payload.customer?.first_name, payload.customer?.last_name].filter(Boolean).join(" ") ||
-    "Müşteri";
-  const customerEmail = extractCustomerEmail(payload);
-
-  for (const item of itemsToProcess) {
-    const variantId = String(item.variant_id ?? "");
-    const token =
-      getDesignToken(item.properties) ??
-      getDesignToken(item.attributes) ??
-      orderToken ??
-      "";
-    const lineItemId = item.id ? String(item.id) : `${variantId}:${token || "no-design"}`;
-    const itemHasOwnDesignToken = Boolean(
-      getDesignToken(item.properties) ?? getDesignToken(item.attributes),
-    );
-    const allowOrderLevelDesignUrls = !itemHasOwnDesignToken && designItems.length === 0;
-
-    if (item.id) {
-      await query(
-        `UPDATE orders
-         SET line_item_id = $4, updated_at = now()
-         WHERE shop = $1
-           AND shopify_order_id = $2
-           AND variant_id = $3
-           AND design_token = $5
-           AND line_item_id = ''`,
-        [shop, shopifyOrderId, variantId, lineItemId, token],
-      );
-    }
-
-    let frontPreviewUrl =
-      getAttr(item.properties, "_front_preview_url") ??
-      getAttr(item.attributes, "_front_preview_url") ??
-      (allowOrderLevelDesignUrls ? orderFrontPreviewUrl : "");
-    // Kişiselleştirici baskı dosyasını "_print_file" adıyla yazıyor; eski
-    // tasarımcı akışı "_front_print_url" kullanıyor. İkisini de kabul ediyoruz,
-    // yoksa yeni ürünlerin siparişleri baskı dosyasız düşüyor.
-    let frontPrintUrl =
-      getAttr(item.properties, "_front_print_url") ??
-      getAttr(item.attributes, "_front_print_url") ??
-      getAttr(item.properties, "_print_file") ??
-      getAttr(item.attributes, "_print_file") ??
-      (allowOrderLevelDesignUrls ? orderFrontPrintUrl : "");
-
-    // Set ürünlerinde üretime birden fazla dosya gidiyor. Virgülle ayrılmış
-    // liste sipariş satırında; tek dosyalı ürünlerde bu alan boş kalıyor ve
-    // production_file_url tek başına yeterli oluyor.
-    const printFilesRaw =
-      getAttr(item.properties, "_print_files") ??
-      getAttr(item.attributes, "_print_files") ??
-      "";
-    const productionFiles = printFilesRaw
-      .split(",")
-      .map((u) => u.trim())
-      .filter(Boolean);
-    // Ek ücretli kişiselleştirici satırı sepet fonksiyonunca "ürün + ücret"
-    // olarak bölünüyor; ürün satırında yalnız tasarım anahtarı kalıyor, baskı
-    // dosyaları satır grubunda. Dosyalar tasarım kaydından tamamlanır.
-    if (productionFiles.length === 0 && !frontPrintUrl && itemHasOwnDesignToken && token) {
-      const d = (await query<{ front_print_url: string | null; front_preview_url: string | null; design_json: { type?: string; pieces?: { url?: string }[] } | null }>(
-        "SELECT front_print_url, front_preview_url, design_json FROM designs WHERE token = $1 AND shop = $2",
-        [token, shop],
-      ).catch(() => ({ rows: [] }))).rows[0];
-      if (d?.design_json?.type === "personalizer-slots") {
-        frontPrintUrl = d.front_print_url ?? "";
-        if (!frontPreviewUrl) frontPreviewUrl = d.front_preview_url ?? "";
-        const urls = (d.design_json.pieces ?? []).map((p) => String(p.url ?? "")).filter(Boolean);
-        if (urls.length > 1) productionFiles.push(...urls);
-      }
-    }
-    if (productionFiles.length === 0 && frontPrintUrl) productionFiles.push(frontPrintUrl);
-
-    const qty = item.quantity ?? 1;
-    const unitPrice = Number(item.price_set?.shop_money?.amount ?? item.price ?? 0);
-    const lineTotalPrice = unitPrice * qty;
-    const currencyCode = item.price_set?.shop_money?.currency_code ?? payload.currency ?? "";
-
-    const selectedColor =
-      getAttr(item.properties, "_pl_color") ?? getAttr(item.attributes, "_pl_color");
-    const colorMismatch = hasColorMismatch(item.variant_title ?? undefined, selectedColor);
-    if (colorMismatch) {
-      console.warn(
-        `[webhook] renk uyuşmazlığı: order=${payload.name} variant="${item.variant_title}" seçilen="${selectedColor}"`,
-      );
-    }
-
-    const id = `order_${randomBytes(8).toString("hex")}`;
-    await query(
-      `INSERT INTO orders
-         (id, shop, shopify_order_id, order_number, product_id, product_name,
-          variant_id, variant_title, line_item_id, quantity, design_token, preview_url,
-          production_file_url, production_files, customer_name, customer_email,
-          production_status, missing_surcharge, created_at,
-          line_total_price, currency_code, color_mismatch)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending',FALSE,$17,$18,$19,$20)
-       ON CONFLICT DO NOTHING`,
-      [
-        id,
-        shop,
-        shopifyOrderId,
-        payload.name ?? `#${shopifyOrderId}`,
-        String(item.product_id ?? ""),
-        item.name ?? "",
-        variantId,
-        item.variant_title ?? "",
-        lineItemId,
-        qty,
-        token,
-        frontPreviewUrl,
-        frontPrintUrl,
-        JSON.stringify(productionFiles),
-        customerName,
-        customerEmail,
-        payload.created_at ? new Date(payload.created_at) : new Date(),
-        lineTotalPrice,
-        currencyCode,
-        colorMismatch,
-      ],
-    );
-    console.log(
-      `[webhook] imported order ${payload.name} variant=${item.variant_title ?? variantId} qty=${item.quantity ?? 1}`,
-    );
-  }
 }
 
 function resetCustomerQuota(shop: string, designToken: string, orderName?: string) {
@@ -447,7 +282,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const isPaid = ["paid", "authorized", "partially_paid"].includes(financialStatus);
     console.log(`[webhook] order=${order.name} topic=${topic} token=${designToken ?? "none"} financial=${financialStatus}`);
 
-    importOrderFromWebhook(shop, order)
+    importOrder(shop, shopifyOrderToIncoming(order))
       .then(() => {
         // Baskı ücreti tasarımdan yeniden hesaplanır; eksikse etiket + bildirim
         // Printful bağlıysa eşleşen satırlar için taslak sipariş (onay beklenir)
@@ -487,7 +322,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const designToken = extractDesignToken(order);
     console.log(`[webhook] order=${order.name} topic=${topic} token=${designToken ?? "none"} — ödeme onaylandı`);
 
-    importOrderFromWebhook(shop, order)
+    importOrder(shop, shopifyOrderToIncoming(order))
       .then(async () => {
         if (designToken) {
           resetCustomerQuota(shop, designToken, order.name);

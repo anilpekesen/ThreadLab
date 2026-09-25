@@ -1,6 +1,7 @@
 import { query } from "~/lib/db.server";
 import type { PlanKey } from "~/lib/plans";
 import { sendWhatsAppMessage } from "~/lib/whatsapp.server";
+import { shopHandle } from "~/lib/platform";
 
 /**
  * Kampanya kodları. Kod, seçilen plana Shopify Billing API üzerinden süreli
@@ -104,7 +105,7 @@ export async function activatePendingPromo(shop: string, activePlan: PlanKey): P
     await sendWhatsAppMessage(phone, [
       `🎉 *Yeni kurucu mağaza*`,
       ``,
-      `🏪 ${shop.replace(".myshopify.com", "")}`,
+      `🏪 ${shopHandle(shop)}`,
       `🎟 Kod: ${row.code} · ${activePlan}, ${campaign?.freeMonths ?? "?"} ay ücretsiz`,
       `📊 ${total}/${campaign?.maxShops ?? "?"} kullanıldı`,
       ``,

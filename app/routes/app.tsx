@@ -17,6 +17,7 @@ import shellDict from "~/i18n/admin/app-shell";
 import { useEffect, useState } from "react";
 import appLayoutStyles from "~/styles/app-layout.css?url";
 import personalizerAdminStyles from "~/styles/personalizer-admin.css?url";
+import { shopHandle } from "~/lib/platform";
 
 export const links = () => [
   { rel: "stylesheet", href: polarisStyles },
@@ -45,12 +46,12 @@ async function syncShopDisplayName(
     if (shopName && shopName !== current.shopDisplayName) {
       await saveShopSettings(shop, { shopDisplayName: shopName });
     }
-    return current.emailSenderName?.trim() || shopName || shop.replace(/\.myshopify\.com$/i, "");
+    return current.emailSenderName?.trim() || shopName || shopHandle(shop);
   } catch (error) {
     console.error(`[shop-identity] mağaza adı eşitlenemedi: ${shop}`, error);
     return current.emailSenderName?.trim()
       || current.shopDisplayName?.trim()
-      || shop.replace(/\.myshopify\.com$/i, "");
+      || shopHandle(shop);
   }
 }
 
@@ -93,7 +94,7 @@ function AppInner() {
   const navigate = useNavigate();
 
   const isActive = subscriptionStatus === "active" || subscriptionStatus === "trial";
-  const shopName = shopDisplayName || shop.replace(".myshopify.com", "");
+  const shopName = shopDisplayName || shopHandle(shop);
   // Aboneliği olmayan mağaza ücretsiz plandadır; "Plan yok" yerine planın adı görünür
   const planLabel = planKey;
 

@@ -4,6 +4,7 @@ import { uploadToR2 } from "~/lib/r2.server";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getUploadsDir } from "~/lib/storage.server";
+import { publicAppUrl } from "~/lib/app-url.server";
 
 /**
  * Klipartlar iki kapsamda tutulur:
@@ -100,7 +101,7 @@ export async function addClipart(
   } else {
     const filename = `clipart-${randomBytes(12).toString("hex")}.${ext}`;
     await writeFile(path.join(getUploadsDir(), filename), buffer);
-    const base = process.env.SHOPIFY_APP_URL ?? new URL(requestUrl).origin;
+    const base = publicAppUrl(new URL(requestUrl).origin);
     imageUrl = `${base}/uploads/${filename}`;
   }
 

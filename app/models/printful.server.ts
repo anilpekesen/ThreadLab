@@ -6,6 +6,7 @@ import {
   decryptSecret, encryptSecret, getCatalogProduct, listCatalogVariants, listStores, pf,
   PrintfulError, verifyPrintfulSignature, type PfProduct, type PfVariant,
 } from "~/lib/printful.server";
+import { publicAppUrl } from "~/lib/app-url.server";
 
 /**
  * Printful entegrasyonu: bağlantı, varyant eşleştirme, taslak sipariş,
@@ -64,7 +65,7 @@ export async function getPrintfulConnection(shop: string): Promise<PodConnection
 }
 
 function appUrl(): string {
-  return (process.env.SHOPIFY_APP_URL || "https://app.printlabapp.com").replace(/\/$/, "");
+  return publicAppUrl();
 }
 
 /**
