@@ -1,15 +1,17 @@
 <?php
 /**
- * Plugin Name:       PrintLab – Product Personalizer for WooCommerce
+ * Plugin Name:       PrintLab for WooCommerce
  * Plugin URI:        https://printlabapp.com
- * Description:       Let customers personalize products with photos and text, and get print-ready files for every order.
- * Version:           0.2.0
+ * Description:       Product personalizer and apparel designer: customers add photos and text, you get print-ready files for every order.
+ * Version:           0.2.1
  * Requires at least: 6.4
  * Requires PHP:      7.4
  * Author:            PrintLab
  * License:           GPL-2.0-or-later
- * Text Domain:       printlab
+ * Text Domain:       printlab-for-woocommerce
+ * Requires Plugins:  woocommerce
  * WC requires at least: 8.0
+ * WC tested up to:  11.1
  *
  * Tasarım, şablonlar ve baskı dosyası PrintLab sunucusunda üretilir; eklenti
  * WooCommerce ile PrintLab arasında köprüdür:
@@ -21,7 +23,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'PRINTLAB_VERSION', '0.2.0' );
+define( 'PRINTLAB_VERSION', '0.2.1' );
 define( 'PRINTLAB_FILE', __FILE__ );
 
 if ( ! defined( 'PRINTLAB_APP_URL' ) ) {

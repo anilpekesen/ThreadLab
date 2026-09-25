@@ -96,17 +96,17 @@ final class PrintLab_Plugin {
 		);
 		echo '<div class="wrap"><h1>PrintLab</h1>';
 		if ( true === $connected ) {
-			echo '<div class="notice notice-success inline"><p>' . esc_html__( 'Connected to PrintLab. Orders with personalized products are sent to PrintLab automatically.', 'printlab' ) . '</p></div>';
+			echo '<div class="notice notice-success inline"><p>' . esc_html__( 'Connected to PrintLab. Orders with personalized products are sent to PrintLab automatically.', 'printlab-for-woocommerce' ) . '</p></div>';
 			$open = wp_nonce_url( admin_url( 'admin-post.php?action=printlab_open' ), 'printlab_open' );
-			echo '<p><a class="button button-primary button-hero" href="' . esc_url( $open ) . '" target="_blank" rel="noopener">' . esc_html__( 'Open PrintLab', 'printlab' ) . '</a></p>';
-			echo '<p class="description">' . esc_html__( 'Set up print areas, print prices and templates, and see your orders and print files.', 'printlab' ) . '</p>';
+			echo '<p><a class="button button-primary button-hero" href="' . esc_url( $open ) . '" target="_blank" rel="noopener">' . esc_html__( 'Open PrintLab', 'printlab-for-woocommerce' ) . '</a></p>';
+			echo '<p class="description">' . esc_html__( 'Set up print areas, print prices and templates, and see your orders and print files.', 'printlab-for-woocommerce' ) . '</p>';
 		} elseif ( null === $connected ) {
-			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'PrintLab could not be reached. Try again in a moment.', 'printlab' ) . '</p></div>';
+			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'PrintLab could not be reached. Try again in a moment.', 'printlab-for-woocommerce' ) . '</p></div>';
 		} else {
-			echo '<p>' . esc_html__( 'Connect your store so PrintLab can receive personalized orders and print files.', 'printlab' ) . '</p>';
+			echo '<p>' . esc_html__( 'Connect your store so PrintLab can receive personalized orders and print files.', 'printlab-for-woocommerce' ) . '</p>';
 		}
-		echo '<p><a class="button' . ( $connected ? '' : ' button-primary' ) . '" href="' . esc_url( $auth_url ) . '">' . esc_html( $connected ? __( 'Reconnect', 'printlab' ) : __( 'Connect to PrintLab', 'printlab' ) ) . '</a></p>';
-		echo '<p class="description">' . esc_html__( 'To personalize a product, open it and either turn on the PrintLab designer or enter a PrintLab template ID in the PrintLab box. Print areas and print prices are set in the PrintLab app.', 'printlab' ) . '</p>';
+		echo '<p><a class="button' . ( $connected ? '' : ' button-primary' ) . '" href="' . esc_url( $auth_url ) . '">' . esc_html( $connected ? __( 'Reconnect', 'printlab-for-woocommerce' ) : __( 'Connect to PrintLab', 'printlab-for-woocommerce' ) ) . '</a></p>';
+		echo '<p class="description">' . esc_html__( 'To personalize a product, open it and either turn on the PrintLab designer or enter a PrintLab template ID in the PrintLab box. Print areas and print prices are set in the PrintLab app.', 'printlab-for-woocommerce' ) . '</p>';
 		echo '</div>';
 	}
 
@@ -167,7 +167,7 @@ final class PrintLab_Plugin {
 	 */
 	public function open_app() {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_die( esc_html__( 'You do not have permission to open PrintLab.', 'printlab' ), 403 );
+			wp_die( esc_html__( 'You do not have permission to open PrintLab.', 'printlab-for-woocommerce' ), 403 );
 		}
 		check_admin_referer( 'printlab_open' );
 		$secret = self::signing_secret();
@@ -202,25 +202,25 @@ final class PrintLab_Plugin {
 		wp_nonce_field( 'printlab_meta', 'printlab_meta_nonce' );
 		$value    = get_post_meta( $post->ID, self::META_TEMPLATE, true );
 		$designer = 'yes' === get_post_meta( $post->ID, self::META_DESIGNER, true );
-		echo '<p><label><input type="checkbox" name="printlab_designer" value="yes"' . checked( $designer, true, false ) . ' /> ' . esc_html__( 'Show the PrintLab designer (apparel, print by size)', 'printlab' ) . '</label></p>';
-		echo '<p><label for="printlab_template">' . esc_html__( 'Personalizer template', 'printlab' ) . '</label></p>';
+		echo '<p><label><input type="checkbox" name="printlab_designer" value="yes"' . checked( $designer, true, false ) . ' /> ' . esc_html__( 'Show the PrintLab designer (apparel, print by size)', 'printlab-for-woocommerce' ) . '</label></p>';
+		echo '<p><label for="printlab_template">' . esc_html__( 'Personalizer template', 'printlab-for-woocommerce' ) . '</label></p>';
 		$templates = $this->templates();
 		if ( null === $templates ) {
 			// Liste alınamadı: kimlik elle girilebilsin
 			echo '<input type="text" id="printlab_template" name="printlab_template" class="widefat" value="' . esc_attr( $value ) . '" placeholder="e.g. 97226bf1d8933843ea2ab2da" />';
-			echo '<p class="description">' . esc_html__( 'Connect your store in WooCommerce > PrintLab to choose from your templates. You can also paste a template ID.', 'printlab' ) . '</p>';
+			echo '<p class="description">' . esc_html__( 'Connect your store in WooCommerce > PrintLab to choose from your templates. You can also paste a template ID.', 'printlab-for-woocommerce' ) . '</p>';
 			return;
 		}
 		$known   = wp_list_pluck( $templates, 'id' );
 		$preview = '';
 		echo '<select id="printlab_template" name="printlab_template" class="widefat">';
-		echo '<option value="">' . esc_html__( 'No template', 'printlab' ) . '</option>';
+		echo '<option value="">' . esc_html__( 'No template', 'printlab-for-woocommerce' ) . '</option>';
 		foreach ( $templates as $t ) {
 			$id    = (string) ( $t['id'] ?? '' );
 			$label = (string) ( $t['name'] ?? $id );
 			if ( ! empty( $t['photos'] ) ) {
 				/* translators: %d: number of photos */
-				$label .= ' (' . sprintf( _n( '%d photo', '%d photos', (int) $t['photos'], 'printlab' ), (int) $t['photos'] ) . ')';
+				$label .= ' (' . sprintf( _n( '%d photo', '%d photos', (int) $t['photos'], 'printlab-for-woocommerce' ), (int) $t['photos'] ) . ')';
 			}
 			if ( $id === $value ) {
 				$preview = (string) ( $t['previewUrl'] ?? '' );
@@ -234,9 +234,9 @@ final class PrintLab_Plugin {
 		echo '</select>';
 		echo '<p><img id="printlab_template_preview" src="' . esc_url( $preview ) . '" alt="" style="max-width:100%;height:auto;margin-top:8px;border-radius:4px;' . ( $preview ? '' : 'display:none' ) . '" /></p>';
 		if ( ! $templates ) {
-			echo '<p class="description">' . esc_html__( 'You have no photo templates yet. Create one in the PrintLab app.', 'printlab' ) . '</p>';
+			echo '<p class="description">' . esc_html__( 'You have no photo templates yet. Create one in the PrintLab app.', 'printlab-for-woocommerce' ) . '</p>';
 		} else {
-			echo '<p class="description">' . esc_html__( 'Choose "No template" to sell the product without personalization.', 'printlab' ) . '</p>';
+			echo '<p class="description">' . esc_html__( 'Choose "No template" to sell the product without personalization.', 'printlab-for-woocommerce' ) . '</p>';
 		}
 		echo "<script>(function(){var s=document.getElementById('printlab_template'),i=document.getElementById('printlab_template_preview');if(!s||!i)return;s.addEventListener('change',function(){var o=s.options[s.selectedIndex],u=o&&o.getAttribute('data-preview');i.src=u||'';i.style.display=u?'':'none';});})();</script>";
 	}
@@ -366,13 +366,13 @@ final class PrintLab_Plugin {
 				'currency'  => get_woocommerce_currency(),
 				'options'   => $payload['options'],
 				'variants'  => $payload['variants'],
-				'error'     => __( 'Could not add to cart. Please try again.', 'printlab' ),
+				'error'     => __( 'Could not add to cart. Please try again.', 'printlab-for-woocommerce' ),
 			)
 		);
 		// Temanın kendi sepete ekle formu gizlenir: tasarımsız sipariş olmasın
 		echo '<style>.single-product form.cart{display:none!important}</style>';
 		echo '<div class="printlab-personalizer" style="margin:0 0 1.5em">';
-		echo '<iframe id="printlab-frame" src="' . esc_url( $src ) . '" style="width:100%;min-height:520px;border:0;display:block" allow="clipboard-write" title="' . esc_attr__( 'Personalize', 'printlab' ) . '"></iframe>';
+		echo '<iframe id="printlab-frame" src="' . esc_url( $src ) . '" style="width:100%;min-height:520px;border:0;display:block" allow="clipboard-write" title="' . esc_attr__( 'Personalize', 'printlab-for-woocommerce' ) . '"></iframe>';
 		echo '</div>';
 	}
 
@@ -472,7 +472,7 @@ final class PrintLab_Plugin {
 					'singlePrice'    => 0,
 					'doublePrice'    => 0,
 				),
-				'error'       => __( 'Could not add to cart. Please try again.', 'printlab' ),
+				'error'       => __( 'Could not add to cart. Please try again.', 'printlab-for-woocommerce' ),
 			)
 		);
 		// Temanın kendi sepete ekle formu gizlenir: tasarımsız sipariş olmasın
@@ -483,7 +483,7 @@ final class PrintLab_Plugin {
 			. '.printlab-designer{width:100%;margin:0 0 2em;clear:both;background:#f3f4f6}'
 			. '.printlab-designer iframe{display:block;width:100%;height:960px;border:0}'
 			. '@media (max-width:859px){.printlab-designer iframe{height:1320px}}</style>';
-		echo '<div class="printlab-designer"><iframe id="printlab-designer-frame" src="' . esc_url( $app . '/designer-app/' ) . '" allow="camera; microphone" title="' . esc_attr__( 'Design your product', 'printlab' ) . '"></iframe></div>';
+		echo '<div class="printlab-designer"><iframe id="printlab-designer-frame" src="' . esc_url( $app . '/designer-app/' ) . '" allow="camera; microphone" title="' . esc_attr__( 'Design your product', 'printlab-for-woocommerce' ) . '"></iframe></div>';
 	}
 
 	// ── Sepete ekleme ──────────────────────────────────────────────────────
@@ -689,7 +689,7 @@ final class PrintLab_Plugin {
 		foreach ( WC()->cart->get_cart() as $item ) {
 			$token = $item['printlab']['token'] ?? '';
 			if ( $token && null === $this->fee_for( $token, $qty[ $token ] ?? 1 ) ) {
-				wc_add_notice( __( 'The price of a personalized item could not be confirmed. Please try again in a moment or save your design again.', 'printlab' ), 'error' );
+				wc_add_notice( __( 'The price of a personalized item could not be confirmed. Please try again in a moment or save your design again.', 'printlab-for-woocommerce' ), 'error' );
 				return;
 			}
 		}
@@ -706,7 +706,7 @@ final class PrintLab_Plugin {
 		}
 		$fee = $item['printlab']['fee'] ?? null;
 		if ( $fee ) {
-			$data[] = array( 'key' => __( 'Personalization', 'printlab' ), 'value' => wp_strip_all_tags( wc_price( $fee ) ) );
+			$data[] = array( 'key' => __( 'Personalization', 'printlab-for-woocommerce' ), 'value' => wp_strip_all_tags( wc_price( $fee ) ) );
 		}
 		return $data;
 	}

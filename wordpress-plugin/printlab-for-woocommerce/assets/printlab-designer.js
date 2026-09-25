@@ -17,11 +17,16 @@
     send({ type: 'DESIGNER_INIT', config: D.config });
   }
 
-  // Tasarımcı yüklenirken dinleyicisi geç kurulabiliyor: birkaç kez gönder
-  frame.addEventListener('load', function () {
+  // Tasarımcı "hazırım" mesajı göndermiyor; yapılandırma birkaç kez gönderilir.
+  // Bu betik sayfanın sonunda yüklendiği için iframe ondan ÖNCE yüklenmiş
+  // olabilir ve 'load' olayı kaçar (tasarımcı ürünsüz, varsayılan dil ve
+  // ₺0 ile açılıyordu): hemen ve kısa aralıklarla da gönderilir.
+  function sendBurst() {
     sendConfig();
-    [80, 400, 1200].forEach(function (ms) { window.setTimeout(sendConfig, ms); });
-  });
+    [80, 400, 1200, 2500].forEach(function (ms) { window.setTimeout(sendConfig, ms); });
+  }
+  frame.addEventListener('load', sendBurst);
+  sendBurst();
 
   function scrollToDesigner(behavior) {
     var top = frame.getBoundingClientRect().top + window.pageYOffset - 8;
