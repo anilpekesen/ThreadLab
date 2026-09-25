@@ -1,3 +1,4 @@
+import { checkOrderPrintPricing } from "~/lib/print-price-check.server";
 import { activatePendingPromo } from "~/models/promo.server";
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
@@ -432,6 +433,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     importOrderFromWebhook(shop, order)
       .then(() => {
+        // Baskı ücreti tasarımdan yeniden hesaplanır; eksikse etiket + bildirim
+        if (shopifyOrderId && designToken) {
+          checkOrderPrintPricing(shop, shopifyOrderId).catch((err) =>
+            console.error(`[webhook] price check failed for order ${order.name}:`, err),
+          );
+        }
         if (designToken) {
           processOrderBgRemoval(shop, designToken).catch((err) =>
             console.error(`[webhook] auto-bg failed for order ${order.name}:`, err),

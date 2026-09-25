@@ -1,6 +1,9 @@
 import { query } from "~/lib/db.server";
 import { getValidAccessToken } from "~/lib/session.server";
 import { shopifyGraphQL } from "~/lib/shopify.server";
+import { getShopSettings } from "~/models/shop-settings.server";
+import { sendEmail } from "~/lib/email.server";
+import { sendWhatsAppMessage } from "~/lib/whatsapp.server";
 
 /**
  * Sipariş sonrası baskı ücreti kontrolü (fiyat güvenliğinin 2. aşaması).
@@ -20,7 +23,7 @@ const CANVAS_W = 480;
 const CANVAS_H = 580;
 const LENIENCY = 0.97;
 const ABS_TOLERANCE = 0.5;
-export const PRICE_CHECK_TAG = "PrintLab-fiyat-kontrol";
+export const PRICE_CHECK_TAG = "PrintLab-price-check";
 
 interface Band { maxWidthCm: number | null; maxHeightCm: number | null; maxAreaCm2?: number | null; surcharge: number; label?: string }
 interface Area { x: number; y: number; width: number; height: number; placementWidthMm: number; placementHeightMm: number; realWidthMm: number; realHeightMm: number }
@@ -180,8 +183,11 @@ export async function checkOrderPrintPricing(shop: string, orderId: string, opts
     const pct = discountFor(ctx.settings?.volumeDiscounts, qtyByToken.get(designToken) ?? g.base.quantity);
     const expected = Math.round(best!.total * (1 - pct / 100) * 100) / 100;
     const paid = Number(g.fee.originalUnitPriceSet.shopMoney.amount);
-    const underpaid = paid + ABS_TOLERANCE < expected;
-    results.push({ token: designToken, quantity: g.base.quantity, paid, expected, underpaid, detail: { front: best!.front, back: best!.back, discount: pct } });
+    // Kayıtlı tasarımda ölçülebilir baskı nesnesi yoksa (ör. sunucuda üretilen
+    // şablon tasarımları) doğrulanamaz: işaretlenmez, öyle kaydedilir
+    const measurable = (best!.front as { pieces: unknown[] }).pieces.length + (best!.back as { pieces: unknown[] }).pieces.length > 0;
+    const underpaid = measurable && paid + ABS_TOLERANCE < expected;
+    results.push({ token: designToken, quantity: g.base.quantity, paid, expected, underpaid, detail: { front: best!.front, back: best!.back, discount: pct, measurable } });
   }
 
   if (opts.dryRun) return results;
@@ -197,7 +203,34 @@ export async function checkOrderPrintPricing(shop: string, orderId: string, opts
   if (results.some((x) => x.underpaid)) {
     await shopifyGraphQL(shop, token, `mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { message } } }`,
       { id: order.id, tags: [PRICE_CHECK_TAG] }).catch((err) => console.error("[price-check] etiket eklenemedi:", err));
+    await notifyMerchant(shop, order.name, results.filter((x) => x.underpaid)).catch((err) => console.error("[price-check] bildirim gönderilemedi:", err));
     console.warn(`[price-check] ${shop} ${order.name}: eksik baskı ücreti`, results.filter((x) => x.underpaid).map((x) => `${x.token} ödenen ${x.paid} beklenen ${x.expected}`).join(", "));
   }
   return results;
+}
+
+/** Eksik baskı ücreti: mağaza sahibine sipariş bildirim kanallarından haber ver */
+async function notifyMerchant(shop: string, orderName: string, lines: LineCheck[]) {
+  const settings = await getShopSettings(shop).catch(() => null);
+  const diff = lines.reduce((sum, l) => sum + (l.expected - l.paid) * l.quantity, 0);
+  const tr = [
+    `⚠️ ${orderName}: baskı ücreti eksik ödenmiş olabilir`,
+    ...lines.map((l) => `• Tasarım ${l.token}: ödenen ${l.paid.toFixed(2)}, tasarıma göre ${l.expected.toFixed(2)} (×${l.quantity})`),
+    `Toplam fark yaklaşık ${diff.toFixed(2)}. Baskıdan önce siparişi kontrol edin. Siparişe "${PRICE_CHECK_TAG}" etiketi eklendi.`,
+    ``,
+    `⚠️ ${orderName}: the print fee may have been underpaid`,
+    ...lines.map((l) => `• Design ${l.token}: paid ${l.paid.toFixed(2)}, the design prices at ${l.expected.toFixed(2)} (×${l.quantity})`),
+    `Total difference about ${diff.toFixed(2)}. Check the order before printing. The order was tagged "${PRICE_CHECK_TAG}".`,
+  ].join("\n");
+  if (settings?.notificationEmail) {
+    const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    await sendEmail({
+      to: settings.notificationEmail,
+      subject: `${orderName}: baskı ücreti kontrolü / print fee check`,
+      html: `<p style="white-space:pre-line">${esc(tr)}</p>`,
+      fromName: settings.emailSenderName || undefined,
+    });
+  }
+  const phone = (settings?.notificationWhatsapp ?? "").replace(/\D/g, "");
+  if (phone) await sendWhatsAppMessage(phone, tr);
 }
