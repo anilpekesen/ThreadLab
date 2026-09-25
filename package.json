@@ -29,6 +29,7 @@
     "@shopify/shopify-app-session-storage-postgresql": "^6.0.0",
     "@types/pg": "^8.20.0",
     "@types/sharp": "^0.31.1",
+    "ag-psd": "^31.0.2",
     "fflate": "^0.8.3",
     "isbot": "^4.4.0",
     "opentype.js": "^2.0.0",

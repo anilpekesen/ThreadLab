@@ -109,7 +109,7 @@ async function ovalPortrait(request: Request, shop: string, lang: "tr" | "en"): 
  * yukarıda geniş pay bırakmak bedava. Çenenin altı yumuşak bir geçişle,
  * yanlarda kulakların ötesi (omuz, yaka) dikey bir ovalle silinir.
  */
-export async function headOnly(subject: Buffer, box: HeadBox): Promise<Buffer> {
+async function headOnly(subject: Buffer, box: HeadBox): Promise<Buffer> {
   const meta = await sharp(subject).metadata();
   const W = meta.width ?? 0;
   const H = meta.height ?? 0;

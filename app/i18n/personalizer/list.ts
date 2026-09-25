@@ -26,6 +26,7 @@ const tr = {
   pageTitle: "Kişiselleştirme şablonları",
   pageSubtitle: "Farklı ürün gruplarındaki müşteri tasarım akışlarını tek yerden yönetin.",
   newTemplate: "Yeni şablon",
+  importDesign: "PSD / Canva'dan içe aktar",
   howToSetup: "Nasıl kurulur?",
   syncLinks: "Bağlantıları denetle",
   syncResult: (on: number, off: number) =>
@@ -110,6 +111,7 @@ const en: typeof tr = {
   pageTitle: "Personalization templates",
   pageSubtitle: "Manage customer design flows for all your product groups in one place.",
   newTemplate: "New template",
+  importDesign: "Import from PSD / Canva",
   howToSetup: "How to set up",
   syncLinks: "Check links",
   syncResult: (on, off) =>

@@ -156,6 +156,7 @@ export default function PersonalizerIndex() {
       subtitle={L.pageSubtitle}
       primaryAction={{ content: L.newTemplate, url: "/app/personalizer/new" }}
       secondaryActions={[
+        { content: L.importDesign, url: "/app/personalizer/import" },
         { content: L.howToSetup, url: "/app/personalizer/setup" },
         {
           content: L.syncLinks,
