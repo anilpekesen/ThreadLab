@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, useActionData, useFetcher, useLoaderData, useNavigate, useNavigation, useSearchParams } from "@remix-run/react";
-import { useAppBridge } from "@shopify/app-bridge-react";
+import { useProductPicker } from "~/components/ProductPicker";
 import { copyProductSetup } from "~/models/product-copy.server";
 import { FormSaveBar, useFormDirty } from "~/components/FormSaveBar";
 import {
@@ -877,7 +877,7 @@ function ProductSettingsInner({ onDiscard }: { onDiscard: () => void }) {
   const L = useDict(productDetailDict);
   const actionData = useActionData<typeof action>();
   const copyFetcher = useFetcher<{ copy?: { copied: string[]; limited: string[]; missingSource?: boolean } }>();
-  const appBridge = useAppBridge();
+  const productPicker = useProductPicker(lang === "en" ? "en" : "tr");
   const hasMounted = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [showSavedToast, setShowSavedToast] = useState(false);
@@ -1075,17 +1075,18 @@ function ProductSettingsInner({ onDiscard }: { onDiscard: () => void }) {
                 disabled={dirty}
                 loading={copyFetcher.state !== "idle"}
                 onClick={async () => {
-                  const picked = await appBridge.resourcePicker({ type: "product", multiple: true, filter: { variants: false } });
+                  const picked = await productPicker.pick();
                   if (!picked?.length) return;
                   const fd = new FormData();
                   fd.set("intent", "copy_to_products");
                   fd.set("_lang", lang);
-                  fd.set("products", JSON.stringify(picked.map((p) => ({ id: p.id, title: (p as { title?: string }).title ?? "", handle: (p as { handle?: string }).handle ?? "" }))));
+                  fd.set("products", JSON.stringify(picked));
                   copyFetcher.submit(fd, { method: "POST" });
                 }}
               >
                 {L.copyButton}
               </Button>
+              {productPicker.modal}
             </InlineStack>
             {copyFetcher.data?.copy && (
               <Banner tone={copyFetcher.data.copy.limited.length || copyFetcher.data.copy.missingSource ? "warning" : "success"}>

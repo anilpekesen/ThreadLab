@@ -22,6 +22,8 @@ function wooContext(shop: string) {
     shop,
     session: { shop },
     admin: {
+      /** Ürün listesi gibi ortak yardımcılar WooCommerce'e bununla yönlenir */
+      wooShop: shop,
       graphql: async (_q: string, _opts?: { variables?: Record<string, unknown> }): Promise<Response> => {
         throw new ShopifyApiUnavailable(shop);
       },

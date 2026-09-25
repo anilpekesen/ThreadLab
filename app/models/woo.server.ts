@@ -293,3 +293,69 @@ export async function consumeWooLogin(shop: string, ts: string, nonce: string, s
   await query("DELETE FROM woo_login_nonces WHERE used_at < now() - interval '1 day'").catch(() => null);
   return (ins.rowCount ?? 0) === 1;
 }
+
+// ── Ürünler ─────────────────────────────────────────────────────────────────
+
+type WooProduct = {
+  id: number; name: string; slug: string; type: string; status: string; price?: string;
+  images?: Array<{ src: string }>; categories?: Array<{ name: string }>;
+};
+type WooVariation = {
+  id: number; price?: string; image?: { src?: string } | null;
+  attributes?: Array<{ name: string; option: string }>;
+};
+
+/**
+ * Yönetim ekranlarının Shopify ürün listesiyle aynı biçimde WooCommerce
+ * ürünleri. Kimlikler düz sayı ("10"): mağaza tarafı da ürünü böyle bilir.
+ */
+export async function fetchWooProducts(shop: string, search = "", ids?: string[]) {
+  const conn = await getWooConnection(shop);
+  if (!conn) return [];
+  const qs = new URLSearchParams({ per_page: "50", status: "publish", orderby: "modified", order: "desc" });
+  if (search) qs.set("search", search);
+  if (ids?.length) qs.set("include", ids.join(","));
+  const products = await wooRest<WooProduct[]>(conn, `/products?${qs}`);
+  return Promise.all(products.map(async (p) => {
+    const variations = p.type === "variable"
+      ? await wooRest<WooVariation[]>(conn, `/products/${p.id}/variations?per_page=100`).catch(() => [])
+      : [];
+    const image = p.images?.[0]?.src ?? null;
+    return {
+      id: String(p.id),
+      title: p.name,
+      handle: p.slug,
+      productType: p.categories?.[0]?.name ?? "",
+      status: p.status === "publish" ? "ACTIVE" : p.status.toUpperCase(),
+      featuredImage: image,
+      images: (p.images ?? []).map((i) => i.src),
+      variants: variations.length
+        ? variations.map((v) => ({
+            id: String(v.id),
+            title: (v.attributes ?? []).map((a) => a.option).join(" / "),
+            price: v.price ?? "",
+            selectedOptions: (v.attributes ?? []).map((a) => ({ name: a.name, value: a.option })),
+            image: v.image?.src ?? null,
+          }))
+        : [{ id: String(p.id), title: "Default Title", price: p.price ?? "", selectedOptions: [], image }],
+    };
+  }));
+}
+
+/**
+ * Şablon bağlantısı WooCommerce ürününe: eklentinin okuduğu `_printlab_template`
+ * alanı (Shopify'daki ürün metafield'ının karşılığı). Boş değer bağlantıyı kaldırır.
+ */
+export async function setWooProductTemplate(shop: string, productId: string, templateId: string): Promise<{ ok: boolean; error?: string }> {
+  const conn = await getWooConnection(shop);
+  if (!conn) return { ok: false, error: "WooCommerce store is not connected" };
+  const id = String(productId).split("/").pop() ?? "";
+  if (!/^\d+$/.test(id)) return { ok: false, error: "invalid product" };
+  try {
+    await wooRest(conn, `/products/${id}`, { method: "PUT", body: { meta_data: [{ key: "_printlab_template", value: templateId }] } });
+    return { ok: true };
+  } catch (err) {
+    console.error("[woo] şablon ürüne yazılamadı:", err);
+    return { ok: false, error: "Could not update the WooCommerce product" };
+  }
+}

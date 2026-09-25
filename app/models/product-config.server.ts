@@ -496,6 +496,12 @@ export async function fetchShopifyProducts(
   admin: { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> },
   query = "",
 ): Promise<ShopifyProductSummary[]> {
+  const wooShop = (admin as { wooShop?: string }).wooShop;
+  if (wooShop) {
+    const { fetchWooProducts } = await import("~/models/woo.server");
+    // Shopify arama sözdizimi ("title:x*") WooCommerce'te düz aramaya iner
+    return fetchWooProducts(wooShop, query.replace(/^[a-z_]+:/i, "").replace(/\*/g, "").trim());
+  }
   const activeQuery = query ? `status:active ${query}` : "status:active";
   const response = await admin.graphql(
     `#graphql
@@ -564,6 +570,12 @@ export async function fetchShopifyProductById(
   admin: { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> },
   id: string,
 ): Promise<ShopifyProductSummary | null> {
+  const wooShop = (admin as { wooShop?: string }).wooShop;
+  if (wooShop) {
+    const { fetchWooProducts } = await import("~/models/woo.server");
+    const numeric = String(id).split("/").pop() ?? "";
+    return (await fetchWooProducts(wooShop, "", [numeric]))[0] ?? null;
+  }
   const response = await admin.graphql(
     `#graphql
     query Product($id: ID!) {

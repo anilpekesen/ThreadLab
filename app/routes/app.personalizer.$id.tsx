@@ -11,7 +11,7 @@ import {
   Button, BlockStack, InlineStack, Text, Banner, Box, Badge, Thumbnail,
 } from "@shopify/polaris";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useAppBridge } from "@shopify/app-bridge-react";
+import { useProductPicker } from "~/components/ProductPicker";
 import { authenticate } from "~/lib/authenticate.server";
 import {
   getPersonalizerTemplate,
@@ -1317,7 +1317,7 @@ function PersonalizerEditor({ onDiscard }: { onDiscard: () => void }) {
     metafieldOk?: boolean; metafieldError?: string;
     bulk?: { linked: string[]; limited: string[]; noDesigner: string[]; metaFailed: string[] };
   }>();
-  const appBridge = useAppBridge();
+  const productPicker = useProductPicker(lang === "en" ? "en" : "tr");
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const availableProducts = products.filter((product): product is NonNullable<typeof product> => product !== null);
@@ -2368,12 +2368,12 @@ function PersonalizerEditor({ onDiscard }: { onDiscard: () => void }) {
                   <InlineStack gap="200" blockAlign="center">
                     <Button
                       onClick={async () => {
-                        const picked = await appBridge.resourcePicker({ type: "product", multiple: true, filter: { variants: false } });
+                        const picked = await productPicker.pick();
                         if (!picked?.length) return;
                         const fd = new FormData();
                         fd.set("intent", "link_products_bulk");
                         fd.set("_lang", lang);
-                        fd.set("products", JSON.stringify(picked.map((p) => ({ id: p.id, title: (p as { title?: string }).title ?? "", handle: (p as { handle?: string }).handle ?? "" }))));
+                        fd.set("products", JSON.stringify(picked));
                         for (const side of linkSides) fd.append("side", side);
                         linkFetcher.submit(fd, { method: "POST", encType: "multipart/form-data" });
                       }}
@@ -2381,6 +2381,7 @@ function PersonalizerEditor({ onDiscard }: { onDiscard: () => void }) {
                     >
                       {L.bulkLink}
                     </Button>
+                    {productPicker.modal}
                     <Text as="span" tone="subdued" variant="bodySm">{L.bulkLinkHint}</Text>
                   </InlineStack>
                   {linkFetcher.data?.bulk && (

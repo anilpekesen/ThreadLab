@@ -1,5 +1,6 @@
 import { shopifyGraphQL } from "~/lib/shopify.server";
 import { getValidAccessToken } from "~/lib/session.server";
+import { isWooShop } from "~/lib/platform";
 
 /**
  * Şablonu Shopify ürününe bağlayan metafield.
@@ -33,6 +34,7 @@ export async function setProductTemplateMetafield(
   productId: string,
   templateId: string,
 ): Promise<MetafieldResult> {
+  if (isWooShop(shop)) return (await import("~/models/woo.server")).setWooProductTemplate(shop, productId, templateId);
   const token = await getValidAccessToken(shop);
   if (!token) return { ok: false, error: "Mağaza oturumu bulunamadı" };
 
@@ -74,6 +76,7 @@ export async function clearProductTemplateMetafield(
   shop: string,
   productId: string,
 ): Promise<MetafieldResult> {
+  if (isWooShop(shop)) return (await import("~/models/woo.server")).setWooProductTemplate(shop, productId, "");
   const token = await getValidAccessToken(shop);
   if (!token) return { ok: false, error: "Mağaza oturumu bulunamadı" };
 
