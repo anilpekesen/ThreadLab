@@ -106,6 +106,56 @@ final class PrintLab_Plugin {
 		echo '</div>';
 	}
 
+	// ── Şablon listesi ─────────────────────────────────────────────────────
+
+	/**
+	 * PrintLab'e giden isteklerin imza sırrı: PrintLab'in bağlanırken kurduğu
+	 * webhook'un sırrı. Ayrı bir anahtar saklanmaz; yeniden bağlanınca yenilenir.
+	 */
+	private static function signing_secret() {
+		$prefix = self::app_url( '/webhooks/woo' );
+		$store  = WC_Data_Store::load( 'webhook' );
+		foreach ( $store->search_webhooks( array( 'status' => 'active', 'limit' => -1 ) ) as $id ) {
+			$hook = wc_get_webhook( $id );
+			if ( $hook && 0 === strpos( $hook->get_delivery_url(), $prefix ) && $hook->get_secret() ) {
+				return $hook->get_secret();
+			}
+		}
+		return '';
+	}
+
+	/** Mağazanın PrintLab şablonları; null = alınamadı (bağlı değil ya da hata) */
+	private function templates() {
+		$cached = get_transient( 'printlab_templates' );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+		$secret = self::signing_secret();
+		if ( ! $secret ) {
+			return null;
+		}
+		$shop = self::shop_key();
+		$ts   = (string) time();
+		$url  = add_query_arg(
+			array(
+				'shop' => rawurlencode( $shop ),
+				'ts'   => $ts,
+				'sig'  => hash_hmac( 'sha256', $shop . "\n" . $ts, $secret ),
+			),
+			self::app_url( '/api/woo/templates' )
+		);
+		$res = wp_remote_get( $url, array( 'timeout' => 8 ) );
+		if ( is_wp_error( $res ) || 200 !== wp_remote_retrieve_response_code( $res ) ) {
+			return null;
+		}
+		$body = json_decode( wp_remote_retrieve_body( $res ), true );
+		if ( ! isset( $body['templates'] ) || ! is_array( $body['templates'] ) ) {
+			return null;
+		}
+		set_transient( 'printlab_templates', $body['templates'], MINUTE_IN_SECONDS );
+		return $body['templates'];
+	}
+
 	// ── Ürün ayarı ─────────────────────────────────────────────────────────
 
 	public function add_meta_box() {
@@ -117,9 +167,42 @@ final class PrintLab_Plugin {
 		$value    = get_post_meta( $post->ID, self::META_TEMPLATE, true );
 		$designer = 'yes' === get_post_meta( $post->ID, self::META_DESIGNER, true );
 		echo '<p><label><input type="checkbox" name="printlab_designer" value="yes"' . checked( $designer, true, false ) . ' /> ' . esc_html__( 'Show the PrintLab designer (apparel, print by size)', 'printlab' ) . '</label></p>';
-		echo '<p><label for="printlab_template">' . esc_html__( 'Personalizer template ID', 'printlab' ) . '</label></p>';
-		echo '<input type="text" id="printlab_template" name="printlab_template" class="widefat" value="' . esc_attr( $value ) . '" placeholder="e.g. 97226bf1d8933843ea2ab2da" />';
-		echo '<p class="description">' . esc_html__( 'Leave empty to sell the product without personalization.', 'printlab' ) . '</p>';
+		echo '<p><label for="printlab_template">' . esc_html__( 'Personalizer template', 'printlab' ) . '</label></p>';
+		$templates = $this->templates();
+		if ( null === $templates ) {
+			// Liste alınamadı: kimlik elle girilebilsin
+			echo '<input type="text" id="printlab_template" name="printlab_template" class="widefat" value="' . esc_attr( $value ) . '" placeholder="e.g. 97226bf1d8933843ea2ab2da" />';
+			echo '<p class="description">' . esc_html__( 'Connect your store in WooCommerce > PrintLab to choose from your templates. You can also paste a template ID.', 'printlab' ) . '</p>';
+			return;
+		}
+		$known   = wp_list_pluck( $templates, 'id' );
+		$preview = '';
+		echo '<select id="printlab_template" name="printlab_template" class="widefat">';
+		echo '<option value="">' . esc_html__( 'No template', 'printlab' ) . '</option>';
+		foreach ( $templates as $t ) {
+			$id    = (string) ( $t['id'] ?? '' );
+			$label = (string) ( $t['name'] ?? $id );
+			if ( ! empty( $t['photos'] ) ) {
+				/* translators: %d: number of photos */
+				$label .= ' (' . sprintf( _n( '%d photo', '%d photos', (int) $t['photos'], 'printlab' ), (int) $t['photos'] ) . ')';
+			}
+			if ( $id === $value ) {
+				$preview = (string) ( $t['previewUrl'] ?? '' );
+			}
+			echo '<option value="' . esc_attr( $id ) . '" data-preview="' . esc_url( $t['previewUrl'] ?? '' ) . '"' . selected( $id, $value, false ) . '>' . esc_html( $label ) . '</option>';
+		}
+		// Başka yerden kopyalanmış, listede olmayan kimlik kaybolmasın
+		if ( $value && ! in_array( $value, $known, true ) ) {
+			echo '<option value="' . esc_attr( $value ) . '" selected>' . esc_html( $value ) . '</option>';
+		}
+		echo '</select>';
+		echo '<p><img id="printlab_template_preview" src="' . esc_url( $preview ) . '" alt="" style="max-width:100%;height:auto;margin-top:8px;border-radius:4px;' . ( $preview ? '' : 'display:none' ) . '" /></p>';
+		if ( ! $templates ) {
+			echo '<p class="description">' . esc_html__( 'You have no photo templates yet. Create one in the PrintLab app.', 'printlab' ) . '</p>';
+		} else {
+			echo '<p class="description">' . esc_html__( 'Choose "No template" to sell the product without personalization.', 'printlab' ) . '</p>';
+		}
+		echo "<script>(function(){var s=document.getElementById('printlab_template'),i=document.getElementById('printlab_template_preview');if(!s||!i)return;s.addEventListener('change',function(){var o=s.options[s.selectedIndex],u=o&&o.getAttribute('data-preview');i.src=u||'';i.style.display=u?'':'none';});})();</script>";
 	}
 
 	public function save_meta_box( $post_id ) {

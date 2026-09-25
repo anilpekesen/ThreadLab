@@ -236,3 +236,35 @@ export async function quoteDesign(shop: string, token: string, quantity = 1): Pr
   if (!fee) return null;
   return { fee: money(fee.unitFee) };
 }
+
+// ── Şablon listesi ──────────────────────────────────────────────────────────
+
+/**
+ * Eklentinin ürün ekranındaki şablon seçimi için mağazanın şablonları.
+ * İstek, PrintLab'in bağlanırken kurduğu webhook'un sırrıyla imzalanır:
+ * eklenti sırrı WooCommerce'in kendi webhook kaydından okur, ayrıca bir
+ * anahtar saklamaz. Yeniden bağlanınca sır ikisinde birden yenilenir.
+ * İmza: hex HMAC-SHA256(sır, `${shop}\n${ts}`), ts saniye, ±5 dk.
+ */
+export async function verifyWooSiteRequest(shop: string, ts: string, sig: string): Promise<boolean> {
+  const t = Number(ts);
+  if (!Number.isFinite(t) || Math.abs(Date.now() / 1000 - t) > 300 || !/^[0-9a-f]{64}$/.test(sig)) return false;
+  const conn = await getWooConnection(shop);
+  if (!conn?.webhookSecret) return false;
+  const expected = createHmac("sha256", conn.webhookSecret).update(`${shop}\n${ts}`).digest();
+  const given = Buffer.from(sig, "hex");
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
+export async function listWooTemplates(shop: string) {
+  const { listPersonalizerTemplates } = await import("~/models/personalizer.server");
+  // Eklentinin kutusu yalnız fotoğraf yuvalı / parçalı şablonları açabiliyor
+  return (await listPersonalizerTemplates(shop, true))
+    .filter((t) => (t.slots?.length ?? 0) > 0 || (t.pieces?.length ?? 0) > 0)
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      previewUrl: t.mockup_url || t.template_url || "",
+      photos: t.slots?.length ?? 0,
+    }));
+}
