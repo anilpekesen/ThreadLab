@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SaveBar } from "@shopify/app-bridge-react";
+import { Button, InlineStack } from "@shopify/polaris";
 import { useTranslation } from "~/i18n";
 
 /**
  * Shopify'ın bağlamsal kaydetme çubuğu (Built for Shopify 4.1.5). Form
  * değiştiğinde admin'in üstünde "Kaydedilmemiş değişiklikler" çubuğu açılır;
  * merchant kaydetmeden sayfadan çıkmak isterse Shopify onay sorar.
+ *
+ * Shopify dışında (WooCommerce yönetimi) App Bridge yüklü değil ve SaveBar
+ * çizilir çizilmez hata veriyor; orada sayfanın altında sabit bir çubuk çıkar.
+ * App Bridge varlığı yalnız tarayıcıda bilinir: ilk çizim ikisini de basmaz,
+ * yoksa SaveBar'ın etkisi bizim kontrolümüzden önce çalışıp çöker.
  */
 export function FormSaveBar({
   id,
@@ -21,15 +27,31 @@ export function FormSaveBar({
   onDiscard: () => void;
 }) {
   const { t } = useTranslation();
+  const [mode, setMode] = useState<"pending" | "shopify" | "standalone">("pending");
+  useEffect(() => {
+    setMode((window as unknown as { shopify?: unknown }).shopify ? "shopify" : "standalone");
+  }, []);
+
+  if (mode === "shopify") {
+    return (
+      <SaveBar id={id} open={dirty} discardConfirmation>
+        <button variant="primary" onClick={onSave} loading={saving ? "" : undefined}>
+          {t("common.save")}
+        </button>
+        <button onClick={onDiscard} disabled={saving}>
+          {t("common.discard")}
+        </button>
+      </SaveBar>
+    );
+  }
+  if (mode === "pending" || !dirty) return null;
   return (
-    <SaveBar id={id} open={dirty} discardConfirmation>
-      <button variant="primary" onClick={onSave} loading={saving ? "" : undefined}>
-        {t("common.save")}
-      </button>
-      <button onClick={onDiscard} disabled={saving}>
-        {t("common.discard")}
-      </button>
-    </SaveBar>
+    <div className="app-save-bar" role="region" aria-label={t("common.save")}>
+      <InlineStack gap="200" align="end" blockAlign="center">
+        <Button onClick={onDiscard} disabled={saving}>{t("common.discard")}</Button>
+        <Button variant="primary" onClick={onSave} loading={saving}>{t("common.save")}</Button>
+      </InlineStack>
+    </div>
   );
 }
 

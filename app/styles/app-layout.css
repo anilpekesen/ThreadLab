@@ -244,3 +244,15 @@
     border-bottom: 1px solid #e5e7eb;
   }
 }
+
+/* Shopify dışında kaydetme çubuğu (bkz. FormSaveBar) */
+.app-save-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 400;
+  padding: 12px 20px;
+  background: #1a1a1a;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
+}
