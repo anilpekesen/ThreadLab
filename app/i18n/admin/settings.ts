@@ -12,7 +12,7 @@ const tr = {
   // Arayüz
   cartTransformError: (status: string) => `Cart Transform Hatası: ${status}`,
   wooTitle: "WooCommerce mağazası",
-  wooDesc: (site: string) => `PrintLab ${site} mağazasına bağlı. Kişiselleştirilmiş ürünlerin siparişleri otomatik gelir; üretim durumu ve kargo takibi WooCommerce siparişine yazılır.`,
+  wooDesc: (site: string) => `PrintLab ${site} mağazasına bağlı. Kişiselleştirilmiş ürünlerin siparişleri otomatik gelir. Üretim durumu WooCommerce siparişine not olarak düşer; "Gönderildi" yapınca sipariş tamamlanır ve müşteriye WooCommerce'in e-postası gider.`,
   wooSetup: "Bir ürünü kişiselleştirmek için WordPress'te ürünü açın; sağdaki PrintLab kutusunda tasarımcıyı açın ya da şablon seçin.",
   wooOpenAdmin: "WordPress yönetimini aç",
   wooNotConnected: "Mağaza bağlantısı bulunamadı. WordPress'te WooCommerce > PrintLab sayfasından yeniden bağlanın.",
@@ -46,7 +46,7 @@ const en: typeof tr = {
   saveFailed: "Couldn't save settings. Please try again.",
   cartTransformError: (status) => `Cart Transform error: ${status}`,
   wooTitle: "WooCommerce store",
-  wooDesc: (site) => `PrintLab is connected to ${site}. Orders with personalized products arrive automatically; production status and tracking are written back to the WooCommerce order.`,
+  wooDesc: (site) => `PrintLab is connected to ${site}. Orders with personalized products arrive automatically. Production status is added to the WooCommerce order as a note; marking an order Shipped completes it and WooCommerce emails the customer.`,
   wooSetup: "To personalize a product, open it in WordPress and, in the PrintLab box, turn on the designer or choose a template.",
   wooOpenAdmin: "Open WordPress admin",
   wooNotConnected: "No store connection found. Reconnect from WooCommerce > PrintLab in WordPress.",
