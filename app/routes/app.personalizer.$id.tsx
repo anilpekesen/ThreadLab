@@ -16,6 +16,8 @@ import {
   getPersonalizerTemplate,
   createPersonalizerTemplate,
   updatePersonalizerTemplate,
+  updateTemplateOptionPricing,
+  templatePieces,
   listPersonalizerFrames,
   createPersonalizerFrame,
   updatePersonalizerFrame,
@@ -52,6 +54,10 @@ import { FormSaveBar, useFormDirty } from "~/components/FormSaveBar";
 import { langFromRequest } from "~/i18n/server";
 import dict from "~/i18n/personalizer/editor";
 import { PageHelper } from "~/components/PageHelper";
+import { OptionPricingCard, type PricingTextField } from "~/components/personalizer/OptionPricingCard";
+import { normalizeOptionPricing, EMPTY_OPTION_PRICING } from "~/lib/option-pricing";
+import { isImageSlot, isTextSlot } from "~/lib/slots";
+import { getShopSettings } from "~/models/shop-settings.server";
 
 const MAX_UPLOAD = 20 * 1024 * 1024;
 
@@ -100,7 +106,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const id = params.id ?? "";
   if (id === "new") {
     const printProducts = await listPrintProducts(session.shop, true);
-    return json({ shop: session.shop, template: null, frames: [], productLinks: [], products: [], linkedAreaRatio: null, printProducts, isNew: true, productQuery: "", personalizerBlockUrl: "", designerBlockUrl: "" });
+    return json({ shop: session.shop, template: null, frames: [], productLinks: [], products: [], linkedAreaRatio: null, printProducts, isNew: true, productQuery: "", personalizerBlockUrl: "", designerBlockUrl: "", pricingFields: [] as PricingTextField[], pricingHasSlots: false, surchargeConfigured: false });
   }
   const template = await getPersonalizerTemplate(id, session.shop);
   if (!template) throw new Response(pickDict(dict, langFromRequest(request)).errTemplateNotFound, { status: 404 });
@@ -144,9 +150,26 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${handle}`)}&target=mainSection`
     : "";
 
+  // Ek ücret kartı: müşterinin değiştirebildiği yazı alanları ve açık seçimleri
+  const pricingFields: PricingTextField[] = [];
+  let pricingHasSlots = false;
+  for (const piece of templatePieces(template)) {
+    for (const sl of piece.slots) {
+      if (isImageSlot(sl)) pricingHasSlots = true;
+      if (!isTextSlot(sl) || sl.mode === "fixed" || sl.caption_of || pricingFields.some((f) => f.id === sl.id)) continue;
+      pricingFields.push({
+        id: sl.id, label: sl.label,
+        font: (sl.font_choices?.length ?? 0) > 0,
+        color: (sl.color_choices?.length ?? 0) > 0 || sl.color_free === true,
+        size: (sl.size_choices?.length ?? 0) > 0,
+      });
+    }
+  }
+  const surchargeConfigured = Boolean((await getShopSettings(session.shop).catch(() => null))?.surchargeVariantId);
+
   return json({
     shop: session.shop, template, frames, productLinks, products, linkedAreaRatio, printProducts, isNew: false,
-    productQuery,
+    productQuery, pricingFields, pricingHasSlots, surchargeConfigured,
     personalizerBlockUrl: themeBlockUrl("personalizer"),
     designerBlockUrl: themeBlockUrl("tshirt-designer"),
   });
@@ -363,6 +386,21 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const frameId = String(form.get("frame_id") ?? "");
     if (frameId) await deletePersonalizerFrame(frameId, id);
     return json({ ok: true });
+  }
+
+  // ── Ek ücretler ──────────────────────────────────────────────────────────
+  if (intent === "save_option_pricing") {
+    let raw: unknown = {};
+    try { raw = JSON.parse(String(form.get("option_pricing") ?? "{}")); } catch { /* boş kural */ }
+    const pricing = normalizeOptionPricing(raw);
+    const ok = await updateTemplateOptionPricing(id, shop, pricing);
+    if (!ok) return json({ error: A.errTemplateNotFound }, { status: 404 });
+    // Sepet fonksiyonunun zorladığı alt sınır ürünün fiyat kaydında duruyor
+    const links = await listPersonalizerProductLinks(id);
+    for (const pid of new Set(links.map((l) => l.product_id))) {
+      await syncPricingForProduct(shop, pid).catch((err) => console.error("[option-pricing] fiyat kaydı yenilenemedi:", err));
+    }
+    return json({ ok: true, pricing });
   }
 
   // ── Ürün bağlantısını kaldır ─────────────────────────────────────────────
@@ -1219,6 +1257,7 @@ function PersonalizerEditor({ onDiscard }: { onDiscard: () => void }) {
   const {
     shop, template, frames, productLinks, products, linkedAreaRatio, printProducts, isNew,
     productQuery, personalizerBlockUrl, designerBlockUrl,
+    pricingFields, pricingHasSlots, surchargeConfigured,
   } = useLoaderData<typeof loader>();
   const L = useDict(dict);
   const { lang } = useTranslation();
@@ -2103,6 +2142,19 @@ function PersonalizerEditor({ onDiscard }: { onDiscard: () => void }) {
             </BlockStack>
           </form>
         </Layout.Section>
+
+        {/* ── Seçeneğe göre ek ücret ── */}
+        {!isNew && template && (
+          <Layout.Section>
+            <OptionPricingCard
+              key={template.id}
+              pricing={normalizeOptionPricing(template.option_pricing ?? EMPTY_OPTION_PRICING)}
+              textFields={pricingFields}
+              hasSlots={pricingHasSlots}
+              surchargeConfigured={surchargeConfigured}
+            />
+          </Layout.Section>
+        )}
 
         {/* ── Shopify ürün bağlantısı ── */}
         {!isNew && template && (

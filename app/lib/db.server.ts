@@ -695,6 +695,10 @@ async function _runMigrationsLocked() {
   // yıldız/şehir haritası, doğum çiçeği. `kind` alanı hangisi olduğunu söyler.
   await query(`ALTER TABLE personalizer_templates
     ADD COLUMN IF NOT EXISTS generator_config JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  // Seçeneğe göre ek ücret: sabit ücret, yazı alanı başına ücretler ve ek
+  // seçenekler (bkz. ~/lib/option-pricing). Boş nesne = ek ücret yok.
+  await query(`ALTER TABLE personalizer_templates
+    ADD COLUMN IF NOT EXISTS option_pricing JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await query(`
     CREATE TABLE IF NOT EXISTS cliparts (
       id          TEXT PRIMARY KEY,

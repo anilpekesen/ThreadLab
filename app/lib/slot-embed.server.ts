@@ -6,6 +6,7 @@ import { maskPathUrl, shapeMaskUrl } from "~/lib/slot-shapes";
 import { findLibraryFont } from "~/lib/font-library";
 import { colorLabel, isLightColor } from "~/lib/text-palette";
 import { scanTemplateHoles } from "~/lib/template-hole.server";
+import { hasOptionPricing, type OptionPricing } from "~/lib/option-pricing";
 
 /**
  * Çoklu fotoğraflı ürünlerin müşteri arayüzü.
@@ -163,6 +164,16 @@ export async function buildSlotData(
     textSection: isTr ? "Yazıları düzenleyin" : "Edit the text",
     setHint: isTr ? "Diğer çerçeveler için yana kaydırın" : "Swipe sideways for the other frames",
     captionPlaceholder: isTr ? "yazı ekle" : "add text",
+    extrasSection: isTr ? "Ek seçenekler" : "Extras",
+    choose: isTr ? "Seçin" : "Choose",
+    none: isTr ? "Yok" : "None",
+    feeLabel: isTr ? "Kişiselleştirme" : "Personalization",
+    feePerChar: isTr ? "karakter başı" : "per character",
+    feeFree: isTr ? "ilk {n} karakter ücretsiz" : "first {n} characters free",
+    feeFont: isTr ? "font değişikliği" : "font change",
+    feeColor: isTr ? "renk değişikliği" : "color change",
+    feeSize: isTr ? "boyut değişikliği" : "size change",
+    chooseOption: isTr ? "Lütfen seçin: {x}" : "Please choose: {x}",
   };
 
   function page(message: string) {
@@ -324,6 +335,7 @@ export async function buildSlotData(
           ? TEXT_SIZE_STEPS.filter((step) => step.value === 1 || sl.size_choices!.includes(step.value))
           : [],
         color: sl.color,
+        fontUrlDefault: sl.font_url ?? "",
       });
     }
   }
@@ -372,6 +384,8 @@ export async function buildSlotData(
     texts,
     mockups,
     activeMockupKey: aktif?.key ?? "",
+    // Ek ücret kuralı yoksa gönderilmez; sayfa ücret arayüzünü hiç kurmaz
+    pricing: hasOptionPricing(template.option_pricing) ? template.option_pricing : null,
   };
 
   return { data, t };
@@ -406,6 +420,8 @@ export interface SlotPageData {
   }>;
   /** Sayfa açılırken hangi görselin seçili olduğu */
   activeMockupKey: string;
+  /** Seçeneğe göre ek ücret kuralları; yoksa null */
+  pricing?: OptionPricing | null;
 }
 
 /**
@@ -665,6 +681,12 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line);
   }
   .price { font-size: 17px; font-weight: 600; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .fee-note { width: 100%; text-align: right; font-size: 13px; color: var(--ink-2); margin: -6px 0 0; }
+  .fee-hint { font-size: 12px; color: var(--ink-2); margin: 4px 0 0; }
+  .extras { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .extras .field + .field { margin-top: 14px; }
+  .extras .check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .extras .check input { width: 18px; height: 18px; margin: 0; }
   /* ── Metin alanları ─────────────────────────────────────────────── */
   .text-settings { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
   .fields { display: grid; gap: 16px; margin: 0; }
@@ -838,8 +860,14 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         <div class="fields" id="fields"></div>
       </section>
 
+      <section class="extras" id="extras" hidden>
+        <h2 class="section-head">${escapeHtml(t.extrasSection)}</h2>
+        <div id="extrasList"></div>
+      </section>
+
       <div class="commitbar">
         <span class="price" id="price"></span>
+        <p class="fee-note" id="feeNote" hidden></p>
         <button class="btn btn-commit" id="cartBtn" disabled>${escapeHtml(t.addToCart)}</button>
       </div>
       </aside>
@@ -1566,6 +1594,154 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     fieldsEl.appendChild(wrap);
   });
 
+  // ── Seçeneğe göre ek ücret ─────────────────────────────────────────────
+  // Hesabın aslı sunucuda (~/lib/option-pricing → computeOptionFee); burada
+  // yalnız müşteriye canlı göstermek için aynı kurallar tekrarlanıyor.
+  // Sepete eklerken sunucunun hesapladığı tutar kullanılır.
+  var FIYAT = D.pricing || null;
+  var PARA_BIRIMI = '';
+  var secilenEkler = {};
+
+  function para(n) {
+    var x = Math.round(n * 100) / 100;
+    if (PARA_BIRIMI) {
+      try {
+        return new Intl.NumberFormat(D.locale === 'en' ? 'en' : 'tr', { style: 'currency', currency: PARA_BIRIMI }).format(x);
+      } catch (_) { /* tanınmayan para birimi */ }
+    }
+    return x.toFixed(2);
+  }
+
+  function secenekUcreti() {
+    if (!FIYAT) return 0;
+    var top = FIYAT.base || 0;
+    D.texts.forEach(function (f) {
+      var r = FIYAT.texts[f.id];
+      if (!r) return;
+      var deger = String(texts[f.id] || '').trim();
+      var degisti = deger !== '' && deger !== String(f.defaultValue || '').trim();
+      if (degisti && r.fee) top += r.fee;
+      if (degisti && r.per_char) {
+        var n = Array.from(deger.replace(/\\s+/g, '')).length - (r.free_chars || 0);
+        if (n > 0) top += Math.round(n * r.per_char * 100) / 100;
+      }
+      var fnt = secilenFontlar[f.id];
+      if (r.font && fnt && fnt !== f.fontUrlDefault) top += r.font;
+      var rnk = secilenRenkler[f.id];
+      if (r.color && rnk && rnk.toLowerCase() !== String(f.color || '').toLowerCase()) top += r.color;
+      var byt = Number(secilenBoyutlar[f.id]);
+      if (r.size && byt > 0 && byt !== 1) top += r.size;
+    });
+    FIYAT.extras.forEach(function (e) {
+      var c = e.choices.filter(function (x) { return x.id === secilenEkler[e.id]; })[0];
+      if (c) top += c.price;
+    });
+    return Math.round(top * 100) / 100;
+  }
+
+  function eksikSecenekler() {
+    if (!FIYAT) return [];
+    return FIYAT.extras
+      .filter(function (e) { return e.required && !secilenEkler[e.id]; })
+      .map(function (e) { return e.label; });
+  }
+
+  function ucretTazele() { if (FIYAT) fiyatYaz(sonVaryant); }
+
+  function ucretliEtiket(label, price) {
+    return price > 0 ? label + ' (+' + para(price) + ')' : label;
+  }
+
+  function ekSecenekleriKur() {
+    var kutu = document.getElementById('extras');
+    var liste = document.getElementById('extrasList');
+    if (!FIYAT || !FIYAT.extras.length || !kutu || !liste) return;
+    kutu.hidden = false;
+    liste.innerHTML = '';
+    FIYAT.extras.forEach(function (e) {
+      var wrap = document.createElement('div');
+      wrap.className = 'field';
+      if (e.type === 'checkbox') {
+        var c = e.choices[0];
+        var lab = document.createElement('label');
+        lab.className = 'check';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = secilenEkler[e.id] === c.id;
+        cb.addEventListener('change', function () {
+          if (cb.checked) secilenEkler[e.id] = c.id; else delete secilenEkler[e.id];
+          ucretTazele();
+        });
+        lab.appendChild(cb);
+        lab.appendChild(document.createTextNode(ucretliEtiket(e.label, c.price)));
+        wrap.appendChild(lab);
+      } else {
+        var l = document.createElement('label');
+        l.textContent = e.label; l.htmlFor = 'ek_' + e.id;
+        wrap.appendChild(l);
+        var sel = document.createElement('select');
+        sel.id = 'ek_' + e.id;
+        var bos = document.createElement('option');
+        bos.value = ''; bos.textContent = e.required ? T.choose : T.none;
+        sel.appendChild(bos);
+        e.choices.forEach(function (c) {
+          var o = document.createElement('option');
+          o.value = c.id; o.textContent = ucretliEtiket(c.label, c.price);
+          sel.appendChild(o);
+        });
+        sel.value = secilenEkler[e.id] || '';
+        sel.addEventListener('change', function () {
+          if (sel.value) secilenEkler[e.id] = sel.value; else delete secilenEkler[e.id];
+          ucretTazele();
+        });
+        wrap.appendChild(sel);
+      }
+      liste.appendChild(wrap);
+    });
+  }
+
+  /** Yazı alanının altında ücret ipucu: "+10 ₺ · karakter başı 1 ₺ (ilk 5 ücretsiz)" */
+  function yaziUcretIpucu(f) {
+    var r = FIYAT && FIYAT.texts[f.id];
+    if (!r) return '';
+    var p = [];
+    if (r.fee) p.push('+' + para(r.fee));
+    if (r.per_char) {
+      p.push(T.feePerChar + ' ' + para(r.per_char)
+        + (r.free_chars ? ' (' + String(T.feeFree).replace('{n}', r.free_chars) + ')' : ''));
+    }
+    if (r.font && f.fontChoices && f.fontChoices.length) p.push(T.feeFont + ' +' + para(r.font));
+    if (r.color && ((f.colorChoices && f.colorChoices.length) || f.colorFree)) p.push(T.feeColor + ' +' + para(r.color));
+    if (r.size && f.sizeChoices && f.sizeChoices.length > 1) p.push(T.feeSize + ' +' + para(r.size));
+    return p.join(' · ');
+  }
+
+  function yaziIpuclariniYaz() {
+    if (!FIYAT) return;
+    D.texts.forEach(function (f) {
+      var girdi = document.getElementById('tx_' + f.id);
+      var alan = girdi && girdi.closest('.field');
+      if (!alan) return;
+      var metin = yaziUcretIpucu(f);
+      var el = alan.querySelector('.fee-hint');
+      if (!metin) { if (el) el.remove(); return; }
+      if (!el) {
+        el = document.createElement('p');
+        el.className = 'fee-hint';
+        girdi.insertAdjacentElement('afterend', el);
+      }
+      el.textContent = metin;
+    });
+  }
+
+  if (FIYAT) {
+    // Yazı, font, renk ve boyut değişikliklerinin hepsi ücreti etkileyebilir;
+    // her birine ayrı ayrı bağlanmak yerine sayfadaki girdiler dinleniyor
+    ['input', 'change', 'click'].forEach(function (ev) {
+      document.addEventListener(ev, function () { setTimeout(ucretTazele, 0); }, true);
+    });
+  }
+
   // ── Fotoğrafı slota çiz ────────────────────────────────────────────────
   // Sunucudaki kırpma matematiğinin birebir aynısı: aynı k, aynı pencere.
   // İkisi ayrışırsa müşteri onayladığı kadrajdan farklı bir baskı alır.
@@ -2071,6 +2247,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
       fonts: secilenFontlar,
       colors: secilenRenkler,
       sizes: secilenBoyutlar,
+      extras: secilenEkler,
       // Sipariş önizlemesinde doğru renk çerçevesi seçilebilsin
       optionValues: URUN ? URUN.options.map(function (o) { return secim[o.name]; }) : [],
       fills: ALL.filter(function (s) { return fills[s.id] && fills[s.id].url; })
@@ -2090,6 +2267,12 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   }
 
   cartBtn.addEventListener('click', function () {
+    var eksikEk = eksikSecenekler();
+    if (eksikEk.length) {
+      statusEl.className = 'status warnc';
+      statusEl.textContent = String(T.chooseOption).replace('{x}', eksikEk.join(', '));
+      return;
+    }
     cartBtn.disabled = true;
     cartBtn.innerHTML = '<span class="spinner"></span> ' + T.adding;
     post('render')
@@ -2102,6 +2285,13 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
         // Sipariş ekranında müşterinin gördüğü hâl görünsün
         if (res.previewUrl) props._front_preview_url = res.previewUrl;
         if (res.templateVersion) props._template_version = String(res.templateVersion);
+        // Seçeneğe göre ek ücret: tutar sunucunun hesapladığı. Sepet fonksiyonu
+        // satırı "ürün + kişiselleştirme ücreti" olarak ikiye böler.
+        if (res.optionFee > 0) {
+          props._design_role = 'pending_options';
+          props._surcharge_unit_total = Number(res.optionFee).toFixed(2);
+        }
+        (res.extras || []).forEach(function (x) { props[x.label] = x.value; });
         // Set ürününde üretime birden fazla dosya gidiyor; hepsi sipariş
         // satırında olmalı, yoksa üretim yalnızca ilk çerçeveyi basar
         if (res.pieces && res.pieces.length > 1) {
@@ -2220,9 +2410,22 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     return null;
   }
 
+  var sonVaryant = null;
   function fiyatYaz(v) {
+    sonVaryant = v || null;
     if (!priceEl) return;
-    priceEl.textContent = v && v.price ? v.price : '';
+    var ucret = secenekUcreti();
+    var not = document.getElementById('feeNote');
+    if (not) {
+      not.hidden = !(ucret > 0);
+      not.textContent = ucret > 0 ? T.feeLabel + ': +' + para(ucret) : '';
+    }
+    if (!v || !v.price) { priceEl.textContent = ''; return; }
+    // Tema yeni sürümdeyse sayısal fiyat ve para birimi gelir; eski temada
+    // ürün fiyatı olduğu gibi yazılır, ücret altta ayrıca görünür
+    priceEl.textContent = ucret > 0 && typeof v.price_cents === 'number' && PARA_BIRIMI
+      ? para(v.price_cents / 100 + ucret)
+      : v.price;
   }
 
   function varyantArayuzuKur() {
@@ -2371,6 +2574,10 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   window.addEventListener('message', function (e) {
     if (!e.data || e.data.type !== 'PERSONALIZER_PRODUCT') return;
     URUN = { options: e.data.options || [], variants: e.data.variants || [] };
+    if (e.data.currency) PARA_BIRIMI = String(e.data.currency);
+    // Para birimi gelince ipuçları ve seçenek fiyatları doğru biçimle yeniden yazılsın
+    ekSecenekleriKur();
+    yaziIpuclariniYaz();
     var mevcut = null;
     for (var i = 0; i < URUN.variants.length; i++) {
       if (String(URUN.variants[i].id) === String(seciliVaryant)) mevcut = URUN.variants[i];
@@ -2387,6 +2594,8 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   buildTexts();
   buildMockup();
   renderAll();
+  ekSecenekleriKur();
+  yaziIpuclariniYaz();
   // Temaya hazır olduğumuzu bildiriyoruz; varyant listesini o zaman gönderiyor
   if (window.parent !== window) {
     window.parent.postMessage({ type: 'PERSONALIZER_READY' }, '*');

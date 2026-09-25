@@ -102,6 +102,7 @@
         { id: {{ v.id | json }},
           options: [{%- for o in v.options -%}{{ o | json }}{% unless forloop.last %},{% endunless %}{%- endfor -%}],
           price: {{ v.price | money | json }},
+          price_cents: {{ v.price | json }},
           available: {{ v.available | json }} }{% unless forloop.last %},{% endunless %}
       {%- endfor -%}
     ];
@@ -174,6 +175,8 @@
           type: 'PERSONALIZER_PRODUCT',
           options: PRODUCT_OPTIONS,
           variants: PRODUCT_VARIANTS,
+          // Seçeneğe göre ek ücret eklenince toplam fiyat bununla biçimleniyor
+          currency: {{ cart.currency.iso_code | json }},
         }, '*');
         return;
       }

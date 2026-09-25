@@ -5,7 +5,8 @@ import { uploadToR2 } from "~/lib/r2.server";
 import { getPersonalizerTemplatePublic, templatePieces } from "~/models/personalizer.server";
 import { getPrintProductPublic } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
-import { isImageSlot, pickMockup } from "~/lib/slots";
+import { isImageSlot, isTextSlot, pickMockup } from "~/lib/slots";
+import { computeOptionFee, hasOptionPricing, type TextDefaults } from "~/lib/option-pricing";
 import { composeSlotDesign, composePreviewStrip, normalizeQuarterTurn, type SlotFill } from "~/lib/slot-compose.server";
 import { mockupOpening } from "~/lib/slot-embed.server";
 
@@ -51,6 +52,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     colors?: Record<string, string>;
     /** Müşterinin seçtiği yazı boyutu kademesi; slot kimliği → çarpan */
     sizes?: Record<string, number>;
+    /** Ek seçenekler; seçenek kimliği → seçim kimliği */
+    extras?: Record<string, string>;
     mode?: string;
     locale?: string;
     /** Sipariş önizlemesinde doğru renk çerçevesini seçmek için */
@@ -71,6 +74,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     missing: (n: number) =>
       isTr ? `${n} fotoğraf alanı boş` : `${n} photo slots are empty`,
     failed: isTr ? "Önizleme oluşturulamadı" : "Preview could not be created",
+    chooseOption: (labels: string) => isTr ? `Lütfen seçin: ${labels}` : `Please choose: ${labels}`,
   };
 
   const templateId = String(body.templateId ?? "").trim();
@@ -133,6 +137,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (Number.isFinite(n)) sizes[String(k)] = n;
     }
   }
+  // Seçeneğe göre ek ücret. Tutar burada, şablonun kayıtlı kurallarıyla
+  // hesaplanır; istemcinin gösterdiği tutar yalnız bilgi amaçlıdır.
+  const pricing = template.option_pricing;
+  const textDefaults: Record<string, TextDefaults> = {};
+  for (const piece of pieces) {
+    for (const sl of piece.slots) {
+      if (isTextSlot(sl) && !textDefaults[sl.id]) {
+        textDefaults[sl.id] = { defaultValue: sl.default_value ?? "", fontUrl: sl.font_url ?? "", color: sl.color ?? "" };
+      }
+    }
+  }
+  const textValues: Record<string, string> = {};
+  for (const [k, v] of Object.entries(texts as Record<string, unknown>)) if (typeof v === "string") textValues[k] = v;
+  const fee = computeOptionFee(pricing, { texts: textValues, fonts, colors, sizes, extras: sozluk(body.extras) }, textDefaults);
+  if (isRender && fee.missing.length) {
+    const labels = pricing.extras.filter((e) => fee.missing.includes(e.id)).map((e) => e.label).join(", ");
+    return json({ error: msg.chooseOption(labels) }, { status: 400, headers: CORS });
+  }
+  // Sipariş satırında ve kayıtta okunur hâli: "Hediye paketi" → "Evet"
+  const extrasChosen = pricing.extras
+    .filter((e) => fee.extras[e.id])
+    .map((e) => {
+      const c = e.choices.find((x) => x.id === fee.extras[e.id])!;
+      return { id: e.id, label: e.label, choice: c.id, choiceLabel: e.type === "checkbox" ? (isTr ? "Evet" : "Yes") : c.label, price: c.price };
+    });
+
   const rendered: Array<{
     id: string; name: string; url: string; width: number; height: number;
     /** Baskı ölçüsü; kesim çizgili PDF bunu kullanıyor, şablon sonradan değişse bile */
@@ -291,6 +321,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             fonts,
             colors,
             sizes,
+            extras: extrasChosen,
+            // Sunucunun hesapladığı ek ücret: siparişten sonra ödenenle karşılaştırılır
+            optionFee: fee.total,
+            optionFeeLines: fee.lines,
           }),
         ],
       );
@@ -307,6 +341,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         missing,
         designToken,
         templateVersion: template.version,
+        // Ek ücret yalnız kural varsa gönderilir; istemci buna göre satırı
+        // "ürün + ücret" olarak işaretler
+        optionFee: hasOptionPricing(pricing) ? fee.total : 0,
+        extras: extrasChosen.map(({ label, choiceLabel }) => ({ label, value: choiceLabel })),
       },
       { headers: CORS },
     );

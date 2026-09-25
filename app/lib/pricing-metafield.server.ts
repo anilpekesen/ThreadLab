@@ -31,6 +31,9 @@ export interface PricingRecord {
   b: number;
   /** En yüksek toplu alım indirimi yüzdesi: alt sınır bununla düşürülür */
   d: number;
+  /** Kişiselleştirici ek ücretinin zorunlu kısmı (sabit ücret + zorunlu
+   *  seçeneklerin en ucuzu); ürüne bağlı şablonlar arasında en düşüğü */
+  o: number;
 }
 
 function minBand(bands: { surcharge: number }[] | undefined): number {
@@ -47,7 +50,7 @@ export async function resolveSurchargeVariantId(shop: string, config: Pick<Produ
   return String(shopSettings?.surchargeVariantId || globalSettings?.surchargeVariantId || "");
 }
 
-export async function buildPricingRecord(shop: string, config: ProductConfig): Promise<PricingRecord | null> {
+export async function buildPricingRecord(shop: string, config: ProductConfig, optionFloor = 0): Promise<PricingRecord | null> {
   const variantId = (await resolveSurchargeVariantId(shop, config)).split("/").pop() ?? "";
   if (!variantId) return null;
   const discounts = (config.volumeDiscounts ?? []).map((t) => Number(t.percentage)).filter((n) => Number.isFinite(n) && n > 0);
@@ -57,6 +60,7 @@ export async function buildPricingRecord(shop: string, config: ProductConfig): P
     f: minBand(config.pricingBands?.front),
     b: minBand(config.pricingBands?.back),
     d: discounts.length ? Math.min(100, Math.max(...discounts)) : 0,
+    o: optionFloor,
   };
 }
 
@@ -68,11 +72,13 @@ export async function syncProductPricingMetafield(
   shop: string,
   productId: string,
   config: ProductConfig,
+  optionFloor?: number,
 ): Promise<{ ok: boolean; error?: string }> {
   const token = await getValidAccessToken(shop);
   if (!token) return { ok: false, error: "no session" };
   const ownerId = String(productId).startsWith("gid://") ? String(productId) : `gid://shopify/Product/${productId}`;
-  const record = config.isActive ? await buildPricingRecord(shop, config) : null;
+  const floor = optionFloor ?? await optionFloorForProduct(shop, ownerId.split("/").pop() ?? "");
+  const record = config.isActive ? await buildPricingRecord(shop, config, floor) : null;
 
   try {
     if (!record) {
@@ -97,6 +103,15 @@ export async function syncProductPricingMetafield(
     console.error("[pricing-metafield] yazılamadı:", err);
     return { ok: false, error: "write failed" };
   }
+}
+
+/** Ürüne bağlı şablonların zorunlu ek ücretlerinin en düşüğü; şablon yoksa 0 */
+async function optionFloorForProduct(shop: string, productNumericId: string): Promise<number> {
+  if (!productNumericId) return 0;
+  const { optionPricingForProduct } = await import("~/models/personalizer.server");
+  const { minimumOptionFee } = await import("~/lib/option-pricing");
+  const list = await optionPricingForProduct(shop, productNumericId).catch(() => []);
+  return list.length ? Math.min(...list.map(minimumOptionFee)) : 0;
 }
 
 /**

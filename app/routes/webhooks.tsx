@@ -245,14 +245,14 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
       );
     }
 
-    const frontPreviewUrl =
+    let frontPreviewUrl =
       getAttr(item.properties, "_front_preview_url") ??
       getAttr(item.attributes, "_front_preview_url") ??
       (allowOrderLevelDesignUrls ? orderFrontPreviewUrl : "");
     // Kişiselleştirici baskı dosyasını "_print_file" adıyla yazıyor; eski
     // tasarımcı akışı "_front_print_url" kullanıyor. İkisini de kabul ediyoruz,
     // yoksa yeni ürünlerin siparişleri baskı dosyasız düşüyor.
-    const frontPrintUrl =
+    let frontPrintUrl =
       getAttr(item.properties, "_front_print_url") ??
       getAttr(item.attributes, "_front_print_url") ??
       getAttr(item.properties, "_print_file") ??
@@ -270,6 +270,21 @@ async function importOrderFromWebhook(shop: string, payload: OrderPayload): Prom
       .split(",")
       .map((u) => u.trim())
       .filter(Boolean);
+    // Ek ücretli kişiselleştirici satırı sepet fonksiyonunca "ürün + ücret"
+    // olarak bölünüyor; ürün satırında yalnız tasarım anahtarı kalıyor, baskı
+    // dosyaları satır grubunda. Dosyalar tasarım kaydından tamamlanır.
+    if (productionFiles.length === 0 && !frontPrintUrl && itemHasOwnDesignToken && token) {
+      const d = (await query<{ front_print_url: string | null; front_preview_url: string | null; design_json: { type?: string; pieces?: { url?: string }[] } | null }>(
+        "SELECT front_print_url, front_preview_url, design_json FROM designs WHERE token = $1 AND shop = $2",
+        [token, shop],
+      ).catch(() => ({ rows: [] }))).rows[0];
+      if (d?.design_json?.type === "personalizer-slots") {
+        frontPrintUrl = d.front_print_url ?? "";
+        if (!frontPreviewUrl) frontPreviewUrl = d.front_preview_url ?? "";
+        const urls = (d.design_json.pieces ?? []).map((p) => String(p.url ?? "")).filter(Boolean);
+        if (urls.length > 1) productionFiles.push(...urls);
+      }
+    }
     if (productionFiles.length === 0 && frontPrintUrl) productionFiles.push(frontPrintUrl);
 
     const qty = item.quantity ?? 1;

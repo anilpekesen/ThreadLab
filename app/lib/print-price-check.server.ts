@@ -138,9 +138,14 @@ export async function checkOrderPrintPricing(shop: string, orderId: string, opts
   const items = order.lineItems.nodes as Li[];
   const attr = (li: Li, k: string) => li.customAttributes.find((a) => a.key === k)?.value ?? "";
   const groups = new Map<string, { base?: Li; fee?: Li }>();
-  for (const li of items) {
+  for (const [i, li] of items.entries()) {
     const gid = li.lineItemGroup?.id;
-    if (!gid) continue;
+    if (!gid) {
+      // Bölünmemiş ama tasarımlı satır: ek ücretli kişiselleştirici satırı
+      // sepet fonksiyonundan kaçırılmış olabilir (ödenen ücret 0)
+      if (attr(li, "_design_token")) groups.set(`single:${i}`, { base: li });
+      continue;
+    }
     const g = groups.get(gid) ?? {};
     const role = attr(li, "_design_role");
     if (role === "base_expanded") g.base = li;
@@ -157,13 +162,24 @@ export async function checkOrderPrintPricing(shop: string, orderId: string, opts
 
   const results: LineCheck[] = [];
   for (const g of groups.values()) {
-    if (!g.base || !g.fee) continue;
+    if (!g.base) continue;
     const designToken = attr(g.base, "_design_token");
     const productNumeric = g.base.product?.id?.split("/").pop() ?? "";
     if (!designToken || !productNumeric) continue;
-    const d = (await query<{ design_json: { front?: string; back?: string } | null }>(
-      "SELECT design_json FROM designs WHERE token = $1", [designToken])).rows[0];
+    const d = (await query<{ design_json: { type?: string; optionFee?: number; front?: string; back?: string } | null }>(
+      "SELECT design_json FROM designs WHERE token = $1 AND shop = $2", [designToken, shop])).rows[0];
     if (!d?.design_json) continue;
+
+    // Kişiselleştirici: ek ücreti sunucu sepete eklerken hesaplayıp kayda yazdı
+    if (d.design_json.type === "personalizer-slots") {
+      const expected = Math.round(Number(d.design_json.optionFee ?? 0) * 100) / 100;
+      if (!(expected > 0)) continue;
+      const paid = g.fee ? Number(g.fee.originalUnitPriceSet.shopMoney.amount) : 0;
+      results.push({ token: designToken, quantity: g.base.quantity, paid, expected, underpaid: paid + ABS_TOLERANCE < expected, detail: { kind: "options", measurable: true } });
+      continue;
+    }
+    // Tasarımcı satırı: ücret satırı yoksa ürün baskı ücretli değildir
+    if (!g.fee) continue;
     const ctx = await designerContext(shop, productNumeric).catch(() => null);
     if (!ctx) continue;
     const bands = ctx.settings?.pricingBands ?? {};

@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { AI_STYLES, normalizeAiConfig, type AiTemplateConfig } from "~/lib/ai-styles";
 import { normalizeWordArtConfig, type WordArtTemplateConfig } from "~/lib/wordart";
 import { FONT_LIBRARY } from "~/lib/font-library";
+import { normalizeOptionPricing, type OptionPricing } from "~/lib/option-pricing";
 import { normalizeGeneratorConfig } from "~/lib/generators/configs";
 import type { GeneratorConfigBase } from "~/lib/generators/types";
 import {
@@ -210,6 +211,8 @@ export interface PersonalizerTemplate {
   wordart_config: WordArtTemplateConfig;
   /** Hazır tasarım üreticisinin ayarı (`kind` ile); üretici değilse null */
   generator_config: GeneratorConfigBase | null;
+  /** Seçeneğe göre ek ücret kuralları; okuma anında normalize edilir */
+  option_pricing: OptionPricing;
   /**
    * Müşterinin dolduracağı alanlar, normalize (0–1) koordinatta.
    *
@@ -256,6 +259,7 @@ function mapTemplateRow(row: Row): PersonalizerTemplate {
     category: normalizePersonalizerCategory(row.category, normalizeLayoutMode(row.layout_mode)),
     wordart_config: normalizeWordArtConfig(row.wordart_config, FONT_LIBRARY.map((f) => f.id)),
     generator_config: normalizeGeneratorConfig(row.generator_config),
+    option_pricing: normalizeOptionPricing(row.option_pricing),
     slots: normalizeSlots(row.slots),
     print_product_id: String(row.print_product_id ?? ""),
     overlay_url: String(row.overlay_url ?? ""),
@@ -576,6 +580,7 @@ export async function duplicatePersonalizerTemplate(
     sort_order: source.sort_order + 1,
   });
 
+  await updateTemplateOptionPricing(created.id, shop, source.option_pricing);
   // Kopya doğrudan yayına girmesin
   return updatePersonalizerTemplate(created.id, shop, { active: false });
 }
@@ -826,4 +831,24 @@ export async function listTemplateSidesForProduct(
     [shop, productId, String(variantId ?? "")],
   );
   return res.rows.map((r) => normalizeSide(r.side));
+}
+
+/** Şablonun ek ücret kurallarını yazar; sürüm artmaz, baskı çıktısı değişmiyor */
+export async function updateTemplateOptionPricing(id: string, shop: string, pricing: OptionPricing): Promise<boolean> {
+  const res = await query(
+    `UPDATE personalizer_templates SET option_pricing = $3, updated_at = now() WHERE id = $1 AND shop = $2`,
+    [id, shop, JSON.stringify(normalizeOptionPricing(pricing))],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+/** Ürüne bağlı şablonların ek ücret kuralları (fiyat metafield'ı için) */
+export async function optionPricingForProduct(shop: string, productNumericId: string): Promise<OptionPricing[]> {
+  const res = await query<{ option_pricing: unknown }>(
+    `SELECT DISTINCT pt.option_pricing FROM personalizer_product_links ppl
+       JOIN personalizer_templates pt ON pt.id = ppl.template_id
+      WHERE ppl.shop = $1 AND ppl.product_id = $2 AND pt.active = TRUE`,
+    [shop, productNumericId],
+  );
+  return res.rows.map((r) => normalizeOptionPricing(r.option_pricing));
 }
