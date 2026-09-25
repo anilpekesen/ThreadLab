@@ -580,6 +580,17 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS support_tickets_status_created
       ON support_tickets (status, created_at DESC)
   `);
+  // Shopify'ın uygulama içi yorum penceresi (App Bridge reviews) mağaza başına
+  // en son ne zaman istendi ve Shopify ne cevap verdi. Pencere 60 günde bir
+  // gösterilebildiği için her açılışta tekrar istenmesin diye tutuluyor.
+  await query(`
+    CREATE TABLE IF NOT EXISTS review_prompts (
+      shop              TEXT PRIMARY KEY,
+      last_requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_code         TEXT NOT NULL DEFAULT '',
+      request_count     INT NOT NULL DEFAULT 1
+    )
+  `);
   // Konuşma thread'i için messages JSONB kolonu
   await query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS messages JSONB NOT NULL DEFAULT '[]'`);
   await query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'general'`);

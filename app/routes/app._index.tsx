@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useNavigate, useRevalidator } from "@remix-run/react";
+import { useFetcher, useLoaderData, useNavigate, useRevalidator } from "@remix-run/react";
 import { useEffect } from "react";
 import { useTranslation, type Lang } from "~/i18n";
 import type { TranslationKey } from "~/i18n/tr";
@@ -16,6 +16,7 @@ import { getAnalytics } from "~/models/billing.server";
 import { getDashboardAnalyticsDetail } from "~/models/analytics.server";
 import { PLANS } from "~/lib/plans";
 import { listConfiguredProductIds } from "~/models/product-config.server";
+import { shouldRequestReview } from "~/models/review-prompt.server";
 import { useDict } from "~/i18n";
 import supportDict from "~/i18n/admin/support";
 
@@ -36,6 +37,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     listConfiguredProductIds(session.shop),
   ]);
   const stats = summarizeGroupedStats(groupOrders(orders));
+  const askForReview = await shouldRequestReview(session.shop, stats.total).catch(() => false);
   const detail = await getDashboardAnalyticsDetail(session.shop);
   const chartDays = buildChartDays(production.dailyCounts, lang);
   const displayDetail = {
@@ -46,7 +48,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     })),
   };
 
-  return json({ stats, analytics, production, detail: displayDetail, chartDays, productCount: productIds.size });
+  return json({ stats, analytics, production, detail: displayDetail, chartDays, productCount: productIds.size, askForReview });
 };
 
 const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attention"> = {
@@ -280,7 +282,28 @@ function summarizeGroupedStats(groups: OrderGroup[]) {
 }
 
 export default function Index() {
-  const { stats, analytics, production, detail, chartDays, productCount } = useLoaderData<typeof loader>();
+  const { stats, analytics, production, detail, chartDays, productCount, askForReview } = useLoaderData<typeof loader>();
+  const reviewFetcher = useFetcher();
+
+  // Mağaza yeterince sipariş aldıysa Shopify'ın yorum penceresini bir kez iste.
+  // Pencereyi Shopify açar ve gösterip göstermemeye kendisi karar verir;
+  // cevabı kaydediyoruz ki 60 gün boyunca tekrar istenmesin. Sayfa açılır
+  // açılmaz değil, merchant panele baktıktan biraz sonra.
+  useEffect(() => {
+    if (!askForReview) return;
+    const timer = setTimeout(async () => {
+      const reviews = (window as unknown as { shopify?: { reviews?: { request: () => Promise<{ code: string }> } } }).shopify?.reviews;
+      if (!reviews) return;
+      try {
+        const result = await reviews.request();
+        reviewFetcher.submit({ code: result.code }, { method: "post", action: "/app/api/review-prompt" });
+      } catch {
+        /* pencere açılamadı: bir sonraki ziyarette tekrar denenir */
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askForReview]);
   const S = useDict(supportDict);
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
