@@ -24,6 +24,14 @@ import {
  * Shopify'dan okunup doğrudan Printful'a iletilir (korunan müşteri verisi).
  */
 
+let migrationsRan = false;
+async function ensureMigrations() {
+  if (!migrationsRan) {
+    await runMigrations();
+    migrationsRan = true;
+  }
+}
+
 export interface PodConnection {
   shop: string;
   token: string;
