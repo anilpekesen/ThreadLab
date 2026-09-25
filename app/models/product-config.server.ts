@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { query, runMigrations } from "~/lib/db.server";
 import { PLANS } from "~/lib/plans";
 import { getShopPlan } from "~/models/bg-removal-usage.server";
+import { syncProductPricingMetafield } from "~/lib/pricing-metafield.server";
 
 let migrationsRan = false;
 async function ensureMigrations() {
@@ -699,6 +700,9 @@ export async function saveProductConfig(shop: string, productId: string, config:
      ON CONFLICT (shop, product_id) DO UPDATE SET config = $3, updated_at = now()`,
     [shop, productId, JSON.stringify(config)],
   );
+  // Sepet fonksiyonunun güvendiği fiyat kaydı (baskı ücreti alt sınırı)
+  const pricing = await syncProductPricingMetafield(shop, productId, config);
+  if (!pricing.ok) console.error("[product-config] fiyat kaydı yazılamadı:", productId, pricing.error);
 }
 
 export async function deactivateProductConfig(shop: string, productId: string): Promise<void> {
@@ -707,6 +711,8 @@ export async function deactivateProductConfig(shop: string, productId: string): 
      WHERE shop = $1 AND product_id = $2`,
     [shop, productId],
   );
+  const pricing = await syncProductPricingMetafield(shop, productId, { isActive: false } as ProductConfig);
+  if (!pricing.ok) console.error("[product-config] fiyat kaydı silinemedi:", productId, pricing.error);
 }
 
 export async function findConfigForStorefront(shop: string, productId: string, handle: string) {

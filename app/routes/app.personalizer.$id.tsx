@@ -1,3 +1,4 @@
+import { syncPricingForProduct } from "~/lib/pricing-metafield.server";
 import {
   unstable_createMemoryUploadHandler,
   unstable_parseMultipartFormData,
@@ -370,6 +371,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (!productId) return json({ error: A.errProductIdRequired }, { status: 400 });
 
     const silinen = await unlinkPersonalizerProduct(shop, productId, id);
+    await syncPricingForProduct(shop, productId).catch(() => null);
 
     // Metafield da silinmeli: tema bloğu ona bakıyor ve kayıt gitse bile
     // metafield dururken kişiselleştirme kutusu ürün sayfasında görünmeye
@@ -435,6 +437,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       (Array.isArray(template.slots) && template.slots.length > 0)
       || (Array.isArray(template.pieces) && template.pieces.length > 0);
 
+    await syncPricingForProduct(shop, productId).catch(() => null);
     const meta = slotluMu
       ? await setProductTemplateMetafield(shop, productId, id)
       : await clearProductTemplateMetafield(shop, productId);

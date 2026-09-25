@@ -1,3 +1,4 @@
+import { syncPricingForShop } from "~/lib/pricing-metafield.server";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, useLoaderData, useNavigation } from "@remix-run/react";
@@ -335,6 +336,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     await saveShopSettings(session.shop, { surchargeVariantId: variantId });
     await writeSurchargeMetafield(admin, variantId).catch(() => {});
+    // Ürünlerin fiyat kaydı yeni ücret ürününü göstersin (arka planda)
+    syncPricingForShop(session.shop).catch((err) => console.error("[settings] fiyat kaydı eşitlenemedi:", err));
     return redirect("/app/settings?created=1");
   }
 
@@ -468,6 +471,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: S.saveFailed }, { status: 500 });
   }
   if (newVariantId) await writeSurchargeMetafield(admin, newVariantId).catch(() => {});
+  // Ücret ürünü değiştiyse ürünlerin fiyat kaydı da değişmeli (arka planda)
+  syncPricingForShop(session.shop).catch((err) => console.error("[settings] fiyat kaydı eşitlenemedi:", err));
   return redirect("/app/settings?saved=1");
 };
 
