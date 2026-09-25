@@ -17,7 +17,8 @@ import {
   TextField,
   Banner,
 } from "@shopify/polaris";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { FormSaveBar } from "~/components/FormSaveBar";
 import * as Sentry from "@sentry/remix";
 import { authenticate } from "~/lib/authenticate.server";
 import { signedShopQuery } from "~/lib/signed-shop-link.server";
@@ -485,6 +486,31 @@ export default function SettingsRoute() {
   const [emailSenderName, setEmailSenderName] = useState(settings.emailSenderName || "");
   const [notificationWebhookUrl, setNotificationWebhookUrl] = useState(settings.notificationWebhookUrl || "");
   const [notificationWhatsapp, setNotificationWhatsapp] = useState(settings.notificationWhatsapp || "");
+
+  // Kaydetme çubuğu: kayıtlı değerlerle karşılaştır, değiştiyse çubuk açılır
+  const formRef = useRef<HTMLFormElement>(null);
+  const saved0 = {
+    surchargeVariantId: settings.surchargeVariantId || "",
+    customerBgLimit: String(settings.customerBgLimit ?? 5),
+    termsUrl: settings.termsUrl || "",
+    customerAiLimit: String(settings.customerAiLimit ?? 3),
+    notificationEmail: settings.notificationEmail || "",
+    emailSenderName: settings.emailSenderName || "",
+    notificationWebhookUrl: settings.notificationWebhookUrl || "",
+    notificationWhatsapp: settings.notificationWhatsapp || "",
+  };
+  const current = { surchargeVariantId, customerBgLimit, termsUrl, customerAiLimit, notificationEmail, emailSenderName, notificationWebhookUrl, notificationWhatsapp };
+  const dirty = (Object.keys(saved0) as (keyof typeof saved0)[]).some((k) => saved0[k] !== current[k]);
+  const discard = () => {
+    setSurchargeVariantId(saved0.surchargeVariantId);
+    setCustomerBgLimit(saved0.customerBgLimit);
+    setTermsUrl(saved0.termsUrl);
+    setCustomerAiLimit(saved0.customerAiLimit);
+    setNotificationEmail(saved0.notificationEmail);
+    setEmailSenderName(saved0.emailSenderName);
+    setNotificationWebhookUrl(saved0.notificationWebhookUrl);
+    setNotificationWhatsapp(saved0.notificationWhatsapp);
+  };
   const selectedVariantExists = surchargeVariantOptions.some((option) => option.value === surchargeVariantId);
   const variantSelectOptions = [
     { label: t("settings.variantSelectPlaceholder"), value: "" },
@@ -521,8 +547,16 @@ export default function SettingsRoute() {
           <Banner tone="critical" title={L.cartTransformError(cartTransformStatus)} />
         )}
 
-        {/* Outer Form — only text inputs + save button, no nested fetcher forms */}
-        <Form method="post">
+        <FormSaveBar
+          id="settings-save-bar"
+          dirty={dirty}
+          saving={isSaving}
+          onSave={() => formRef.current?.requestSubmit()}
+          onDiscard={discard}
+        />
+
+        {/* Outer Form — only text inputs, no nested fetcher forms; saved from the save bar */}
+        <Form method="post" ref={formRef}>
           <input type="hidden" name="_lang" value={lang} />
           <BlockStack gap="400">
 
@@ -673,11 +707,6 @@ export default function SettingsRoute() {
               </Box>
             </Card>
 
-            <InlineStack align="end">
-              <Button variant="primary" submit loading={isSaving}>
-                {t("settings.save")}
-              </Button>
-            </InlineStack>
           </BlockStack>
         </Form>
 

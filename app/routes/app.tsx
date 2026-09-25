@@ -100,9 +100,11 @@ function AppInner() {
   const navItems = [
     { label: t("nav.home"), url: "/app", end: true, show: true },
     { label: t("nav.orders"), url: "/app/orders", end: false, show: true },
-    { label: t("nav.production"), url: "/app/production", end: false, show: allowProduction },
-    { label: t("nav.gangSheet"), url: "/app/gang-sheet", end: false, show: allowGangSheet },
-    { label: t("nav.printQueue"), url: "/app/print-queue", end: false, show: allowPrintQueue },
+    // Plana bağlı sayfalar gizlenmez, kilitli olarak işaretlenir (Built for
+    // Shopify 4.3.7); sayfanın kendisi plan uyarısını ve yükseltme yolunu gösterir
+    { label: allowProduction ? t("nav.production") : `${t("nav.production")} · Pro`, url: "/app/production", end: false, show: true },
+    { label: allowGangSheet ? t("nav.gangSheet") : `${t("nav.gangSheet")} · Pro`, url: "/app/gang-sheet", end: false, show: true },
+    { label: allowPrintQueue ? t("nav.printQueue") : `${t("nav.printQueue")} · Pro`, url: "/app/print-queue", end: false, show: true },
     { label: t("nav.productTypes"), url: "/app/product-types", end: false, show: true },
     { label: t("nav.templates"), url: "/app/templates", end: false, show: true },
     { label: t("nav.cliparts"), url: "/app/cliparts", end: false, show: true },
@@ -129,32 +131,6 @@ function AppInner() {
       </ui-nav-menu>
 
       <div className="app-shell">
-        <nav className="app-sidebar">
-          <div className="app-sidebar-logo">
-            <a href="/app">
-              <img src="/logo.png" alt="PrintLabApp" />
-            </a>
-          </div>
-
-          <div className="app-nav">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.url}
-                to={item.url}
-                end={item.end}
-                className={({ isActive: a }) => `app-nav-link${a ? " active" : ""}`}
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </div>
-
-          <div className="app-sidebar-footer">
-            <div className="app-sidebar-shop">{shopName}</div>
-            <span className="app-sidebar-plan">{planLabel}</span>
-          </div>
-        </nav>
-
         <div className="app-main">
           <header className="app-topbar">
             {!isActive && (

@@ -26,6 +26,7 @@ const en = {
 
   // Common
   "common.save": "Save",
+  "common.discard": "Discard",
   "common.cancel": "Cancel",
   "common.edit": "Edit",
   "common.delete": "Delete",

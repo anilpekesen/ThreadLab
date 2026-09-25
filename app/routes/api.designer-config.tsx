@@ -1,3 +1,4 @@
+import { markStorefrontSeen } from "~/models/storefront-ping.server";
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import {
   buildDefaultConfig,
@@ -51,6 +52,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!config && (!linkedTemplate || slotluSablon)) {
     return json({ error: "Not found" }, { status: 404 });
   }
+  markStorefrontSeen(shop);
 
   const inferredProductType = linkedTemplate?.category === "boxer"
     // Kelime sınırı şart: "tisort" (tişört) içinde "sort" geçiyor ve tişörtler

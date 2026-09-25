@@ -47,6 +47,7 @@ import { GENERATOR_KINDS, generatorMeta, isGeneratorKind, type GeneratorKind } f
 import { normalizeSlots, normalizePieces, normalizeMockups } from "~/lib/slots";
 import { StudioSummary } from "~/components/studio/StudioSummary";
 import { useTranslation, useDict, pickDict, type Lang } from "~/i18n";
+import { FormSaveBar, useFormDirty } from "~/components/FormSaveBar";
 import { langFromRequest } from "~/i18n/server";
 import dict from "~/i18n/personalizer/editor";
 import { PageHelper } from "~/components/PageHelper";
@@ -1211,7 +1212,7 @@ function SetupChecklist({ items }: { items: ChecklistItem[] }) {
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
-function PersonalizerEditor() {
+function PersonalizerEditor({ onDiscard }: { onDiscard: () => void }) {
   const {
     shop, template, frames, productLinks, products, linkedAreaRatio, printProducts, isNew,
     productQuery, personalizerBlockUrl, designerBlockUrl,
@@ -1373,6 +1374,11 @@ function PersonalizerEditor() {
 
   const isLoading = fetcher.state !== "idle";
   const saveSuccess = fetcher.data?.ok === true;
+  const { dirty, reset: resetDirty } = useFormDirty(formRef);
+  // Başarılı kayıttan sonra o anki hâl yeni kayıtlı hâl olur
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.ok) resetDirty();
+  }, [fetcher.state, fetcher.data, resetDirty]);
 
   function addTextField() { setTextFields((p) => [...p, newTextField(lang)]); }
   function removeTextField(idx: number) { setTextFields((p) => p.filter((_, i) => i !== idx)); }
@@ -1890,6 +1896,14 @@ function PersonalizerEditor() {
           </Layout.Section>
         )}
 
+        <FormSaveBar
+          id="personalizer-save-bar"
+          dirty={dirty}
+          saving={isLoading}
+          onSave={() => formRef.current?.requestSubmit()}
+          onDiscard={onDiscard}
+        />
+
         {/* ── Şablon formu ── */}
         <Layout.Section>
           <form ref={formRef} onSubmit={handleSubmit} encType="multipart/form-data">
@@ -2357,5 +2371,12 @@ function PersonalizerEditor() {
 // Key prop ile state sıfırlama — aynı route component farklı $id için yeniden mount olur
 export default function PersonalizerEditorWrapper() {
   const params = useParams();
-  return <PersonalizerEditor key={params.id ?? "template"} />;
+  // "Vazgeç" (kaydetme çubuğu) düzenleyiciyi kayıtlı şablonla yeniden kurar
+  const [resetKey, setResetKey] = useState(0);
+  return (
+    <PersonalizerEditor
+      key={`${params.id ?? "template"}-${resetKey}`}
+      onDiscard={() => setResetKey((k) => k + 1)}
+    />
+  );
 }

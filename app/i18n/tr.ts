@@ -26,6 +26,7 @@ const tr = {
 
   // Common
   "common.save": "Kaydet",
+  "common.discard": "Vazgeç",
   "common.cancel": "İptal",
   "common.edit": "Düzenle",
   "common.delete": "Sil",

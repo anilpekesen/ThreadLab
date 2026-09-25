@@ -19,6 +19,8 @@ import { listConfiguredProductIds } from "~/models/product-config.server";
 import { shouldRequestReview } from "~/models/review-prompt.server";
 import { useDict } from "~/i18n";
 import supportDict from "~/i18n/admin/support";
+import setupDict from "~/i18n/admin/setup-status";
+import { getStorefrontLastSeen } from "~/models/storefront-ping.server";
 
 const AUTO_REFRESH_MS = 30_000;
 
@@ -36,6 +38,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     getProductionAnalytics(session.shop),
     listConfiguredProductIds(session.shop),
   ]);
+  const storefrontSeenAt = await getStorefrontLastSeen(session.shop).catch(() => null);
+  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+  const themeEditorUrl = apiKey
+    ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/tshirt-designer`)}&target=mainSection`
+    : null;
   const stats = summarizeGroupedStats(groupOrders(orders));
   const askForReview = await shouldRequestReview(session.shop, stats.total).catch(() => false);
   const detail = await getDashboardAnalyticsDetail(session.shop);
@@ -48,7 +55,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     })),
   };
 
-  return json({ stats, analytics, production, detail: displayDetail, chartDays, productCount: productIds.size, askForReview });
+  return json({ stats, analytics, production, detail: displayDetail, chartDays, productCount: productIds.size, askForReview, storefrontSeenAt: storefrontSeenAt ? storefrontSeenAt.toISOString() : null, themeEditorUrl });
 };
 
 const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attention"> = {
@@ -282,7 +289,8 @@ function summarizeGroupedStats(groups: OrderGroup[]) {
 }
 
 export default function Index() {
-  const { stats, analytics, production, detail, chartDays, productCount, askForReview } = useLoaderData<typeof loader>();
+  const { stats, analytics, production, detail, chartDays, productCount, askForReview, storefrontSeenAt, themeEditorUrl } = useLoaderData<typeof loader>();
+  const SS = useDict(setupDict);
   const reviewFetcher = useFetcher();
 
   // Mağaza yeterince sipariş aldıysa Shopify'ın yorum penceresini bir kez iste.
@@ -353,16 +361,70 @@ export default function Index() {
           </Box>
         </Card>
 
-        {/* Henüz ürün kurmamış mağazaya ücretsiz kurulum desteği */}
-        {productCount === 0 && (
-          <Banner
-            tone="info"
-            title={S.onboardingTitle}
-            action={{ content: S.onboardingSubmit, onAction: () => navigate("/app/support#onboarding") }}
-          >
-            <Text as="p">{S.onboardingShort}</Text>
-          </Banner>
-        )}
+        {/* Kurulum durumu: uygulama kurulu ve çalışıyor mu (Built for Shopify 4.2.3) */}
+        {(() => {
+          const steps = [
+            {
+              key: "product",
+              done: productCount > 0,
+              title: SS.productTitle,
+              text: productCount > 0 ? SS.productDone(productCount) : SS.productTodo,
+              action: { content: SS.productAction, url: "/app/products" },
+            },
+            {
+              key: "store",
+              done: Boolean(storefrontSeenAt),
+              title: SS.storeTitle,
+              text: storefrontSeenAt
+                ? SS.storeDone(new Date(storefrontSeenAt).toLocaleString(lang === "tr" ? "tr-TR" : "en-US", { dateStyle: "medium", timeStyle: "short" }))
+                : SS.storeTodo,
+              action: themeEditorUrl ? { content: SS.storeAction, url: themeEditorUrl, external: true } : null,
+            },
+            {
+              key: "order",
+              done: stats.total > 0,
+              title: SS.orderTitle,
+              text: stats.total > 0 ? SS.orderDone(stats.total) : SS.orderTodo,
+              action: { content: SS.orderAction, url: "/app/orders" },
+            },
+          ];
+          const doneCount = steps.filter((st) => st.done).length;
+          if (doneCount === steps.length) {
+            return <Banner tone="success" title={SS.allDone} />;
+          }
+          return (
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">{SS.title}</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">{SS.steps(doneCount, steps.length)}</Text>
+                  </InlineStack>
+                  <ProgressBar progress={(doneCount / steps.length) * 100} size="small" tone="primary" />
+                  {steps.map((st) => (
+                    <InlineStack key={st.key} align="space-between" blockAlign="center" gap="300" wrap={false}>
+                      <InlineStack gap="300" blockAlign="start" wrap={false}>
+                        <Text as="span" tone={st.done ? "success" : "subdued"}>{st.done ? "✓" : "○"}</Text>
+                        <BlockStack gap="050">
+                          <Text as="p" fontWeight="semibold">{st.title}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">{st.text}</Text>
+                        </BlockStack>
+                      </InlineStack>
+                      {!st.done && st.action && (
+                        <Button url={st.action.url} external={"external" in st.action ? st.action.external : undefined}>
+                          {st.action.content}
+                        </Button>
+                      )}
+                    </InlineStack>
+                  ))}
+                  <InlineStack>
+                    <Button variant="plain" onClick={() => navigate("/app/support#onboarding")}>{SS.help}</Button>
+                  </InlineStack>
+                </BlockStack>
+              </Box>
+            </Card>
+          );
+        })()}
 
         {/* Sipariş istatistikleri */}
         <InlineGrid columns={{ xs: 2, sm: 2, md: 4 }} gap="400">

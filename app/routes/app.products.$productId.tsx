@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, useActionData, useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigate, useNavigation, useSearchParams } from "@remix-run/react";
+import { FormSaveBar, useFormDirty } from "~/components/FormSaveBar";
 import {
   Badge,
   BlockStack,
@@ -16,6 +17,7 @@ import {
   Text,
   TextField,
   Toast,
+  Banner,
 } from "@shopify/polaris";
 import { useEffect, useRef, useState } from "react";
 import { authenticate } from "~/lib/authenticate.server";
@@ -841,8 +843,21 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   return redirect(`/app/products/${encodeURIComponent(productToken)}?saved=1`);
 };
 
+/**
+ * "Vazgeç" (kaydetme çubuğu) sayfayı kayıtlı veriyle yeniden kurar: sayfanın
+ * onlarca alanı ayrı durumlarda tutulduğu için tek tek geri almak yerine
+ * bileşen yeniden bağlanır.
+ */
 export default function ProductSettingsRoute() {
+  const [resetKey, setResetKey] = useState(0);
+  return <ProductSettingsInner key={resetKey} onDiscard={() => setResetKey((k) => k + 1)} />;
+}
+
+function ProductSettingsInner({ onDiscard }: { onDiscard: () => void }) {
   const { product, config, printAreas, shop } = useLoaderData<typeof loader>();
+  const formRef = useRef<HTMLFormElement>(null);
+  const { dirty, reset: resetDirty } = useFormDirty(formRef);
+  const isSaving = useNavigation().state !== "idle" && dirty;
   const navigate = useNavigate();
   const { t, lang } = useTranslation();
   const L = useDict(productDetailDict);
@@ -854,6 +869,7 @@ export default function ProductSettingsRoute() {
   useEffect(() => {
     if (searchParams.get("saved") === "1") {
       setShowSavedToast(true);
+      resetDirty();
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
@@ -1031,7 +1047,15 @@ export default function ProductSettingsRoute() {
           </Box>
         </Card>
 
-        <Form method="post">
+        <FormSaveBar
+          id="product-settings-save-bar"
+          dirty={dirty}
+          saving={isSaving}
+          onSave={() => formRef.current?.requestSubmit()}
+          onDiscard={onDiscard}
+        />
+
+        <Form method="post" ref={formRef}>
           <input type="hidden" name="_lang" value={lang} />
           <BlockStack gap="500">
             <Card>
@@ -1634,14 +1658,11 @@ export default function ProductSettingsRoute() {
               </Box>
             </Card>
 
-            <InlineStack gap="200">
-              <Button submit variant="primary">{t("products.save")}</Button>
-              {actionData ? (
-                <Text as="p" tone="critical">
-                  {"error" in actionData ? actionData.error : t("products.saveError")}
-                </Text>
-              ) : null}
-            </InlineStack>
+            {actionData ? (
+              <Banner tone="critical">
+                <Text as="p">{"error" in actionData ? actionData.error : t("products.saveError")}</Text>
+              </Banner>
+            ) : null}
           </BlockStack>
         </Form>
       </BlockStack>

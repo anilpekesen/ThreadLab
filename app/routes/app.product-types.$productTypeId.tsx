@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Form, useActionData, useLoaderData, useNavigate, useNavigation } from "@remix-run/react";
+import { FormSaveBar, useFormDirty } from "~/components/FormSaveBar";
 import { useTranslation, useDict, pickDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import productTypesDict from "~/i18n/admin/product-types";
@@ -10,7 +11,7 @@ import {
   InlineStack, TextField, Select, Divider, Thumbnail,
   ResourceList, ResourceItem, Banner,
 } from "@shopify/polaris";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { authenticate } from "~/lib/authenticate.server";
 import { getProductTypeById, updateProductType } from "~/models/product-types.server";
 import { fetchShopifyProducts, saveProductConfig, buildDefaultConfig, normalizeProductConfig, readSettingsMap, ProductLimitError } from "~/models/product-config.server";
@@ -162,6 +163,12 @@ export default function ProductTypeDetail() {
   const [surfaceMode, setSurfaceMode] = useState<"front_only" | "front_back">(productType.surface_mode);
   const [search, setSearch] = useState(q);
   const [showSearch, setShowSearch] = useState(false);
+  const typeFormRef = useRef<HTMLFormElement>(null);
+  const { dirty, reset: resetDirty } = useFormDirty(typeFormRef);
+  // Kayıttan dönünce kayıtlı değerler yeni temel olur
+  useEffect(() => {
+    if (nav.state === "idle" && actionData && "saved" in actionData) resetDirty();
+  }, [nav.state, actionData, resetDirty]);
 
   return (
     <Page
@@ -169,6 +176,16 @@ export default function ProductTypeDetail() {
       backAction={{ content: t("productTypes.title"), onAction: () => navigate("/app/product-types") }}
     >
       <BlockStack gap="500">
+        <FormSaveBar
+          id="product-type-save-bar"
+          dirty={dirty}
+          saving={isSaving}
+          onSave={() => typeFormRef.current?.requestSubmit()}
+          onDiscard={() => {
+            setName(productType.name);
+            setSurfaceMode(productType.surface_mode);
+          }}
+        />
         <PageHelper sections={L.detailHelp} />
 
         {actionError && (
@@ -180,7 +197,7 @@ export default function ProductTypeDetail() {
         {/* Temel Ayarlar */}
         <Card>
           <Box padding="400">
-            <Form method="post">
+            <Form method="post" ref={typeFormRef}>
               <input type="hidden" name="intent" value="update" />
               <input type="hidden" name="_lang" value={lang} />
               <BlockStack gap="400">
@@ -196,9 +213,6 @@ export default function ProductTypeDetail() {
                     { label: t("productTypes.frontOnly"), value: "front_only" },
                   ]}
                 />
-                <InlineStack align="end">
-                  <Button submit variant="primary" loading={isSaving}>{t("productTypes.save")}</Button>
-                </InlineStack>
               </BlockStack>
             </Form>
           </Box>
