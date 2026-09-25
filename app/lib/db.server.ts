@@ -715,6 +715,19 @@ async function _runMigrationsLocked() {
     )
   `);
   await query(`CREATE INDEX IF NOT EXISTS pod_connections_store ON pod_connections (store_id)`);
+  // WooCommerce bağlantısı: mağaza wc-auth ile PrintLab'e REST anahtarı verir.
+  // Anahtarlar ve webhook sırrı şifreli saklanır (bkz. ~/models/woo.server).
+  await query(`
+    CREATE TABLE IF NOT EXISTS woo_connections (
+      shop               TEXT PRIMARY KEY,
+      site_url           TEXT NOT NULL,
+      consumer_key_enc   TEXT NOT NULL,
+      consumer_secret_enc TEXT NOT NULL,
+      webhook_secret_enc TEXT NOT NULL DEFAULT '',
+      created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
   // Shopify varyantı -> Printful katalog varyantı
   await query(`
     CREATE TABLE IF NOT EXISTS pod_variant_maps (
