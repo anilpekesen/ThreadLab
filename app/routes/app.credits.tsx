@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useActionData, Form, useNavigation } from "@remix-run/react";
-import { useEffect } from "react";
+import { useLoaderData, useActionData, Form, useNavigation, useRevalidator } from "@remix-run/react";
+import { useEffect, useState } from "react";
 import {
   Page,
   Layout,
@@ -17,6 +17,10 @@ import {
   DataTable,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
+import { isWooShop } from "~/lib/platform";
+import { isPaddleReady, packPriceId, paddleClientConfig } from "~/lib/paddle.server";
+import { reconcilePaddleCheckouts, startPaddleCheckout } from "~/models/paddle-billing.server";
+import { loadPaddle } from "~/lib/paddle-client";
 import { shopifyGraphQL } from "~/lib/shopify.server";
 import { useTranslation, useDict, pickDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
@@ -33,6 +37,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const shop = session.shop;
 
+  const woo = isWooShop(shop);
+  if (woo) await reconcilePaddleCheckouts(shop).catch(() => null);
   const settings = await getShopSettings(shop);
   const permanentBonus: number = settings.aiQuotaBonus ?? 0;
 
@@ -67,6 +73,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     activePurchasedBonus,
     usedThisMonth,
     recentPurchases: purchasesRes.rows,
+    paddle: woo
+      ? { ready: Boolean(packPriceId("pack100")) && isPaddleReady(), client: paddleClientConfig() }
+      : null,
   });
 };
 
@@ -78,6 +87,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!pack) return json({ error: L.invalidPack }, { status: 400 });
 
   const { session } = await authenticate(request);
+  // WooCommerce: kredi Paddle'dan (tek seferlik fiyat)
+  if (isWooShop(session.shop)) {
+    try {
+      const { transactionId } = await startPaddleCheckout(session.shop, { kind: "credits", pack: packKey });
+      return json({ paddleTransactionId: transactionId });
+    } catch (err) {
+      console.error("[credits] paddle:", err);
+      return json({ error: err instanceof Error ? err.message : "error" }, { status: 500 });
+    }
+  }
   const accessToken = await getValidAccessToken(session.shop);
   const test = process.env.SHOPIFY_BILLING_TEST === "true";
   const appUrl = process.env.SHOPIFY_APP_URL ?? "https://printlabapp.com";
@@ -121,15 +140,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function CreditsPage() {
   const { permanentBonus, activePurchasedBonus, usedThisMonth, recentPurchases } =
     useLoaderData<typeof loader>();
-  const actionData = useActionData<{ redirectUrl?: string; error?: string }>();
+  const actionData = useActionData<{ redirectUrl?: string; error?: string; paddleTransactionId?: string }>();
   const navigation = useNavigation();
   const isLoading = navigation.state !== "idle";
+  const { paddle } = useLoaderData<typeof loader>();
+  const revalidator = useRevalidator();
+  const [paddleError, setPaddleError] = useState("");
 
   useEffect(() => {
     if (actionData?.redirectUrl) {
       window.open(actionData.redirectUrl, "_top");
     }
   }, [actionData]);
+
+  // WooCommerce: Paddle ödeme penceresi; tamamlanınca kredi listesi tazelenir
+  useEffect(() => {
+    const txn = actionData?.paddleTransactionId;
+    if (!txn || !paddle?.client) return;
+    loadPaddle(paddle.client, () => window.setTimeout(() => revalidator.revalidate(), 2500))
+      .then((P) => P.Checkout.open({ transactionId: txn, settings: { displayMode: "overlay" } }))
+      .catch((err: Error) => setPaddleError(err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionData?.paddleTransactionId]);
 
   const { t, lang } = useTranslation();
   const L = useDict(creditsDict);
@@ -213,7 +245,7 @@ export default function CreditsPage() {
                           variant="primary"
                           submit
                           loading={isLoading}
-                          disabled={isLoading}
+                          disabled={isLoading || Boolean(paddle && !paddle.ready)}
                           fullWidth
                         >
                           {t("credits.buy")}
@@ -224,6 +256,22 @@ export default function CreditsPage() {
                 </Card>
               ))}
             </InlineGrid>
+
+            {paddle && !paddle.ready && (
+              <Banner tone="info">
+                <Text as="p" variant="bodyMd">
+                  {lang === "tr"
+                    ? "WooCommerce mağazaları için kredi satın alma çok yakında açılacak."
+                    : "Buying credits for WooCommerce stores will be available very soon."}
+                </Text>
+              </Banner>
+            )}
+
+            {paddleError && (
+              <Banner tone="critical">
+                <Text as="p" variant="bodyMd">{paddleError}</Text>
+              </Banner>
+            )}
 
             {actionData?.error && (
               <Banner tone="critical">

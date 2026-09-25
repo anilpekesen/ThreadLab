@@ -728,6 +728,35 @@ async function _runMigrationsLocked() {
       updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  // Paddle (WooCommerce faturalandırması): sunucunun açtığı ödeme işlemleri
+  // ve abonelikler. Abonelik satırı YALNIZCA sunucunun açtığı bir işlemle
+  // kurulur; mağaza kimliği custom_data'dan değil buradan okunur.
+  await query(`
+    CREATE TABLE IF NOT EXISTS paddle_checkouts (
+      transaction_id TEXT PRIMARY KEY,
+      shop           TEXT NOT NULL,
+      kind           TEXT NOT NULL,
+      item_key       TEXT NOT NULL,
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      completed_at   TIMESTAMPTZ
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS paddle_subscriptions (
+      subscription_id   TEXT PRIMARY KEY,
+      shop              TEXT NOT NULL,
+      customer_id       TEXT NOT NULL DEFAULT '',
+      price_id          TEXT NOT NULL DEFAULT '',
+      plan_key          TEXT NOT NULL DEFAULT '',
+      status            TEXT NOT NULL DEFAULT '',
+      period_ends_at    TIMESTAMPTZ,
+      scheduled_action  TEXT,
+      scheduled_at      TIMESTAMPTZ,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS paddle_subscriptions_shop ON paddle_subscriptions (shop)`);
   // WooCommerce yönetim girişi: eklentinin imzaladığı bağlantı bir kez kullanılır
   await query(`
     CREATE TABLE IF NOT EXISTS woo_login_nonces (

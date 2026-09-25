@@ -1,7 +1,7 @@
 import { DISTINCT_TYPE_COUNT_SQL } from "~/models/product-types.server";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useActionData, Form, useNavigation } from "@remix-run/react";
+import { useLoaderData, useActionData, Form, useNavigation, useRevalidator } from "@remix-run/react";
 import * as Sentry from "@sentry/remix";
 import { useEffect, useState } from "react";
 import { useDict, useTranslation, pickDict } from "~/i18n";
@@ -22,6 +22,18 @@ import { PLANS, type PlanKey } from "~/lib/plans";
 import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/models/billing.server";
 import { listConfiguredProductIds } from "~/models/product-config.server";
 import { checkPromo, reservePromo, activatePendingPromo } from "~/models/promo.server";
+import { isWooShop } from "~/lib/platform";
+import { loadPaddle } from "~/lib/paddle-client";
+import { isPaddleReady, paddleClientConfig } from "~/lib/paddle.server";
+import {
+  cancelPaddlePlan,
+  changePaddlePlan,
+  getPaddleSubscription,
+  paddlePortalUrl,
+  reconcilePaddleCheckouts,
+  resumePaddlePlan,
+  startPaddleCheckout,
+} from "~/models/paddle-billing.server";
 
 const PLAN_ORDER: PlanKey[] = ["Starter", "Growth", "Pro", "Business"];
 /** Kartlar ve karşılaştırma tablosu: ücretsiz plan başta */
@@ -247,7 +259,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const shop = session.shop;
 
-  if (isOwnerShop(shop)) {
+  // WooCommerce: faturalandırma Paddle'da. Bildirim gecikse bile ödeme
+  // penceresinden dönülünce plan hemen görünsün diye bekleyen işlemler sorulur.
+  const woo = isWooShop(shop);
+  if (woo) {
+    await reconcilePaddleCheckouts(shop).catch((err) => console.error("[billing] paddle reconcile:", err));
+  } else if (isOwnerShop(shop)) {
     await upsertShopSubscription(shop, {
       planKey: "Business",
       shopifySubscriptionId: null,
@@ -286,7 +303,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     getDowngradeRestrictions(shop, analytics),
     listConfiguredProductIds(shop),
   ]);
-  return json({ analytics, isTest: isBillingTestCharge(shop), blockedReasons, productCount: productIds.size });
+  const paddleSub = woo ? await getPaddleSubscription(shop).catch(() => null) : null;
+  return json({
+    analytics,
+    isTest: woo ? false : isBillingTestCharge(shop),
+    blockedReasons,
+    productCount: productIds.size,
+    paddle: woo
+      ? {
+          ready: isPaddleReady(),
+          client: paddleClientConfig(),
+          cancelAt: paddleSub?.scheduled_action === "cancel" ? (paddleSub.scheduled_at?.toISOString?.() ?? String(paddleSub.scheduled_at ?? "")) : null,
+          hasSubscription: Boolean(paddleSub),
+        }
+      : null,
+  });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -296,6 +327,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const form = await request.formData();
   const intent = form.get("intent") as string;
   const B = pickDict(billingDict, langFromRequest(request, form));
+
+  if (isWooShop(shop)) return wooBillingAction(shop, intent, form, B);
 
   const accessToken = await getValidAccessToken(shop);
   if (!accessToken) return redirect(`/auth/login?shop=${encodeURIComponent(shop)}`);
@@ -387,9 +420,54 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return redirect("/app/billing");
 };
 
+/** WooCommerce mağazası: abonelik Paddle'dan (bkz. ~/models/paddle-billing.server) */
+type BillingCopy = (typeof billingDict)["en"];
+
+async function wooBillingAction(shop: string, intent: string, form: FormData, B: BillingCopy) {
+  try {
+    if (intent === "subscribe") {
+      const planKey = form.get("plan") as PlanKey;
+      if (!PLAN_ORDER.includes(planKey)) return json({ error: B.invalidPlan }, { status: 400 });
+      const currentSub = await getShopSubscription(shop);
+      const live = currentSub?.subscription_status === "active" || currentSub?.subscription_status === "trial";
+      if (live && PLAN_ORDER.indexOf(planKey) < PLAN_ORDER.indexOf(currentSub!.plan_key)) {
+        const { blockedReasons } = await getDowngradeRestrictions(shop, await getAnalytics(shop));
+        const reasons = blockedReasons[planKey];
+        if (reasons?.length) return json({ error: B.downgradeBlocked(planKey, reasons.map(B.reason)) }, { status: 400 });
+      }
+      if (await getPaddleSubscription(shop)) {
+        await changePaddlePlan(shop, planKey);
+        return redirect("/app/billing");
+      }
+      const { transactionId } = await startPaddleCheckout(shop, { kind: "plan", plan: planKey });
+      return json({ paddleTransactionId: transactionId });
+    }
+    if (intent === "cancel") {
+      await cancelPaddlePlan(shop);
+      return redirect("/app/billing");
+    }
+    if (intent === "resume") {
+      await resumePaddlePlan(shop);
+      return redirect("/app/billing");
+    }
+    if (intent === "portal") {
+      const url = await paddlePortalUrl(shop);
+      return url ? json({ redirectUrl: url }) : json({ error: B.unknownError }, { status: 400 });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : B.unknownError;
+    console.error("[billing] paddle error:", err);
+    Sentry.captureException(err, { tags: { fn: "paddleBilling", intent } });
+    return json({ error: B.createFailed(message) }, { status: 500 });
+  }
+  return redirect("/app/billing");
+}
+
 export default function BillingPage() {
-  const { analytics, isTest, blockedReasons, productCount } = useLoaderData<typeof loader>();
-  const actionData = useActionData<{ error?: string; redirectUrl?: string }>();
+  const { analytics, isTest, blockedReasons, productCount, paddle } = useLoaderData<typeof loader>();
+  const actionData = useActionData<{ error?: string; redirectUrl?: string; paddleTransactionId?: string }>();
+  const revalidator = useRevalidator();
+  const [paddleError, setPaddleError] = useState("");
   const nav = useNavigation();
   const { t, lang } = useTranslation();
   const L = useDict(billingDict);
@@ -400,6 +478,20 @@ export default function BillingPage() {
   const currentPlanLabel = analytics.planKey;
   const freeLimit = PLANS.Free.maxProducts;
   const [promo, setPromo] = useState("");
+
+  // WooCommerce: sunucunun açtığı işlemin ödeme penceresi (Paddle overlay)
+  useEffect(() => {
+    const txn = actionData?.paddleTransactionId;
+    if (!txn || !paddle?.client) return;
+    loadPaddle(paddle.client, () => {
+      // Bildirim birkaç saniye içinde gelir; sayfa yenilenince sunucu işlemi de sorar
+      window.setTimeout(() => revalidator.revalidate(), 2500);
+    })
+      .then((P) => P.Checkout.open({ transactionId: txn, settings: { displayMode: "overlay", locale: lang === "tr" ? "tr" : "en" } }))
+      .catch((err: Error) => setPaddleError(err.message));
+    // revalidator kimliği her çizimde değişiyor; yalnız yeni işlemde aç
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionData?.paddleTransactionId]);
 
   useEffect(() => {
     if (!actionData?.redirectUrl) return;
@@ -424,6 +516,46 @@ export default function BillingPage() {
           <Banner title={t("common.error")} tone="critical">
             <Text as="p">{actionData.error}</Text>
           </Banner>
+        )}
+
+        {paddleError && (
+          <Banner title={t("common.error")} tone="critical">
+            <Text as="p">{paddleError}</Text>
+          </Banner>
+        )}
+
+        {/* WooCommerce: ödeme Paddle'dan */}
+        {paddle && !paddle.ready && (
+          <Banner tone="info" title={lang === "tr" ? "Online ödeme hazırlanıyor" : "Online payment is being set up"}>
+            <Text as="p">
+              {lang === "tr"
+                ? "WooCommerce mağazaları için ücretli planlar çok yakında satın alınabilecek. Bu sürede ücretsiz planı kullanabilirsiniz."
+                : "Paid plans for WooCommerce stores will be available to buy very soon. Until then you can use the free plan."}
+            </Text>
+          </Banner>
+        )}
+        {paddle?.cancelAt && (
+          <Banner tone="warning" title={lang === "tr" ? "Abonelik iptal edildi" : "Subscription canceled"}>
+            <BlockStack gap="200">
+              <Text as="p">
+                {lang === "tr"
+                  ? `Planınız ${new Date(paddle.cancelAt).toLocaleDateString("tr-TR")} tarihine kadar geçerli, sonra ücretsiz plana geçersiniz.`
+                  : `Your plan stays active until ${new Date(paddle.cancelAt).toLocaleDateString("en-US")}, then you move to the free plan.`}
+              </Text>
+              <Form method="post">
+                <input type="hidden" name="intent" value="resume" />
+                <input type="hidden" name="_lang" value={lang} />
+                <Button submit loading={isLoading}>{lang === "tr" ? "İptali geri al" : "Keep my subscription"}</Button>
+              </Form>
+            </BlockStack>
+          </Banner>
+        )}
+        {paddle?.hasSubscription && (
+          <Form method="post">
+            <input type="hidden" name="intent" value="portal" />
+            <input type="hidden" name="_lang" value={lang} />
+            <Button submit loading={isLoading}>{lang === "tr" ? "Ödeme yöntemi ve faturalar" : "Payment method and invoices"}</Button>
+          </Form>
         )}
 
         {isTest && (
@@ -486,7 +618,7 @@ export default function BillingPage() {
                 </BlockStack>
               </>
 
-              {(isActive || isTrial) && (
+              {(isActive || isTrial) && !paddle?.cancelAt && (
                 <>
                   <Divider />
                   <InlineStack align="space-between" blockAlign="center">
@@ -508,6 +640,8 @@ export default function BillingPage() {
           </Box>
         </Card>
 
+        {/* Kampanya kodu şimdilik yalnız Shopify faturalandırmasında */}
+        {!paddle && (
         <Card>
           <Box padding="400">
             <InlineStack gap="400" blockAlign="end" wrap>
@@ -523,6 +657,7 @@ export default function BillingPage() {
             </InlineStack>
           </Box>
         </Card>
+        )}
 
         <Layout>
           <Layout.Section>
@@ -597,7 +732,7 @@ export default function BillingPage() {
                             <input type="hidden" name="plan" value={planKey} />
                             <input type="hidden" name="promo" value={promo.trim()} />
                             <input type="hidden" name="_lang" value={lang} />
-                            <Button fullWidth variant="primary" submit loading={isLoading}>
+                            <Button fullWidth variant="primary" submit loading={isLoading} disabled={Boolean(paddle && !paddle.ready)}>
                               {isActive || isTrial ? t("billing.changePlan") : t("billing.choosePlan")} → {planKey}
                             </Button>
                           </Form>
