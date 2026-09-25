@@ -1,4 +1,5 @@
 import { shopifyGraphQL } from "~/lib/shopify.server";
+import { isShopifyShop } from "~/lib/platform";
 import { getValidAccessToken } from "~/lib/session.server";
 import type { ProductConfig } from "~/models/product-config.server";
 import { getGlobalSettings } from "~/models/global-settings.server";
@@ -74,6 +75,8 @@ export async function syncProductPricingMetafield(
   config: ProductConfig,
   optionFloor?: number,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Sepet fonksiyonu yalnız Shopify'da var; WooCommerce ücreti sunucudan sorar
+  if (!isShopifyShop(shop)) return { ok: true };
   const token = await getValidAccessToken(shop);
   if (!token) return { ok: false, error: "no session" };
   const ownerId = String(productId).startsWith("gid://") ? String(productId) : `gid://shopify/Product/${productId}`;
