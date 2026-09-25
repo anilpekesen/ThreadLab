@@ -4,6 +4,7 @@ import { decryptSecret, encryptSecret } from "~/lib/printful.server";
 import { publicAppUrl } from "~/lib/app-url.server";
 import { wooShopKey } from "~/lib/platform";
 import { importOrder, type IncomingOrder, type KV } from "~/models/order-import.server";
+import { designerUnitFee } from "~/lib/print-price-check.server";
 
 /**
  * WooCommerce bağlantısı.
@@ -139,7 +140,8 @@ type WooOrder = {
 
 /**
  * Eklentinin sipariş satırına yazdığı alanlar → içe aktarıcının beklediği
- * adlar. Eklenti alt çizgisiz `printlab_*` kullanıyor: WooCommerce REST
+ * adlar; listede olmayan `printlab_x` → `_x` (tasarımcının `_front_print_url`
+ * vb. alanları). Eklenti alt çizgisiz `printlab_*` kullanıyor: WooCommerce REST
  * gizli (_ ile başlayan) satır alanlarını her sürümde döndürmüyor.
  */
 const META_MAP: Record<string, string> = {
@@ -152,7 +154,7 @@ const META_MAP: Record<string, string> = {
 
 function metaToProps(meta: WooMeta[] | undefined): KV[] {
   return (meta ?? []).map((m) => ({
-    key: META_MAP[m.key] ?? m.key,
+    key: META_MAP[m.key] ?? (m.key.startsWith("printlab_") ? `_${m.key.slice(9)}` : m.key),
     value: typeof m.value === "string" ? m.value : JSON.stringify(m.value),
   }));
 }
@@ -214,12 +216,23 @@ export async function handleWooWebhook(raw: string, headers: Headers): Promise<n
 
 /**
  * Sepetteki tasarımın ek ücreti; eklenti sepet hesabında sunucudan sorar.
- * Tutar yalnız sunucunun kaydettiği tasarımdan gelir, tarayıcıdan değil.
+ * Tutar yalnız sunucunun kaydettiği tasarımdan gelir, tarayıcıdan değil:
+ *   - kişiselleştirici: sepete eklenirken hesaplanıp kayda yazılan seçenek ücreti,
+ *   - tişört tasarımcısı: kayıtlı Fabric verisinden baskı bandı ücreti
+ *     (Shopify'daki sipariş sonrası kontrolle aynı hesap), `quantity` toplu
+ *     indirim için aynı tasarımın sepetteki toplam adedidir.
  */
-export async function quoteDesign(shop: string, token: string): Promise<{ fee: number } | null> {
-  const d = (await query<{ shop: string; design_json: { type?: string; optionFee?: number } | null }>(
-    "SELECT shop, design_json FROM designs WHERE token = $1", [token])).rows[0];
+export async function quoteDesign(shop: string, token: string, quantity = 1): Promise<{ fee: number } | null> {
+  const d = (await query<{ shop: string; product_id: string | null; design_json: { type?: string; optionFee?: number; front?: string; back?: string } | null }>(
+    "SELECT shop, product_id, design_json FROM designs WHERE token = $1", [token])).rows[0];
   if (!d || d.shop !== shop) return null;
-  const fee = Number(d.design_json?.optionFee ?? 0);
-  return { fee: Number.isFinite(fee) && fee > 0 ? Math.round(fee * 100) / 100 : 0 };
+  const money = (v: number) => (Number.isFinite(v) && v > 0 ? Math.round(v * 100) / 100 : 0);
+  if (d.design_json?.type === "personalizer-slots") return { fee: money(Number(d.design_json.optionFee ?? 0)) };
+
+  const productId = String(d.product_id ?? "").split("/").pop() ?? "";
+  if (!productId || !d.design_json) return { fee: 0 };
+  const fee = await designerUnitFee(shop, productId, d.design_json, quantity);
+  // Ürünün tasarımcı ayarı yoksa ücret doğrulanamaz: sepet ödemeye geçemez
+  if (!fee) return null;
+  return { fee: money(fee.unitFee) };
 }

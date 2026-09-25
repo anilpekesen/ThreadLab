@@ -110,6 +110,40 @@ async function designerContext(shop: string, productNumericId: string) {
   };
 }
 
+/**
+ * Tasarımcı tasarımının birim baskı ücreti (toplu indirim uygulanmış).
+ * Önizlenen beden bilinmediğinden her beden denenip müşteri lehine en düşüğü
+ * alınır. `measurable` false ise kayıtta ölçülebilir baskı nesnesi yoktur.
+ */
+export async function designerUnitFee(
+  shop: string,
+  productNumericId: string,
+  designJson: { front?: string; back?: string },
+  quantity: number,
+): Promise<{ unitFee: number; measurable: boolean; detail: unknown } | null> {
+  const ctx = await designerContext(shop, productNumericId).catch(() => null);
+  if (!ctx) return null;
+  const bands = ctx.settings?.pricingBands ?? {};
+  const areas = new Map((ctx.printAreas ?? []).map((a) => [a.side, a]));
+  const chart = ctx.settings?.sizeChart;
+  const sizes: (string | null)[] = [null, ...(chart?.entries ?? []).map((e) => e.size)];
+  const fa = areas.get("front"), ba = areas.get("back");
+  let best: { total: number; front: ReturnType<typeof sideSurcharge>; back: ReturnType<typeof sideSurcharge> } | null = null;
+  for (const size of sizes) {
+    const front = fa ? sideSurcharge(designJson.front, scaleAreaForSize(fa, chart, size), bands.front ?? []) : { amount: 0, pieces: [] };
+    const back = ba ? sideSurcharge(designJson.back, scaleAreaForSize(ba, chart, size), bands.back ?? []) : { amount: 0, pieces: [] };
+    const total = front.amount + back.amount;
+    if (!best || total < best.total) best = { total, front, back };
+  }
+  const pct = discountFor(ctx.settings?.volumeDiscounts, Math.max(1, quantity));
+  const measurable = best!.front.pieces.length + best!.back.pieces.length > 0;
+  return {
+    unitFee: Math.round(best!.total * (1 - pct / 100) * 100) / 100,
+    measurable,
+    detail: { front: best!.front, back: best!.back, discount: pct, measurable },
+  };
+}
+
 export interface LineCheck {
   token: string;
   quantity: number;
@@ -180,30 +214,14 @@ export async function checkOrderPrintPricing(shop: string, orderId: string, opts
     }
     // Tasarımcı satırı: ücret satırı yoksa ürün baskı ücretli değildir
     if (!g.fee) continue;
-    const ctx = await designerContext(shop, productNumeric).catch(() => null);
-    if (!ctx) continue;
-    const bands = ctx.settings?.pricingBands ?? {};
-    const areas = new Map((ctx.printAreas ?? []).map((a) => [a.side, a]));
-    const chart = ctx.settings?.sizeChart;
-    const sizes: (string | null)[] = [null, ...(chart?.entries ?? []).map((e) => e.size)];
-
-    // Önizlenen beden bilinmiyor: her beden için hesaplayıp müşteri lehine en düşüğü al
-    let best: { total: number; front: unknown; back: unknown } | null = null;
-    for (const size of sizes) {
-      const fa = areas.get("front"), ba = areas.get("back");
-      const front = fa ? sideSurcharge(d.design_json.front, scaleAreaForSize(fa, chart, size), bands.front ?? []) : { amount: 0, pieces: [] };
-      const back = ba ? sideSurcharge(d.design_json.back, scaleAreaForSize(ba, chart, size), bands.back ?? []) : { amount: 0, pieces: [] };
-      const total = front.amount + back.amount;
-      if (!best || total < best.total) best = { total, front, back };
-    }
-    const pct = discountFor(ctx.settings?.volumeDiscounts, qtyByToken.get(designToken) ?? g.base.quantity);
-    const expected = Math.round(best!.total * (1 - pct / 100) * 100) / 100;
+    const fee = await designerUnitFee(shop, productNumeric, d.design_json, qtyByToken.get(designToken) ?? g.base.quantity);
+    if (!fee) continue;
+    const expected = fee.unitFee;
     const paid = Number(g.fee.originalUnitPriceSet.shopMoney.amount);
     // Kayıtlı tasarımda ölçülebilir baskı nesnesi yoksa (ör. sunucuda üretilen
     // şablon tasarımları) doğrulanamaz: işaretlenmez, öyle kaydedilir
-    const measurable = (best!.front as { pieces: unknown[] }).pieces.length + (best!.back as { pieces: unknown[] }).pieces.length > 0;
-    const underpaid = measurable && paid + ABS_TOLERANCE < expected;
-    results.push({ token: designToken, quantity: g.base.quantity, paid, expected, underpaid, detail: { front: best!.front, back: best!.back, discount: pct, measurable } });
+    const underpaid = fee.measurable && paid + ABS_TOLERANCE < expected;
+    results.push({ token: designToken, quantity: g.base.quantity, paid, expected, underpaid, detail: fee.detail });
   }
 
   if (opts.dryRun) return results;

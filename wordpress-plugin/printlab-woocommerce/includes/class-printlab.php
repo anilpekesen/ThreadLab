@@ -7,10 +7,14 @@ defined( 'ABSPATH' ) || exit;
 final class PrintLab_Plugin {
 
 	const META_TEMPLATE = '_printlab_template';
+	const META_DESIGNER = '_printlab_designer';
 	const FEE_TTL       = 600;
 
 	/** Sipariş satırına yazılan, yönetim ekranında gizlenen alanlar */
-	const LINE_KEYS = array( 'printlab_design_token', 'printlab_print_file', 'printlab_print_files', 'printlab_preview_url', 'printlab_template' );
+	const LINE_KEYS = array( 'printlab_design_token', 'printlab_print_file', 'printlab_print_files', 'printlab_preview_url', 'printlab_template', 'printlab_front_print_url', 'printlab_back_print_url', 'printlab_back_preview_url', 'printlab_design_detail_url', 'printlab_pl_size', 'printlab_pl_color', 'printlab_pl_locale' );
+
+	/** Tasarımcının sepete gönderdiği, siparişe `printlab_*` olarak yazılan alanlar */
+	const DESIGNER_KEYS = array( '_front_print_url', '_back_print_url', '_back_preview_url', '_design_detail_url', '_pl_size', '_pl_color', '_pl_locale' );
 
 	private static $instance = null;
 
@@ -29,6 +33,9 @@ final class PrintLab_Plugin {
 		add_action( 'woocommerce_before_add_to_cart_form', array( $this, 'render_personalizer' ), 5 );
 		add_action( 'wp_ajax_printlab_add_to_cart', array( $this, 'ajax_add_to_cart' ) );
 		add_action( 'wp_ajax_nopriv_printlab_add_to_cart', array( $this, 'ajax_add_to_cart' ) );
+		add_action( 'woocommerce_after_single_product_summary', array( $this, 'render_designer' ), 5 );
+		add_action( 'wp_ajax_printlab_add_designer', array( $this, 'ajax_add_designer' ) );
+		add_action( 'wp_ajax_nopriv_printlab_add_designer', array( $this, 'ajax_add_designer' ) );
 
 		add_action( 'woocommerce_before_calculate_totals', array( $this, 'apply_fees' ), 20 );
 		add_action( 'woocommerce_check_cart_items', array( $this, 'check_cart_items' ) );
@@ -95,7 +102,7 @@ final class PrintLab_Plugin {
 			echo '<p>' . esc_html__( 'Connect your store so PrintLab can receive personalized orders and print files.', 'printlab' ) . '</p>';
 		}
 		echo '<p><a class="button button-primary" href="' . esc_url( $auth_url ) . '">' . esc_html( $connected ? __( 'Reconnect', 'printlab' ) : __( 'Connect to PrintLab', 'printlab' ) ) . '</a></p>';
-		echo '<p class="description">' . esc_html__( 'To personalize a product, open it and enter the PrintLab template ID in the PrintLab box.', 'printlab' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'To personalize a product, open it and either turn on the PrintLab designer or enter a PrintLab template ID in the PrintLab box. Print areas and print prices are set in the PrintLab app.', 'printlab' ) . '</p>';
 		echo '</div>';
 	}
 
@@ -107,7 +114,9 @@ final class PrintLab_Plugin {
 
 	public function render_meta_box( $post ) {
 		wp_nonce_field( 'printlab_meta', 'printlab_meta_nonce' );
-		$value = get_post_meta( $post->ID, self::META_TEMPLATE, true );
+		$value    = get_post_meta( $post->ID, self::META_TEMPLATE, true );
+		$designer = 'yes' === get_post_meta( $post->ID, self::META_DESIGNER, true );
+		echo '<p><label><input type="checkbox" name="printlab_designer" value="yes"' . checked( $designer, true, false ) . ' /> ' . esc_html__( 'Show the PrintLab designer (apparel, print by size)', 'printlab' ) . '</label></p>';
 		echo '<p><label for="printlab_template">' . esc_html__( 'Personalizer template ID', 'printlab' ) . '</label></p>';
 		echo '<input type="text" id="printlab_template" name="printlab_template" class="widefat" value="' . esc_attr( $value ) . '" placeholder="e.g. 97226bf1d8933843ea2ab2da" />';
 		echo '<p class="description">' . esc_html__( 'Leave empty to sell the product without personalization.', 'printlab' ) . '</p>';
@@ -122,6 +131,11 @@ final class PrintLab_Plugin {
 		}
 		if ( ! current_user_can( 'edit_product', $post_id ) ) {
 			return;
+		}
+		if ( ! empty( $_POST['printlab_designer'] ) ) {
+			update_post_meta( $post_id, self::META_DESIGNER, 'yes' );
+		} else {
+			delete_post_meta( $post_id, self::META_DESIGNER );
 		}
 		$value = isset( $_POST['printlab_template'] ) ? sanitize_text_field( wp_unslash( $_POST['printlab_template'] ) ) : '';
 		$value = preg_replace( '/[^a-zA-Z0-9_-]/', '', $value );
@@ -204,7 +218,7 @@ final class PrintLab_Plugin {
 			return;
 		}
 		$template = get_post_meta( $product->get_id(), self::META_TEMPLATE, true );
-		if ( ! $template ) {
+		if ( ! $template || self::is_designer( $product->get_id() ) ) {
 			return;
 		}
 		$payload = $this->product_payload( $product );
@@ -241,6 +255,113 @@ final class PrintLab_Plugin {
 		echo '<div class="printlab-personalizer" style="margin:0 0 1.5em">';
 		echo '<iframe id="printlab-frame" src="' . esc_url( $src ) . '" style="width:100%;min-height:520px;border:0;display:block" allow="clipboard-write" title="' . esc_attr__( 'Personalize', 'printlab' ) . '"></iframe>';
 		echo '</div>';
+	}
+
+	private static function is_designer( $product_id ) {
+		return 'yes' === get_post_meta( $product_id, self::META_DESIGNER, true );
+	}
+
+	/**
+	 * Tasarımcıya giden varyantlar, Shopify'ın ürün JSON'uyla aynı biçimde
+	 * (option1..3, fiyat kuruş cinsinden): tasarımcı renk ve beden seçimini
+	 * bu alanlardan kurar.
+	 */
+	private function designer_variants( WC_Product $product ) {
+		$names = array();
+		$attrs = $product->is_type( 'variable' ) ? array_slice( $product->get_variation_attributes(), 0, 3, true ) : array();
+		foreach ( $attrs as $attr => $values ) {
+			$names[ $attr ] = wc_attribute_label( $attr, $product );
+		}
+		$image = function ( $p ) {
+			$id = $p->get_image_id();
+			return $id ? array( 'src' => wp_get_attachment_image_url( $id, 'full' ) ) : null;
+		};
+		$variants = array();
+		if ( ! $product->is_type( 'variable' ) ) {
+			$variants[] = array(
+				'id'             => $product->get_id(),
+				'title'          => $product->get_name(),
+				'option1'        => null,
+				'option2'        => null,
+				'option3'        => null,
+				'price'          => (int) round( (float) wc_get_price_to_display( $product ) * 100 ),
+				'available'      => $product->is_in_stock(),
+				'featured_image' => $image( $product ),
+			);
+		} else {
+			foreach ( $product->get_available_variations( 'objects' ) as $variation ) {
+				$va   = $variation->get_variation_attributes( false );
+				$opts = array();
+				foreach ( array_keys( $names ) as $attr ) {
+					$key    = sanitize_title( $attr );
+					$opts[] = $this->attr_value_name( $attr, $va[ $key ] ?? ( $va[ 'attribute_' . $key ] ?? '' ) );
+				}
+				$variants[] = array(
+					'id'             => $variation->get_id(),
+					'title'          => implode( ' / ', $opts ),
+					'option1'        => $opts[0] ?? null,
+					'option2'        => $opts[1] ?? null,
+					'option3'        => $opts[2] ?? null,
+					'price'          => (int) round( (float) wc_get_price_to_display( $variation ) * 100 ),
+					'available'      => $variation->is_in_stock(),
+					'featured_image' => $variation->get_image_id() !== $product->get_image_id() ? $image( $variation ) : null,
+				);
+			}
+		}
+		return array( 'variants' => $variants, 'optionNames' => array_values( $names ) );
+	}
+
+	/** Tişört tasarımcısı: ürün özetinin altında tam genişlikte */
+	public function render_designer() {
+		global $product;
+		if ( ! $product instanceof WC_Product || ! self::is_designer( $product->get_id() ) ) {
+			return;
+		}
+		$v       = $this->designer_variants( $product );
+		$gallery = $product->get_gallery_image_ids();
+		$front   = $product->get_image_id() ? wp_get_attachment_image_url( $product->get_image_id(), 'full' ) : '';
+		$back    = $gallery ? wp_get_attachment_image_url( $gallery[0], 'full' ) : $front;
+		$app     = rtrim( PRINTLAB_APP_URL, '/' );
+
+		wp_enqueue_script( 'printlab-designer', plugins_url( 'assets/printlab-designer.js', PRINTLAB_FILE ), array(), PRINTLAB_VERSION, true );
+		wp_localize_script(
+			'printlab-designer',
+			'PrintLabDesigner',
+			array(
+				'appOrigin'   => $app,
+				'ajaxUrl'     => admin_url( 'admin-ajax.php' ),
+				'nonce'       => wp_create_nonce( 'printlab_cart' ),
+				'cartUrl'     => wc_get_cart_url(),
+				'checkoutUrl' => wc_get_checkout_url(),
+				'productId'   => $product->get_id(),
+				'config'      => array(
+					'productId'      => (string) $product->get_id(),
+					'productHandle'  => $product->get_slug(),
+					'productTitle'   => $product->get_name(),
+					'frontImage'     => $front ? $front : '',
+					'backImage'      => $back ? $back : '',
+					'shirtColor'     => '#1C1C1E',
+					'variants'       => $v['variants'],
+					'selectedVariant' => $v['variants'][0] ?? null,
+					'optionNames'    => $v['optionNames'],
+					'currency'       => get_woocommerce_currency(),
+					'locale'         => str_replace( '_', '-', get_locale() ),
+					'uploadEndpoint' => $app . '/apps/tshirt-designer/upload',
+					'shop'           => self::shop_key(),
+					'singleVariantId' => '',
+					'doubleVariantId' => '',
+					'singlePrice'    => 0,
+					'doublePrice'    => 0,
+				),
+				'error'       => __( 'Could not add to cart. Please try again.', 'printlab' ),
+			)
+		);
+		// Temanın kendi sepete ekle formu gizlenir: tasarımsız sipariş olmasın
+		echo '<style>.single-product form.cart{display:none!important}'
+			. '.printlab-designer{position:relative;width:100vw;max-width:100vw;margin:0 calc(50% - 50vw) 2em;clear:both;background:#f3f4f6}'
+			. '.printlab-designer iframe{display:block;width:100%;height:960px;border:0}'
+			. '@media (max-width:859px){.printlab-designer iframe{height:1320px}}</style>';
+		echo '<div class="printlab-designer"><iframe id="printlab-designer-frame" src="' . esc_url( $app . '/designer-app/' ) . '" allow="camera; microphone" title="' . esc_attr__( 'Design your product', 'printlab' ) . '"></iframe></div>';
 	}
 
 	// ── Sepete ekleme ──────────────────────────────────────────────────────
@@ -301,16 +422,90 @@ final class PrintLab_Plugin {
 		wp_send_json_success( array( 'cartUrl' => wc_get_cart_url() ) );
 	}
 
+	/**
+	 * Tasarımcıdan gelen sepet: bir tasarım, birden çok beden/varyant. Fiyat
+	 * burada alınmaz; satır fiyatı sepet hesabında PrintLab'den sorulur.
+	 */
+	public function ajax_add_designer() {
+		check_ajax_referer( 'printlab_cart', 'nonce' );
+		$product_id = absint( $_POST['product_id'] ?? 0 );
+		$items_raw  = isset( $_POST['items'] ) ? json_decode( wp_unslash( $_POST['items'] ), true ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- tek tek temizleniyor
+		$props_raw  = isset( $_POST['properties'] ) ? json_decode( wp_unslash( $_POST['properties'] ), true ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- tek tek temizleniyor
+		$product    = wc_get_product( $product_id );
+		if ( ! $product || ! self::is_designer( $product_id ) || ! is_array( $items_raw ) || ! $items_raw ) {
+			wp_send_json_error( array( 'message' => 'product' ), 400 );
+		}
+		$clean = function ( $arr ) {
+			$out = array();
+			foreach ( (array) $arr as $k => $v ) {
+				if ( is_scalar( $v ) ) {
+					$out[ sanitize_text_field( (string) $k ) ] = sanitize_text_field( (string) $v );
+				}
+			}
+			return $out;
+		};
+		$props = $clean( $props_raw );
+		$token = $props['_design_token'] ?? '';
+		if ( ! preg_match( '/^[a-zA-Z0-9_]{8,80}$/', $token ) ) {
+			wp_send_json_error( array( 'message' => 'design' ), 400 );
+		}
+
+		$added = 0;
+		foreach ( array_slice( $items_raw, 0, 50 ) as $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+			$p            = array_merge( $props, $clean( $item['properties'] ?? array() ) );
+			$quantity     = max( 1, absint( $item['quantity'] ?? 1 ) );
+			$variation_id = absint( $item['variantId'] ?? ( $item['id'] ?? 0 ) );
+			$variation    = array();
+			if ( $product->is_type( 'variable' ) ) {
+				$var = wc_get_product( $variation_id );
+				if ( ! $var || $var->get_parent_id() !== $product_id ) {
+					continue;
+				}
+				$variation = wc_get_product_variation_attributes( $variation_id );
+			} else {
+				$variation_id = 0;
+			}
+			if ( ! empty( $item['size'] ) ) {
+				$p['_pl_size'] = sanitize_text_field( (string) $item['size'] );
+			}
+			$extra = array();
+			foreach ( self::DESIGNER_KEYS as $k ) {
+				if ( isset( $p[ $k ] ) && '' !== $p[ $k ] ) {
+					$extra[ 'printlab' . $k ] = false !== strpos( $k, '_url' ) ? esc_url_raw( $p[ $k ] ) : $p[ $k ];
+				}
+			}
+			$data = array(
+				'printlab' => array(
+					'token'   => $token,
+					'preview' => esc_url_raw( $p['_front_preview_url'] ?? '' ),
+					'extra'   => $extra,
+					'display' => array(),
+				),
+			);
+			if ( WC()->cart->add_to_cart( $product_id, $quantity, $variation_id, $variation, $data ) ) {
+				++$added;
+			}
+		}
+		if ( ! $added ) {
+			wp_send_json_error( array( 'message' => 'cart' ), 400 );
+		}
+		wp_send_json_success( array( 'cartUrl' => wc_get_cart_url() ) );
+	}
+
 	// ── Fiyat ──────────────────────────────────────────────────────────────
 
 	/** Tasarımın ek ücreti; PrintLab'in kaydettiği tutar (önbellek 10 dk). null = alınamadı */
-	private function fee_for( $token ) {
-		$cache_key = 'printlab_fee_' . md5( $token );
+	private function fee_for( $token, $quantity = 1 ) {
+		$quantity  = max( 1, (int) $quantity );
+		$cache_key = 'printlab_fee_' . md5( $token . '|' . $quantity );
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
 			return (float) $cached;
 		}
-		$url = self::app_url( '/api/woo/quote?shop=' . rawurlencode( self::shop_key() ) . '&token=' . rawurlencode( $token ) );
+		$url = self::app_url( '/api/woo/quote?shop=' . rawurlencode( self::shop_key() ) . '&token=' . rawurlencode( $token ) . '&qty=' . $quantity );
 		$res = wp_remote_get( $url, array( 'timeout' => 8 ) );
 		if ( is_wp_error( $res ) || 200 !== wp_remote_retrieve_response_code( $res ) ) {
 			return null;
@@ -333,11 +528,13 @@ final class PrintLab_Plugin {
 		if ( is_admin() && ! wp_doing_ajax() ) {
 			return;
 		}
+		$qty = $this->token_quantities( $cart );
 		foreach ( $cart->get_cart() as $key => $item ) {
 			if ( empty( $item['printlab']['token'] ) ) {
 				continue;
 			}
-			$fee = $this->fee_for( $item['printlab']['token'] );
+			$token = $item['printlab']['token'];
+			$fee   = $this->fee_for( $token, $qty[ $token ] ?? 1 );
 			$cart->cart_contents[ $key ]['printlab']['fee'] = $fee;
 			if ( null === $fee ) {
 				continue;
@@ -349,10 +546,24 @@ final class PrintLab_Plugin {
 		}
 	}
 
+	/** Toplu indirim için: aynı tasarımın sepetteki toplam adedi (tüm bedenler) */
+	private function token_quantities( $cart ) {
+		$qty = array();
+		foreach ( $cart->get_cart() as $item ) {
+			$token = $item['printlab']['token'] ?? '';
+			if ( $token ) {
+				$qty[ $token ] = ( $qty[ $token ] ?? 0 ) + (int) $item['quantity'];
+			}
+		}
+		return $qty;
+	}
+
 	/** Ücreti doğrulanamayan tasarım ödemeye geçemez (eksik fiyatla satış olmasın) */
 	public function check_cart_items() {
+		$qty = $this->token_quantities( WC()->cart );
 		foreach ( WC()->cart->get_cart() as $item ) {
-			if ( ! empty( $item['printlab']['token'] ) && null === $this->fee_for( $item['printlab']['token'] ) ) {
+			$token = $item['printlab']['token'] ?? '';
+			if ( $token && null === $this->fee_for( $token, $qty[ $token ] ?? 1 ) ) {
 				wc_add_notice( __( 'The price of a personalized item could not be confirmed. Please try again in a moment or save your design again.', 'printlab' ), 'error' );
 				return;
 			}
@@ -412,6 +623,11 @@ final class PrintLab_Plugin {
 		$item->add_meta_data( 'printlab_print_file', $p['print_file'] ?? '', true );
 		$item->add_meta_data( 'printlab_print_files', $p['print_files'] ?? '', true );
 		$item->add_meta_data( 'printlab_preview_url', $p['preview'] ?? '', true );
+		foreach ( (array) ( $p['extra'] ?? array() ) as $k => $v ) {
+			if ( in_array( $k, self::LINE_KEYS, true ) ) {
+				$item->add_meta_data( $k, $v, true );
+			}
+		}
 		foreach ( (array) ( $p['display'] ?? array() ) as $k => $v ) {
 			$item->add_meta_data( $k, $v, true );
 		}
