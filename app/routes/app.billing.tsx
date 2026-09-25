@@ -2,14 +2,14 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useActionData, Form, useNavigation } from "@remix-run/react";
 import * as Sentry from "@sentry/remix";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useDict, useTranslation, pickDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import billingDict, { type DowngradeReason } from "~/i18n/admin/billing";
 import { PageHelper } from "~/components/PageHelper";
 import {
   Page, Layout, Card, Text, BlockStack, Badge, Button, Box,
-  InlineStack, InlineGrid, List, Divider, Banner, ProgressBar,
+  InlineStack, InlineGrid, List, Divider, Banner, ProgressBar, TextField,
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
 import { shopifyGraphQL } from "~/lib/shopify.server";
@@ -20,6 +20,7 @@ import { query } from "~/lib/db.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
 import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/models/billing.server";
 import { listConfiguredProductIds } from "~/models/product-config.server";
+import { checkPromo, reservePromo, activatePendingPromo } from "~/models/promo.server";
 
 const PLAN_ORDER: PlanKey[] = ["Starter", "Growth", "Pro", "Business"];
 /** Kartlar ve karşılaştırma tablosu: ücretsiz plan başta */
@@ -86,6 +87,8 @@ async function createShopifySubscription(
   planKey: PlanKey,
   returnUrl: string,
   test: boolean,
+  /** Kampanya kodu: ilk N ay %100 indirim (deneme süresi yerine) */
+  freeMonths = 0,
 ): Promise<string> {
   const plan = PLANS[planKey];
   const resp = await shopifyGraphQL(
@@ -120,13 +123,16 @@ async function createShopifySubscription(
             appRecurringPricingDetails: {
               price: { amount: plan.price, currencyCode: "USD" },
               interval: "EVERY_30_DAYS",
+              ...(freeMonths > 0
+                ? { discount: { value: { percentage: 1 }, durationLimitInIntervals: freeMonths } }
+                : {}),
             },
           },
         },
       ],
       returnUrl,
       test,
-      trialDays: plan.trialDays,
+      trialDays: freeMonths > 0 ? 0 : plan.trialDays,
       replacementBehavior: "APPLY_IMMEDIATELY",
     },
   );
@@ -259,6 +265,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shopifySubscriptionId: subscriptionId,
           subscriptionStatus: "active",
         });
+        await activatePendingPromo(shop, planName as PlanKey).catch((err) =>
+          console.error("[billing] promo activation failed:", err),
+        );
       } else {
         const sub = await getShopSubscription(shop);
         if (sub?.subscription_status === "active") {
@@ -309,6 +318,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    // Kampanya kodu (ör. kurucu mağaza programı)
+    const promoRaw = String(form.get("promo") ?? "").trim();
+    const promo = promoRaw ? await checkPromo(shop, promoRaw, planKey) : null;
+    if (promo && !promo.ok) {
+      return json(
+        { error: B.promoError(promo.error, promo.campaign?.plan ?? "", promo.campaign?.freeMonths ?? 0) },
+        { status: 400 },
+      );
+    }
+
     try {
       const appUrl = (process.env.SHOPIFY_APP_URL ?? new URL(request.url).origin).replace(/\/$/, "");
       // Ödeme onayından dönüş Shopify çerçevesinin dışında oluyor; oturum
@@ -321,7 +340,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         planKey,
         returnUrl.toString(),
         isBillingTestCharge(shop),
+        promo?.ok ? promo.campaign.freeMonths : 0,
       );
+      if (promo?.ok) await reservePromo(shop, promo.campaign, promo.code);
       return json(
         { redirectUrl: confirmationUrl },
         { headers: { "Set-Cookie": makeBillingReturnShopCookie(shop) } },
@@ -377,6 +398,7 @@ export default function BillingPage() {
   const hasSubscription = isActive || isTrial;
   const currentPlanLabel = analytics.planKey;
   const freeLimit = PLANS.Free.maxProducts;
+  const [promo, setPromo] = useState("");
 
   useEffect(() => {
     if (!actionData?.redirectUrl) return;
@@ -485,6 +507,22 @@ export default function BillingPage() {
           </Box>
         </Card>
 
+        <Card>
+          <Box padding="400">
+            <InlineStack gap="400" blockAlign="end" wrap>
+              <Box minWidth="240px">
+                <TextField
+                  label={L.promoTitle}
+                  value={promo}
+                  onChange={(v) => setPromo(v.toUpperCase())}
+                  autoComplete="off"
+                  helpText={promo.trim() ? L.promoApplied(promo.trim()) : L.promoHelp}
+                />
+              </Box>
+            </InlineStack>
+          </Box>
+        </Card>
+
         <Layout>
           <Layout.Section>
             <InlineGrid columns={{ xs: 1, sm: 2, md: 3, xl: 5 }} gap="400">
@@ -556,6 +594,7 @@ export default function BillingPage() {
                           <Form method="post">
                             <input type="hidden" name="intent" value="subscribe" />
                             <input type="hidden" name="plan" value={planKey} />
+                            <input type="hidden" name="promo" value={promo.trim()} />
                             <input type="hidden" name="_lang" value={lang} />
                             <Button fullWidth variant="primary" submit loading={isLoading}>
                               {isActive || isTrial ? t("billing.changePlan") : t("billing.choosePlan")} → {planKey}

@@ -20,6 +20,15 @@ const tr = {
   switchBlocked: "Geçiş Engellendi",
   aiPerMonth: "✦ Yapay Zeka Görseli/ay",
   products: "Kişiselleştirilebilir ürün",
+  promoTitle: "Kampanya kodu",
+  promoHelp: "Kodunuz varsa girin, sonra planı seçin. İndirim Shopify onay ekranında görünür.",
+  promoApplied: (code: string) => `${code} kodu, planı seçtiğinizde uygulanacak.`,
+  promoError: (e: string, plan: string, months: number) =>
+    e === "expired" ? "Bu kampanya kodunun süresi doldu."
+    : e === "full" ? "Bu kampanyanın kontenjanı doldu."
+    : e === "wrongPlan" ? `Bu kod yalnızca ${plan} planında geçerli (ilk ${months} ay ücretsiz). Kodu ${plan} planını seçerek kullanın.`
+    : e === "used" ? "Bu kampanyadan daha önce yararlandınız."
+    : "Kampanya kodu geçersiz.",
   switchToFree: "Ücretsiz plana geç",
   freeCurrentNote: (used: number, limit: number) => `${used} / ${limit} ürün kullanılıyor.`,
   freeOverLimit: (used: number, limit: number) =>
@@ -43,6 +52,15 @@ const en: typeof tr = {
   switchBlocked: "Switch blocked",
   aiPerMonth: "✦ AI images/month",
   products: "Personalized products",
+  promoTitle: "Promo code",
+  promoHelp: "Have a code? Enter it, then choose the plan. The discount shows on Shopify's approval screen.",
+  promoApplied: (code) => `The ${code} code will be applied when you choose the plan.`,
+  promoError: (e, plan, months) =>
+    e === "expired" ? "This promo code has expired."
+    : e === "full" ? "This promotion is fully claimed."
+    : e === "wrongPlan" ? `This code only works on the ${plan} plan (first ${months} months free). Choose ${plan} to use it.`
+    : e === "used" ? "You've already used this promotion."
+    : "Invalid promo code.",
   switchToFree: "Switch to Free",
   freeCurrentNote: (used, limit) => `${used} of ${limit} products in use.`,
   freeOverLimit: (used, limit) =>

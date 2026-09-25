@@ -1,3 +1,4 @@
+import { activatePendingPromo } from "~/models/promo.server";
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { notifyOrderPaid, type OrderNotificationItem } from "~/lib/notify-order.server";
@@ -411,6 +412,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         console.error(`[webhook] app_subscriptions/update upsert failed for ${shop}:`, err),
       );
       console.log(`[webhook] app_subscriptions/update shop=${shop} plan=${planName} status=${subscriptionStatus}`);
+      if (subscriptionStatus === "active") {
+        activatePendingPromo(shop, planName as never).catch((err) =>
+          console.error(`[webhook] promo activation failed for ${shop}:`, err),
+        );
+      }
     }
     return json({ ok: true });
   }

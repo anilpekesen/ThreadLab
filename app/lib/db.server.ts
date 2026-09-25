@@ -580,6 +580,21 @@ async function _runMigrationsLocked() {
     CREATE INDEX IF NOT EXISTS support_tickets_status_created
       ON support_tickets (status, created_at DESC)
   `);
+  // Kampanya kodu kullanımları (kurucu mağaza programı vb.). Kod abonelik
+  // onayına giderken "pending", abonelik aktifleşince "active" olur. Mağaza
+  // başına kampanya bir kez: iptal edip yeniden abone olan tekrar kazanamaz.
+  await query(`
+    CREATE TABLE IF NOT EXISTS promo_redemptions (
+      campaign   TEXT NOT NULL,
+      shop       TEXT NOT NULL,
+      code       TEXT NOT NULL,
+      plan_key   TEXT NOT NULL,
+      status     TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (campaign, shop)
+    )
+  `);
   // Shopify'ın uygulama içi yorum penceresi (App Bridge reviews) mağaza başına
   // en son ne zaman istendi ve Shopify ne cevap verdi. Pencere 60 günde bir
   // gösterilebildiği için her açılışta tekrar istenmesin diye tutuluyor.
