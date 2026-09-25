@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { query } from "~/lib/db.server";
+import { query, runMigrations } from "~/lib/db.server";
 import { shopifyGraphQL } from "~/lib/shopify.server";
 import { getValidAccessToken } from "~/lib/session.server";
 import {
@@ -42,6 +42,7 @@ export interface PodConnection {
 }
 
 export async function getPrintfulConnection(shop: string): Promise<PodConnection | null> {
+  await ensureMigrations();
   const r = (await query<{ token_enc: string; store_id: string | null; store_name: string; webhook_secret_enc: string; auto_draft: boolean }>(
     "SELECT token_enc, store_id, store_name, webhook_secret_enc, auto_draft FROM pod_connections WHERE shop = $1 AND provider = 'printful'",
     [shop],
@@ -122,6 +123,7 @@ export interface VariantMap {
 }
 
 export async function listVariantMaps(shop: string, shopifyProductId?: string): Promise<VariantMap[]> {
+  await ensureMigrations();
   const r = await query<VariantMap>(
     `SELECT shopify_variant_id, catalog_product_id, catalog_variant_id, technique FROM pod_variant_maps
       WHERE shop = $1 ${shopifyProductId ? "AND shopify_product_id = $2" : ""}`,
@@ -339,6 +341,7 @@ export async function confirmPrintfulOrder(shop: string, shopifyOrderId: string)
 }
 
 export async function listPodOrders(shop: string, shopifyOrderIds: string[]) {
+  await ensureMigrations();
   if (!shopifyOrderIds.length) return [];
   return (await query<{ shopify_order_id: string; printful_order_id: string | null; status: string; error: string; tracking_url: string }>(
     "SELECT shopify_order_id, printful_order_id, status, error, tracking_url FROM pod_orders WHERE shop = $1 AND shopify_order_id = ANY($2)",
@@ -349,6 +352,7 @@ export async function listPodOrders(shop: string, shopifyOrderIds: string[]) {
 
 /** Printful'dan gelen olay. İmza doğrulanmadan hiçbir şey yapılmaz. */
 export async function handlePrintfulWebhook(raw: string, signature: string): Promise<{ status: number }> {
+  await ensureMigrations();
   let event: { type?: string; store_id?: number; data?: { order?: { external_id?: string; status?: string }; shipment?: { tracking_number?: string; tracking_url?: string }; reason?: string } };
   try { event = JSON.parse(raw); } catch { return { status: 400 }; }
   const storeId = Number(event.store_id);
