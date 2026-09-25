@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { query, runMigrations } from "~/lib/db.server";
 import { getDesignByToken, extractObjects } from "~/models/designs.server";
+import { isWooShop } from "~/lib/platform";
 
 let migrationsRan = false;
 async function ensureMigrations() {
@@ -361,6 +362,9 @@ export async function getOrdersByShopifyId(shop: string, shopifyOrderId: string)
 
 export async function updateOrderStatus(id: string, status: string): Promise<Order> {
   await ensureMigrations();
+  const before = await query<{ shop: string; shopify_order_id: string; production_status: string }>(
+    "SELECT shop, shopify_order_id, production_status FROM orders WHERE id = $1", [id]);
+  if (before.rows[0] && before.rows[0].production_status !== status) pushStatusToPlatform(before.rows, status);
   const result = await query<DbRow>(
     "UPDATE orders SET production_status = $1, updated_at = now() WHERE id = $2 RETURNING *",
     [status, id],
@@ -772,10 +776,38 @@ export async function getOrdersByIds(shop: string, ids: string[]): Promise<Order
 export async function bulkUpdateStatus(ids: string[], status: string): Promise<void> {
   if (!ids.length) return;
   await ensureMigrations();
-  await query(
-    "UPDATE orders SET production_status = $1, updated_at = now() WHERE id = ANY($2)",
+  // Önceki durumu farklı olan satırlar döner: WooCommerce'e yalnız gerçek değişiklik gider
+  const changed = await query<{ shop: string; shopify_order_id: string }>(
+    `WITH prev AS (SELECT id, production_status AS old FROM orders WHERE id = ANY($2))
+     UPDATE orders o SET production_status = $1, updated_at = now()
+       FROM prev WHERE o.id = prev.id
+     RETURNING o.shop, o.shopify_order_id, prev.old`,
     [status, ids],
   );
+  pushStatusToPlatform(
+    (changed.rows as Array<{ shop: string; shopify_order_id: string; old: string }>).filter((r) => r.old !== status),
+    status,
+  );
+}
+
+/**
+ * Shopify'da durum geri yazımı "gönderildi"de fulfillShopifyOrders ile yapılıyor.
+ * WooCommerce'te her durum değişikliği siparişe not olarak, "gönderildi"
+ * de sipariş tamamlama olarak yazılır (bkz. ~/models/woo.server). Arka
+ * planda çalışır: WooCommerce'e ulaşılamaması durum güncellemesini bozmaz.
+ */
+function pushStatusToPlatform(rows: Array<{ shop: string; shopify_order_id: string }>, status: string) {
+  const orders = new Map<string, { shop: string; id: string }>();
+  for (const r of rows) {
+    if (isWooShop(r.shop) && r.shopify_order_id) orders.set(`${r.shop}|${r.shopify_order_id}`, { shop: r.shop, id: r.shopify_order_id });
+  }
+  if (!orders.size) return;
+  void (async () => {
+    const { pushWooOrderStatus } = await import("~/models/woo.server");
+    for (const o of orders.values()) {
+      await pushWooOrderStatus(o.shop, o.id, status).catch((err) => console.error(`[woo] durum yazılamadı ${o.shop} #${o.id}:`, err));
+    }
+  })();
 }
 
 async function fulfillSingleShopifyOrder(admin: AdminClient, shopifyOrderId: string): Promise<void> {
@@ -861,6 +893,8 @@ export async function fulfillShopifyOrders(
   appOrderIds: string[],
 ): Promise<void> {
   if (!appOrderIds.length) return;
+  // WooCommerce siparişi bulkUpdateStatus içinde tamamlanıyor
+  if (isWooShop(shop)) return;
   await ensureMigrations();
 
   const result = await query<{ shopify_order_id: string }>(

@@ -29,6 +29,8 @@ import {
   getDriveConnection,
   deleteDriveConnection,
 } from "~/models/shop-google-drive.server";
+import { isWooShop } from "~/lib/platform";
+import { getWooConnection } from "~/models/woo.server";
 
 export const headers = () => ({
   "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -107,10 +109,13 @@ async function loadSurchargeVariantOptions(
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate(request);
-  const [globalSettings, shopSettings, surchargeVariantOptions] = await Promise.all([
+  // WooCommerce: sepet fonksiyonu, ücret ürünü ve tema editörü Shopify'a özgü
+  const woo = isWooShop(session.shop);
+  const [globalSettings, shopSettings, surchargeVariantOptions, wooConnection] = await Promise.all([
     getGlobalSettings(),
     getShopSettings(session.shop),
-    loadSurchargeVariantOptions(admin),
+    woo ? Promise.resolve([]) : loadSurchargeVariantOptions(admin),
+    woo ? getWooConnection(session.shop) : Promise.resolve(null),
   ]);
   const settings = { ...globalSettings, ...shopSettings };
   const driveConnection = await getDriveConnection(session.shop);
@@ -121,8 +126,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const gdriveError = url.searchParams.get("gdrive_error");
 
   // Auto-register Cart Transform function; re-register if function ID changed after deploy
-  let cartTransformStatus = "unknown";
-  try {
+  let cartTransformStatus = woo ? "not_applicable" : "unknown";
+  if (!woo) try {
     // First, find the Shopify Function ID
     const fnRes = await admin.graphql(`#graphql
       { shopifyFunctions(first: 25) { nodes { id title apiType } } }
@@ -203,7 +208,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     cartTransformStatus = `error: ${message}`;
   }
 
-  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+  const apiKey = woo ? "" : (process.env.SHOPIFY_API_KEY ?? "");
   const appBlockHandle = "tshirt-designer";
   const appEmbedHandle = "cart-protection";
   const newAppsSectionUrl = apiKey
@@ -229,6 +234,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     appEmbedUrl,
     surchargeVariantOptions,
     shop: session.shop,
+    woo: woo ? { siteUrl: wooConnection?.siteUrl ?? "" } : null,
     drive: driveConnection
       ? { connectedEmail: driveConnection.connectedEmail, connectedAt: driveConnection.connectedAt.toISOString() }
       : null,
@@ -470,14 +476,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     console.error("[settings] saveShopSettings error:", err);
     return json({ error: S.saveFailed }, { status: 500 });
   }
-  if (newVariantId) await writeSurchargeMetafield(admin, newVariantId).catch(() => {});
+  if (newVariantId && !isWooShop(session.shop)) await writeSurchargeMetafield(admin, newVariantId).catch(() => {});
   // Ücret ürünü değiştiyse ürünlerin fiyat kaydı da değişmeli (arka planda)
   syncPricingForShop(session.shop).catch((err) => console.error("[settings] fiyat kaydı eşitlenemedi:", err));
   return redirect("/app/settings?saved=1");
 };
 
 export default function SettingsRoute() {
-  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, appEmbedUrl, surchargeVariantOptions, drive, gdriveConnected, gdriveError, googleAuthQuery } = useLoaderData<typeof loader>();
+  const { settings, saved, created, cartTransformStatus, newAppsSectionUrl, mainSectionUrl, appEmbedUrl, surchargeVariantOptions, drive, gdriveConnected, gdriveError, googleAuthQuery, woo } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const { t, lang } = useTranslation();
   const L = useDict(settingsDict);
@@ -565,6 +571,26 @@ export default function SettingsRoute() {
           <input type="hidden" name="_lang" value={lang} />
           <BlockStack gap="400">
 
+            {woo ? (
+              <Card>
+                <Box padding="400">
+                  <BlockStack gap="300">
+                    <Text as="h2" variant="headingMd">{L.wooTitle}</Text>
+                    {woo.siteUrl ? (
+                      <>
+                        <Text as="p">{L.wooDesc(woo.siteUrl.replace(/^https?:\/\//, ""))}</Text>
+                        <Text as="p" tone="subdued" variant="bodySm">{L.wooSetup}</Text>
+                        <InlineStack>
+                          <Button url={`${woo.siteUrl}/wp-admin/admin.php?page=printlab`} target="_blank">{L.wooOpenAdmin}</Button>
+                        </InlineStack>
+                      </>
+                    ) : (
+                      <Banner tone="warning">{L.wooNotConnected}</Banner>
+                    )}
+                  </BlockStack>
+                </Box>
+              </Card>
+            ) : (
             <Card>
               <Box padding="400">
                 <BlockStack gap="300">
@@ -589,6 +615,7 @@ export default function SettingsRoute() {
                 </BlockStack>
               </Box>
             </Card>
+            )}
 
             {/* Müşteri başına bg limit */}
             <Card>
@@ -756,7 +783,8 @@ export default function SettingsRoute() {
           </Box>
         </Card>
 
-        {/* Teşekkür Sayfası Tasarım Linki Kurulumu */}
+        {/* Teşekkür Sayfası Tasarım Linki Kurulumu — Shopify ödeme uzantısı */}
+        {!woo && (<>
         <Card>
           <Box padding="400">
             <BlockStack gap="400">
@@ -874,6 +902,7 @@ export default function SettingsRoute() {
             </BlockStack>
           </Box>
         </Card>
+        </>)}
       </BlockStack>
     </Page>
   );

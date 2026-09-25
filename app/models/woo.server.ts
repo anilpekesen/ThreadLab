@@ -205,6 +205,12 @@ export async function handleWooWebhook(raw: string, headers: Headers): Promise<n
   if (topic === "order.created" || topic === "order.updated") {
     let order: WooOrder;
     try { order = JSON.parse(raw); } catch { return 400; }
+    // İptal/iade: PrintLab'deki üretim satırları da iptal (Shopify'daki orders/cancelled karşılığı)
+    if (["cancelled", "refunded"].includes(String(order.status)) && order.id) {
+      const { cancelShopifyOrder } = await import("~/models/orders.server");
+      await cancelShopifyOrder(shop, String(order.id));
+      return 200;
+    }
     // Ödenmemiş (bekleyen, başarısız) siparişler üretime girmez
     if (!["processing", "completed", "on-hold"].includes(String(order.status))) return 200;
     await importOrder(shop, wooOrderToIncoming(order));
@@ -357,5 +363,39 @@ export async function setWooProductTemplate(shop: string, productId: string, tem
   } catch (err) {
     console.error("[woo] şablon ürüne yazılamadı:", err);
     return { ok: false, error: "Could not update the WooCommerce product" };
+  }
+}
+
+// ── Sipariş durumunu geri yazma ─────────────────────────────────────────────
+
+const STATUS_NOTE: Record<string, string> = {
+  pending: "Waiting for production",
+  preparing: "In production",
+  printed: "Printed",
+  ready: "Ready to ship",
+  shipped: "Shipped",
+  cancelled: "Cancelled",
+};
+
+/**
+ * PrintLab'deki üretim durumu WooCommerce siparişine: her değişiklik özel
+ * (müşteriye gitmeyen) sipariş notu olur. "Gönderildi" ise siparişi
+ * "Tamamlandı"ya alır; WooCommerce müşteriye kendi "sipariş tamamlandı"
+ * e-postasını gönderir (Shopify'da fulfillment bildirimiyle aynı yer).
+ */
+export async function pushWooOrderStatus(shop: string, wooOrderId: string, status: string): Promise<void> {
+  const conn = await getWooConnection(shop);
+  if (!conn || !/^\d+$/.test(wooOrderId)) return;
+  const label = STATUS_NOTE[status] ?? status;
+  await wooRest(conn, `/orders/${wooOrderId}/notes`, {
+    method: "POST",
+    body: { note: `PrintLab: ${label}`, customer_note: false },
+  });
+  if (status === "shipped") {
+    const order = await wooRest<{ status?: string }>(conn, `/orders/${wooOrderId}`);
+    // İptal/iade edilmiş siparişi geri açma
+    if (["processing", "on-hold"].includes(String(order.status))) {
+      await wooRest(conn, `/orders/${wooOrderId}`, { method: "PUT", body: { status: "completed" } });
+    }
   }
 }
