@@ -13,7 +13,7 @@
  * bağımlılığı yok.
  */
 
-export type GeneratorKind = "song" | "monogram" | "starmap" | "citymap" | "birthflower";
+export type GeneratorKind = "song" | "monogram" | "starmap" | "citymap" | "birthflower" | "calendar" | "wordsearch" | "moonphase" | "qrcode";
 
 export interface GeneratorKindMeta {
   kind: GeneratorKind;
@@ -85,6 +85,50 @@ export const GENERATOR_KINDS: GeneratorKindMeta[] = [
     descriptionEn: "Each person's birth month flower and name; a single person or a family bouquet.",
     tagsEn: ["Birth month", "Family"],
     namePlaceholderEn: "e.g. Mom's family bouquet",
+  },
+  {
+    kind: "calendar",
+    label: "Özel gün takvimi",
+    description: "Seçilen ayın takvimi; özel gün kalp, daire ya da yıldızla işaretlenir, üstünde başlık ve isimler.",
+    tags: ["Tarih", "İşaretli gün"],
+    namePlaceholder: "Örn: Evlilik yıldönümü takvimi",
+    labelEn: "Special date calendar",
+    descriptionEn: "A calendar of the chosen month with the special day marked by a heart, circle or star, plus a title and names.",
+    tagsEn: ["Date", "Marked day"],
+    namePlaceholderEn: "e.g. Anniversary calendar",
+  },
+  {
+    kind: "wordsearch",
+    label: "Kelime avı bulmacası",
+    description: "Müşterinin kelimeleri (isimler, anılar) harf tablosuna gizlenir; istenirse bulunmuş hâliyle işaretli basılır.",
+    tags: ["Kelimeler", "Bulmaca"],
+    namePlaceholder: "Örn: Bizim kelimelerimiz",
+    labelEn: "Word search puzzle",
+    descriptionEn: "The customer's words (names, memories) are hidden in a letter grid; optionally printed with the words circled.",
+    tagsEn: ["Words", "Puzzle"],
+    namePlaceholderEn: "e.g. Our words",
+  },
+  {
+    kind: "moonphase",
+    label: "Ay evresi",
+    description: "Seçilen gecenin gerçek ay evresi; tek tarih ya da üç özel günün ayları yan yana, altında tarih ve yazı.",
+    tags: ["Tarih", "Gerçek ay"],
+    namePlaceholder: "Örn: Doğduğun gecenin ayı",
+    labelEn: "Moon phase",
+    descriptionEn: "The real moon phase on the chosen night; a single date or three special days side by side, with dates and text.",
+    tagsEn: ["Date", "Real moon"],
+    namePlaceholderEn: "e.g. The moon the night you were born",
+  },
+  {
+    kind: "qrcode",
+    label: "QR kod",
+    description: "Müşterinin bağlantısı, mesajı ya da Wi-Fi bilgisi okutulabilir bir QR koda dönüşür; altında kısa yazı.",
+    tags: ["Bağlantı", "Okutulabilir"],
+    namePlaceholder: "Örn: Düğün videomuz QR",
+    labelEn: "QR code",
+    descriptionEn: "The customer's link, message or Wi-Fi details become a scannable QR code with a short caption.",
+    tagsEn: ["Link", "Scannable"],
+    namePlaceholderEn: "e.g. Our wedding video QR",
   },
 ];
 

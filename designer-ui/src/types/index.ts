@@ -75,7 +75,7 @@ export interface TemplateDesign {
   previewUrl: string;
   layoutMode?: 'mask' | 'scatter' | 'ai' | 'wordart' | 'generator';
   /** Üretici şablonunda türü (şarkı, monogram...) */
-  generatorKind?: 'song' | 'monogram' | 'starmap' | 'citymap' | 'birthflower' | null;
+  generatorKind?: 'song' | 'monogram' | 'starmap' | 'citymap' | 'birthflower' | 'calendar' | 'wordsearch' | 'moonphase' | 'qrcode' | null;
 }
 
 export interface SizeChartEntry {

@@ -57,6 +57,10 @@ function defaultGeneratorConfig(kind: GeneratorKind, lang: Lang): GeneratorConfi
     starmap: { language: "en", defaultTitle: "The Night We Met" },
     citymap: { labelLanguage: "en" },
     birthflower: { titlePlaceholder: "Mom's Garden" },
+    calendar: { language: "en", weekStart: "sunday", titlePlaceholder: "Our Wedding Day", namesPlaceholder: "Emma & Oliver" },
+    wordsearch: { alphabet: "en", titlePlaceholder: "Our Love Story" },
+    moonphase: { language: "en", titlePlaceholder: "The Night You Were Born", linePlaceholder: "Emma & James", trioLabels: ["Met", "Engaged", "Married"] },
+    qrcode: { language: "en" },
   };
   return mod.normalize({ ...mod.defaults, ...overrides[kind] });
 }

@@ -7,6 +7,10 @@ const MODALS: Record<GeneratorKind, LazyExoticComponent<ComponentType<GeneratorM
   starmap: lazy(() => import('./StarmapModal')),
   citymap: lazy(() => import('./CitymapModal')),
   birthflower: lazy(() => import('./BirthflowerModal')),
+  calendar: lazy(() => import('./CalendarModal')),
+  wordsearch: lazy(() => import('./WordsearchModal')),
+  moonphase: lazy(() => import('./MoonphaseModal')),
+  qrcode: lazy(() => import('./QrcodeModal')),
 };
 
 /** Şablonun üretici türüne göre ilgili pencereyi açar */

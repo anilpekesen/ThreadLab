@@ -1,5 +1,5 @@
 /** Üretici pencerelerinin ortak sözleşmesi (sunucu: app/lib/generators) */
-export type GeneratorKind = 'song' | 'monogram' | 'starmap' | 'citymap' | 'birthflower';
+export type GeneratorKind = 'song' | 'monogram' | 'starmap' | 'citymap' | 'birthflower' | 'calendar' | 'wordsearch' | 'moonphase' | 'qrcode';
 
 export type GeneratorChoices = Record<string, string | number | boolean>;
 

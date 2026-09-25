@@ -10,6 +10,10 @@ import { MonogramSettings } from "./MonogramSettings";
 import { StarmapSettings } from "./StarmapSettings";
 import { CitymapSettings } from "./CitymapSettings";
 import { BirthflowerSettings } from "./BirthflowerSettings";
+import { CalendarSettings } from "./CalendarSettings";
+import { WordsearchSettings } from "./WordsearchSettings";
+import { MoonphaseSettings } from "./MoonphaseSettings";
+import { QrcodeSettings } from "./QrcodeSettings";
 
 // Her tür kendi ayar tipini kullanır; kayıt defteri bunları ortak tipe indirir
 type AnySettings = ComponentType<GeneratorSettingsProps<GeneratorConfigBase>>;
@@ -20,6 +24,10 @@ const SETTINGS: Record<GeneratorKind, AnySettings> = {
   starmap: StarmapSettings as unknown as AnySettings,
   citymap: CitymapSettings as unknown as AnySettings,
   birthflower: BirthflowerSettings as unknown as AnySettings,
+  calendar: CalendarSettings as unknown as AnySettings,
+  wordsearch: WordsearchSettings as unknown as AnySettings,
+  moonphase: MoonphaseSettings as unknown as AnySettings,
+  qrcode: QrcodeSettings as unknown as AnySettings,
 };
 
 /**

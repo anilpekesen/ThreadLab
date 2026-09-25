@@ -37,4 +37,28 @@ export const GENERATOR_UI: Record<GeneratorKind, {
     editTr: 'Çiçekleri düzenle', editEn: 'Edit flowers',
     hintTr: 'İsimleri ve doğum aylarını yaz; her birinin çiçeği çizilsin.', hintEn: 'Enter names and birth months; each gets their flower.',
   },
+  calendar: {
+    titleTr: 'Takvimin', titleEn: 'Your calendar',
+    ctaTr: 'Takvimini oluştur', ctaEn: 'Create your calendar',
+    editTr: 'Takvimi düzenle', editEn: 'Edit calendar',
+    hintTr: 'Özel günü seç; o ayın takvimi günü işaretli çizilsin.', hintEn: 'Pick your special day; that month is drawn with the day marked.',
+  },
+  wordsearch: {
+    titleTr: 'Kelime avın', titleEn: 'Your word search',
+    ctaTr: 'Bulmacanı oluştur', ctaEn: 'Create your puzzle',
+    editTr: 'Bulmacayı düzenle', editEn: 'Edit puzzle',
+    hintTr: 'Kelimelerini yaz; harf tablosuna gizlensin.', hintEn: 'Enter your words; they get hidden in a letter grid.',
+  },
+  moonphase: {
+    titleTr: 'Ay evren', titleEn: 'Your moon phase',
+    ctaTr: 'Ay tasarımını oluştur', ctaEn: 'Create your moon design',
+    editTr: 'Tasarımı düzenle', editEn: 'Edit design',
+    hintTr: 'Tarihi seç; o gecenin ayı çizilsin.', hintEn: 'Pick the date; that night\'s moon is drawn.',
+  },
+  qrcode: {
+    titleTr: 'QR kodun', titleEn: 'Your QR code',
+    ctaTr: 'QR kodunu oluştur', ctaEn: 'Create your QR code',
+    editTr: 'QR kodu düzenle', editEn: 'Edit QR code',
+    hintTr: 'Bağlantını ya da mesajını yaz; okutulabilir QR kod çizilsin.', hintEn: 'Enter your link or message; a scannable QR code is drawn.',
+  },
 };
