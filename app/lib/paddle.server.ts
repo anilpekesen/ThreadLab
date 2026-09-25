@@ -104,7 +104,9 @@ export async function paddleApi<T = Record<string, unknown>>(
   const key = process.env.PADDLE_API_KEY ?? "";
   if (!env || !key) throw new PaddleError("Paddle is not configured", 0, "");
   const qs = init.query ? `?${new URLSearchParams(init.query)}` : "";
-  const res = await fetch(`${BASE_URLS[env]}${path}${qs}`, {
+  // PADDLE_BASE_URL yalnız testler içindir (sahte Paddle sunucusu)
+  const base = (process.env.PADDLE_BASE_URL || BASE_URLS[env]).replace(/\/$/, "");
+  const res = await fetch(`${base}${path}${qs}`, {
     method: init.method ?? "GET",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
