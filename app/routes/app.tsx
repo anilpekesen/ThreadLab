@@ -17,7 +17,7 @@ import shellDict from "~/i18n/admin/app-shell";
 import { useEffect, useState } from "react";
 import appLayoutStyles from "~/styles/app-layout.css?url";
 import personalizerAdminStyles from "~/styles/personalizer-admin.css?url";
-import { shopHandle } from "~/lib/platform";
+import { isWooShop, shopHandle } from "~/lib/platform";
 
 export const links = () => [
   { rel: "stylesheet", href: polarisStyles },
@@ -57,10 +57,14 @@ async function syncShopDisplayName(
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate(request);
-  ensureCartTransformRegistered(admin, session.shop);
+  // WooCommerce: sepet fonksiyonu ve Shopify mağaza adı yok
+  const standalone = isWooShop(session.shop);
+  if (!standalone) ensureCartTransformRegistered(admin, session.shop);
   const [sub, shopDisplayName] = await Promise.all([
     getShopSubscription(session.shop),
-    syncShopDisplayName(admin, session.shop),
+    standalone
+      ? getShopSettings(session.shop).then((s) => s.emailSenderName?.trim() || s.shopDisplayName?.trim() || shopHandle(session.shop))
+      : syncShopDisplayName(admin, session.shop),
   ]);
   const cookieHeader = request.headers.get("Cookie") ?? "";
   const langMatch = cookieHeader.match(/(?:^|; )dk_lang=([^;]*)/);
@@ -82,6 +86,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     lang,
     shop: session.shop,
     shopDisplayName,
+    standalone,
     allowProduction: hasActiveSubscription && planFeatures.allowProduction,
     allowGangSheet: hasActiveSubscription && planFeatures.allowGangSheet,
     allowPrintQueue: isPaidProductionPlan,
@@ -89,7 +94,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 function AppInner() {
-  const { planKey, subscriptionStatus, shop, shopDisplayName, allowProduction, allowGangSheet, allowPrintQueue } = useLoaderData<typeof loader>();
+  const { planKey, subscriptionStatus, shop, shopDisplayName, standalone, allowProduction, allowGangSheet, allowPrintQueue } = useLoaderData<typeof loader>();
   const { t, setLang, lang } = useTranslation(); // lang context'ten gelsin — anlık değişsin
   const navigate = useNavigate();
 
@@ -111,7 +116,8 @@ function AppInner() {
     { label: t("nav.cliparts"), url: "/app/cliparts", end: false, show: true },
     { label: t("nav.personalizer"), url: "/app/personalizer", end: false, show: true },
     { label: t("nav.printProducts"), url: "/app/print-products", end: false, show: true },
-    { label: "Printful", url: "/app/printful", end: false, show: true },
+    // Printful siparişi Shopify'da gönderilmiş işaretliyor; WooCommerce'te henüz yok
+    { label: "Printful", url: "/app/printful", end: false, show: !standalone },
     { label: t("nav.billing"), url: "/app/billing", end: false, show: true },
     { label: t("nav.credits"), url: "/app/credits", end: false, show: true },
     { label: t("nav.settings"), url: "/app/settings", end: false, show: true },
@@ -133,6 +139,29 @@ function AppInner() {
       </ui-nav-menu>
 
       <div className="app-shell">
+        {standalone && (
+          <aside className="app-sidebar app-sidebar--standalone">
+            <div className="app-sidebar-logo">
+              <Link to="/app"><img src="/logo.png" alt="PrintLab" /></Link>
+            </div>
+            <nav className="app-nav">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.url}
+                  to={item.url}
+                  end={item.end}
+                  className={({ isActive: active }) => `app-nav-link${active ? " active" : ""}`}
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+            <div className="app-sidebar-footer">
+              <div className="app-sidebar-shop">{shopName}</div>
+              <span className="app-sidebar-plan">{planLabel}</span>
+            </div>
+          </aside>
+        )}
         <div className="app-main">
           <header className="app-topbar">
             {!isActive && (

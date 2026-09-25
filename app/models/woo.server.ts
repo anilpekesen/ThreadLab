@@ -268,3 +268,28 @@ export async function listWooTemplates(shop: string) {
       photos: t.slots?.length ?? 0,
     }));
 }
+
+// ── Yönetim girişi ──────────────────────────────────────────────────────────
+
+/**
+ * WordPress yönetiminden PrintLab'e giriş. Mağaza sahibi WordPress'te zaten
+ * oturum açmış ("manage_woocommerce" yetkisi); eklenti bağlantıyı webhook
+ * sırrıyla imzalar — Shopify'ın gömülü uygulamaya güvenmesiyle aynı mantık.
+ * İmza: hex HMAC-SHA256(sır, `login\n${shop}\n${ts}\n${nonce}`), 2 dk
+ * geçerli, nonce tek kullanımlık (bağlantı tarayıcı geçmişinden tekrar
+ * kullanılamaz).
+ */
+export async function consumeWooLogin(shop: string, ts: string, nonce: string, sig: string): Promise<boolean> {
+  const t = Number(ts);
+  if (!Number.isFinite(t) || Math.abs(Date.now() / 1000 - t) > 120) return false;
+  if (!/^[a-zA-Z0-9]{16,64}$/.test(nonce) || !/^[0-9a-f]{64}$/.test(sig)) return false;
+  const conn = await getWooConnection(shop);
+  if (!conn?.webhookSecret) return false;
+  const expected = createHmac("sha256", conn.webhookSecret).update(`login\n${shop}\n${ts}\n${nonce}`).digest();
+  const given = Buffer.from(sig, "hex");
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return false;
+  // Tek kullanım: aynı nonce ikinci kez eklenemez
+  const ins = await query("INSERT INTO woo_login_nonces (nonce, shop) VALUES ($1, $2) ON CONFLICT DO NOTHING", [nonce, shop]);
+  await query("DELETE FROM woo_login_nonces WHERE used_at < now() - interval '1 day'").catch(() => null);
+  return (ins.rowCount ?? 0) === 1;
+}

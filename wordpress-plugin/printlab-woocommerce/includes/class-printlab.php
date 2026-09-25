@@ -27,6 +27,7 @@ final class PrintLab_Plugin {
 
 	private function __construct() {
 		add_action( 'admin_menu', array( $this, 'admin_menu' ) );
+		add_action( 'admin_post_printlab_open', array( $this, 'open_app' ) );
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 		add_action( 'save_post_product', array( $this, 'save_meta_box' ) );
 
@@ -96,12 +97,15 @@ final class PrintLab_Plugin {
 		echo '<div class="wrap"><h1>PrintLab</h1>';
 		if ( true === $connected ) {
 			echo '<div class="notice notice-success inline"><p>' . esc_html__( 'Connected to PrintLab. Orders with personalized products are sent to PrintLab automatically.', 'printlab' ) . '</p></div>';
+			$open = wp_nonce_url( admin_url( 'admin-post.php?action=printlab_open' ), 'printlab_open' );
+			echo '<p><a class="button button-primary button-hero" href="' . esc_url( $open ) . '" target="_blank" rel="noopener">' . esc_html__( 'Open PrintLab', 'printlab' ) . '</a></p>';
+			echo '<p class="description">' . esc_html__( 'Set up print areas, print prices and templates, and see your orders and print files.', 'printlab' ) . '</p>';
 		} elseif ( null === $connected ) {
 			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'PrintLab could not be reached. Try again in a moment.', 'printlab' ) . '</p></div>';
 		} else {
 			echo '<p>' . esc_html__( 'Connect your store so PrintLab can receive personalized orders and print files.', 'printlab' ) . '</p>';
 		}
-		echo '<p><a class="button button-primary" href="' . esc_url( $auth_url ) . '">' . esc_html( $connected ? __( 'Reconnect', 'printlab' ) : __( 'Connect to PrintLab', 'printlab' ) ) . '</a></p>';
+		echo '<p><a class="button' . ( $connected ? '' : ' button-primary' ) . '" href="' . esc_url( $auth_url ) . '">' . esc_html( $connected ? __( 'Reconnect', 'printlab' ) : __( 'Connect to PrintLab', 'printlab' ) ) . '</a></p>';
 		echo '<p class="description">' . esc_html__( 'To personalize a product, open it and either turn on the PrintLab designer or enter a PrintLab template ID in the PrintLab box. Print areas and print prices are set in the PrintLab app.', 'printlab' ) . '</p>';
 		echo '</div>';
 	}
@@ -154,6 +158,38 @@ final class PrintLab_Plugin {
 		}
 		set_transient( 'printlab_templates', $body['templates'], MINUTE_IN_SECONDS );
 		return $body['templates'];
+	}
+
+	/**
+	 * PrintLab yönetimini aç: WordPress'te oturum açmış mağaza yöneticisi için
+	 * tek kullanımlık, 2 dakikalık imzalı giriş bağlantısı üretip yönlendirir.
+	 * Bağlantı sayfaya yazılmaz; yalnız düğmeye basılınca oluşur.
+	 */
+	public function open_app() {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( esc_html__( 'You do not have permission to open PrintLab.', 'printlab' ), 403 );
+		}
+		check_admin_referer( 'printlab_open' );
+		$secret = self::signing_secret();
+		if ( ! $secret ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=printlab' ) );
+			exit;
+		}
+		$shop  = self::shop_key();
+		$ts    = (string) time();
+		$nonce = wp_generate_password( 32, false, false );
+		$url   = add_query_arg(
+			array(
+				'shop'  => rawurlencode( $shop ),
+				'ts'    => $ts,
+				'nonce' => $nonce,
+				'sig'   => hash_hmac( 'sha256', "login\n" . $shop . "\n" . $ts . "\n" . $nonce, $secret ),
+			),
+			self::app_url( '/auth/woo' )
+		);
+		// Harici adres: wp_safe_redirect yalnız aynı siteye izin verir
+		wp_redirect( $url ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect
+		exit;
 	}
 
 	// ── Ürün ayarı ─────────────────────────────────────────────────────────

@@ -8,10 +8,17 @@ import {
   isRouteErrorResponse,
   useLoaderData,
 } from "@remix-run/react";
-import { json } from "@remix-run/node";
+import { json, type LoaderFunctionArgs } from "@remix-run/node";
+import { getShopFromSession } from "~/lib/session.server";
+import { hasEmbeddedSignals } from "~/lib/authenticate.server";
+import { isWooShop } from "~/lib/platform";
 
-export const loader = () => {
-  return json({ apiKey: process.env.SHOPIFY_API_KEY ?? "" });
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  // WooCommerce yönetimi Shopify dışında, tek başına açılır. App Bridge orada
+  // yüklenirse sayfayı Shopify yönetimine taşımaya çalışır.
+  const shop = await getShopFromSession(request).catch(() => null);
+  const standalone = Boolean(shop && isWooShop(shop) && !hasEmbeddedSignals(request));
+  return json({ apiKey: standalone ? "" : (process.env.SHOPIFY_API_KEY ?? "") });
 };
 
 export default function App() {

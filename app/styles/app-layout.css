@@ -225,3 +225,22 @@
     overflow-x: hidden;
   }
 }
+
+/* Shopify dışında (WooCommerce) yönetim: ui-nav-menu yok, kenar menüsü görünür */
+.app-sidebar.app-sidebar--standalone {
+  display: flex;
+  flex-direction: column;
+  width: 224px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid #e5e7eb;
+}
+
+@media (max-width: 960px) {
+  .app-sidebar.app-sidebar--standalone {
+    display: block;
+    width: auto;
+    border-right: 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+}

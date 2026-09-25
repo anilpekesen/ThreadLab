@@ -3,8 +3,33 @@ import { authenticateAdmin as authenticateEmbeddedAdmin } from "~/shopify.server
 import { createShopSession, getShopFromSession, getValidAccessToken } from "./session.server";
 import { shopifyGraphQL } from "./shopify.server";
 import { stripSignedShopParams, verifySignedShopRequest } from "./signed-shop-link.server";
+import { isWooShop } from "./platform";
 
-function hasEmbeddedSignals(request: Request): boolean {
+/** WooCommerce mağazasında Shopify API'si yok; çağıran sayfa bunu ayırt etmeli */
+export class ShopifyApiUnavailable extends Error {
+  constructor(shop: string) {
+    super(`Shopify API is not available for ${shop}`);
+    this.name = "ShopifyApiUnavailable";
+  }
+}
+
+/**
+ * WooCommerce oturumu (bkz. routes/auth.woo): çerezdeki mağaza kimliği
+ * yeterli. `admin.graphql` Shopify'a özgü; çağrılırsa açık bir hata verir.
+ */
+function wooContext(shop: string) {
+  return {
+    shop,
+    session: { shop },
+    admin: {
+      graphql: async (_q: string, _opts?: { variables?: Record<string, unknown> }): Promise<Response> => {
+        throw new ShopifyApiUnavailable(shop);
+      },
+    },
+  };
+}
+
+export function hasEmbeddedSignals(request: Request): boolean {
   const url = new URL(request.url);
   return Boolean(
     request.headers.get("authorization")
@@ -74,6 +99,9 @@ async function authenticateWithLegacySession(request: Request, signedShop: strin
 
 export async function authenticate(request: Request) {
   const legacyShop = await getShopFromSession(request);
+  // Shopify yönetiminden gelen istek (belirteçli) her zaman Shopify'dır;
+  // aynı tarayıcıda WooCommerce çerezi olsa bile
+  if (legacyShop && isWooShop(legacyShop) && !hasEmbeddedSignals(request)) return wooContext(legacyShop);
   const url = new URL(request.url);
   const hasOnlyShopReturnSignal = Boolean(url.searchParams.get("shop")) && !hasEmbeddedSignals(request);
 

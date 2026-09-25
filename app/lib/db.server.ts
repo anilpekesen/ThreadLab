@@ -728,6 +728,14 @@ async function _runMigrationsLocked() {
       updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  // WooCommerce yönetim girişi: eklentinin imzaladığı bağlantı bir kez kullanılır
+  await query(`
+    CREATE TABLE IF NOT EXISTS woo_login_nonces (
+      nonce      TEXT PRIMARY KEY,
+      shop       TEXT NOT NULL,
+      used_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
   // Shopify varyantı -> Printful katalog varyantı
   await query(`
     CREATE TABLE IF NOT EXISTS pod_variant_maps (
