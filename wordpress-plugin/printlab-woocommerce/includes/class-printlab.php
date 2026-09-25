@@ -34,6 +34,7 @@ final class PrintLab_Plugin {
 		add_action( 'woocommerce_check_cart_items', array( $this, 'check_cart_items' ) );
 		add_filter( 'woocommerce_get_item_data', array( $this, 'cart_item_data' ), 10, 2 );
 		add_filter( 'woocommerce_cart_item_thumbnail', array( $this, 'cart_item_thumbnail' ), 10, 2 );
+		add_filter( 'woocommerce_store_api_cart_item_images', array( $this, 'block_cart_images' ), 10, 2 );
 		add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'order_line_item' ), 10, 3 );
 		add_filter( 'woocommerce_hidden_order_itemmeta', array( $this, 'hidden_itemmeta' ) );
 	}
@@ -379,6 +380,25 @@ final class PrintLab_Plugin {
 			return '<img src="' . esc_url( $item['printlab']['preview'] ) . '" alt="" style="max-width:100%;height:auto" />';
 		}
 		return $thumb;
+	}
+
+	/** Blok sepet ve ödeme: ürün görseli yerine tasarımın önizlemesi */
+	public function block_cart_images( $images, $item ) {
+		$preview = $item['printlab']['preview'] ?? '';
+		if ( ! $preview ) {
+			return $images;
+		}
+		return array(
+			(object) array(
+				'id'        => 0,
+				'src'       => $preview,
+				'thumbnail' => $preview,
+				'srcset'    => '',
+				'sizes'     => '',
+				'name'      => '',
+				'alt'       => '',
+			),
+		);
 	}
 
 	/** Tasarım bilgisi sipariş satırına; PrintLab webhook'la okur */
