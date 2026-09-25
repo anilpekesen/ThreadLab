@@ -1,3 +1,4 @@
+import { createPrintfulDraft } from "~/models/printful.server";
 import { checkOrderPrintPricing } from "~/lib/print-price-check.server";
 import { activatePendingPromo } from "~/models/promo.server";
 import type { ActionFunctionArgs } from "@remix-run/node";
@@ -449,6 +450,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     importOrderFromWebhook(shop, order)
       .then(() => {
         // Baskı ücreti tasarımdan yeniden hesaplanır; eksikse etiket + bildirim
+        // Printful bağlıysa eşleşen satırlar için taslak sipariş (onay beklenir)
+        if (shopifyOrderId) {
+          createPrintfulDraft(shop, shopifyOrderId).then((r) => {
+            if (r.status !== "skipped") console.log(`[printful] ${order.name}: ${r.status}${r.message ? ` (${r.message})` : ""}`);
+          }).catch((err) => console.error(`[printful] ${order.name} taslak hatası:`, err));
+        }
         if (shopifyOrderId && designToken) {
           checkOrderPrintPricing(shop, shopifyOrderId).catch((err) =>
             console.error(`[webhook] price check failed for order ${order.name}:`, err),

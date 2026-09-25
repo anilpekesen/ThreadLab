@@ -14,6 +14,7 @@ import { authenticate } from "~/lib/authenticate.server";
 import { signedShopQuery } from "~/lib/signed-shop-link.server";
 import { getOrders, getTodayOrders, bulkUpdateStatus, fulfillShopifyOrders } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
+import { confirmPrintfulOrder, createPrintfulDraft, getPrintfulConnection, listPodOrders } from "~/models/printful.server";
 import { getShopSubscription } from "~/models/billing.server";
 import { PLANS, planKeyFromName } from "~/lib/billing.server";
 
@@ -41,7 +42,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const plan = PLANS[planKey];
   const hasActiveSubscription = sub?.subscription_status === "active" || sub?.subscription_status === "trial";
   if (!hasActiveSubscription || !plan.allowProduction) {
-    return json({ orders: [], withFile: 0, statusFilter: "", todayOnly: false, shop, zipQuery: "", locked: true });
+    return json({ orders: [], withFile: 0, statusFilter: "", todayOnly: false, shop, zipQuery: "", locked: true, printful: null as null | { connected: boolean; pod: Record<string, { status: string; error: string; printfulOrderId: string | null; trackingUrl: string }> } });
   }
 
   const url = new URL(request.url);
@@ -64,7 +65,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     (o) => o.designFrontPrintUrl || o.productionFileUrl,
   ).length;
 
+  // Printful: bağlıysa her siparişin taslak/onay durumu
+  const conn = await getPrintfulConnection(shop).catch(() => null);
+  const pod: Record<string, { status: string; error: string; printfulOrderId: string | null; trackingUrl: string }> = {};
+  if (conn) {
+    for (const r of await listPodOrders(shop, [...new Set(orders.map((o) => o.shopifyOrderId))])) {
+      pod[r.shopify_order_id] = { status: r.status, error: r.error, printfulOrderId: r.printful_order_id, trackingUrl: r.tracking_url };
+    }
+  }
+
   return json({
+    printful: conn ? { connected: true, pod } : null,
     orders,
     withFile,
     statusFilter,
@@ -81,6 +92,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = form.get("intent") as string;
   const idsRaw = form.get("ids") as string;
   const ids = idsRaw ? idsRaw.split(",").filter(Boolean) : [];
+
+  if (intent === "printful_draft" || intent === "printful_confirm") {
+    const orderId = String(form.get("shopifyOrderId") ?? "");
+    if (!orderId) return json({ ok: false });
+    const r = intent === "printful_draft"
+      ? await createPrintfulDraft(session.shop, orderId, { force: true })
+      : await confirmPrintfulOrder(session.shop, orderId);
+    return json({ ok: "ok" in r ? r.ok : r.status === "draft", printfulMessage: r.message ?? "" });
+  }
 
   if (intent === "bulk_status" && ids.length) {
     const status = form.get("status") as string;
@@ -117,7 +137,7 @@ function hasPrintFile(order: Order): boolean {
 const STATUS_VALUES = ["", "pending", "preparing", "printed"];
 
 export default function Production() {
-  const { orders, withFile, statusFilter, todayOnly, zipQuery, locked } = useLoaderData<typeof loader>();
+  const { orders, withFile, statusFilter, todayOnly, zipQuery, locked, printful } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const L = useDict(dict);
 
@@ -274,6 +294,43 @@ export default function Production() {
             <Badge tone="attention">{L.noFile}</Badge>
           )}
         </IndexTable.Cell>
+
+        {/* Printful: taslak → onay → kargo */}
+        {printful && (
+          <IndexTable.Cell>
+            {(() => {
+              const p = printful.pod[o.shopifyOrderId];
+              const busy = fetcher.state !== "idle" && fetcher.formData?.get("shopifyOrderId") === o.shopifyOrderId;
+              const send = (intent: string) => fetcher.submit({ intent, shopifyOrderId: o.shopifyOrderId }, { method: "POST" });
+              if (!p) return <Button size="slim" loading={busy} onClick={() => send("printful_draft")}>{L.pfDraft}</Button>;
+              if (p.status === "draft") {
+                return (
+                  <InlineStack gap="100" blockAlign="center">
+                    <Badge tone="info">{L.pfStatus.draft}</Badge>
+                    <Button size="slim" variant="primary" loading={busy} onClick={() => send("printful_confirm")}>{L.pfConfirm}</Button>
+                  </InlineStack>
+                );
+              }
+              if (p.status === "needs_access" || p.status === "error") {
+                return (
+                  <BlockStack gap="050">
+                    <Badge tone="critical">{L.pfStatus[p.status]}</Badge>
+                    {p.error && <Text as="span" variant="bodySm" tone="subdued">{p.error}</Text>}
+                    <Button size="slim" variant="plain" loading={busy} onClick={() => send("printful_draft")}>{L.pfRetry}</Button>
+                  </BlockStack>
+                );
+              }
+              return (
+                <InlineStack gap="100" blockAlign="center">
+                  <Badge tone={p.status === "shipped" ? "success" : p.status === "failed" || p.status === "canceled" ? "critical" : "attention"}>
+                    {L.pfStatus[p.status] ?? p.status}
+                  </Badge>
+                  {p.trackingUrl && <a href={p.trackingUrl} target="_blank" rel="noreferrer">{L.pfTrack}</a>}
+                </InlineStack>
+              );
+            })()}
+          </IndexTable.Cell>
+        )}
       </IndexTable.Row>
     );
   });
@@ -399,6 +456,7 @@ export default function Production() {
                 { title: L.colProduct },
                 { title: L.colStatus },
                 { title: L.colPrintFile },
+                ...(printful ? [{ title: "Printful" }] : []),
               ]}
             >
               {rowMarkup}

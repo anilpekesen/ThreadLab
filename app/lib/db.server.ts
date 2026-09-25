@@ -699,6 +699,50 @@ async function _runMigrationsLocked() {
   // seçenekler (bkz. ~/lib/option-pricing). Boş nesne = ek ücret yok.
   await query(`ALTER TABLE personalizer_templates
     ADD COLUMN IF NOT EXISTS option_pricing JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  // Printful (baskı hizmeti) bağlantısı. Anahtar şifreli saklanır; müşteri
+  // adresi hiçbir tabloda tutulmaz, gönderim anında Shopify'dan okunur.
+  await query(`
+    CREATE TABLE IF NOT EXISTS pod_connections (
+      shop             TEXT PRIMARY KEY,
+      provider         TEXT NOT NULL DEFAULT 'printful',
+      token_enc        TEXT NOT NULL,
+      store_id         BIGINT,
+      store_name       TEXT NOT NULL DEFAULT '',
+      webhook_secret_enc TEXT NOT NULL DEFAULT '',
+      auto_draft       BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS pod_connections_store ON pod_connections (store_id)`);
+  // Shopify varyantı -> Printful katalog varyantı
+  await query(`
+    CREATE TABLE IF NOT EXISTS pod_variant_maps (
+      shop               TEXT NOT NULL,
+      shopify_product_id TEXT NOT NULL,
+      shopify_variant_id TEXT NOT NULL,
+      catalog_product_id INTEGER NOT NULL,
+      catalog_variant_id INTEGER NOT NULL,
+      technique          TEXT NOT NULL DEFAULT 'dtg',
+      updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (shop, shopify_variant_id)
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS pod_orders (
+      shop              TEXT NOT NULL,
+      shopify_order_id  TEXT NOT NULL,
+      order_name        TEXT NOT NULL DEFAULT '',
+      printful_order_id BIGINT,
+      status            TEXT NOT NULL DEFAULT 'pending',
+      error             TEXT NOT NULL DEFAULT '',
+      tracking_number   TEXT NOT NULL DEFAULT '',
+      tracking_url      TEXT NOT NULL DEFAULT '',
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (shop, shopify_order_id)
+    )
+  `);
   await query(`
     CREATE TABLE IF NOT EXISTS cliparts (
       id          TEXT PRIMARY KEY,
