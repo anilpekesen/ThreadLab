@@ -1,5 +1,5 @@
 import { query } from "~/lib/db.server";
-import { PLANS, type PlanKey } from "~/lib/plans";
+import { PLANS, effectivePlanKey, type PlanKey } from "~/lib/plans";
 import { getShopSettings } from "~/models/shop-settings.server";
 import { getTestStoreLimits } from "~/models/test-store-limits.server";
 
@@ -7,14 +7,13 @@ function currentMonth() {
   return new Date().toISOString().slice(0, 7); // "2026-05"
 }
 
+/** Mağazanın etkin planı: aktif/denemedeki abonelik yoksa ücretsiz plan */
 export async function getShopPlan(shop: string): Promise<PlanKey> {
-  const result = await query<{ plan_key: string }>(
-    "SELECT plan_key FROM shop_subscriptions WHERE shop = $1",
+  const result = await query<{ plan_key: string; subscription_status: string }>(
+    "SELECT plan_key, subscription_status FROM shop_subscriptions WHERE shop = $1",
     [shop],
   );
-  if (!result.rows.length) return "Pro"; // default until billing is active
-  const key = result.rows[0].plan_key as PlanKey;
-  return Object.keys(PLANS).includes(key) ? key : "Pro";
+  return effectivePlanKey(result.rows[0]);
 }
 
 export async function setShopPlan(shop: string, planKey: PlanKey): Promise<void> {

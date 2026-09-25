@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { query, runMigrations } from "~/lib/db.server";
+import { PLANS } from "~/lib/plans";
+import { getShopPlan } from "~/models/bg-removal-usage.server";
 
 let migrationsRan = false;
 async function ensureMigrations() {
@@ -649,8 +651,48 @@ export async function getProductConfig(shop: string, product: ShopifyProductSumm
   return stored ? normalizeProductConfig(stored, fallback) : fallback;
 }
 
+/** Planın ürün sınırı dolu: yeni bir ürün aktif edilemez */
+export class ProductLimitError extends Error {
+  constructor(readonly limit: number, readonly used: number) {
+    super(`product_limit:${used}/${limit}`);
+  }
+}
+
+/**
+ * Mağazada kişiselleştirmesi açık ürünler: tasarımcı ayarı açık olanlar ile
+ * kişileştirici şablonu bağlı olanların birleşimi (bağlantı tek başına da
+ * tasarımcıyı açar). Kimlikler numerik biçime indirilir; admin gid, vitrin
+ * numerik kimlik kullanıyor.
+ */
+export async function listConfiguredProductIds(shop: string): Promise<Set<string>> {
+  const r = await query<{ product_id: string }>(
+    `SELECT product_id FROM product_settings WHERE shop = $1 AND config->>'isActive' = 'true'
+     UNION
+     SELECT product_id FROM personalizer_product_links WHERE shop = $1`,
+    [shop],
+  );
+  return new Set(r.rows.map((row) => numericProductId(row.product_id)));
+}
+
+const numericProductId = (id: string) => String(id).split("/").pop() ?? String(id);
+
+/**
+ * Yeni bir ürünü kişiselleştirmeye açmadan önce planın ürün sınırına bakar.
+ * Zaten açık olan ürünün güncellenmesi her zaman serbesttir; sınır yalnızca
+ * yeni ürün eklerken uygulanır. Böylece sınırdan önce fazla ürün ayarlamış
+ * mağazanın mevcut ürünleri çalışmaya devam eder.
+ */
+export async function assertCanAddProduct(shop: string, productId: string): Promise<void> {
+  const limit = PLANS[await getShopPlan(shop)].maxProducts;
+  if (limit === -1) return;
+  const ids = await listConfiguredProductIds(shop);
+  if (ids.has(numericProductId(productId))) return;
+  if (ids.size >= limit) throw new ProductLimitError(limit, ids.size);
+}
+
 export async function saveProductConfig(shop: string, productId: string, config: ProductConfig): Promise<void> {
   await ensureMigrations();
+  if (config.isActive) await assertCanAddProduct(shop, productId);
   await query(
     `INSERT INTO product_settings (shop, product_id, config, updated_at)
      VALUES ($1, $2, $3, now())

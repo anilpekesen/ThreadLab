@@ -350,7 +350,7 @@ const en = {
 
   // ── Page helpers — Billing ───────────────────────────────────────────────
   "helper.billing.1.title": "How do the plans differ?",
-  "helper.billing.1.body": "Four monthly plans: Starter ($9.99), Growth ($19.99), Pro ($49.99), Business ($99). Each plan caps:\n• Orders processed per month\n• Product types you can define (t-shirt, bag, etc.)\n• AI background removal quota\n• Monthly AI image generation quota\n• Templates you can upload\n\nExact numbers are listed on the plan cards.",
+  "helper.billing.1.body": "There is a Free plan and four monthly plans. Free: up to 2 products, no order limit; every store without a subscription is on it. Monthly plans: Starter ($9.99), Growth ($19.99), Pro ($49.99), Business ($99). Each plan caps:\n• Orders processed per month\n• Product types you can define (t-shirt, bag, etc.)\n• AI background removal quota\n• Monthly AI image generation quota\n• Templates you can upload\n\nExact numbers are listed on the plan cards.",
   "helper.billing.2.title": "How does the free trial work?",
   "helper.billing.2.body": "Starter, Growth and Business start with a 14-day free trial; Pro starts billing right away. During the trial you can use the plan within its limits; only AI image generation stays off until the trial ends. From day 15, monthly billing starts through your Shopify subscription and appears on your regular Shopify invoice.\n\nIf you cancel before the trial ends, you're not charged. After cancellation the app drops to a restricted mode, but all your data is kept.",
   "helper.billing.3.title": "What happens when you hit a limit?",

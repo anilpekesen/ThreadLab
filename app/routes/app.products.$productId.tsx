@@ -30,6 +30,7 @@ import {
   normalizeProductConfig,
   normalizeSizeChart,
   saveProductConfig,
+  ProductLimitError,
   saveProductPrintAreas,
 } from "~/models/product-config.server";
 import type { PrintAreaRecord, ProductConfig, ConditionalRule, SizeChartEntry } from "~/models/product-config.server";
@@ -825,7 +826,17 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     normalized.sizeChart = undefined;
   }
 
-  await saveProductConfig(shop, productId, normalized);
+  try {
+    await saveProductConfig(shop, productId, normalized);
+  } catch (err) {
+    if (err instanceof ProductLimitError) {
+      return json(
+        { error: pickDict(productDetailDict, langFromRequest(request, form)).productLimit(err.limit) },
+        { status: 403 },
+      );
+    }
+    throw err;
+  }
   await saveProductPrintAreas(shop, productId, printAreas);
   return redirect(`/app/products/${encodeURIComponent(productToken)}?saved=1`);
 };

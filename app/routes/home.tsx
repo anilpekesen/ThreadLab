@@ -104,6 +104,9 @@ const T = {
       title: "Mağazanız büyüdükçe ödeyin.",
       sub: "Starter, Growth ve Business'ta 14 gün ücretsiz deneme. İstediğiniz zaman iptal.",
       per: "/ay",
+      freeTitle: "Ücretsiz başlayın",
+      freeText: "2 ürüne kadar ücretsiz: sipariş sınırı yok, kredi kartı gerekmez. Daha fazla ürün için istediğiniz zaman bir plana geçin.",
+      freeCta: "Ücretsiz kur",
       creditsTitle: "Ek Kredi Satın Al",
       creditsSub: "Aylık yapay zeka görsel kotanız bittiğinde tek seferlik ek kredi paketi satın alabilirsiniz. Kredi kullanım süresi sınırsızdır.",
       creditsNote: "Krediler yapay zeka görsel üretimi için kullanılır. 1 görsel = 1 kredi.",
@@ -238,6 +241,9 @@ const T = {
       title: "Pay as your store grows.",
       sub: "14-day free trial on Starter, Growth and Business. Cancel any time.",
       per: "/mo",
+      freeTitle: "Start free",
+      freeText: "Free for up to 2 products: no order limit, no credit card. Move to a plan whenever you need more products.",
+      freeCta: "Install free",
       creditsTitle: "Buy Extra Credits",
       creditsSub: "When your monthly AI image quota runs out, you can purchase a one-time credit pack. Credits never expire.",
       creditsNote: "Credits are used for AI image generation. 1 image = 1 credit.",
@@ -416,7 +422,7 @@ function buildHtml(lang: Lang): string {
   <meta name="twitter:image" content="https://printlabapp.com/logo.png" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"PrintLab","applicationCategory":"BusinessApplication","operatingSystem":"Shopify","url":"https://printlabapp.com/home","description":"${metaDescription}","sameAs":["${SHOPIFY_APP_URL}"],"offers":{"@type":"AggregateOffer","lowPrice":"9.99","highPrice":"99","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"PrintLab","url":"https://printlabapp.com","logo":"https://printlabapp.com/logo.png"}}
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"PrintLab","applicationCategory":"BusinessApplication","operatingSystem":"Shopify","url":"https://printlabapp.com/home","description":"${metaDescription}","sameAs":["${SHOPIFY_APP_URL}"],"offers":{"@type":"AggregateOffer","lowPrice":"0","highPrice":"99","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"PrintLab","url":"https://printlabapp.com","logo":"https://printlabapp.com/logo.png"}}
   </script>
   <link rel="stylesheet" href="/landing-tokens.css" />
   <link rel="stylesheet" href="/landing.css" />
@@ -449,6 +455,11 @@ function buildHtml(lang: Lang): string {
     .promo-video-link a{color:#4f46e5;font-weight:600;text-decoration:none;}
     .promo-video-link a:hover{text-decoration:underline;}
     .promo-video video{display:block;width:100%;height:100%;object-fit:cover;}
+    .free-strip{display:flex;align-items:center;justify-content:space-between;gap:20px;max-width:1100px;margin:0 auto 28px;padding:20px 24px;border-radius:16px;background:linear-gradient(135deg,#eef2ff,#fdf2f8);border:1px solid #e0e7ff;}
+    .free-strip strong{display:block;font-size:18px;color:#111827;margin-bottom:4px;}
+    .free-strip span{font-size:15px;color:#4b5563;}
+    .free-strip .btn{white-space:nowrap;}
+    @media (max-width:640px){.free-strip{flex-direction:column;align-items:flex-start;}}
     /* ── Templates gallery ── */
     .tpl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;max-width:1040px;margin:0 auto;}
     @media (max-width:900px){.tpl-grid{grid-template-columns:repeat(2,1fr);gap:14px;}}
@@ -802,6 +813,10 @@ function buildHtml(lang: Lang): string {
       <div class="eyebrow eyebrow-indigo">${t.pricing.eyebrow}</div>
       <h2 class="section-title">${t.pricing.title}</h2>
       <p class="section-sub">${t.pricing.sub}</p>
+    </div>
+    <div class="free-strip">
+      <div><strong>${t.pricing.freeTitle}</strong><span>${t.pricing.freeText}</span></div>
+      <a class="btn btn-primary" href="${SHOPIFY_APP_URL}">${t.pricing.freeCta} ${arrowIcon}</a>
     </div>
     <div class="pricing">${planCards}</div>
 

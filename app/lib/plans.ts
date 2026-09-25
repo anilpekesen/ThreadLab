@@ -1,5 +1,40 @@
 export const PLANS = {
+  /**
+   * Ücretsiz plan: aktif aboneliği olmayan her mağaza bu plandadır. Sipariş
+   * sınırı yok; sınır ayarlanabilen ürün sayısında (maxProducts).
+   */
+  Free: {
+    price: 0,
+    trialDays: 0,
+    maxProducts: 2,
+    maxProductTypes: 1,
+    maxMonthlyOrders: -1,
+    allowBackSurface: true,
+    allowRemoveBg: true,
+    removeBgMonthlyQuota: 20,
+    aiImageMonthlyQuota: 0,
+    maxShopTemplates: 0,
+    allowProduction: false,
+    allowGangSheet: false,
+    features: {
+      tr: [
+        "2 ürün",
+        "1 ürün kategorisi",
+        "Sipariş sınırı yok",
+        "Ön + arka yüz baskı",
+        "20 arka plan kaldırma/ay",
+      ],
+      en: [
+        "2 products",
+        "1 product category",
+        "No order limit",
+        "Front + back surface print",
+        "20 background removals/month",
+      ],
+    },
+  },
   Starter: {
+    maxProducts: -1,
     price: 9.99,
     /** Ücretsiz deneme günü; Partners'taki yönetilen planla aynı olmalı */
     trialDays: 14,
@@ -30,6 +65,7 @@ export const PLANS = {
     },
   },
   Growth: {
+    maxProducts: -1,
     price: 19.99,
     trialDays: 14,
     maxProductTypes: 2,
@@ -61,6 +97,7 @@ export const PLANS = {
     },
   },
   Pro: {
+    maxProducts: -1,
     price: 49.99,
     trialDays: 0,
     maxProductTypes: 4,
@@ -96,6 +133,7 @@ export const PLANS = {
     },
   },
   Business: {
+    maxProducts: -1,
     price: 99,
     trialDays: 14,
     maxProductTypes: -1,
@@ -135,3 +173,19 @@ export const PLANS = {
 export type PlanKey = keyof typeof PLANS;
 
 export const PLAN_NAMES = Object.keys(PLANS) as PlanKey[];
+
+/** Ücretli planlar, ucuzdan pahalıya */
+export const PAID_PLANS: PlanKey[] = ["Starter", "Growth", "Pro", "Business"];
+
+/**
+ * Mağazanın gerçekte kullandığı plan. Aktif ya da denemedeki abonelik yoksa
+ * (hiç abone olmamış, iptal etmiş) ücretsiz plandır. Eskiden varsayılan
+ * "Pro"ydu; aboneliği olmayan mağaza Pro limitleriyle çalışıyordu.
+ */
+export function effectivePlanKey(
+  sub: { plan_key?: string | null; subscription_status?: string | null } | null | undefined,
+): PlanKey {
+  const active = sub?.subscription_status === "active" || sub?.subscription_status === "trial";
+  const key = sub?.plan_key as PlanKey | undefined;
+  return active && key && key in PLANS ? key : "Free";
+}

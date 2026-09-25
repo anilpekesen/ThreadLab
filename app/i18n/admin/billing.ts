@@ -19,6 +19,11 @@ const tr = {
   cannotSwitch: "Bu plana geçemezsiniz:",
   switchBlocked: "Geçiş Engellendi",
   aiPerMonth: "✦ Yapay Zeka Görseli/ay",
+  products: "Kişiselleştirilebilir ürün",
+  switchToFree: "Ücretsiz plana geç",
+  freeCurrentNote: (used: number, limit: number) => `${used} / ${limit} ürün kullanılıyor.`,
+  freeOverLimit: (used: number, limit: number) =>
+    `Şu an ${used} ürününüz açık. Ücretsiz planda bunlar çalışmaya devam eder, ancak ${limit} ürünün üstünde yeni ürün ekleyemezsiniz.`,
 };
 
 const en: typeof tr = {
@@ -37,6 +42,11 @@ const en: typeof tr = {
   cannotSwitch: "You can't switch to this plan:",
   switchBlocked: "Switch blocked",
   aiPerMonth: "✦ AI images/month",
+  products: "Personalized products",
+  switchToFree: "Switch to Free",
+  freeCurrentNote: (used, limit) => `${used} of ${limit} products in use.`,
+  freeOverLimit: (used, limit) =>
+    `You have ${used} products turned on. On the Free plan they keep working, but you can't add new products beyond ${limit}.`,
 };
 
 export default { tr, en };

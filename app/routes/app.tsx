@@ -11,7 +11,7 @@ import { authenticate } from "~/lib/authenticate.server";
 import { ensureCartTransformRegistered } from "~/lib/cart-transform.server";
 import { getShopSubscription } from "~/models/billing.server";
 import { getShopSettings, saveShopSettings } from "~/models/shop-settings.server";
-import { PLANS, type PlanKey } from "~/lib/plans";
+import { PLANS, effectivePlanKey, type PlanKey } from "~/lib/plans";
 import { LanguageProvider, useTranslation, pickDict, readLangFromCookie, type Lang } from "~/i18n";
 import shellDict from "~/i18n/admin/app-shell";
 import { useEffect, useState } from "react";
@@ -71,8 +71,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const lang: Lang = langMatch?.[1] === "en" || langMatch?.[1] === "tr"
     ? (langMatch[1] as Lang)
     : shopifyLocale && !shopifyLocale.toLowerCase().startsWith("tr") ? "en" : "tr";
-  const planKey = (sub?.plan_key ?? "Pro") as PlanKey;
-  const planFeatures = PLANS[planKey] ?? PLANS["Pro"];
+  const planKey = effectivePlanKey(sub);
+  const planFeatures = PLANS[planKey];
   const hasActiveSubscription = sub?.subscription_status === "active" || sub?.subscription_status === "trial";
   const isPaidProductionPlan = hasActiveSubscription && (planKey === "Pro" || planKey === "Business");
   return json({
@@ -94,7 +94,8 @@ function AppInner() {
 
   const isActive = subscriptionStatus === "active" || subscriptionStatus === "trial";
   const shopName = shopDisplayName || shop.replace(".myshopify.com", "");
-  const planLabel = isActive ? planKey : t("common.noPlan");
+  // Aboneliği olmayan mağaza ücretsiz plandadır; "Plan yok" yerine planın adı görünür
+  const planLabel = planKey;
 
   const navItems = [
     { label: t("nav.home"), url: "/app", end: true, show: true },

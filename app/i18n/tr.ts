@@ -349,7 +349,7 @@ const tr = {
 
   // ── Page helpers — Billing ───────────────────────────────────────────────
   "helper.billing.1.title": "Planlar nasıl farklılaşır?",
-  "helper.billing.1.body": "Dört aylık plan vardır: Starter (9,99 $), Growth (19,99 $), Pro (49,99 $), Business (99 $). Her plan şunları sınırlar:\n• Aylık işlenebilen sipariş sayısı\n• Tanımlanabilen ürün tipi sayısı (tişört, çanta vb.)\n• AI arka plan kaldırma kotası\n• Aylık AI görsel üretimi kotası\n• Yüklenebilen şablon sayısı\n\nLimitlerin tam değerleri plan kartlarında listelenmiştir.",
+  "helper.billing.1.body": "Ücretsiz plan ve dört aylık plan vardır. Ücretsiz plan: en fazla 2 ürün, sipariş sınırı yok; aboneliği olmayan her mağaza bu plandadır. Aylık planlar: Starter (9,99 $), Growth (19,99 $), Pro (49,99 $), Business (99 $). Her plan şunları sınırlar:\n• Aylık işlenebilen sipariş sayısı\n• Tanımlanabilen ürün tipi sayısı (tişört, çanta vb.)\n• AI arka plan kaldırma kotası\n• Aylık AI görsel üretimi kotası\n• Yüklenebilen şablon sayısı\n\nLimitlerin tam değerleri plan kartlarında listelenmiştir.",
   "helper.billing.2.title": "Ücretsiz deneme nasıl çalışır?",
   "helper.billing.2.body": "Starter, Growth ve Business 14 günlük ücretsiz denemeyle başlar; Pro'da ücretlendirme hemen başlar. Deneme süresince plan, limitleri dahilinde kullanılabilir; yalnızca AI görsel üretimi deneme bitene kadar kapalıdır. 15. günden itibaren aylık ücretlendirme başlar — Shopify aboneliği üzerinden faturalandırılır ve Shopify mağaza faturanıza eklenir.\n\nDeneme bitmeden iptal ederseniz hiçbir ücret alınmaz. İptal sonrası uygulama kısıtlı moda düşer ama tüm verileriniz korunur.",
   "helper.billing.3.title": "Limit aşıldığında ne olur?",

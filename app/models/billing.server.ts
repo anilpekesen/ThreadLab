@@ -1,6 +1,6 @@
 import { query } from "~/lib/db.server";
 import { getCustomerBgStats } from "~/models/customer-bg-quota.server";
-import { PLANS, type PlanKey } from "~/lib/plans";
+import { PLANS, effectivePlanKey, type PlanKey } from "~/lib/plans";
 
 export type SubscriptionStatus = "none" | "active" | "cancelled" | "trial";
 
@@ -63,7 +63,7 @@ export async function getAnalytics(shop: string) {
     ).catch(() => ({ rows: [{ count: "0" }] })),
   ]);
 
-  const planKey: PlanKey = (sub?.plan_key ?? "Pro") as PlanKey;
+  const planKey: PlanKey = effectivePlanKey(sub);
   const quota = PLANS[planKey].removeBgMonthlyQuota;
   const bgUsed = Number(bgMonth.rows[0].count);
   const aiQuota = PLANS[planKey].aiImageMonthlyQuota ?? 0;

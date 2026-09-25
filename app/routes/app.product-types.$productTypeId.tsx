@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, useLoaderData, useNavigate, useNavigation } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigate, useNavigation } from "@remix-run/react";
 import { useTranslation, useDict, pickDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import productTypesDict from "~/i18n/admin/product-types";
@@ -13,7 +13,7 @@ import {
 import { useState } from "react";
 import { authenticate } from "~/lib/authenticate.server";
 import { getProductTypeById, updateProductType } from "~/models/product-types.server";
-import { fetchShopifyProducts, saveProductConfig, buildDefaultConfig, normalizeProductConfig, readSettingsMap } from "~/models/product-config.server";
+import { fetchShopifyProducts, saveProductConfig, buildDefaultConfig, normalizeProductConfig, readSettingsMap, ProductLimitError } from "~/models/product-config.server";
 import type { SurfaceMode } from "~/models/product-config.server";
 import { normalizeProductType } from "~/models/product-config.server";
 
@@ -105,12 +105,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const typeName = form.get("type_name") as string;
     const surfaceMode = (form.get("surface_mode") as SurfaceMode) || "front_back";
 
-    await updateProductType(productTypeId, shop, {
-      shopify_product_id: productId,
-      shopify_product_title: productTitle,
-      shopify_product_handle: productHandle,
-    });
-
     // Ürünü tasarımcıda etkinleştir. Ürünün mevcut ayarı varsa korunur ve
     // yalnızca tip/yüz/ad alanları güncellenir. Eskiden ayar varsayılanlarla
     // baştan yazılıyordu: fiyat bantları, renk mockup'ları, beden tablosu ve
@@ -121,7 +115,23 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const existing = (await readSettingsMap(shop))[productId];
     const base = existing ? normalizeProductConfig(existing, defaultCfg) : defaultCfg;
     const cfg = normalizeProductConfig({ ...base, isActive: true, productType, surfaceMode, productTitle, productHandle }, defaultCfg);
-    await saveProductConfig(shop, productId, cfg);
+    // Önce ürün ayarı: planın ürün sınırı doluysa tip ürüne hiç bağlanmaz
+    try {
+      await saveProductConfig(shop, productId, cfg);
+    } catch (err) {
+      if (err instanceof ProductLimitError) {
+        return json(
+          { error: pickDict(productTypesDict, langFromRequest(request, form)).productLimit(err.limit) },
+          { status: 403 },
+        );
+      }
+      throw err;
+    }
+    await updateProductType(productTypeId, shop, {
+      shopify_product_id: productId,
+      shopify_product_title: productTitle,
+      shopify_product_handle: productHandle,
+    });
 
     return json({ saved: true });
   }
@@ -145,6 +155,8 @@ export default function ProductTypeDetail() {
   const { t, lang } = useTranslation();
   const L = useDict(productTypesDict);
   const isSaving = nav.state === "submitting";
+  const actionData = useActionData<typeof action>();
+  const actionError = actionData && "error" in actionData ? String(actionData.error) : "";
 
   const [name, setName] = useState(productType.name);
   const [surfaceMode, setSurfaceMode] = useState<"front_only" | "front_back">(productType.surface_mode);
@@ -158,6 +170,12 @@ export default function ProductTypeDetail() {
     >
       <BlockStack gap="500">
         <PageHelper sections={L.detailHelp} />
+
+        {actionError && (
+          <Banner tone="critical" action={{ content: t("nav.billing"), onAction: () => navigate("/app/billing") }}>
+            <Text as="p">{actionError}</Text>
+          </Banner>
+        )}
 
         {/* Temel Ayarlar */}
         <Card>

@@ -8,6 +8,7 @@ const tr = {
   errFrameImageRequired: "Çerçeve görseli gerekli",
   errFrameIdRequired: "Çerçeve ID gerekli",
   errProductIdRequired: "Shopify ürün ID gerekli",
+  errProductLimit: (limit: number) => `Ücretsiz planda en fazla ${limit} ürünü kişiselleştirmeye açabilirsiniz. Başka bir ürünün bağlantısını kaldırın ya da Abonelik sayfasından bir plan seçin.`,
   errUnknownIntent: "Bilinmeyen işlem",
   defaultFrameName: "Çerçeve",
 
@@ -422,6 +423,7 @@ const en: typeof tr = {
   errFrameImageRequired: "Frame image is required",
   errFrameIdRequired: "Frame ID is required",
   errProductIdRequired: "Shopify product ID is required",
+  errProductLimit: (limit: number) => `On the Free plan you can turn on personalization for up to ${limit} products. Unlink another product, or choose a plan on the Billing page.`,
   errUnknownIntent: "Unknown action",
   defaultFrameName: "Frame",
 

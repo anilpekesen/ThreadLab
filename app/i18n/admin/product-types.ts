@@ -4,6 +4,7 @@
 const tr = {
   typeSuggestions: ["Tişört", "Sweatshirt", "Hoodie", "Polo", "Bez Çanta", "Kupa", "Boxer", "Şort", "Diğer"],
   planLimitReached: "Plan limitine ulaştınız",
+  productLimit: (limit: number) => `Ücretsiz planda en fazla ${limit} ürünü kişiselleştirmeye açabilirsiniz. Başka bir ürünü kapatın ya da Abonelik sayfasından bir plan seçin.`,
   defaultTypeName: "Yeni Ürün Tipi",
   notFound: "Ürün tipi bulunamadı",
   // Ürün tipi düzenleme sayfasının yardımı (liste sayfasının yardımı ortak sözlükte)
@@ -30,6 +31,7 @@ const tr = {
 const en: typeof tr = {
   typeSuggestions: ["T-shirt", "Sweatshirt", "Hoodie", "Polo", "Tote bag", "Mug", "Boxer", "Boxer shorts", "Other"],
   planLimitReached: "You've reached your plan limit",
+  productLimit: (limit: number) => `On the Free plan you can turn on personalization for up to ${limit} products. Turn another product off, or choose a plan on the Billing page.`,
   defaultTypeName: "New product type",
   notFound: "Product type not found",
   detailHelp: [

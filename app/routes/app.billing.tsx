@@ -19,8 +19,11 @@ import { appendSignedShopParams } from "~/lib/signed-shop-link.server";
 import { query } from "~/lib/db.server";
 import { PLANS, type PlanKey } from "~/lib/plans";
 import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/models/billing.server";
+import { listConfiguredProductIds } from "~/models/product-config.server";
 
 const PLAN_ORDER: PlanKey[] = ["Starter", "Growth", "Pro", "Business"];
+/** Kartlar ve karşılaştırma tablosu: ücretsiz plan başta */
+const DISPLAY_ORDER: PlanKey[] = ["Free", ...PLAN_ORDER];
 const MANAGED_PRICING_APP_HANDLE = process.env.SHOPIFY_APP_HANDLE ?? "printlab";
 
 function isBillingTestCharge(shop: string): boolean {
@@ -43,7 +46,7 @@ function isOwnerShop(shop: string): boolean {
 }
 
 const PLAN_BADGE: Record<PlanKey, "attention" | "info" | "success"> = {
-  Starter: "attention", Growth: "info", Pro: "info", Business: "success",
+  Free: "attention", Starter: "attention", Growth: "info", Pro: "info", Business: "success",
 };
 
 export const headers = () => ({
@@ -269,8 +272,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const analytics = await getAnalytics(shop);
-  const { blockedReasons } = await getDowngradeRestrictions(shop, analytics);
-  return json({ analytics, isTest: isBillingTestCharge(shop), blockedReasons });
+  const [{ blockedReasons }, productIds] = await Promise.all([
+    getDowngradeRestrictions(shop, analytics),
+    listConfiguredProductIds(shop),
+  ]);
+  return json({ analytics, isTest: isBillingTestCharge(shop), blockedReasons, productCount: productIds.size });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -360,7 +366,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function BillingPage() {
-  const { analytics, isTest, blockedReasons } = useLoaderData<typeof loader>();
+  const { analytics, isTest, blockedReasons, productCount } = useLoaderData<typeof loader>();
   const actionData = useActionData<{ error?: string; redirectUrl?: string }>();
   const nav = useNavigation();
   const { t, lang } = useTranslation();
@@ -369,7 +375,8 @@ export default function BillingPage() {
   const isActive = analytics.subscriptionStatus === "active";
   const isTrial = analytics.subscriptionStatus === "trial";
   const hasSubscription = isActive || isTrial;
-  const currentPlanLabel = hasSubscription ? analytics.planKey : t("common.noPlan");
+  const currentPlanLabel = analytics.planKey;
+  const freeLimit = PLANS.Free.maxProducts;
 
   useEffect(() => {
     if (!actionData?.redirectUrl) return;
@@ -412,14 +419,10 @@ export default function BillingPage() {
                     <Badge tone={hasSubscription ? (PLAN_BADGE[analytics.planKey] ?? "attention") : "attention"}>{currentPlanLabel}</Badge>
                     {isActive && <Badge tone="success">{t("billing.active")}</Badge>}
                     {isTrial && <Badge tone="info">{t("billing.trial")}</Badge>}
-                    {!isActive && !isTrial && <Badge tone="attention">{t("billing.inactive")}</Badge>}
+                    {!hasSubscription && <Text as="span" variant="bodySm" tone="subdued">{L.freeCurrentNote(productCount, freeLimit)}</Text>}
                   </InlineStack>
                 </BlockStack>
-                {hasSubscription ? (
-                  <Text as="p" variant="headingLg">${PLANS[analytics.planKey].price}<Text as="span" variant="bodySm" tone="subdued">{t("billing.perMonth")}</Text></Text>
-                ) : (
-                  <Text as="p" variant="bodySm" tone="subdued">{t("dashboard.planInactive")}</Text>
-                )}
+                <Text as="p" variant="headingLg">${PLANS[analytics.planKey].price}<Text as="span" variant="bodySm" tone="subdued">{t("billing.perMonth")}</Text></Text>
               </InlineStack>
 
               {analytics.bgQuota !== 0 && (
@@ -484,10 +487,11 @@ export default function BillingPage() {
 
         <Layout>
           <Layout.Section>
-            <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
-              {PLAN_ORDER.map((planKey) => {
+            <InlineGrid columns={{ xs: 1, sm: 2, md: 3, xl: 5 }} gap="400">
+              {DISPLAY_ORDER.map((planKey) => {
                 const plan = PLANS[planKey];
-                const isCurrent = analytics.planKey === planKey && (isActive || isTrial);
+                const isCurrent = analytics.planKey === planKey;
+                const isFree = planKey === "Free";
                 const isRecommended = planKey === "Growth";
                 const blockReasons = (isActive || isTrial) ? (blockedReasons[planKey] ?? null) : null;
                 const isBlocked = !!blockReasons;
@@ -530,8 +534,22 @@ export default function BillingPage() {
                           </Banner>
                         )}
 
+                        {isFree && !isCurrent && productCount > freeLimit && (
+                          <Banner tone="warning">
+                            <Text as="p" variant="bodySm">{L.freeOverLimit(productCount, freeLimit)}</Text>
+                          </Banner>
+                        )}
+
                         {isCurrent ? (
                           <Button fullWidth disabled>{t("billing.currentPlanBtn")}</Button>
+                        ) : isFree ? (
+                          // Ücretsiz plana geçmek, ücretli aboneliği iptal etmektir
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="cancel" />
+                            <input type="hidden" name="_lang" value={lang} />
+                            <input type="hidden" name="subscriptionId" value={analytics.shopifySubscriptionId ?? ""} />
+                            <Button fullWidth submit loading={isLoading}>{L.switchToFree}</Button>
+                          </Form>
                         ) : isBlocked ? (
                           <Button fullWidth disabled tone="critical">{L.switchBlocked}</Button>
                         ) : (
@@ -563,23 +581,24 @@ export default function BillingPage() {
                   <thead>
                     <tr style={{ borderBottom: "1px solid #e4e5e7" }}>
                       <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600 }}>{t("billing.feature")}</th>
-                      {PLAN_ORDER.map((k) => (
+                      {DISPLAY_ORDER.map((k) => (
                         <th key={k} style={{ textAlign: "center", padding: "8px 12px", fontWeight: 600 }}>
-                          {k}{analytics.planKey === k && isActive ? " ✓" : ""}
+                          {k}{analytics.planKey === k ? " ✓" : ""}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {[
-                      { label: t("billing.monthlyPrice"), values: PLAN_ORDER.map((k) => `$${PLANS[k].price}`) },
-                      { label: t("billing.productTypes"), values: PLAN_ORDER.map((k) => PLANS[k].maxProductTypes === -1 ? t("billing.unlimited") : String(PLANS[k].maxProductTypes)) },
-                      { label: t("billing.ordersPerMonth"), values: PLAN_ORDER.map((k) => PLANS[k].maxMonthlyOrders === -1 ? t("billing.unlimited") : String(PLANS[k].maxMonthlyOrders)) },
-                      { label: t("billing.backSurface"), values: PLAN_ORDER.map((k) => PLANS[k].allowBackSurface ? "✓" : "—") },
-                      { label: t("billing.bgRemoval"), values: PLAN_ORDER.map((k) => String(PLANS[k].removeBgMonthlyQuota)) },
-                      { label: L.aiPerMonth, values: PLAN_ORDER.map((k) => String(PLANS[k].aiImageMonthlyQuota ?? 0)) },
-                      { label: t("billing.templates"), values: PLAN_ORDER.map((k) => PLANS[k].maxShopTemplates === -1 ? t("billing.unlimited") : PLANS[k].maxShopTemplates === 0 ? "—" : String(PLANS[k].maxShopTemplates)) },
-                      { label: t("billing.freeTrial"), values: PLAN_ORDER.map((k) => (PLANS[k].trialDays > 0 ? t("billing.trialDays") : "—")) },
+                      { label: t("billing.monthlyPrice"), values: DISPLAY_ORDER.map((k) => `$${PLANS[k].price}`) },
+                      { label: L.products, values: DISPLAY_ORDER.map((k) => PLANS[k].maxProducts === -1 ? t("billing.unlimited") : String(PLANS[k].maxProducts)) },
+                      { label: t("billing.productTypes"), values: DISPLAY_ORDER.map((k) => PLANS[k].maxProductTypes === -1 ? t("billing.unlimited") : String(PLANS[k].maxProductTypes)) },
+                      { label: t("billing.ordersPerMonth"), values: DISPLAY_ORDER.map((k) => PLANS[k].maxMonthlyOrders === -1 ? t("billing.unlimited") : String(PLANS[k].maxMonthlyOrders)) },
+                      { label: t("billing.backSurface"), values: DISPLAY_ORDER.map((k) => PLANS[k].allowBackSurface ? "✓" : "—") },
+                      { label: t("billing.bgRemoval"), values: DISPLAY_ORDER.map((k) => String(PLANS[k].removeBgMonthlyQuota)) },
+                      { label: L.aiPerMonth, values: DISPLAY_ORDER.map((k) => String(PLANS[k].aiImageMonthlyQuota ?? 0)) },
+                      { label: t("billing.templates"), values: DISPLAY_ORDER.map((k) => PLANS[k].maxShopTemplates === -1 ? t("billing.unlimited") : PLANS[k].maxShopTemplates === 0 ? "—" : String(PLANS[k].maxShopTemplates)) },
+                      { label: t("billing.freeTrial"), values: DISPLAY_ORDER.map((k) => (PLANS[k].trialDays > 0 ? t("billing.trialDays") : "—")) },
                     ].map(({ label, values }) => (
                       <tr key={label} style={{ borderBottom: "1px solid #f4f4f4" }}>
                         <td style={{ padding: "8px 12px", color: "#6d7175" }}>{label}</td>

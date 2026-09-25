@@ -31,7 +31,7 @@ import {
   type PersonalizerFrame,
   type PersonalizerCategory,
 } from "~/models/personalizer.server";
-import { fetchShopifyProducts, findConfigForStorefront } from "~/models/product-config.server";
+import { fetchShopifyProducts, findConfigForStorefront, assertCanAddProduct, ProductLimitError } from "~/models/product-config.server";
 import { AI_STYLES, AI_PROVIDERS, normalizeAiConfig, type AiProvider } from "~/lib/ai-styles";
 import { uploadToR2 } from "~/lib/r2.server";
 import { removeBackgroundFromBuffer } from "~/models/background-removal.server";
@@ -388,6 +388,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const productTitle = String(form.get("product_title") ?? "").trim();
     const productHandle = String(form.get("product_handle") ?? "").trim();
     if (!productId) return json({ error: A.errProductIdRequired }, { status: 400 });
+    try {
+      await assertCanAddProduct(shop, productId);
+    } catch (err) {
+      if (err instanceof ProductLimitError) return json({ error: A.errProductLimit(err.limit) }, { status: 403 });
+      throw err;
+    }
 
     // Bir ürünün ön ve arka yüzü aynı şablona tek kayıtta bağlanabilmeli.
     // Eskiden tek değer okunuyordu ve merchant aynı ürünü iki kez eklemek
