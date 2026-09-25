@@ -15,6 +15,9 @@ import type { Order } from "~/models/orders.server";
 import { getAnalytics } from "~/models/billing.server";
 import { getDashboardAnalyticsDetail } from "~/models/analytics.server";
 import { PLANS } from "~/lib/plans";
+import { listConfiguredProductIds } from "~/models/product-config.server";
+import { useDict } from "~/i18n";
+import supportDict from "~/i18n/admin/support";
 
 const AUTO_REFRESH_MS = 30_000;
 
@@ -26,10 +29,11 @@ export const headers = () => ({
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const lang = readLang(request);
-  const [orders, analytics, production] = await Promise.all([
+  const [orders, analytics, production, productIds] = await Promise.all([
     getOrders(session.shop),
     getAnalytics(session.shop),
     getProductionAnalytics(session.shop),
+    listConfiguredProductIds(session.shop),
   ]);
   const stats = summarizeGroupedStats(groupOrders(orders));
   const detail = await getDashboardAnalyticsDetail(session.shop);
@@ -42,7 +46,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     })),
   };
 
-  return json({ stats, analytics, production, detail: displayDetail, chartDays });
+  return json({ stats, analytics, production, detail: displayDetail, chartDays, productCount: productIds.size });
 };
 
 const PLAN_BADGE_TONE: Record<string, "success" | "info" | "warning" | "attention"> = {
@@ -276,7 +280,8 @@ function summarizeGroupedStats(groups: OrderGroup[]) {
 }
 
 export default function Index() {
-  const { stats, analytics, production, detail, chartDays } = useLoaderData<typeof loader>();
+  const { stats, analytics, production, detail, chartDays, productCount } = useLoaderData<typeof loader>();
+  const S = useDict(supportDict);
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
   const { t, lang } = useTranslation();
@@ -324,6 +329,17 @@ export default function Index() {
             </InlineStack>
           </Box>
         </Card>
+
+        {/* Henüz ürün kurmamış mağazaya ücretsiz kurulum desteği */}
+        {productCount === 0 && (
+          <Banner
+            tone="info"
+            title={S.onboardingTitle}
+            action={{ content: S.onboardingSubmit, onAction: () => navigate("/app/support#onboarding") }}
+          >
+            <Text as="p">{S.onboardingShort}</Text>
+          </Banner>
+        )}
 
         {/* Sipariş istatistikleri */}
         <InlineGrid columns={{ xs: 2, sm: 2, md: 4 }} gap="400">

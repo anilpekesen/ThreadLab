@@ -9,10 +9,11 @@ import {
 import { authenticate } from "~/lib/authenticate.server";
 import { query } from "~/lib/db.server";
 import { useState } from "react";
-import { useTranslation, pickDict } from "~/i18n";
+import { useTranslation, pickDict, useDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import supportDict from "~/i18n/admin/support";
 import type { TranslationKey } from "~/i18n/tr";
+import { notifySupportTicket, supportWhatsAppNumber } from "~/lib/support-notify.server";
 
 interface Message { role: "merchant" | "admin"; text: string; at: string }
 
@@ -36,7 +37,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
      FROM support_tickets WHERE shop = $1 ORDER BY updated_at DESC LIMIT 50`,
     [shop],
   );
-  return json({ tickets: tickets.rows });
+  return json({ tickets: tickets.rows, supportWhatsapp: supportWhatsAppNumber(), shop });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -59,6 +60,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
        VALUES ($1,$2,$3,$4,'open',$5,$6,$7,now())`,
       [id, shop, subject, message, priority, category, JSON.stringify([firstMsg])],
     );
+    await notifySupportTicket({ shop, subject, message, category, kind: "new" });
     return json({ success: true, error: null });
   }
 
@@ -76,7 +78,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
        WHERE id = $1 AND shop = $3 AND status != 'closed'`,
       [ticketId, JSON.stringify([newMsg]), shop],
     );
+    const t = await query<{ subject: string; category: string }>(
+      "SELECT subject, category FROM support_tickets WHERE id = $1 AND shop = $2",
+      [ticketId, shop],
+    );
+    if (t.rows[0]) {
+      await notifySupportTicket({ shop, subject: t.rows[0].subject, message: text, category: t.rows[0].category, kind: "reply" });
+    }
     return json({ success: true, error: null });
+  }
+
+  // "İlk ürününüzü birlikte kuralım": kurulum kategorisinde talep açar ve
+  // sahibine anında haber verir
+  if (intent === "onboarding") {
+    const contact = String(form.get("contact") ?? "").trim().slice(0, 100);
+    const note = String(form.get("note") ?? "").trim().slice(0, 2000);
+    const message = [contact && `İletişim: ${contact}`, note].filter(Boolean).join("\n\n") || L.onboardingEmptyMessage;
+    const id = `tkt_${randomBytes(8).toString("hex")}`;
+    const firstMsg: Message = { role: "merchant", text: message, at: new Date().toISOString() };
+    await query(
+      `INSERT INTO support_tickets
+        (id, shop, subject, message, status, priority, category, messages, last_merchant_reply_at)
+       VALUES ($1,$2,$3,$4,'open','high','setup',$5,now())`,
+      [id, shop, L.onboardingSubject, message, JSON.stringify([firstMsg])],
+    );
+    await notifySupportTicket({ shop, subject: L.onboardingSubject, message, category: "setup", kind: "onboarding" });
+    return json({ success: true, error: null, onboarding: true });
   }
 
   return json({ error: null, success: false });
@@ -146,7 +173,10 @@ function ConversationThread({ messages, t }: { messages: Message[]; t: (k: never
 }
 
 export default function SupportPage() {
-  const { tickets } = useLoaderData<typeof loader>();
+  const { tickets, supportWhatsapp, shop } = useLoaderData<typeof loader>();
+  const S = useDict(supportDict);
+  const [contact, setContact] = useState("");
+  const [note, setNote] = useState("");
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const { t, lang } = useTranslation();
@@ -187,7 +217,51 @@ export default function SupportPage() {
               <p>{t("support.description" as never)}</p>
             </Banner>
 
-            {showSuccess && <Banner tone="success">{t("support.successMsg" as never)}</Banner>}
+            {showSuccess && (
+              <Banner tone="success">
+                {actionData && "onboarding" in actionData ? S.onboardingDone : t("support.successMsg" as never)}
+              </Banner>
+            )}
+
+            {/* Hızlı destek: WhatsApp ve ücretsiz kurulum desteği */}
+            <Card>
+              <BlockStack gap="400">
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd">{S.quickTitle}</Text>
+                  <Text as="p" tone="subdued">{S.quickText}</Text>
+                </BlockStack>
+                {supportWhatsapp && (
+                  <Box>
+                    <Button
+                      url={`https://wa.me/${supportWhatsapp}?text=${encodeURIComponent(S.whatsappGreeting(shop.replace(".myshopify.com", "")))}`}
+                      target="_blank"
+                      variant="primary"
+                      tone="success"
+                    >
+                      {S.whatsapp}
+                    </Button>
+                  </Box>
+                )}
+                <Divider />
+                <div id="onboarding">
+                  <Form method="post">
+                    <input type="hidden" name="intent" value="onboarding" />
+                    <input type="hidden" name="_lang" value={lang} />
+                    <BlockStack gap="300">
+                      <BlockStack gap="100">
+                        <Text as="h3" variant="headingSm">{S.onboardingTitle}</Text>
+                        <Text as="p" variant="bodySm" tone="subdued">{S.onboardingText}</Text>
+                      </BlockStack>
+                      <TextField label={S.onboardingContact} name="contact" value={contact} onChange={setContact} autoComplete="tel" />
+                      <TextField label={S.onboardingNote} name="note" value={note} onChange={setNote} multiline={2} autoComplete="off" />
+                      <Box>
+                        <Button submit loading={isSubmitting}>{S.onboardingSubmit}</Button>
+                      </Box>
+                    </BlockStack>
+                  </Form>
+                </div>
+              </BlockStack>
+            </Card>
             {actionData?.error && <Banner tone="critical"><p>{actionData.error}</p></Banner>}
 
             <InlineStack gap="300" wrap>
