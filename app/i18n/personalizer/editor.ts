@@ -312,6 +312,12 @@ const tr = {
 
   // ── Ürüne bağla ──
   linkTitle: "Ürüne bağla",
+  bulkLink: "Birden çok ürüne bağla",
+  bulkLinkHint: "Shopify'dan istediğiniz kadar ürün seçin; hepsi seçili yüzlerle bağlanır.",
+  bulkLinked: (n: number) => `${n} ürün bağlandı.`,
+  bulkLimited: (list: string) => `Planınızın ürün sınırı nedeniyle bağlanamadı: ${list}. Planı yükselterek hepsini bağlayabilirsiniz.`,
+  bulkNoDesigner: (list: string) => `Bu ürünlerde tasarımcı açık değil, şablon görünmez: ${list}. Ürün Ayarlama'dan tasarımcıyı açın.`,
+  bulkMetaFailed: (list: string) => `Ürün sayfası kutusu için kayıt yazılamadı: ${list}. Birkaç dakika sonra "Bağlantıları eşitle" ile tekrar deneyin.`,
   linkHintAi: "Şablonun açılacağı Shopify ürününü seçin. AI şablonu ön ve arka yüze birlikte bağlanır.",
   linkHint: "Şablonun açılacağı Shopify ürününü seçin. Bir ürün bağlamadan şablon müşteriye görünmez.",
   saveFirstTitle: "Önce değişiklikleri kaydedin",
@@ -707,6 +713,12 @@ const en: typeof tr = {
   saveChangesLower: "Save changes",
 
   linkTitle: "Link product",
+  bulkLink: "Link to multiple products",
+  bulkLinkHint: "Pick as many products as you like in Shopify; each is linked with the selected sides.",
+  bulkLinked: (n: number) => `${n} product${n === 1 ? "" : "s"} linked.`,
+  bulkLimited: (list: string) => `Not linked because of your plan's product limit: ${list}. Upgrade to link them all.`,
+  bulkNoDesigner: (list: string) => `The designer isn't turned on for these products, so the template won't show: ${list}. Turn it on in Product Setup.`,
+  bulkMetaFailed: (list: string) => `The product page box couldn't be saved for: ${list}. Try "Sync links" again in a few minutes.`,
   linkHintAi: "Choose the Shopify product this template opens on. An AI template is linked to the front and back together.",
   linkHint: "Choose the Shopify product this template opens on. The template isn't visible to customers until a product is linked.",
   saveFirstTitle: "Save your changes first",

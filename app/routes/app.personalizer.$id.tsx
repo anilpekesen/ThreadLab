@@ -11,6 +11,7 @@ import {
   Button, BlockStack, InlineStack, Text, Banner, Box, Badge, Thumbnail,
 } from "@shopify/polaris";
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "~/lib/authenticate.server";
 import {
   getPersonalizerTemplate,
@@ -436,49 +437,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       throw err;
     }
 
-    // Bir ürünün ön ve arka yüzü aynı şablona tek kayıtta bağlanabilmeli.
-    // Eskiden tek değer okunuyordu ve merchant aynı ürünü iki kez eklemek
-    // zorundaydı; unutulunca arka yüzde "Fotoğrafını ekle" hiç çıkmıyordu.
-    // İşaretlenmeyen yüze dokunulmaz — o yüz başka bir şablona bağlı olabilir,
-    // kaldırmak için satırdaki "Bağlantıyı kaldır" düğmesi var.
-    const secilenYuzler = Array.from(
-      new Set(form.getAll("side").map((value) => normalizeSide(value))),
-    );
     const sides = template.layout_mode === "ai"
       ? (["front", "back"] as TemplateSide[])
-      : (secilenYuzler.length > 0 ? secilenYuzler : (["front"] as TemplateSide[]));
-    await Promise.all(sides.map((side) => linkPersonalizerProduct({
-      shop,
-      product_id: productId,
-      side,
-      template_id: id,
-      product_title: productTitle,
-      product_handle: productHandle,
-      variant_id: variantId,
-    })));
-
-    // Bağlantı iki ayrı şeyi besliyor ve ikisi aynı şablon türüne ait değil:
-    //
-    //   1. Tema bloğu ürün metafield'ını okuyup ÜRÜN SAYFASINDA ayrı bir
-    //      kişiselleştirme kutusu açıyor. Bu, çoklu fotoğraf alanı olan
-    //      şablonlar için — "6 fotoğraflı çerçeve" gibi.
-    //   2. /api/designer-config bağlantıyı okuyup TASARIMCININ İÇİNDE
-    //      "Fotoğrafını ekle" panelini gösteriyor. Bu, maske/AI şablonları
-    //      için — tişörte basılan kalpli tasarım gibi.
-    //
-    // Metafield'ı ayrım gözetmeden yazınca ikisi çakışıyordu: tişört ürününde
-    // hem tasarımcı hem de üstünde istenmeyen bir kişiselleştirme kutusu
-    // çıkıyordu. Canlıda tam olarak bu oldu. Metafield artık yalnızca slot
-    // taşıyan şablonlarda yazılıyor; diğerlerinde temizleniyor ki eski bir
-    // değer kalıp kutuyu açmaya devam etmesin.
-    const slotluMu =
-      (Array.isArray(template.slots) && template.slots.length > 0)
-      || (Array.isArray(template.pieces) && template.pieces.length > 0);
-
-    await syncPricingForProduct(shop, productId).catch(() => null);
-    const meta = slotluMu
-      ? await setProductTemplateMetafield(shop, productId, id)
-      : await clearProductTemplateMetafield(shop, productId);
+      : sidesFromForm(form);
+    const { slotluMu, meta } = await linkTemplateToProduct(shop, template, { productId, productTitle, productHandle, variantId }, sides);
 
     return json({
       ok: true,
@@ -489,8 +451,92 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     });
   }
 
+  // ── Toplu bağlama: ürün seçicisinden gelen liste ──────────────────────────
+  if (intent === "link_products_bulk") {
+    if (id === "new") return json({ error: A.errSaveFirst }, { status: 400 });
+    const template = await getPersonalizerTemplate(id, shop);
+    if (!template) return json({ error: A.errTemplateNotFound }, { status: 404 });
+    let list: Array<{ id?: unknown; title?: unknown; handle?: unknown }> = [];
+    try { list = JSON.parse(String(form.get("products") ?? "[]")); } catch { /* boş liste */ }
+    const products = list
+      .map((p) => ({ productId: normalizeShopifyNumericId(String(p.id ?? "")), productTitle: String(p.title ?? "").slice(0, 255), productHandle: String(p.handle ?? "").slice(0, 255), variantId: "" }))
+      .filter((p) => p.productId)
+      .slice(0, 250);
+    const sides = template.layout_mode === "ai" ? (["front", "back"] as TemplateSide[]) : sidesFromForm(form);
+    const slotluMu = (Array.isArray(template.slots) && template.slots.length > 0) || (Array.isArray(template.pieces) && template.pieces.length > 0);
+
+    const linked: string[] = [];
+    const limited: string[] = [];
+    const noDesigner: string[] = [];
+    const metaFailed: string[] = [];
+    for (const p of products) {
+      try {
+        await assertCanAddProduct(shop, p.productId);
+      } catch (err) {
+        if (err instanceof ProductLimitError) { limited.push(p.productTitle || p.productId); continue; }
+        throw err;
+      }
+      const r = await linkTemplateToProduct(shop, template, p, sides);
+      linked.push(p.productTitle || p.productId);
+      if (!r.meta.ok) metaFailed.push(p.productTitle || p.productId);
+      // Kutusuz (tasarımcı içi) şablon, tasarımcısı açık üründe görünür
+      if (!slotluMu) {
+        const cfg = await findConfigForStorefront(shop, p.productId, p.productHandle).catch(() => null);
+        if (!cfg) noDesigner.push(p.productTitle || p.productId);
+      }
+    }
+    return json({ ok: true, bulk: { linked, limited, noDesigner, metaFailed } });
+  }
+
   return json({ error: A.errUnknownIntent }, { status: 400 });
 };
+
+/**
+ * Şablonu bir ürüne bağlar. Tekli ve toplu bağlama aynı yolu kullanır.
+ *
+ * Bir ürünün ön ve arka yüzü aynı şablona tek kayıtta bağlanabilmeli.
+ * Eskiden tek değer okunuyordu ve merchant aynı ürünü iki kez eklemek
+ * zorundaydı; unutulunca arka yüzde "Fotoğrafını ekle" hiç çıkmıyordu.
+ * İşaretlenmeyen yüze dokunulmaz — o yüz başka bir şablona bağlı olabilir.
+ *
+ * Bağlantı iki ayrı şeyi besliyor ve ikisi aynı şablon türüne ait değil:
+ *   1. Tema bloğu ürün metafield'ını okuyup ÜRÜN SAYFASINDA ayrı bir
+ *      kişiselleştirme kutusu açıyor — çoklu fotoğraf alanlı şablonlar.
+ *   2. /api/designer-config bağlantıyı okuyup TASARIMCININ İÇİNDE
+ *      "Fotoğrafını ekle" panelini gösteriyor — maske/AI şablonları.
+ * Metafield ayrım gözetmeden yazılınca ikisi çakışıyordu (tişörtte hem
+ * tasarımcı hem kutu). Metafield yalnız slot taşıyan şablonlarda yazılır,
+ * diğerlerinde eski değer kalmasın diye temizlenir.
+ */
+async function linkTemplateToProduct(
+  shop: string,
+  template: { id: string; slots: unknown; pieces: unknown },
+  product: { productId: string; productTitle: string; productHandle: string; variantId: string },
+  sides: TemplateSide[],
+) {
+  await Promise.all(sides.map((side) => linkPersonalizerProduct({
+    shop,
+    product_id: product.productId,
+    side,
+    template_id: template.id,
+    product_title: product.productTitle,
+    product_handle: product.productHandle,
+    variant_id: product.variantId,
+  })));
+  const slotluMu =
+    (Array.isArray(template.slots) && template.slots.length > 0)
+    || (Array.isArray(template.pieces) && template.pieces.length > 0);
+  await syncPricingForProduct(shop, product.productId).catch(() => null);
+  const meta = slotluMu
+    ? await setProductTemplateMetafield(shop, product.productId, template.id)
+    : await clearProductTemplateMetafield(shop, product.productId);
+  return { slotluMu, meta };
+}
+
+function sidesFromForm(form: FormData): TemplateSide[] {
+  const chosen = Array.from(new Set(form.getAll("side").map((value) => normalizeSide(value))));
+  return chosen.length > 0 ? chosen : ["front"];
+}
 
 // ── Visual Editor (template photo area) ─────────────────────────────────────
 
@@ -1269,7 +1315,9 @@ function PersonalizerEditor({ onDiscard }: { onDiscard: () => void }) {
   const linkFetcher = useFetcher<{
     error?: string; ok?: boolean; linked?: boolean; unlinked?: number; kutuAcilir?: boolean;
     metafieldOk?: boolean; metafieldError?: string;
+    bulk?: { linked: string[]; limited: string[]; noDesigner: string[]; metaFailed: string[] };
   }>();
+  const appBridge = useAppBridge();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const availableProducts = products.filter((product): product is NonNullable<typeof product> => product !== null);
@@ -2313,6 +2361,39 @@ function PersonalizerEditor({ onDiscard }: { onDiscard: () => void }) {
                     </FormLayout>
                   </linkFetcher.Form>
                 )}
+
+                {/* Toplu bağlama: Shopify ürün seçicisiyle birden çok ürün;
+                    yüz seçimi yukarıdaki kutucuklardan alınır */}
+                <BlockStack gap="200">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Button
+                      onClick={async () => {
+                        const picked = await appBridge.resourcePicker({ type: "product", multiple: true, filter: { variants: false } });
+                        if (!picked?.length) return;
+                        const fd = new FormData();
+                        fd.set("intent", "link_products_bulk");
+                        fd.set("_lang", lang);
+                        fd.set("products", JSON.stringify(picked.map((p) => ({ id: p.id, title: (p as { title?: string }).title ?? "", handle: (p as { handle?: string }).handle ?? "" }))));
+                        for (const side of linkSides) fd.append("side", side);
+                        linkFetcher.submit(fd, { method: "POST", encType: "multipart/form-data" });
+                      }}
+                      loading={linkFetcher.state !== "idle"}
+                    >
+                      {L.bulkLink}
+                    </Button>
+                    <Text as="span" tone="subdued" variant="bodySm">{L.bulkLinkHint}</Text>
+                  </InlineStack>
+                  {linkFetcher.data?.bulk && (
+                    <Banner tone={linkFetcher.data.bulk.limited.length || linkFetcher.data.bulk.noDesigner.length || linkFetcher.data.bulk.metaFailed.length ? "warning" : "success"}>
+                      <BlockStack gap="100">
+                        <p>{L.bulkLinked(linkFetcher.data.bulk.linked.length)}</p>
+                        {linkFetcher.data.bulk.limited.length > 0 && <p>{L.bulkLimited(linkFetcher.data.bulk.limited.join(", "))}</p>}
+                        {linkFetcher.data.bulk.noDesigner.length > 0 && <p>{L.bulkNoDesigner(linkFetcher.data.bulk.noDesigner.join(", "))}</p>}
+                        {linkFetcher.data.bulk.metaFailed.length > 0 && <p>{L.bulkMetaFailed(linkFetcher.data.bulk.metaFailed.join(", "))}</p>}
+                      </BlockStack>
+                    </Banner>
+                  )}
+                </BlockStack>
 
                 {linkedProductGroups.length > 0 && (
                   <BlockStack gap="200">
