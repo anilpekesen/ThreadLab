@@ -174,11 +174,11 @@ export async function getOrders(shop: string, status?: string): Promise<Order[]>
   await ensureMigrations();
   const result = status
     ? await query<DbRow>(
-        `${ORDER_SELECT} WHERE o.shop = $1 AND o.design_token != '' AND o.production_status = $2 AND o.production_status != 'cancelled' ORDER BY o.created_at DESC`,
+        `${ORDER_SELECT} WHERE o.shop = $1 AND (o.design_token != '' OR o.source != '') AND o.production_status = $2 AND o.production_status != 'cancelled' ORDER BY o.created_at DESC`,
         [shop, status],
       )
     : await query<DbRow>(
-        `${ORDER_SELECT} WHERE o.shop = $1 AND o.design_token != '' AND o.production_status != 'cancelled' ORDER BY o.created_at DESC`,
+        `${ORDER_SELECT} WHERE o.shop = $1 AND (o.design_token != '' OR o.source != '') AND o.production_status != 'cancelled' ORDER BY o.created_at DESC`,
         [shop],
       );
   return result.rows.map(rowToOrder);
@@ -198,7 +198,7 @@ export async function countOrderGroups(shop: string, status?: string, search?: s
        SELECT ${ORDER_GROUP_KEY_SQL} AS group_key
        FROM orders o
        WHERE o.shop = $1
-         AND o.design_token != ''
+         AND (o.design_token != '' OR o.source != '')
          AND o.production_status != 'cancelled'
          AND ${ORDER_GROUP_KEY_SQL} NOT IN (
            SELECT COALESCE(NULLIF(shopify_order_id, ''), id)
@@ -235,7 +235,7 @@ export async function getOrdersPage(
     `SELECT ${ORDER_GROUP_KEY_SQL} AS group_key, MAX(o.created_at) AS latest_at
      FROM orders o
      WHERE o.shop = $1
-       AND o.design_token != ''
+       AND (o.design_token != '' OR o.source != '')
        AND o.production_status != 'cancelled'
        AND ${ORDER_GROUP_KEY_SQL} NOT IN (
          SELECT COALESCE(NULLIF(shopify_order_id, ''), id)
@@ -258,7 +258,7 @@ export async function getOrdersPage(
   const result = await query<DbRow>(
     `${ORDER_SELECT}
      WHERE o.shop = $1
-       AND o.design_token != ''
+       AND (o.design_token != '' OR o.source != '')
        AND o.production_status != 'cancelled'
        ${rowStatusClause}
        AND ${ORDER_GROUP_KEY_SQL} = ANY($${keysParam}::text[])
@@ -279,11 +279,11 @@ export async function getDashboardStats(shop: string) {
   today.setHours(0, 0, 0, 0);
 
   const [total, todayCount, pending, ready, missingSurcharge] = await Promise.all([
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != ''", [shop]),
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != '' AND created_at >= $2", [shop, today]),
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != '' AND production_status = 'pending'", [shop]),
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != '' AND production_status IN ('ready', 'shipped')", [shop]),
-    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != '' AND missing_surcharge = TRUE", [shop]),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND (design_token != '' OR source != '')", [shop]),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND (design_token != '' OR source != '') AND created_at >= $2", [shop, today]),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND (design_token != '' OR source != '') AND production_status = 'pending'", [shop]),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND (design_token != '' OR source != '') AND production_status IN ('ready', 'shipped')", [shop]),
+    query<{ count: string }>("SELECT COUNT(*) FROM orders WHERE shop = $1 AND (design_token != '' OR source != '') AND missing_surcharge = TRUE", [shop]),
   ]);
 
   return {
@@ -309,17 +309,17 @@ export async function getProductionAnalytics(shop: string) {
       [shop, thirtyDaysAgo],
     ),
     query<{ count: string }>(
-      `SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != '' AND created_at >= $2`,
+      `SELECT COUNT(*) FROM orders WHERE shop = $1 AND (design_token != '' OR source != '') AND created_at >= $2`,
       [shop, sevenDaysAgo],
     ),
     query<{ count: string }>(
-      `SELECT COUNT(*) FROM orders WHERE shop = $1 AND design_token != ''
+      `SELECT COUNT(*) FROM orders WHERE shop = $1 AND (design_token != '' OR source != '')
        AND production_status IN ('pending', 'preparing') AND created_at < $2`,
       [shop, twoDaysAgo],
     ),
     query<{ day: string; count: string }>(
       `SELECT DATE(created_at AT TIME ZONE 'Europe/Istanbul') AS day, COUNT(*) AS count
-       FROM orders WHERE shop = $1 AND design_token != '' AND created_at >= $2
+       FROM orders WHERE shop = $1 AND (design_token != '' OR source != '') AND created_at >= $2
        GROUP BY day ORDER BY day ASC`,
       [shop, sevenDaysAgo],
     ),
@@ -720,7 +720,7 @@ export async function getTodayOrders(shop: string, statuses?: string[]): Promise
   const params: unknown[] = [shop, today];
   if (statuses && statuses.length > 0) params.push(statuses);
   const result = await query<DbRow>(
-    `${ORDER_SELECT} WHERE o.shop = $1 AND o.design_token != '' AND o.production_status != 'cancelled' AND o.created_at >= $2 ${filter} ORDER BY o.created_at ASC`,
+    `${ORDER_SELECT} WHERE o.shop = $1 AND (o.design_token != '' OR o.source != '') AND o.production_status != 'cancelled' AND o.created_at >= $2 ${filter} ORDER BY o.created_at ASC`,
     params,
   );
   return result.rows.map(rowToOrder);
@@ -734,7 +734,7 @@ export async function getOrdersWithPrintFiles(shop: string, statuses?: string[])
   const result = await query<DbRow>(
     `${ORDER_SELECT}
      WHERE o.shop = $1
-       AND o.design_token != ''
+       AND (o.design_token != '' OR o.source != '')
        AND o.production_status NOT IN ('cancelled', 'shipped')
        AND (d.front_print_url IS NOT NULL AND d.front_print_url != ''
             OR o.production_file_url IS NOT NULL AND o.production_file_url != '')
