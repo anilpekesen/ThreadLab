@@ -986,7 +986,15 @@ function ProductSettingsInner({ onDiscard }: { onDiscard: () => void }) {
       )]
     : [];
 
-  const [selectedColor, setSelectedColor] = useState<string>(uniqueColors[0] ?? "");
+  // Açılışta kayıtlı mockup'ı zaten gösteren renk seçilir. Eskiden her zaman
+  // ilk renk seçiliyordu; ilk renk kayıtlı olandan farklıysa (ör. WooCommerce
+  // varyasyonları "Black" ile başlıyor) aşağıdaki ilk yükleme mockup alanını
+  // değiştiriyor, sayfa hiçbir şey yapılmadan "kaydedilmemiş değişiklik"
+  // gösteriyor ve kaydedilirse varsayılan mockup o renkle değişiyordu.
+  const [selectedColor, setSelectedColor] = useState<string>(() => {
+    const savedFront = printAreas.find((a) => a.side === "front")?.mockupImageUrl ?? "";
+    return uniqueColors.find((c) => savedFront && variantMockups[c]?.front === savedFront) ?? uniqueColors[0] ?? "";
+  });
   function handleColorChange(color: string) {
     setSelectedColor(color);
     const mockup = variantMockups[color];
