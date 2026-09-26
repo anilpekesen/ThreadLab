@@ -267,3 +267,16 @@ body:has(.app-shell) {
   background: #1a1a1a;
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
 }
+
+/* Kenar menüsü markası: ikon + yazı (logo.png dikey; küçük boyda okunmuyordu) */
+.app-sidebar-brand {
+  gap: 10px;
+  color: #111827;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+.app-sidebar-logo .app-sidebar-brand img {
+  height: 34px;
+  width: auto;
+}

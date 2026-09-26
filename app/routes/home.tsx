@@ -508,7 +508,7 @@ function buildHtml(lang: Lang): string {
 <header class="nav">
   <div class="nav-inner">
     <a class="nav-logo" href="/" aria-label="PrintLab">
-      <img src="/logo.png" alt="PrintLab" height="36" />
+      <img src="/logo-full.png" alt="PrintLab" height="40" />
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="#ozellikler">${t.nav.features}</a>
@@ -868,7 +868,7 @@ function buildHtml(lang: Lang): string {
 <footer class="footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <img src="/logo.png" alt="PrintLab" height="36" />
+      <img src="/logo-full.png" alt="PrintLab" height="40" />
       <p>${t.footer.tagline}</p>
     </div>
     <div class="footer-cols">

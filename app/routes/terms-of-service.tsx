@@ -44,7 +44,7 @@ const html = `<!DOCTYPE html>
 </head>
 <body>
   <header>
-    <a href="/" class="logo"><img src="/logo.png" alt="PrintLabApp" height="36" /></a>
+    <a href="/" class="logo"><img src="/logo-full.png" alt="PrintLabApp" height="40" /></a>
     <div style="display:flex;align-items:center;gap:20px">
       <nav>
         <a href="/terms-of-service" style="color:var(--brand);font-weight:600">Terms of Service</a>

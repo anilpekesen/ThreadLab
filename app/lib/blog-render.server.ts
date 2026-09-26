@@ -117,7 +117,7 @@ function layout(input: {
 <body>
   <header class="nav">
     <div class="nav-inner">
-      <a class="logo" href="/home"><img src="/logo.png" alt="PrintLab" /><span>PrintLab</span></a>
+      <a class="logo" href="/home"><img src="/logo-mark.png" alt="" /><span>PrintLab</span></a>
       <nav class="nav-links" aria-label="Primary">
         <a href="/home">${homeLabel}</a>
         <a href="${blogIndexPath(input.lang)}">${blogLabel}</a>

@@ -145,7 +145,10 @@ function AppInner() {
         {standalone && (
           <aside className="app-sidebar app-sidebar--standalone">
             <div className="app-sidebar-logo">
-              <Link to="/app"><img src="/logo.png" alt="PrintLab" /></Link>
+              <Link to="/app" className="app-sidebar-brand">
+                <img src="/logo-mark.png" alt="" />
+                <span>PrintLab</span>
+              </Link>
             </div>
             <nav className="app-nav">
               {navItems.map((item) => (
