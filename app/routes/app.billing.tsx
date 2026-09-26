@@ -312,7 +312,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     paddle: woo
       ? {
           ready: isPaddleReady(),
-          client: paddleClientConfig(),
+          client: paddleClientConfig(paddleSub?.customer_id),
           cancelAt: paddleSub?.scheduled_action === "cancel" ? (paddleSub.scheduled_at?.toISOString?.() ?? String(paddleSub.scheduled_at ?? "")) : null,
           hasSubscription: Boolean(paddleSub),
         }

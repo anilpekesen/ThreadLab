@@ -5,19 +5,20 @@
  */
 type PaddleJs = {
   Environment: { set: (env: string) => void };
-  Initialize: (o: { token: string; eventCallback?: (e: { name?: string }) => void }) => void;
+  Initialize: (o: { token: string; pwCustomer?: { id: string }; eventCallback?: (e: { name?: string }) => void }) => void;
   Checkout: { open: (o: { transactionId: string; settings?: Record<string, unknown> }) => void };
 };
 
 /** Paddle.js'i bir kez yükler ve başlatır; ödeme tamamlanınca `onDone` */
-export function loadPaddle(client: { environment: string; token: string }, onDone: () => void): Promise<PaddleJs> {
+export function loadPaddle(client: { environment: string; token: string; customerId?: string | null }, onDone: () => void): Promise<PaddleJs> {
   const w = window as unknown as { Paddle?: PaddleJs; __plPaddleInit?: boolean; __plPaddleDone?: () => void };
   w.__plPaddleDone = onDone;
   const init = () => {
     const P = w.Paddle!;
     if (!w.__plPaddleInit) {
       if (client.environment === "sandbox") P.Environment.set("sandbox");
-      P.Initialize({ token: client.token, eventCallback: (e) => { if (e.name === "checkout.completed") w.__plPaddleDone?.(); } });
+      // Paddle Retain: kayıtlı mağazanın Paddle müşteri kimliği (ctm_...)
+      P.Initialize({ token: client.token, ...(client.customerId ? { pwCustomer: { id: client.customerId } } : {}), eventCallback: (e) => { if (e.name === "checkout.completed") w.__plPaddleDone?.(); } });
       w.__plPaddleInit = true;
     }
     return P;

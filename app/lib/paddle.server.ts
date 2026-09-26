@@ -63,10 +63,10 @@ export function isPaddleReady(): boolean {
 }
 
 /** Tarayıcıdaki Paddle.js için: yalnız herkese açık istemci token'ı ve ortam */
-export function paddleClientConfig(): { environment: PaddleEnv; token: string } | null {
+export function paddleClientConfig(customerId?: string | null): { environment: PaddleEnv; token: string; customerId: string | null } | null {
   const env = paddleEnv();
   const token = process.env.PADDLE_CLIENT_TOKEN ?? "";
-  return env && token ? { environment: env, token } : null;
+  return env && token ? { environment: env, token, customerId: customerId?.startsWith("ctm_") ? customerId : null } : null;
 }
 
 export function planPriceId(plan: PlanKey): string {
@@ -116,6 +116,42 @@ export async function paddleApi<T = Record<string, unknown>>(
   if (!res.ok) throw new PaddleError(`Paddle ${init.method ?? "GET"} ${path} → ${res.status}`, res.status, text.slice(0, 500));
   const json = text ? JSON.parse(text) : {};
   return (json.data ?? json) as T;
+}
+
+/**
+ * Bildirimlerin geldiği Paddle IP'leri. Liste sabit yazılmaz: Paddle'ın
+ * /ips ucu tek doğru kaynaktır (ortama göre farklı), bir saat önbelleklenir.
+ */
+let ipCache: { env: PaddleEnv; ips: Set<string>; at: number } | null = null;
+
+async function paddleWebhookIps(env: PaddleEnv): Promise<Set<string> | null> {
+  if (ipCache && ipCache.env === env && Date.now() - ipCache.at < 3_600_000) return ipCache.ips;
+  try {
+    const res = await fetch(`${BASE_URLS[env]}/ips`, { signal: AbortSignal.timeout(3_000) });
+    const body = (await res.json()) as { data?: { ipv4_cidrs?: string[] } };
+    const ips = new Set((body.data?.ipv4_cidrs ?? []).map((c) => c.replace(/\/32$/, "")));
+    if (!res.ok || !ips.size) throw new Error(`status ${res.status}`);
+    ipCache = { env, ips, at: Date.now() };
+    return ips;
+  } catch (err) {
+    console.error("[paddle] IP listesi alınamadı:", err);
+    // Eski liste varsa onunla devam; hiç yoksa null (yalnız imzaya güvenilir)
+    return ipCache?.env === env ? ipCache.ips : null;
+  }
+}
+
+/**
+ * Bildirim Paddle'ın IP'sinden mi geldi. IP, nginx'in $remote_addr ile
+ * YAZDIĞI X-Real-IP başlığından okunur (istemci bunu değiştiremez).
+ * Liste hiç alınamadıysa reddetmeyiz: imza doğrulaması asıl korumadır.
+ */
+export async function isPaddleWebhookSource(headers: Headers): Promise<boolean> {
+  const env = paddleEnv();
+  if (!env || process.env.PADDLE_BASE_URL) return true; // testler
+  const ips = await paddleWebhookIps(env);
+  if (!ips) return true;
+  const ip = (headers.get("x-real-ip") ?? "").trim().replace(/^::ffff:/, "");
+  return ips.has(ip);
 }
 
 /**

@@ -897,7 +897,7 @@ function buildHtml(lang: Lang): string {
   </div>
   <div class="footer-base">
     <span>${t.footer.copy}</span>
-    <span>printlabapp.com</span>
+    <a href="mailto:support@printlabapp.com">support@printlabapp.com</a>
   </div>
 </footer>
 

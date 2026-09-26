@@ -19,7 +19,7 @@ import {
 import { authenticate } from "~/lib/authenticate.server";
 import { isWooShop } from "~/lib/platform";
 import { isPaddleReady, packPriceId, paddleClientConfig } from "~/lib/paddle.server";
-import { reconcilePaddleCheckouts, startPaddleCheckout } from "~/models/paddle-billing.server";
+import { getPaddleSubscription, reconcilePaddleCheckouts, startPaddleCheckout } from "~/models/paddle-billing.server";
 import { loadPaddle } from "~/lib/paddle-client";
 import { shopifyGraphQL } from "~/lib/shopify.server";
 import { useTranslation, useDict, pickDict } from "~/i18n";
@@ -74,7 +74,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     usedThisMonth,
     recentPurchases: purchasesRes.rows,
     paddle: woo
-      ? { ready: Boolean(packPriceId("pack100")) && isPaddleReady(), client: paddleClientConfig() }
+      ? { ready: Boolean(packPriceId("pack100")) && isPaddleReady(), client: paddleClientConfig((await getPaddleSubscription(shop).catch(() => null))?.customer_id) }
       : null,
   });
 };
