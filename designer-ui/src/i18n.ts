@@ -181,7 +181,7 @@ export const tr = {
   aiSessionRemaining: 'Bu oturumda',
   aiRemainingSuffix: 'kaldı',
   aiPromptLabel: 'Ne görmek istiyorsun?',
-  aiPromptHelp: 'Kendi dilinde yazabilirsin. Nesneleri, kompozisyonu ve hissi birlikte tarif et: tek parça amblem, merkezde, streetwear, baskı tasarımı gibi.',
+  aiPromptHelp: 'Kendi dilinizde yazabilirsiniz. Nesneleri, kompozisyonu ve hissi birlikte tarif edin: tek parça amblem, merkezde, streetwear, baskı tasarımı gibi.',
   aiSaveToUploads: 'Yüklenenlere Ekle',
   aiSaving: 'Kaydediliyor...',
   aiPreparingPng: 'PNG Hazırlanıyor...',
