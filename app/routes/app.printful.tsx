@@ -15,6 +15,8 @@ import {
 } from "~/models/printful.server";
 import { isWooShop } from "~/lib/platform";
 import { fetchShopifyProductById } from "~/models/product-config.server";
+import { printfulOAuthConfigured } from "~/lib/printful.server";
+import { startPrintfulOAuth } from "~/models/printful.server";
 
 /**
  * Printful bağlantısı ve varyant eşleştirme (bkz. ~/models/printful.server).
@@ -84,6 +86,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     connected: Boolean(conn),
     // Korunan müşteri verisi onayı yalnız Shopify'da gerekiyor
     needsShopifyAccess: !isWooShop(shop),
+    oauthAvailable: printfulOAuthConfigured(),
+    oauthResult: url.searchParams.get("oauth") ?? "",
     storeName: conn?.storeName ?? "",
     autoDraft: conn?.autoDraft ?? true,
     products: [...products.entries()].map(([id, title]) => ({ id, title })),
@@ -104,6 +108,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const L = pickDict(dict, langFromRequest(request, form));
   const intent = String(form.get("intent") ?? "");
 
+  if (intent === "oauth_start") {
+    if (!printfulOAuthConfigured()) return json({ error: L.connectFailed });
+    return json({ redirectUrl: await startPrintfulOAuth(shop) });
+  }
   if (intent === "connect") {
     const token = String(form.get("token") ?? "").trim();
     if (!token) return json({ error: L.connectFailed });
@@ -143,8 +151,16 @@ export default function PrintfulPage() {
   const L = useDict(dict);
   const { lang } = useTranslation();
   const [params, setParams] = useSearchParams();
-  const fetcher = useFetcher<{ ok?: boolean; error?: string; saved?: number }>();
+  const fetcher = useFetcher<{ ok?: boolean; error?: string; saved?: number; redirectUrl?: string }>();
   const [token, setToken] = useState("");
+  const [showToken, setShowToken] = useState(!data.oauthAvailable);
+  // Printful'ın izin ekranı üst pencerede açılır (Shopify'da iframe'den çıkılır)
+  useEffect(() => {
+    const target = fetcher.data?.redirectUrl;
+    if (!target) return;
+    if (window.top && window.top !== window.self) window.top.location.href = target;
+    else window.location.href = target;
+  }, [fetcher.data?.redirectUrl]);
   const [catalogInput, setCatalogInput] = useState(String(data.catalog?.id ?? params.get("c") ?? ""));
   const [mapping, setMapping] = useState<Record<string, number | null>>(data.mapping);
   const defaultTechnique = data.technique || data.catalog?.techniques.find((t) => t.is_default)?.key || data.catalog?.techniques[0]?.key || "dtg";
@@ -161,6 +177,9 @@ export default function PrintfulPage() {
             <BlockStack gap="300">
               <Text as="h2" variant="headingMd">{L.connectTitle}</Text>
               {fetcher.data?.error && <Banner tone="critical"><p>{fetcher.data.error}</p></Banner>}
+              {data.oauthResult && (
+                <Banner tone={data.oauthResult === "connected" ? "success" : "warning"}><p>{L.oauthResult(data.oauthResult)}</p></Banner>
+              )}
               {data.connected ? (
                 <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="center">
@@ -177,11 +196,29 @@ export default function PrintfulPage() {
                 </BlockStack>
               ) : (
                 <BlockStack gap="300">
-                  <Text as="p" tone="subdued">{L.connectHelp}</Text>
-                  <TextField label={L.tokenLabel} value={token} onChange={setToken} type="password" autoComplete="off" />
-                  <InlineStack align="end">
-                    <Button variant="primary" loading={busy} disabled={!token.trim()} onClick={() => submit({ intent: "connect", token })}>{L.connect}</Button>
-                  </InlineStack>
+                  {data.oauthAvailable && (
+                    <BlockStack gap="200">
+                      <Text as="p" tone="subdued">{L.oauthHelp}</Text>
+                      <InlineStack>
+                        <Button variant="primary" loading={busy} onClick={() => submit({ intent: "oauth_start" })}>{L.oauthConnect}</Button>
+                      </InlineStack>
+                      {!showToken && (
+                        <InlineStack>
+                          <Button variant="plain" onClick={() => setShowToken(true)}>{L.oauthOr}</Button>
+                        </InlineStack>
+                      )}
+                    </BlockStack>
+                  )}
+                  {showToken && (
+                    <>
+                      {data.oauthAvailable && <Divider />}
+                      <Text as="p" tone="subdued">{L.connectHelp}</Text>
+                      <TextField label={L.tokenLabel} value={token} onChange={setToken} type="password" autoComplete="off" />
+                      <InlineStack align="end">
+                        <Button variant={data.oauthAvailable ? "secondary" : "primary"} loading={busy} disabled={!token.trim()} onClick={() => submit({ intent: "connect", token })}>{L.connect}</Button>
+                      </InlineStack>
+                    </>
+                  )}
                 </BlockStack>
               )}
             </BlockStack>

@@ -1,10 +1,14 @@
 import sharp from "sharp";
-import { query, runMigrations } from "~/lib/db.server";
+import { randomBytes } from "node:crypto";
+import { query, runMigrations, withAdvisoryLock } from "~/lib/db.server";
 import { shopifyGraphQL } from "~/lib/shopify.server";
 import { getValidAccessToken } from "~/lib/session.server";
 import {
   decryptSecret, encryptSecret, getCatalogProduct, listCatalogVariants, listStores, pf,
   PrintfulError, verifyPrintfulSignature, type PfProduct, type PfVariant,
+  exchangePrintfulCode,
+  printfulAuthorizeUrl,
+  refreshPrintfulTokens,
 } from "~/lib/printful.server";
 import { publicAppUrl } from "~/lib/app-url.server";
 import { isWooShop } from "~/lib/platform";
@@ -43,13 +47,44 @@ export interface PodConnection {
   autoDraft: boolean;
 }
 
+type ConnRow = {
+  token_enc: string; store_id: string | null; store_name: string; webhook_secret_enc: string; auto_draft: boolean;
+  auth_type: string; refresh_token_enc: string; token_expires_at: Date | null;
+};
+
+const CONN_SQL = `SELECT token_enc, store_id, store_name, webhook_secret_enc, auto_draft, auth_type, refresh_token_enc, token_expires_at
+  FROM pod_connections WHERE shop = $1 AND provider = 'printful'`;
+
+/**
+ * Bağlantı ve kullanılabilir erişim anahtarı. OAuth bağlantısında anahtarın
+ * süresi 5 dakikadan az kaldıysa yenilenir. Printful her yenilemede yenileme
+ * anahtarını da değiştirdiği için yenileme veritabanı kilidi altında yapılır:
+ * iki worker aynı anda yenilerse biri geçersiz anahtarla kalırdı.
+ */
 export async function getPrintfulConnection(shop: string): Promise<PodConnection | null> {
   await ensureMigrations();
-  const r = (await query<{ token_enc: string; store_id: string | null; store_name: string; webhook_secret_enc: string; auto_draft: boolean }>(
-    "SELECT token_enc, store_id, store_name, webhook_secret_enc, auto_draft FROM pod_connections WHERE shop = $1 AND provider = 'printful'",
-    [shop],
-  )).rows[0];
+  let r = (await query<ConnRow>(CONN_SQL, [shop])).rows[0];
   if (!r) return null;
+  const expiring = (row: ConnRow) => row.auth_type === "oauth" && (!row.token_expires_at || new Date(row.token_expires_at).getTime() - Date.now() < 5 * 60_000);
+  if (expiring(r)) {
+    try {
+      r = await withAdvisoryLock("printful-refresh", shop, async () => {
+        const fresh = (await query<ConnRow>(CONN_SQL, [shop])).rows[0];
+        if (!fresh || !expiring(fresh)) return fresh;
+        const t = await refreshPrintfulTokens(decryptSecret(fresh.refresh_token_enc));
+        await query(
+          "UPDATE pod_connections SET token_enc = $2, refresh_token_enc = $3, token_expires_at = $4, updated_at = now() WHERE shop = $1",
+          [shop, encryptSecret(t.accessToken), encryptSecret(t.refreshToken), t.expiresAt],
+        );
+        return { ...fresh, token_enc: encryptSecret(t.accessToken), refresh_token_enc: encryptSecret(t.refreshToken), token_expires_at: t.expiresAt };
+      });
+    } catch (err) {
+      // Yenileme anahtarı 90 gün kullanılmayınca ölür: mağaza yeniden bağlanmalı
+      console.error(`[printful] ${shop} anahtar yenilenemedi:`, err);
+      return null;
+    }
+    if (!r) return null;
+  }
   try {
     return {
       shop,
@@ -73,7 +108,12 @@ function appUrl(): string {
  * Anahtarı doğrular, mağazayı seçer ve webhook'u kurar. Birden çok Printful
  * mağazası varsa ilki (ya da verilen) kullanılır.
  */
-export async function connectPrintful(shop: string, token: string, storeId?: number): Promise<{ storeName: string; stores: number }> {
+export async function connectPrintful(
+  shop: string,
+  token: string,
+  storeId?: number,
+  oauth?: { refreshToken: string; expiresAt: Date },
+): Promise<{ storeName: string; stores: number }> {
   const stores = await listStores(token);
   if (!stores.length) throw new PrintfulError(400, "no_store");
   const store = stores.find((s) => s.id === storeId) ?? stores[0];
@@ -94,12 +134,42 @@ export async function connectPrintful(shop: string, token: string, storeId?: num
   });
 
   await query(
-    `INSERT INTO pod_connections (shop, provider, token_enc, store_id, store_name, webhook_secret_enc, updated_at)
-     VALUES ($1, 'printful', $2, $3, $4, $5, now())
-     ON CONFLICT (shop) DO UPDATE SET token_enc = $2, store_id = $3, store_name = $4, webhook_secret_enc = $5, updated_at = now()`,
-    [shop, encryptSecret(token), store.id, store.name, encryptSecret(wh.data.secret_key)],
+    `INSERT INTO pod_connections (shop, provider, token_enc, store_id, store_name, webhook_secret_enc, auth_type, refresh_token_enc, token_expires_at, updated_at)
+     VALUES ($1, 'printful', $2, $3, $4, $5, $6, $7, $8, now())
+     ON CONFLICT (shop) DO UPDATE SET token_enc = $2, store_id = $3, store_name = $4, webhook_secret_enc = $5,
+       auth_type = $6, refresh_token_enc = $7, token_expires_at = $8, updated_at = now()`,
+    [shop, encryptSecret(token), store.id, store.name, encryptSecret(wh.data.secret_key),
+      oauth ? "oauth" : "token", oauth ? encryptSecret(oauth.refreshToken) : "", oauth?.expiresAt ?? null],
   );
   return { storeName: store.name, stores: stores.length };
+}
+
+// ── OAuth ile bağlanma ──────────────────────────────────────────────────────
+
+export function printfulRedirectUrl(): string {
+  return `${appUrl()}/auth/printful/callback`;
+}
+
+/** Printful'ın izin ekranının adresi; state mağazayı taşır, 15 dk ve tek kullanımlık */
+export async function startPrintfulOAuth(shop: string): Promise<string> {
+  await ensureMigrations();
+  const state = randomBytes(24).toString("hex");
+  await query("INSERT INTO printful_oauth_states (state, shop) VALUES ($1, $2)", [state, shop]);
+  await query("DELETE FROM printful_oauth_states WHERE created_at < now() - interval '1 day'").catch(() => null);
+  return printfulAuthorizeUrl(state, printfulRedirectUrl());
+}
+
+/** İzin ekranından dönüş: kodu anahtara çevirip bağlantıyı kurar; mağazayı döndürür */
+export async function completePrintfulOAuth(state: string, code: string): Promise<string | null> {
+  await ensureMigrations();
+  const row = (await query<{ shop: string }>(
+    "DELETE FROM printful_oauth_states WHERE state = $1 AND created_at > now() - interval '15 minutes' RETURNING shop",
+    [state],
+  )).rows[0];
+  if (!row) return null;
+  const t = await exchangePrintfulCode(code);
+  await connectPrintful(row.shop, t.accessToken, undefined, { refreshToken: t.refreshToken, expiresAt: t.expiresAt });
+  return row.shop;
 }
 
 export async function disconnectPrintful(shop: string): Promise<void> {

@@ -125,3 +125,63 @@ export function verifyPrintfulSignature(rawBody: string, signatureHex: string, s
   try { given = Buffer.from(signatureHex, "hex"); } catch { return false; }
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
+
+// ── OAuth (Printful "public app") ───────────────────────────────────────────
+//
+// Mağaza sahibi özel anahtar oluşturup yapıştırmak yerine Printful hesabıyla
+// giriş yapıp izin verir. Uygulama developers.printful.com/apps adresinde
+// kayıtlıdır; dönüş adresi orada tanımlı olmalı:
+//   <APP_URL>/auth/printful/callback
+// Erişim anahtarı 1 saat, yenileme anahtarı 90 gün geçerli; her yenilemede
+// ikisi de değişir (bkz. getPrintfulConnection).
+
+const OAUTH = "https://www.printful.com/oauth";
+
+export function printfulOAuthConfigured(): boolean {
+  return Boolean(process.env.PRINTFUL_CLIENT_ID && process.env.PRINTFUL_CLIENT_SECRET);
+}
+
+export function printfulAuthorizeUrl(state: string, redirectUrl: string): string {
+  const qs = new URLSearchParams({ client_id: process.env.PRINTFUL_CLIENT_ID ?? "", state, redirect_url: redirectUrl });
+  return `${OAUTH}/authorize?${qs}`;
+}
+
+export interface PrintfulTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: Date;
+}
+
+async function tokenRequest(fields: Record<string, string>): Promise<PrintfulTokens> {
+  const res = await fetch(`${OAUTH}/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({
+      client_id: process.env.PRINTFUL_CLIENT_ID ?? "",
+      client_secret: process.env.PRINTFUL_CLIENT_SECRET ?? "",
+      ...fields,
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const text = await res.text();
+  let body: { access_token?: string; refresh_token?: string; expires_at?: string | number; error?: string; error_description?: string } = {};
+  try { body = text ? JSON.parse(text) : {}; } catch { /* aşağıda hata */ }
+  if (!res.ok || !body.access_token || !body.refresh_token) {
+    throw new PrintfulError(res.status, "oauth_token", String(body.error_description ?? body.error ?? text.slice(0, 200)));
+  }
+  const exp = Number(body.expires_at);
+  return {
+    accessToken: body.access_token,
+    refreshToken: body.refresh_token,
+    // expires_at saniye cinsinden; gelmezse belgedeki 1 saat
+    expiresAt: new Date(Number.isFinite(exp) && exp > 0 ? exp * 1000 : Date.now() + 3600_000),
+  };
+}
+
+export function exchangePrintfulCode(code: string): Promise<PrintfulTokens> {
+  return tokenRequest({ grant_type: "authorization_code", code });
+}
+
+export function refreshPrintfulTokens(refreshToken: string): Promise<PrintfulTokens> {
+  return tokenRequest({ grant_type: "refresh_token", refresh_token: refreshToken });
+}
