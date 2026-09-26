@@ -128,14 +128,18 @@ function AppInner() {
       i18n={lang === "en" ? enTranslations : trTranslations}
       linkComponent={PolarisLink}
     >
-      {/* App Bridge navigation — Shopify admin sidebar entegrasyonu */}
-      <ui-nav-menu>
-        {navItems.map((item) => (
-          <a key={item.url} href={item.url} rel={item.end ? "home" : undefined}>
-            {item.label}
-          </a>
-        ))}
-      </ui-nav-menu>
+      {/* App Bridge navigation — Shopify admin sidebar entegrasyonu. Shopify
+          dışında bu etiket tanınmıyor ve bağlantıları sayfanın üstünde düz
+          yazı olarak basılıyordu; orada kendi kenar menümüz var. */}
+      {!standalone && (
+        <ui-nav-menu>
+          {navItems.map((item) => (
+            <a key={item.url} href={item.url} rel={item.end ? "home" : undefined}>
+              {item.label}
+            </a>
+          ))}
+        </ui-nav-menu>
+      )}
 
       <div className="app-shell">
         {standalone && (

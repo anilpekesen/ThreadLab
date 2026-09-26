@@ -230,14 +230,25 @@
 .app-sidebar.app-sidebar--standalone {
   display: flex;
   flex-direction: column;
-  width: 224px;
+  width: 232px;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
   background: #fff;
   border-right: 1px solid #e5e7eb;
 }
 
+/* Tarayıcının varsayılan 8 px kenar boşluğu tam ekran kabuğu kaydırıyordu */
+body:has(.app-shell) {
+  margin: 0;
+}
+
 @media (max-width: 960px) {
   .app-sidebar.app-sidebar--standalone {
+    position: static;
+    height: auto;
     display: block;
     width: auto;
     border-right: 0;
