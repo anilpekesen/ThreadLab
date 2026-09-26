@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
 import { garmentWarning, inkVisible, pickForGarment } from './garment';
+import { tx } from '../../../i18n';
 
 /** Sunucunun publicAssets çıktısı (app/lib/generators/starmap/index.server.ts) */
 interface StarmapAssets {
@@ -61,21 +62,19 @@ export default function StarmapModal({ assets: raw, isTurkish, garment, initial,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const t = isTurkish
-    ? { date: 'Tarih', time: 'Saat', city: 'Şehir', search: 'Şehir ara…', noCity: 'Şehir bulunamadı',
+  const t = tx({ date: 'Tarih', time: 'Saat', city: 'Şehir', search: 'Şehir ara…', noCity: 'Şehir bulunamadı',
         title: 'Başlık', subtitle: 'Alt metin', subtitleHint: 'İsimler ya da kısa bir not',
         theme: 'Renk', font: 'Başlık yazı tipi', lines: 'Takımyıldız çizgileri', grid: 'Koordinat ızgarası',
         noDate: 'Lütfen bir tarih seçin', range: 'Tarih şu aralıkta olmalı:', turkey: 'Türkiye', world: 'Dünya',
-        timeHint: 'Yerel saat; yaz saati otomatik hesaplanır.' }
-    : { date: 'Date', time: 'Time', city: 'City', search: 'Search city…', noCity: 'No city found',
+        timeHint: 'Yerel saat; yaz saati otomatik hesaplanır.' }, { date: 'Date', time: 'Time', city: 'City', search: 'Search city…', noCity: 'No city found',
         title: 'Title', subtitle: 'Subtitle', subtitleHint: 'Names or a short note',
         theme: 'Color', font: 'Title font', lines: 'Constellation lines', grid: 'Coordinate grid',
         noDate: 'Please pick a date', range: 'Date must be between', turkey: 'Turkey', world: 'World',
-        timeHint: 'Local time; daylight saving is handled automatically.' };
+        timeHint: 'Local time; daylight saving is handled automatically.' });
 
   const cityLabel = (x: StarmapAssets['cities'][number]) => {
-    const name = isTurkish ? x.name : x.nameEn ?? x.name;
-    const country = isTurkish ? x.country : x.countryEn ?? x.country;
+    const name = tx(x.name, x.nameEn ?? x.name);
+    const country = tx(x.country, x.countryEn ?? x.country);
     return country ? `${name}, ${country}` : name;
   };
   const selectedCity = assets.cities.find((x) => x.id === cityId);
@@ -84,7 +83,7 @@ export default function StarmapModal({ assets: raw, isTurkish, garment, initial,
   const sortedCities = useMemo(() => {
     const collator = new Intl.Collator(isTurkish ? 'tr' : 'en');
     const by = (a: StarmapAssets['cities'][number], b: StarmapAssets['cities'][number]) =>
-      collator.compare(isTurkish ? a.name : a.nameEn ?? a.name, isTurkish ? b.name : b.nameEn ?? b.name);
+      collator.compare(tx(a.name, a.nameEn ?? a.name), tx(b.name, b.nameEn ?? b.name));
     return [...assets.cities.filter((x) => x.turkey).sort(by), ...assets.cities.filter((x) => !x.turkey).sort(by)];
   }, [assets.cities, isTurkish]);
 
@@ -224,7 +223,7 @@ export default function StarmapModal({ assets: raw, isTurkish, garment, initial,
                 <span className="relative inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300" style={{ background: x.swatch.bg }}>
                   <span className="h-1 w-1 rounded-full" style={{ background: x.swatch.ink }} />
                 </span>
-                {isTurkish ? x.label : x.labelEn}
+                {tx(x.label, x.labelEn)}
               </button>
             ))}
           </div>

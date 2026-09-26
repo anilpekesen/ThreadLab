@@ -2,6 +2,7 @@ import { useState } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
 import { garmentWarning, inkVisible, luminance, pickForGarment } from './garment';
+import { tx } from '../../../i18n';
 
 interface Option { id: string; label: string; labelEn?: string }
 
@@ -57,8 +58,7 @@ export default function QrcodeModal({ assets: raw, isTurkish, garment, initial, 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const t = isTurkish
-    ? {
+  const t = tx({
         content: 'Kodun içeriği', url: 'Bağlantı', urlPh: 'ornek.com/dugun-videomuz', text: 'Mesaj', textPh: 'Okutunca görünecek mesaj',
         ssid: 'Ağ adı (SSID)', password: 'Şifre', security: 'Güvenlik', phone: 'Telefon numarası', phonePh: '+90 555 123 45 67',
         email: 'E-posta adresi', caption: 'Yazı', captionPh: 'Beni okut', heart: 'Kalp ekle',
@@ -69,8 +69,7 @@ export default function QrcodeModal({ assets: raw, isTurkish, garment, initial, 
         lowContrast: 'Bu renk tişörtle yeterince zıt değil; kod zor okunabilir. Daha koyu (ya da daha açık) bir renk seçin.',
         check: 'Baskıdan önce önizlemeyi telefonunuzla okutup deneyin.',
         need: 'Kodun içeriğini yazın', wpaShort: 'WPA şifresi en az 8 karakter olmalı',
-      }
-    : {
+      }, {
         content: 'Code content', url: 'Link', urlPh: 'example.com/our-wedding-video', text: 'Message', textPh: 'The message shown when scanned',
         ssid: 'Network name (SSID)', password: 'Password', security: 'Security', phone: 'Phone number', phonePh: '+1 555 123 4567',
         email: 'Email address', caption: 'Caption', captionPh: 'Scan me', heart: 'Add heart',
@@ -81,8 +80,8 @@ export default function QrcodeModal({ assets: raw, isTurkish, garment, initial, 
         lowContrast: "This color doesn't contrast enough with the shirt; the code may be hard to scan. Pick a darker (or lighter) color.",
         check: 'Scan the preview with your phone before ordering.',
         need: 'Enter the code content', wpaShort: 'A WPA password must be at least 8 characters',
-      };
-  const label = (o: Option) => (isTurkish ? o.label : o.labelEn ?? o.label);
+      });
+  const label = (o: Option) => (tx(o.label, o.labelEn ?? o.label));
 
   const hasCaption = layout !== 'plain';
   const ready = content === 'url' ? !!url.trim()
@@ -169,7 +168,7 @@ export default function QrcodeModal({ assets: raw, isTurkish, garment, initial, 
         <div className="flex flex-col gap-1.5">
           <FieldLabel label={t.content} />
           {pills(assets.contentTypes, content, changeContent)}
-          {contentHint && <span className="text-[11px] text-gray-400">{isTurkish ? contentHint.hint : contentHint.hintEn}</span>}
+          {contentHint && <span className="text-[11px] text-gray-400">{tx(contentHint.hint, contentHint.hintEn)}</span>}
         </div>
       )}
 

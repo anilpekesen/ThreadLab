@@ -1,5 +1,6 @@
 import { Plus, RefreshCw } from 'lucide-react';
 import { useDesignerI18n } from '../../i18n';
+import { tx } from '../../i18n';
 
 interface Props {
   value: string;
@@ -32,9 +33,7 @@ export default function TextPanel({ value, onChange, onSubmit, isEditing = false
 
       {!isEditing && (
         <p className="text-center text-xs text-gray-400">
-          {isTurkish
-            ? 'Yazıyı ekledikten sonra kavisli yapmak için ⌒ butonuna bas'
-            : 'After adding text, press ⌒ in the toolbar to curve it'}
+          {tx('Yazıyı ekledikten sonra kavisli yapmak için ⌒ butonuna bas', 'After adding text, press ⌒ in the toolbar to curve it')}
         </p>
       )}
     </div>

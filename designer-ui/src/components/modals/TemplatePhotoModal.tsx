@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { tx } from '../../i18n';
 
 /** Maskeli şablon varlıkları (fotoğraf tasarımın boşluğuna girer) */
 export interface TemplateAssets {
@@ -83,23 +84,21 @@ export default function TemplatePhotoModal({
   const [zoom, setZoom] = useState(100);
   const [angle, setAngle] = useState(0);
 
-  const t = isTurkish
-    ? { title: 'Fotoğrafını yerleştir', zoom: 'Yakınlaştır', rotate: 'Döndür', center: 'Ortala',
+  const t = tx({ title: 'Fotoğrafını yerleştir', zoom: 'Yakınlaştır', rotate: 'Döndür', center: 'Ortala',
         change: 'Fotoğrafı değiştir', cancel: 'Vazgeç', ok: 'Tamam',
         hint: 'Fotoğrafı sürükleyerek kaydır, iki parmakla yakınlaştır.', loading: 'Hazırlanıyor…',
         pickTitle: 'Fotoğrafını seç', pick: 'Fotoğraf Seç',
         pickHint: 'Yüklediğin fotoğraf tasarımın boşluğuna otomatik yerleşir.',
         consent: 'Bu görselin kullanım ve baskı hakkına sahibim ya da gerekli izinleri aldım.',
         consentNote: 'Telif ihlali bildiriminde sipariş durdurulabilir.', terms: 'Koşullar',
-        needConsent: 'Devam etmek için yukarıdaki onayı verin' }
-    : { title: 'Position your photo', zoom: 'Zoom', rotate: 'Rotate', center: 'Center',
+        needConsent: 'Devam etmek için yukarıdaki onayı verin' }, { title: 'Position your photo', zoom: 'Zoom', rotate: 'Rotate', center: 'Center',
         change: 'Change photo', cancel: 'Cancel', ok: 'Done',
         hint: 'Drag to move, pinch to zoom.', loading: 'Preparing…',
         pickTitle: 'Choose your photo', pick: 'Choose Photo',
         pickHint: 'Your photo drops into the design automatically.',
         consent: 'I own or have permission to use and print this image.',
         consentNote: 'Orders may be stopped if a copyright claim is filed.', terms: 'Terms',
-        needConsent: 'Accept the notice above to continue' };
+        needConsent: 'Accept the notice above to continue' });
 
   /** Fotoğrafı deliğe "cover" ile ortalayan başlangıç ölçeği */
   const baseScale = useCallback((photo: HTMLImageElement) => {

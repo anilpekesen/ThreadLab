@@ -4,6 +4,7 @@ import { GOOGLE_FONTS, FILTER_PRESETS } from '@/types';
 import type { FilterPreset } from '@/types';
 import { applyFilterPreset, applyAdjustments } from '@/utils/filters';
 import type { CurvedText, CurvedTextOptions } from '@/utils/curvedText';
+import { tx } from '../../i18n';
 
 const TEXT_TR = {
   selectObject: "Canvas'ta bir nesne seç",
@@ -69,7 +70,7 @@ interface Props {
 
 export default function PropertiesPanel({ selectedObject, onChanged, locale }: Props) {
   const isTurkish = !locale || locale.startsWith('tr');
-  const L = isTurkish ? TEXT_TR : TEXT_EN;
+  const L = tx(TEXT_TR, TEXT_EN);
   const [brightness, setBrightness] = useState(0);
   const [contrast, setContrast] = useState(0);
   const [saturation, setSaturation] = useState(0);
@@ -310,7 +311,7 @@ export default function PropertiesPanel({ selectedObject, onChanged, locale }: P
                   key={f.id}
                   onClick={() => handleFilterPreset(f.id as FilterPreset)}
                   className={`text-xs py-1.5 rounded border transition-colors ${activeFilter === f.id ? 'bg-accent border-accent' : 'bg-zinc-800 border-border hover:bg-zinc-700'}`}
-                >{isTurkish ? f.label : (FILTER_LABELS_EN[f.id] ?? f.label)}</button>
+                >{tx(f.label, (FILTER_LABELS_EN[f.id] ?? f.label))}</button>
               ))}
             </div>
           </Section>

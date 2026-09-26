@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { luminance } from './garment';
+import { tx } from '../../../i18n';
 
 /**
  * Üretici pencerelerinin ortak iskeleti: başlık, form ya da önizleme,
@@ -28,9 +29,7 @@ export default function GeneratorModalShell({
   againLabel?: string;
   children: ReactNode;
 }) {
-  const t = isTurkish
-    ? { make: 'Tasarımı Oluştur', ok: 'Bunu Kullan', cancel: 'Vazgeç', edit: 'Düzenle', busy: 'Hazırlanıyor…' }
-    : { make: 'Create Design', ok: 'Use This', cancel: 'Cancel', edit: 'Edit', busy: 'Preparing…' };
+  const t = tx({ make: 'Tasarımı Oluştur', ok: 'Bunu Kullan', cancel: 'Vazgeç', edit: 'Düzenle', busy: 'Hazırlanıyor…' }, { make: 'Create Design', ok: 'Use This', cancel: 'Cancel', edit: 'Edit', busy: 'Preparing…' });
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-3" role="dialog" aria-modal="true">
       <div className="flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -45,7 +44,7 @@ export default function GeneratorModalShell({
               <img src={preview} alt={previewAlt} className="mx-auto max-h-[52vh] w-auto object-contain" />
               {backdrop && (
                 <p className="mt-2 text-center text-[10px]" style={{ color: luminance(backdrop) < 0.35 ? '#d1d5db' : '#6b7280' }}>
-                  {isTurkish ? 'Tişört renginde önizleme' : 'Preview on the shirt color'}
+                  {tx('Tişört renginde önizleme', 'Preview on the shirt color')}
                 </p>
               )}
             </div>

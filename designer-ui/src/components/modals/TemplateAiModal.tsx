@@ -8,6 +8,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { tx } from '../../i18n';
 
 export interface AiTextField {
   id: string;
@@ -112,8 +113,7 @@ export default function TemplateAiModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [busy, onCancel]);
 
-  const t = isTurkish
-    ? {
+  const t = tx({
         title: 'Yapay zekâ ile tasarımını oluştur',
         subtitle: 'Fotoğrafını seç, hikâyeni anlat ve baskıdan önce sonucunu gör.',
         pick: 'Fotoğraf seç', change: 'Fotoğrafı değiştir',
@@ -132,8 +132,7 @@ export default function TemplateAiModal({
         error: 'Tasarım oluşturulamadı. Lütfen tekrar deneyin.',
         stepPhoto: 'Fotoğraf', stepPersonalize: 'Kişiselleştir', stepConfirm: 'Onayla',
         selectedPhotoAlt: 'Yüklenen fotoğraf önizlemesi', generatedAlt: 'Yapay zekâ ile oluşturulan tasarım',
-      }
-    : {
+      }, {
         title: 'Create your design with AI',
         subtitle: 'Choose a photo, share your story, and see the result before printing.',
         pick: 'Choose photo', change: 'Change photo',
@@ -152,7 +151,7 @@ export default function TemplateAiModal({
         error: 'Could not create the design. Please try again.',
         stepPhoto: 'Photo', stepPersonalize: 'Personalize', stepConfirm: 'Confirm',
         selectedPhotoAlt: 'Uploaded photo preview', generatedAlt: 'AI-generated design',
-      };
+      });
 
   const render = async () => {
     if (!file || !consent || busy) return;
@@ -296,7 +295,7 @@ export default function TemplateAiModal({
                               ? 'border-rose-600 bg-rose-600 text-white'
                               : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50'
                           }`}>
-                          {isTurkish ? style.label : style.labelEn}
+                          {tx(style.label, style.labelEn)}
                         </button>
                       ))}
                     </div>

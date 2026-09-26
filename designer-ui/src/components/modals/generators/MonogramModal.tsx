@@ -2,6 +2,7 @@ import { useState } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
 import { garmentWarning, inkVisible, pickForGarment } from './garment';
+import { tx } from '../../../i18n';
 
 /** Sunucu: app/lib/generators/monogram (publicAssets) */
 interface Option { id: string; label: string; labelEn: string }
@@ -90,15 +91,13 @@ export default function MonogramModal({ assets: rawAssets, isTurkish, garment, i
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const t = isTurkish
-    ? { letters: 'Baş harfler', lettersHint: assets.maxLetters === 1 ? 'Bir harf ya da rakam' : `En fazla ${assets.maxLetters} harf`,
+  const t = tx({ letters: 'Baş harfler', lettersHint: assets.maxLetters === 1 ? 'Bir harf ya da rakam' : `En fazla ${assets.maxLetters} harf`,
         top: 'Üst yazı', topPh: 'Ör: AYŞE & MEHMET', bottom: 'Alt yazı', bottomPh: 'Ör: 12.06.2026 ya da EST. 2020', optional: 'isteğe bağlı',
         layout: 'Düzen', frame: 'Çerçeve', joiner: 'Harflerin arası', font: 'Yazı tipi', color: 'Renk',
-        empty: 'En az bir harf yazın', ringHint: 'Yazılı dairede üst ve alt yazı dairenin kenarına yazılır.' }
-    : { letters: 'Initials', lettersHint: assets.maxLetters === 1 ? 'One letter or number' : `Up to ${assets.maxLetters} letters`,
+        empty: 'En az bir harf yazın', ringHint: 'Yazılı dairede üst ve alt yazı dairenin kenarına yazılır.' }, { letters: 'Initials', lettersHint: assets.maxLetters === 1 ? 'One letter or number' : `Up to ${assets.maxLetters} letters`,
         top: 'Top text', topPh: 'E.g. ANNA & JAMES', bottom: 'Bottom text', bottomPh: 'E.g. 12.06.2026 or EST. 2020', optional: 'optional',
         layout: 'Layout', frame: 'Frame', joiner: 'Between letters', font: 'Font', color: 'Color',
-        empty: 'Type at least one letter', ringHint: 'With the text circle, the top and bottom text run around the ring.' };
+        empty: 'Type at least one letter', ringHint: 'With the text circle, the top and bottom text run around the ring.' });
 
   const showJoiner = layout === 'classic' && Array.from(letters).length === 2 && assets.joiners.length > 1;
   const hasTexts = !!(assets.topText || assets.bottomText);
@@ -144,7 +143,7 @@ export default function MonogramModal({ assets: rawAssets, isTurkish, garment, i
           autoCapitalize="characters"
           autoComplete="off"
           spellCheck={false}
-          placeholder={(isTurkish ? 'AŞM' : 'ABC').slice(0, assets.maxLetters)}
+          placeholder={(tx('AŞM', 'ABC')).slice(0, assets.maxLetters)}
           aria-label={t.letters}
           className="w-full rounded-xl border border-gray-200 px-3 py-3 text-center font-serif text-4xl font-semibold tracking-[0.35em] text-gray-900 outline-none placeholder:text-gray-200 focus:border-gray-400"
         />
@@ -177,7 +176,7 @@ export default function MonogramModal({ assets: rawAssets, isTurkish, garment, i
             {assets.layouts.map((l) => (
               <button key={l.id} type="button" onClick={() => setLayout(l.id)} className={pillClass(layout === l.id)} aria-pressed={layout === l.id}>
                 <LayoutIcon id={l.id} />
-                {isTurkish ? l.label : l.labelEn}
+                {tx(l.label, l.labelEn)}
               </button>
             ))}
           </div>
@@ -190,7 +189,7 @@ export default function MonogramModal({ assets: rawAssets, isTurkish, garment, i
           <div className="flex flex-wrap gap-1.5">
             {assets.joiners.map((j) => (
               <button key={j.id} type="button" onClick={() => setJoiner(j.id)} className={pillClass(joiner === j.id)} aria-pressed={joiner === j.id}>
-                {isTurkish ? j.label : j.labelEn}
+                {tx(j.label, j.labelEn)}
               </button>
             ))}
           </div>
@@ -204,7 +203,7 @@ export default function MonogramModal({ assets: rawAssets, isTurkish, garment, i
             {assets.frames.map((fr) => (
               <button key={fr.id} type="button" onClick={() => setFrame(fr.id)} className={pillClass(frame === fr.id)} aria-pressed={frame === fr.id}>
                 <FrameIcon id={fr.id} />
-                {isTurkish ? fr.label : fr.labelEn}
+                {tx(fr.label, fr.labelEn)}
               </button>
             ))}
           </div>
@@ -232,7 +231,7 @@ export default function MonogramModal({ assets: rawAssets, isTurkish, garment, i
             {assets.colors.map((c) => (
               <button key={c.hex} type="button" onClick={() => setColor(c.hex)} className={pillClass(color === c.hex)} aria-pressed={color === c.hex}>
                 <span className="h-3.5 w-3.5 rounded-full border border-gray-300" style={{ background: c.hex }} />
-                {isTurkish ? c.label : c.labelEn}
+                {tx(c.label, c.labelEn)}
               </button>
             ))}
           </div>

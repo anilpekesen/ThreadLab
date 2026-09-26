@@ -2,6 +2,7 @@ import { useState } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
 import { garmentWarning, inkVisible, pickForGarment } from './garment';
+import { tx } from '../../../i18n';
 
 interface Option { id: string; label: string; labelEn?: string }
 
@@ -50,18 +51,16 @@ export default function BirthflowerModal({ assets: raw, isTurkish, garment, init
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const t = isTurkish
-    ? { people: 'Kişiler', name: 'İsim', month: 'Doğum ayı', pickMonth: 'Ay', add: '+ Kişi ekle', remove: 'Kişiyi çıkar',
+  const t = tx({ people: 'Kişiler', name: 'İsim', month: 'Doğum ayı', pickMonth: 'Ay', add: '+ Kişi ekle', remove: 'Kişiyi çıkar',
         title: 'Başlık (isteğe bağlı)', style: 'Çizim', layout: 'Düzen', font: 'Yazı tipi', ink: 'Renk',
-        singleNote: 'Tek çiçek düzeninde yalnızca ilk kişi çizilir.', needMonth: 'Her kişi için doğum ayını seçin', max: 'En fazla' }
-    : { people: 'People', name: 'Name', month: 'Birth month', pickMonth: 'Month', add: '+ Add person', remove: 'Remove person',
+        singleNote: 'Tek çiçek düzeninde yalnızca ilk kişi çizilir.', needMonth: 'Her kişi için doğum ayını seçin', max: 'En fazla' }, { people: 'People', name: 'Name', month: 'Birth month', pickMonth: 'Month', add: '+ Add person', remove: 'Remove person',
         title: 'Title (optional)', style: 'Style', layout: 'Layout', font: 'Font', ink: 'Color',
-        singleNote: 'The single flower layout draws only the first person.', needMonth: 'Choose a birth month for everyone', max: 'At most' };
+        singleNote: 'The single flower layout draws only the first person.', needMonth: 'Choose a birth month for everyone', max: 'At most' });
 
   const isSingle = layout === 'single';
   const rows = isSingle ? people.slice(0, 1) : people;
   const ready = rows.length > 0 && rows.every((p) => p.month);
-  const label = (o: Option) => (isTurkish ? o.label : o.labelEn ?? o.label);
+  const label = (o: Option) => (tx(o.label, o.labelEn ?? o.label));
 
   const update = (i: number, patch: Partial<PersonRow>) =>
     setPeople((list) => list.map((p, j) => (j === i ? { ...p, ...patch } : p)));
@@ -145,7 +144,7 @@ export default function BirthflowerModal({ assets: raw, isTurkish, garment, init
                   <option value="" disabled>{t.pickMonth}</option>
                   {assets.months.map((mm) => (
                     <option key={mm.month} value={String(mm.month)} className="text-gray-900">
-                      {isTurkish ? mm.label : mm.labelEn}
+                      {tx(mm.label, mm.labelEn)}
                     </option>
                   ))}
                 </select>
@@ -157,7 +156,7 @@ export default function BirthflowerModal({ assets: raw, isTurkish, garment, init
               </div>
               {m && (
                 <span className="pl-1 text-[11px] text-gray-400">
-                  {isTurkish ? `${m.label} çiçeği: ${m.flower}` : `${m.labelEn} flower: ${m.flowerEn}`}
+                  {tx(`${m.label} çiçeği: ${m.flower}`, `${m.labelEn} flower: ${m.flowerEn}`)}
                 </span>
               )}
             </div>

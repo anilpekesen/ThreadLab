@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { tx } from '../../i18n';
 
 export interface ScatterTextField {
   id: string;
@@ -86,8 +87,7 @@ export default function TemplateScatterModal({
   const fields = assets.textFields ?? [];
   const options = assets.customerOptions;
   const hasOptions = Boolean(options && (options.density || options.photoSize || options.shuffle));
-  const t = isTurkish
-    ? { title: 'Tasarımını oluştur', pick: 'Fotoğraf Seç', change: 'Fotoğrafı değiştir',
+  const t = tx({ title: 'Tasarımını oluştur', pick: 'Fotoğraf Seç', change: 'Fotoğrafı değiştir',
         make: 'Tasarımı Oluştur', again: 'Yeniden Oluştur', ok: 'Bunu Kullan', cancel: 'Vazgeç',
         busy: 'Hazırlanıyor… (yaklaşık 5 saniye)',
         hint: 'Tek kişilik net bir fotoğraf yükleyin; sistem yüzü kesip tasarıma dağıtır.',
@@ -101,8 +101,7 @@ export default function TemplateScatterModal({
         shuffleUsed: 'Dizilim hakkınız doldu', decoration: 'Süsleme Görseli',
         decorationPick: 'Süsleme seç', decorationChange: 'Süslemeyi değiştir',
         decorationHint: 'Saydam arka planlı PNG veya WebP yükleyin.',
-        decorationRequired: 'Sabit süsleme bulunamadı; devam etmek için bir süsleme seçin.' }
-    : { title: 'Create your design', pick: 'Choose Photo', change: 'Change photo',
+        decorationRequired: 'Sabit süsleme bulunamadı; devam etmek için bir süsleme seçin.' }, { title: 'Create your design', pick: 'Choose Photo', change: 'Change photo',
         make: 'Create Design', again: 'Create Again', ok: 'Use This', cancel: 'Cancel',
         busy: 'Preparing… (about 5 seconds)',
         hint: 'Upload a clear photo of one person; we cut out the face and scatter it.',
@@ -116,7 +115,7 @@ export default function TemplateScatterModal({
         shuffleUsed: 'No layout tries left', decoration: 'Decoration Image',
         decorationPick: 'Choose decoration', decorationChange: 'Change decoration',
         decorationHint: 'Upload a PNG or WebP with a transparent background.',
-        decorationRequired: 'The default decoration is unavailable; choose one to continue.' };
+        decorationRequired: 'The default decoration is unavailable; choose one to continue.' });
 
   const needsDecoration = Boolean(options?.decorationUpload && !assets.decorationUrl);
 
@@ -197,7 +196,7 @@ export default function TemplateScatterModal({
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-xs font-semibold text-gray-600">{t.decoration}</span>
                     {!needsDecoration && (
-                      <span className="text-[10px] text-gray-400">{isTurkish ? 'İsteğe bağlı' : 'Optional'}</span>
+                      <span className="text-[10px] text-gray-400">{tx('İsteğe bağlı', 'Optional')}</span>
                     )}
                   </div>
                   <p className="text-[11px] text-gray-500">

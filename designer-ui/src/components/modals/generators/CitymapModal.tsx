@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
 import { garmentWarning, inkVisible, pickForGarment } from './garment';
+import { tx } from '../../../i18n';
 
 /** Sunucu: app/lib/generators/citymap (publicAssets) */
 interface CitymapAssets {
@@ -60,17 +61,15 @@ export default function CitymapModal({ assets: raw, isTurkish, garment, initial,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const t = isTurkish
-    ? { city: 'Şehir', search: 'Şehir ya da ilçe ara…', none: 'Sonuç yok', customToggle: 'Listede yok mu? Konumu kendin gir',
+  const t = tx({ city: 'Şehir', search: 'Şehir ya da ilçe ara…', none: 'Sonuç yok', customToggle: 'Listede yok mu? Konumu kendin gir',
         listToggle: 'Listeden seç', lat: 'Enlem', lon: 'Boylam', coordHint: 'Google Haritalar\'da noktaya uzun basınca görünen iki sayı (ör. 41.0082, 28.9784).',
         title: 'Başlık', subtitle: 'Alt satır', subtitlePh: 'Ör. Tanıştığımız şehir · 14.02.2021', style: 'Stil', shape: 'Şekil',
         radius: 'Yakınlık', font: 'Yazı tipi', wait: 'Harita hazırlanıyor, bu 10–20 saniye sürebilir.',
-        badCoord: 'Enlem -80 ile 84, boylam -180 ile 180 arasında olmalı.', turkey: 'Türkiye', world: 'Dünya' }
-    : { city: 'City', search: 'Search a city or district…', none: 'No results', customToggle: 'Not listed? Enter the location yourself',
+        badCoord: 'Enlem -80 ile 84, boylam -180 ile 180 arasında olmalı.', turkey: 'Türkiye', world: 'Dünya' }, { city: 'City', search: 'Search a city or district…', none: 'No results', customToggle: 'Not listed? Enter the location yourself',
         listToggle: 'Pick from list', lat: 'Latitude', lon: 'Longitude', coordHint: 'The two numbers Google Maps shows when you long-press a spot (e.g. 41.0082, 28.9784).',
         title: 'Title', subtitle: 'Subtitle', subtitlePh: 'e.g. Where we met · 14.02.2021', style: 'Style', shape: 'Shape',
         radius: 'Zoom', font: 'Font', wait: 'Preparing your map, this can take 10–20 seconds.',
-        badCoord: 'Latitude must be between -80 and 84, longitude between -180 and 180.', turkey: 'Turkey', world: 'World' };
+        badCoord: 'Latitude must be between -80 and 84, longitude between -180 and 180.', turkey: 'Turkey', world: 'World' });
 
   const selected = cities.find((c) => c.id === city);
   const results = useMemo(() => {
@@ -80,7 +79,7 @@ export default function CitymapModal({ assets: raw, isTurkish, garment, initial,
   }, [cities, query]);
 
   // Başlık boş bırakılırsa sunucu şehir adını basar; yer tutucu bunu gösterir
-  const titlePh = custom ? '' : (isTurkish ? selected?.name : selected?.nameEn ?? selected?.name) ?? '';
+  const titlePh = custom ? '' : (tx(selected?.name, selected?.nameEn ?? selected?.name)) ?? '';
   const latN = Number(lat.replace(',', '.'));
   const lonN = Number(lon.replace(',', '.'));
   const coordOk = lat.trim() !== '' && lon.trim() !== '' && Number.isFinite(latN) && Number.isFinite(lonN)
@@ -108,7 +107,7 @@ export default function CitymapModal({ assets: raw, isTurkish, garment, initial,
   const cityButton = (c: CitymapAssets['cities'][number]) => (
     <button key={c.id} type="button" onClick={() => { setCity(c.id); setQuery(''); }}
       className={`block w-full px-3 py-1.5 text-left text-sm ${c.id === city ? 'bg-gray-900 font-semibold text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-      {isTurkish ? c.label : c.labelEn}
+      {tx(c.label, c.labelEn)}
     </button>
   );
 
@@ -133,7 +132,7 @@ export default function CitymapModal({ assets: raw, isTurkish, garment, initial,
 
       {!custom ? (
         <div className="flex flex-col gap-1.5">
-          <FieldLabel label={t.city} right={selected ? (isTurkish ? selected.label : selected.labelEn) : undefined} />
+          <FieldLabel label={t.city} right={selected ? (tx(selected.label, selected.labelEn)) : undefined} />
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t.search} className={inputClass} />
           <div className="max-h-40 overflow-y-auto rounded-xl border border-gray-200">
             {results.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">{t.none}</p>}
@@ -193,7 +192,7 @@ export default function CitymapModal({ assets: raw, isTurkish, garment, initial,
                   style={{ background: s.bg || (s.ink === '#ffffff' ? '#374151' : '#ffffff') }}>
                   <span className="h-[3px] w-2.5 rounded" style={{ background: s.ink }} />
                 </span>
-                {isTurkish ? s.label : s.labelEn}
+                {tx(s.label, s.labelEn)}
               </button>
             ))}
           </div>
@@ -210,7 +209,7 @@ export default function CitymapModal({ assets: raw, isTurkish, garment, initial,
             {assets.shapes.map((s) => (
               <button key={s.id} type="button" onClick={() => setShape(s.id)} className={pillClass(shape === s.id)} aria-pressed={shape === s.id}>
                 <svg width="14" height="14" viewBox="0 0 100 100" aria-hidden="true"><path d={s.path} fill="currentColor" /></svg>
-                {isTurkish ? s.label : s.labelEn}
+                {tx(s.label, s.labelEn)}
               </button>
             ))}
           </div>

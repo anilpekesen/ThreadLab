@@ -58,6 +58,7 @@ import { GENERATOR_UI } from '@/components/modals/generators/meta';
 import { garmentFromHex } from '@/components/modals/generators/garment';
 import type { GeneratorDraft, GeneratorChoices } from '@/components/modals/generators/types';
 import { evaluateRules, warnings, blockers, type RuleResult } from '@/utils/conditionalLogic';
+import { tx } from './i18n';
 
 const ImagePanel = lazy(() => import('@/components/panels/ImagePanel'));
 const TemplatePhotoModal = lazy(() => import('@/components/modals/TemplatePhotoModal'));
@@ -353,7 +354,7 @@ function applyPercentageDiscount(value: number, percentage: number): number {
 function PanelLoading({ isTurkish }: { isTurkish: boolean }) {
   return (
     <div className="flex min-h-[180px] items-center justify-center text-sm font-medium text-gray-400">
-      {isTurkish ? 'Yükleniyor...' : 'Loading...'}
+      {tx('Yükleniyor...', 'Loading...')}
     </div>
   );
 }
@@ -1982,7 +1983,7 @@ export default function App() {
       quality?: { headSourcePx: number; placedPx: number; upscale: number };
     };
     if (!res.ok || !data.url) {
-      throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
+      throw new Error(data.error || (tx('Tasarım oluşturulamadı', 'Could not build the design')));
     }
     void uploadTemplateOriginal(file);   // ham fotoğraf baskı ekibi için saklanır
     return { url: data.url, quality: data.quality };
@@ -2012,7 +2013,7 @@ export default function App() {
       quality?: { headSourcePx: number; placedPx: number; upscale: number };
     };
     if (!res.ok || !data.url) {
-      throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
+      throw new Error(data.error || (tx('Tasarım oluşturulamadı', 'Could not build the design')));
     }
     void uploadTemplateOriginal(file);
     return { url: data.url, quality: data.quality };
@@ -2039,7 +2040,7 @@ export default function App() {
     const res = await fetch(`/apps/tshirt-designer/template-compose?locale=${isTurkish ? 'tr' : 'en'}`, { method: 'POST', body: fd });
     const data = await res.json() as { url?: string; error?: string };
     if (!res.ok || !data.url) {
-      throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
+      throw new Error(data.error || (tx('Tasarım oluşturulamadı', 'Could not build the design')));
     }
     if (photo) void uploadTemplateOriginal(photo);   // ham fotoğraf baskı ekibi için saklanır
     return { url: data.url };
@@ -2066,7 +2067,7 @@ export default function App() {
     const res = await fetch(`/apps/tshirt-designer/template-compose?locale=${isTurkish ? 'tr' : 'en'}`, { method: 'POST', body: fd });
     const data = await res.json() as { url?: string; error?: string };
     if (!res.ok || !data.url) {
-      throw new Error(data.error || (isTurkish ? 'Tasarım oluşturulamadı' : 'Could not build the design'));
+      throw new Error(data.error || (tx('Tasarım oluşturulamadı', 'Could not build the design')));
     }
     if (photo) void uploadTemplateOriginal(photo);
     return { url: data.url };
@@ -2096,7 +2097,7 @@ export default function App() {
       const res = await fetch(`/apps/tshirt-designer/template-assets?${params}`);
       const data = await res.json();
       if (!res.ok || (!data?.maskDataUrl && data?.layoutMode !== 'scatter' && data?.layoutMode !== 'ai' && data?.layoutMode !== 'wordart' && data?.layoutMode !== 'generator')) {
-        setTemplateError(data?.error || (isTurkish ? 'Şablon yüklenemedi' : 'Could not load the template'));
+        setTemplateError(data?.error || (tx('Şablon yüklenemedi', 'Could not load the template')));
         setTemplateModalOpen(false);
         return;
       }
@@ -2350,7 +2351,7 @@ export default function App() {
 
   const handleRemoveBg = async (dataUrl: string): Promise<string> => {
     if (!personalization.removeBgAvailable) {
-      showToast(isTurkish ? 'WaveSpeed API anahtarı ayarlanmamış' : 'WaveSpeed API key is not configured', 'error');
+      showToast(tx('WaveSpeed API anahtarı ayarlanmamış', 'WaveSpeed API key is not configured'), 'error');
       return '';
     }
     setIsBgRemoving(true);
@@ -2387,9 +2388,7 @@ export default function App() {
       }
       const remaining = parseInt(res.headers.get('X-BG-Quota-Remaining') ?? '', 10);
       if (!isNaN(remaining) && remaining <= 2 && remaining > 0) {
-        showToast(isTurkish
-          ? `⚠️ ${remaining} arka plan kaldırma hakkınız kaldı — bir sonraki siparişinizde yenilenir`
-          : `⚠️ ${remaining} background removal use left — resets after your next order`, 'warning');
+        showToast(tx(`⚠️ ${remaining} arka plan kaldırma hakkınız kaldı — bir sonraki siparişinizde yenilenir`, `⚠️ ${remaining} background removal use left — resets after your next order`), 'warning');
       }
       const blob2 = await res.blob();
       trackDesignActivity('background_removed');
@@ -2437,9 +2436,7 @@ export default function App() {
     // önünü kişiselleştirip arkayı boş bırakmak geçerli bir sipariş.
     if ((personalization.templateSides ?? []).length > 0 && templateFilledSides.length === 0) {
       showToast(
-        isTurkish
-          ? 'Önce fotoğrafınızı ekleyin — tasarımın içi boş görünüyor.'
-          : 'Please add your photo first — the design is still empty.',
+        tx('Önce fotoğrafınızı ekleyin — tasarımın içi boş görünüyor.', 'Please add your photo first — the design is still empty.'),
         'error',
       );
       void openTemplateModal();
@@ -2466,9 +2463,7 @@ export default function App() {
       if (selectedColor && !colorVariant) {
         // Seçili renkte varyant yoksa başka renge sessizce DÜŞME — müşteri
         // gördüğünden farklı renkte ürün sipariş etmesin
-        showToast(isTurkish
-          ? `"${selectedColor}" renginde ürün bulunamadı — lütfen başka bir renk seçin`
-          : `No product found in "${selectedColor}" — please pick another color`, 'error');
+        showToast(tx(`"${selectedColor}" renginde ürün bulunamadı — lütfen başka bir renk seçin`, `No product found in "${selectedColor}" — please pick another color`), 'error');
         return;
       }
       const variantId = String(colorVariant?.id ?? config?.singleVariantId ?? config?.doubleVariantId ?? '');
@@ -2490,9 +2485,7 @@ export default function App() {
         cartItems.push({ variantId: String(variant.id), quantity: sizeQuantities[size!] ?? 0, size: size ?? undefined });
       }
       if (missingSizes.length > 0) {
-        showToast(isTurkish
-          ? `${selectedColor ? `"${selectedColor}" renginde` : 'Bu üründe'} şu bedenler mevcut değil: ${missingSizes.join(', ')}`
-          : `These sizes are not available${selectedColor ? ` in "${selectedColor}"` : ''}: ${missingSizes.join(', ')}`, 'error');
+        showToast(tx(`${selectedColor ? `"${selectedColor}" renginde` : 'Bu üründe'} şu bedenler mevcut değil: ${missingSizes.join(', ')}`, `These sizes are not available${selectedColor ? ` in "${selectedColor}"` : ''}: ${missingSizes.join(', ')}`), 'error');
         return;
       }
       if (cartItems.length === 0) {
@@ -2537,9 +2530,7 @@ export default function App() {
         // Yanlış arka planla önizleme üretmektense akışı durdur (eskiden
         // previewIssue bayrağıyla devam ediliyordu ve hatalı görsel oluşuyordu)
         setIsCartLoading(false);
-        showToast(isTurkish
-          ? 'Ürün görseli yüklenemedi. Önizlemenin hatalı oluşmaması için sepete ekleme durduruldu — lütfen tekrar deneyin.'
-          : 'The product mockup could not be loaded. Add to cart was stopped to prevent a broken preview — please try again.', 'error');
+        showToast(tx('Ürün görseli yüklenemedi. Önizlemenin hatalı oluşmaması için sepete ekleme durduruldu — lütfen tekrar deneyin.', 'The product mockup could not be loaded. Add to cart was stopped to prevent a broken preview — please try again.'), 'error');
         return;
       }
 
@@ -2573,9 +2564,7 @@ export default function App() {
       // artık akışı burada durduruyoruz.
       if ((frontHas && !frontPrintDataUrl) || (backHas && !backPrintDataUrl)) {
         setIsCartLoading(false);
-        showToast(isTurkish
-          ? 'Baskı dosyası oluşturulamadı. Sepete ekleme durduruldu — lütfen tekrar deneyin veya tasarımı biraz küçültün.'
-          : 'The print file could not be generated. Add to cart was stopped — please try again or make the design slightly smaller.', 'error');
+        showToast(tx('Baskı dosyası oluşturulamadı. Sepete ekleme durduruldu — lütfen tekrar deneyin veya tasarımı biraz küçültün.', 'The print file could not be generated. Add to cart was stopped — please try again or make the design slightly smaller.'), 'error');
         return;
       }
       const designSourceCache = new Map<string, Promise<string>>();
@@ -2712,7 +2701,7 @@ export default function App() {
         '_pl_product_unit_price': formatMoney(pricingSummary.baseUnitPrice),
         '_pl_product_subtotal': formatMoney(pricingSummary.baseSubtotal),
         '_pl_total_price': formatMoney(pricingSummary.total),
-        [`_${t.propFrontDesign}`]: frontHas ? (isTurkish ? 'Var' : 'Yes') : (isTurkish ? 'Yok' : 'No'),
+        [`_${t.propFrontDesign}`]: frontHas ? (tx('Var', 'Yes')) : (tx('Yok', 'No')),
         '_design_token': token,
         [t.propTotalQuantity]: String(totalQuantity),
         [t.propProductUnitPrice]: formatMoney(pricingSummary.baseUnitPrice),
@@ -2727,7 +2716,7 @@ export default function App() {
       if (selectedColor) properties['_pl_color'] = selectedColor;
       if (resolvedSide !== 'front') {
         properties['_pl_back_design'] = backHas ? 'yes' : 'no';
-        properties[`_${t.propBackDesign}`] = backHas ? (isTurkish ? 'Var' : 'Yes') : (isTurkish ? 'Yok' : 'No');
+        properties[`_${t.propBackDesign}`] = backHas ? (tx('Var', 'Yes')) : (tx('Yok', 'No'));
       }
       if (pricingSummary.front.hasContent) {
         properties['_pl_front_size'] = formatMetricSize(pricingSummary.front.metrics);
@@ -2892,7 +2881,7 @@ export default function App() {
       // bulanıklaştırır. Her zaman yüklenen tam çözünürlüklü kaynağı işle.
       const sourceImage = selectedImage as SourceBackedImage;
       if (sourceImage.backgroundRemoved) {
-        showToast(isTurkish ? 'Bu görselin arka planı zaten kaldırılmış' : 'This image already has its background removed', 'warning');
+        showToast(tx('Bu görselin arka planı zaten kaldırılmış', 'This image already has its background removed'), 'warning');
         return;
       }
       const sourceUrl = sourceImage.sourceUrl || selectedImage.getSrc();
@@ -2936,13 +2925,11 @@ export default function App() {
       const res = await fetch(`/apps/tshirt-designer/face-cutout?${qs.toString()}`, { method: 'POST', body: form });
       if (!res.ok) {
         const error = await res.json().catch(() => null) as { error?: string } | null;
-        showToast(error?.error || (isTurkish ? 'Yüz kesilemedi, lütfen tekrar deneyin' : 'Could not cut out the face, please try again'), 'error');
+        showToast(error?.error || (tx('Yüz kesilemedi, lütfen tekrar deneyin', 'Could not cut out the face, please try again')), 'error');
         return;
       }
       if (res.headers.get('X-Face-Detected') === '0') {
-        showToast(isTurkish
-          ? 'Yüz net bulunamadı; kesimi kontrol edin, gerekirse geri alın'
-          : 'The face was not clearly found; check the cutout and undo if needed', 'warning');
+        showToast(tx('Yüz net bulunamadı; kesimi kontrol edin, gerekirse geri alın', 'The face was not clearly found; check the cutout and undo if needed'), 'warning');
       }
       const out = await res.blob();
       const bitmap = await createImageBitmap(out);
@@ -2956,12 +2943,12 @@ export default function App() {
       });
       if (mode === 'head') sourceImage.backgroundRemoved = true;
       addUploadedImage({
-        id: generateId(), dataUrl: url, serverUrl: url, name: isTurkish ? 'Yüz' : 'Face', addedAt: Date.now(),
+        id: generateId(), dataUrl: url, serverUrl: url, name: tx('Yüz', 'Face'), addedAt: Date.now(),
         backgroundRemoved: mode === 'head',
       });
       await applyUrlToImageObject(selectedImage, url, target);
     } catch {
-      showToast(isTurkish ? 'Yüz kesilemedi, lütfen tekrar deneyin' : 'Could not cut out the face, please try again', 'error');
+      showToast(tx('Yüz kesilemedi, lütfen tekrar deneyin', 'Could not cut out the face, please try again'), 'error');
     } finally {
       setIsFaceCutting(false);
     }
@@ -3340,9 +3327,7 @@ export default function App() {
       const firstAvailable = colorOptions.find((c) => isColorAvailable(c ?? '')) ?? colorOptions[0];
       // Müşterinin seçtiği renk sessizce değişmesin — haber ver
       if (selectedColor && firstAvailable && firstAvailable !== selectedColor) {
-        showToast(isTurkish
-          ? `"${selectedColor}" rengi artık mevcut değil — "${firstAvailable}" seçildi`
-          : `"${selectedColor}" is no longer available — switched to "${firstAvailable}"`, 'warning');
+        showToast(tx(`"${selectedColor}" rengi artık mevcut değil — "${firstAvailable}" seçildi`, `"${selectedColor}" is no longer available — switched to "${firstAvailable}"`), 'warning');
       }
       setSelectedColor(firstAvailable ?? '');
     }
@@ -3731,26 +3716,24 @@ export default function App() {
               )}>
                 {printUploads.failed > 0 ? (
                   <>
-                    <p className="font-semibold">{isTurkish ? 'Baskı dosyanız yüklenemedi.' : 'Your print file could not be uploaded.'}</p>
-                    <p className="mt-0.5 text-xs leading-5">{isTurkish
-                      ? 'Bağlantınızı kontrol edip tekrar deneyin. Devam ederseniz siparişiniz baskı dosyası olmadan gelebilir.'
-                      : 'Check your connection and try again. If you continue, your order may arrive without a print file.'}</p>
+                    <p className="font-semibold">{tx('Baskı dosyanız yüklenemedi.', 'Your print file could not be uploaded.')}</p>
+                    <p className="mt-0.5 text-xs leading-5">{tx('Bağlantınızı kontrol edip tekrar deneyin. Devam ederseniz siparişiniz baskı dosyası olmadan gelebilir.', 'Check your connection and try again. If you continue, your order may arrive without a print file.')}</p>
                     <div className="mt-2 flex gap-2">
                       <button type="button" onClick={() => printUploadQueue.retryFailed()} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700">
-                        {isTurkish ? 'Tekrar dene' : 'Try again'}
+                        {tx('Tekrar dene', 'Try again')}
                       </button>
                       <button type="button" onClick={() => { const target = pendingNavTarget; setPendingNavTarget(null); sendParentNavigation(target); }} className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">
-                        {isTurkish ? 'Yine de devam et' : 'Continue anyway'}
+                        {tx('Yine de devam et', 'Continue anyway')}
                       </button>
                     </div>
                   </>
                 ) : (
                   <>
-                    <p className="font-semibold">{isTurkish ? 'Tasarımınız kaydediliyor…' : 'Saving your design…'} %{Math.round(printUploads.progress * 100)}</p>
+                    <p className="font-semibold">{tx('Tasarımınız kaydediliyor…', 'Saving your design…')} %{Math.round(printUploads.progress * 100)}</p>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-blue-100">
                       <div className="h-full rounded-full bg-blue-600 transition-[width] duration-300" style={{ width: `${Math.round(printUploads.progress * 100)}%` }} />
                     </div>
-                    <p className="mt-1.5 text-xs leading-5">{isTurkish ? 'Bitince otomatik yönlendirileceksiniz, sayfayı kapatmayın.' : 'You will be redirected automatically — please keep this page open.'}</p>
+                    <p className="mt-1.5 text-xs leading-5">{tx('Bitince otomatik yönlendirileceksiniz, sayfayı kapatmayın.', 'You will be redirected automatically — please keep this page open.')}</p>
                   </>
                 )}
               </div>
@@ -3791,13 +3774,13 @@ export default function App() {
         )}>
           {printUploads.failed > 0 ? (
             <>
-              <span>{isTurkish ? 'Baskı dosyası yüklenemedi' : 'Print file upload failed'}</span>
+              <span>{tx('Baskı dosyası yüklenemedi', 'Print file upload failed')}</span>
               <button type="button" onClick={() => printUploadQueue.retryFailed()} className="rounded-full bg-white px-2 py-0.5 text-red-700">
-                {isTurkish ? 'Tekrar dene' : 'Retry'}
+                {tx('Tekrar dene', 'Retry')}
               </button>
             </>
           ) : (
-            <span>{isTurkish ? 'Baskı dosyası yükleniyor' : 'Uploading print file'} %{Math.round(printUploads.progress * 100)}</span>
+            <span>{tx('Baskı dosyası yükleniyor', 'Uploading print file')} %{Math.round(printUploads.progress * 100)}</span>
           )}
         </div>,
         document.body,
@@ -4695,7 +4678,7 @@ export default function App() {
                         onClick={removeBgFromSelectedImage}
                         disabled={isActiveSelection(selectedObj) || !isImageSelection(selectedObj) || isBgRemoving || Boolean((selectedObj as SourceBackedImage | null)?.backgroundRemoved)}
                         title={(selectedObj as SourceBackedImage | null)?.backgroundRemoved
-                          ? (isTurkish ? 'Arka plan zaten kaldırılmış' : 'Background already removed')
+                          ? (tx('Arka plan zaten kaldırılmış', 'Background already removed'))
                           : t.imageRemoveBg}
                         className={cn(
                           'group flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors',
@@ -4705,7 +4688,7 @@ export default function App() {
                         <Sparkles className="h-4 w-4 text-gray-500 group-hover:text-blue-500" />
                         <span className="text-[9px] font-bold text-gray-500 group-hover:text-blue-500">
                           {(selectedObj as SourceBackedImage | null)?.backgroundRemoved
-                            ? (isTurkish ? 'BG Silindi' : 'BG Removed')
+                            ? (tx('BG Silindi', 'BG Removed'))
                             : t.toolbarBgRemove}
                         </span>
                       </button>
@@ -4731,7 +4714,7 @@ export default function App() {
                             className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 py-2 text-[11px] font-semibold text-gray-600 transition-colors hover:bg-gray-100"
                           >
                             <RefreshCw className="h-4 w-4" />
-                            {isTurkish ? 'Orijinali göster' : 'Show original'}
+                            {tx('Orijinali göster', 'Show original')}
                           </button>
                         )}
                         <button
@@ -4753,7 +4736,7 @@ export default function App() {
                             )}
                           >
                             <ScanFace className="h-4 w-4" />
-                            {isFaceCutting ? (isTurkish ? 'Kesiliyor…' : 'Cutting…') : (isTurkish ? 'Yüzü kes' : 'Cut out face')}
+                            {isFaceCutting ? (tx('Kesiliyor…', 'Cutting…')) : (tx('Yüzü kes', 'Cut out face'))}
                           </button>
                         )}
                       </div>
@@ -4762,13 +4745,13 @@ export default function App() {
                           {([
                             {
                               mode: 'head' as const,
-                              title: isTurkish ? 'Sadece kafa' : 'Head only',
-                              hint: isTurkish ? 'Arka plan silinir, saç dahil kafa kalır' : 'Background removed, head and hair kept',
+                              title: tx('Sadece kafa', 'Head only'),
+                              hint: tx('Arka plan silinir, saç dahil kafa kalır', 'Background removed, head and hair kept'),
                             },
                             {
                               mode: 'oval' as const,
-                              title: isTurkish ? 'Oval portre' : 'Oval portrait',
-                              hint: isTurkish ? 'Yüz, yumuşak kenarlı ovalde' : 'The face in a soft-edged oval',
+                              title: tx('Oval portre', 'Oval portrait'),
+                              hint: tx('Yüz, yumuşak kenarlı ovalde', 'The face in a soft-edged oval'),
                             },
                           ]).map((o) => (
                             <button
@@ -4884,13 +4867,13 @@ export default function App() {
 
               {templateBusy
 
-                ? (isTurkish ? 'Hazırlanıyor…' : 'Preparing…')
+                ? (tx('Hazırlanıyor…', 'Preparing…'))
 
                 : personalization.templateDesign?.generatorKind && GENERATOR_UI[personalization.templateDesign.generatorKind]
-                  ? (isTurkish ? GENERATOR_UI[personalization.templateDesign.generatorKind].ctaTr : GENERATOR_UI[personalization.templateDesign.generatorKind].ctaEn)
+                  ? (tx(GENERATOR_UI[personalization.templateDesign.generatorKind].ctaTr, GENERATOR_UI[personalization.templateDesign.generatorKind].ctaEn))
                 : personalization.templateDesign?.layoutMode === 'wordart'
-                  ? (isTurkish ? 'Kelimelerini yaz' : 'Add your words')
-                  : (isTurkish ? 'Fotoğrafını ekle' : 'Add your photo')}
+                  ? (tx('Kelimelerini yaz', 'Add your words'))
+                  : (tx('Fotoğrafını ekle', 'Add your photo'))}
 
             </button>
 
@@ -5239,24 +5222,24 @@ export default function App() {
               : undefined;
             const filled = templateFilledSides.includes(activeSide);
             const sideName = activeSide === 'front'
-              ? (isTurkish ? 'ön yüzde' : 'on the front')
-              : (isTurkish ? 'arka yüzde' : 'on the back');
-            const title = gen ? (isTurkish ? gen.titleTr : gen.titleEn) : isWordArt
-              ? (isTurkish ? 'Kelime tasarımın' : 'Your word design')
-              : (isTurkish ? 'Fotoğraflı tasarımın' : 'Your photo design');
+              ? (tx('ön yüzde', 'on the front'))
+              : (tx('arka yüzde', 'on the back'));
+            const title = gen ? (tx(gen.titleTr, gen.titleEn)) : isWordArt
+              ? (tx('Kelime tasarımın', 'Your word design'))
+              : (tx('Fotoğraflı tasarımın', 'Your photo design'));
             const status = filled
-              ? (isTurkish ? `Tasarımın ${sideName} hazır.` : `Your design is ready ${sideName}.`)
-              : gen ? (isTurkish ? gen.hintTr : gen.hintEn)
+              ? (tx(`Tasarımın ${sideName} hazır.`, `Your design is ready ${sideName}.`))
+              : gen ? (tx(gen.hintTr, gen.hintEn))
               : isWordArt
-                ? (isTurkish ? 'Kelimelerini yaz, şekil ve renk seç; tasarım tişörte yerleşsin.' : 'Write your words, pick a shape and colors; the design goes on the shirt.')
-                : (isTurkish ? 'Fotoğrafını yükle; tasarım tişörte yerleşsin.' : 'Upload your photo; the design goes on the shirt.');
+                ? (tx('Kelimelerini yaz, şekil ve renk seç; tasarım tişörte yerleşsin.', 'Write your words, pick a shape and colors; the design goes on the shirt.'))
+                : (tx('Fotoğrafını yükle; tasarım tişörte yerleşsin.', 'Upload your photo; the design goes on the shirt.'));
             const label = templateBusy
-              ? (isTurkish ? 'Hazırlanıyor…' : 'Preparing…')
+              ? (tx('Hazırlanıyor…', 'Preparing…'))
               : gen
-                ? (filled ? (isTurkish ? gen.editTr : gen.editEn) : (isTurkish ? gen.ctaTr : gen.ctaEn))
+                ? (filled ? (tx(gen.editTr, gen.editEn)) : (tx(gen.ctaTr, gen.ctaEn)))
               : isWordArt
-                ? (filled ? (isTurkish ? 'Kelimeleri düzenle' : 'Edit words') : (isTurkish ? 'Kelimelerini yaz' : 'Add your words'))
-                : (filled ? (isTurkish ? 'Fotoğrafı değiştir' : 'Change photo') : (isTurkish ? 'Fotoğrafını ekle' : 'Add your photo'));
+                ? (filled ? (tx('Kelimeleri düzenle', 'Edit words')) : (tx('Kelimelerini yaz', 'Add your words')))
+                : (filled ? (tx('Fotoğrafı değiştir', 'Change photo')) : (tx('Fotoğrafını ekle', 'Add your photo')));
             return (
               <div className="border-b border-gray-100 px-3 py-3">
                 <div className={`rounded-2xl border p-3 ${filled ? 'border-emerald-100 bg-emerald-50/60' : 'border-rose-100 bg-rose-50/70'}`}>

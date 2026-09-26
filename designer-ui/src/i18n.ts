@@ -1,3 +1,7 @@
+import { dict as deDict, extra as deExtra } from './locales/de';
+import { dict as frDict, extra as frExtra } from './locales/fr';
+import { dict as esDict, extra as esExtra } from './locales/es';
+
 export const tr = {
   // Tabs
   tabImage: 'Görsel',
@@ -449,10 +453,67 @@ export const en: { [K in keyof typeof tr]: string } = {
 
 export type I18nKey = keyof typeof tr;
 
-type I18nDict = { [K in I18nKey]: string };
+export type I18nDict = { [K in I18nKey]: string };
 
-export function useDesignerI18n(locale: string | undefined): { t: I18nDict; isTurkish: boolean } {
-  const isTurkish = !locale || locale.startsWith('tr');
-  const t: I18nDict = isTurkish ? (tr as I18nDict) : en;
-  return { t, isTurkish };
+/**
+ * Tasarımcının dilleri. Türkçe ve İngilizce bu dosyada; Almanca, Fransızca
+ * ve İspanyolca `locales/` altında. Mağaza dili Shopify'dan "de-DE",
+ * WooCommerce'ten "de_DE" biçiminde gelir; tanınmayan dil İngilizceye düşer.
+ */
+export type DesignerLang = 'tr' | 'en' | 'de' | 'fr' | 'es';
+
+const DICTS: Record<DesignerLang, I18nDict> = {
+  tr: tr as I18nDict,
+  en,
+  de: deDict,
+  fr: frDict,
+  es: esDict,
+};
+
+/** İngilizce metin → çeviri: kod içindeki tx() ve verideki `labelEn` gibi alanlar için */
+const EXTRA: Partial<Record<DesignerLang, Record<string, string>>> = { de: deExtra, fr: frExtra, es: esExtra };
+
+export function resolveDesignerLang(locale: string | undefined): DesignerLang {
+  // Eski davranış: dil bilgisi yoksa Türkçe
+  if (!locale) return 'tr';
+  const code = locale.toLowerCase().slice(0, 2);
+  return (['tr', 'en', 'de', 'fr', 'es'] as const).includes(code as DesignerLang) ? (code as DesignerLang) : 'en';
+}
+
+// tx() bileşen dışındaki yardımcılarda da çalışsın diye etkin dil modülde
+// tutulur; tasarımcı tek iframe'de tek dille çalışır.
+let activeLang: DesignerLang = 'tr';
+
+function translateValue<T>(value: T, lang: DesignerLang): T {
+  const table = EXTRA[lang];
+  if (!table) return value;
+  if (typeof value === 'string') return (table[value] ?? value) as T;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, typeof v === 'string' ? (table[v] ?? v) : v]),
+    ) as T;
+  }
+  return value;
+}
+
+/**
+ * Eski `isTurkish ? tr : en` ifadelerinin yerine: Türkçede ilk değer,
+ * İngilizcede ikinci değer; öteki dillerde İngilizce değerin çevirisi
+ * (bulunamazsa İngilizcesi). Nesnelerde her metin alanı çevrilir.
+ */
+export function tx<T>(trValue: T, enValue: T): T {
+  return txFor(activeLang, trValue, enValue);
+}
+
+/** tx() ile aynı, dil açıkça verilerek (etkin dil henüz kurulmamış olabilecek yerler) */
+export function txFor<T>(lang: DesignerLang, trValue: T, enValue: T): T {
+  if (lang === 'tr') return trValue;
+  if (lang === 'en') return enValue;
+  return translateValue(enValue, lang);
+}
+
+export function useDesignerI18n(locale: string | undefined): { t: I18nDict; isTurkish: boolean; lang: DesignerLang } {
+  const lang = resolveDesignerLang(locale);
+  activeLang = lang;
+  return { t: DICTS[lang], isTurkish: lang === 'tr', lang };
 }

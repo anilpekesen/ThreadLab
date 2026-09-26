@@ -7,6 +7,7 @@
  * seçenekten başlatıyor, görünmeyecek bir seçimde uyarıyor ve önizlemeyi
  * tişört renginde gösteriyor.
  */
+import { tx } from '../../../i18n';
 
 export interface Garment {
   /** Tişörtün rengi (#rrggbb) */
@@ -69,8 +70,6 @@ export function paletteVisible(colors: string[], garment: Garment | null | undef
 
 /** Uyarı metni: seçilen mürekkep tişörtte görünmüyorsa */
 export function garmentWarning(isTurkish: boolean, garment: Garment | null | undefined): string {
-  const tone = garment?.dark ? (isTurkish ? 'koyu' : 'dark') : (isTurkish ? 'açık' : 'light');
-  return isTurkish
-    ? `Bu renk ${tone} renkli tişörtte zor görünür; önizlemede kontrol edin ya da başka bir renk seçin.`
-    : `This color is hard to see on a ${tone} shirt; check the preview or pick another color.`;
+  const tone = garment?.dark ? (tx('koyu', 'dark')) : (tx('açık', 'light'));
+  return tx(`Bu renk ${tone} renkli tişörtte zor görünür; önizlemede kontrol edin ya da başka bir renk seçin.`, `This color is hard to see on a ${tone} shirt; check the preview or pick another color.`);
 }

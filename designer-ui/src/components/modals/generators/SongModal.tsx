@@ -3,6 +3,7 @@ import type React from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
 import { garmentWarning, inkVisible, pickForGarment } from './garment';
+import { tx } from '../../../i18n';
 
 /** Temanın tişörte düşen mürekkebi: koyu tema koyu, açık tema beyaz basılır */
 const THEME_INK: Record<string, string> = { dark: '#111111', light: '#ffffff' };
@@ -98,10 +99,10 @@ function PhotoCropper({ src, crop, onChange, isTurkish }: {
         <span className="text-[11px] text-gray-400">−</span>
         <input type="range" min={1} max={3} step={0.01} value={crop.zoom}
           onChange={(e) => onChange({ ...crop, zoom: Number(e.target.value) })}
-          className="flex-1 accent-rose-600" aria-label={isTurkish ? 'Yakınlaştır' : 'Zoom'} />
+          className="flex-1 accent-rose-600" aria-label={tx('Yakınlaştır', 'Zoom')} />
         <span className="text-[11px] text-gray-400">+</span>
       </div>
-      <span className="text-[11px] text-gray-400">{isTurkish ? 'Fotoğrafı sürükleyerek konumlandırın' : 'Drag the photo to position it'}</span>
+      <span className="text-[11px] text-gray-400">{tx('Fotoğrafı sürükleyerek konumlandırın', 'Drag the photo to position it')}</span>
     </div>
   );
 }
@@ -155,21 +156,19 @@ export default function SongModal({ assets: raw, isTurkish, garment, initial, on
   // Küçük resmin adresi pencere kapanınca bırakılır
   useEffect(() => () => { if (thumb) URL.revokeObjectURL(thumb); }, [thumb]);
 
-  const t = isTurkish
-    ? {
+  const t = tx({
         photo: 'Fotoğraf', pickPhoto: 'Fotoğraf seç', changePhoto: 'Fotoğrafı değiştir', photoHint: 'Seçtikten sonra kaydırıp yakınlaştırabilirsiniz.',
         useCover: 'Albüm kapağını kullan', lookupLoading: 'Şarkı bilgileri alınıyor…', lookupOk: "Şarkı bilgileri Spotify'dan dolduruldu; dilerseniz düzenleyin.", lookupFail: 'Şarkı bilgileri alınamadı; alanları elle doldurun.',
         photoOptional: 'isteğe bağlı', title: 'Şarkı adı', artist: 'Sanatçı', link: 'Spotify şarkı bağlantısı',
         linkHint: "Spotify'da şarkı → Paylaş → Şarkı bağlantısını kopyala", linkBad: 'Bu bir Spotify şarkı bağlantısına benzemiyor',
         optional: 'isteğe bağlı', duration: 'Şarkı süresi', durationBad: 'Örn. 3:45', style: 'Stil', theme: 'Renk', font: 'Yazı tipi',
-      }
-    : {
+      }, {
         photo: 'Photo', pickPhoto: 'Choose photo', changePhoto: 'Change photo', photoHint: 'After choosing, you can drag and zoom it.',
         useCover: 'Use album cover', lookupLoading: 'Fetching song details…', lookupOk: 'Song details filled from Spotify; edit if you like.', lookupFail: 'Could not fetch song details; fill them in yourself.',
         photoOptional: 'optional', title: 'Song title', artist: 'Artist', link: 'Spotify song link',
         linkHint: 'In Spotify: song → Share → Copy Song Link', linkBad: 'This does not look like a Spotify song link',
         optional: 'optional', duration: 'Song length', durationBad: 'e.g. 3:45', style: 'Style', theme: 'Color', font: 'Font',
-      };
+      });
 
   const linkBad = link.trim() !== '' && !LINK_RE.test(link.trim());
 
@@ -333,7 +332,7 @@ export default function SongModal({ assets: raw, isTurkish, garment, initial, on
           <div className="flex flex-wrap gap-1.5">
             {assets.styles.map((s) => (
               <button key={s.id} type="button" onClick={() => setStyle(s.id)} className={pillClass(style === s.id)} aria-pressed={style === s.id}>
-                {isTurkish ? s.label : s.labelEn}
+                {tx(s.label, s.labelEn)}
               </button>
             ))}
           </div>
@@ -347,7 +346,7 @@ export default function SongModal({ assets: raw, isTurkish, garment, initial, on
             {assets.themes.map((th) => (
               <button key={th.id} type="button" onClick={() => setTheme(th.id)} className={pillClass(theme === th.id)} aria-pressed={theme === th.id}>
                 <span className="h-3 w-3 rounded-sm border border-gray-300" style={{ background: th.swatch }} />
-                {isTurkish ? th.label : th.labelEn}
+                {tx(th.label, th.labelEn)}
               </button>
             ))}
           </div>

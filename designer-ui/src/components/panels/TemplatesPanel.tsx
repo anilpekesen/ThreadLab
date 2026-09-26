@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { fabric } from 'fabric';
 import type { ShopTemplate } from '@/types';
+import { tx } from '../../i18n';
 
 export interface GlobalClipart {
   id: string;
@@ -1185,10 +1186,10 @@ export default function TemplatesPanel({ onApply, onAddImage, onAddClipart, shop
   const hasShopTemplates = shopTemplates.length > 0;
   const isTurkish = !locale || locale.toLowerCase().startsWith('tr');
   const categoryLabel = (category: { label: string; labelEn?: string }) =>
-    isTurkish ? category.label : (category.labelEn ?? category.label);
-  const templateLabel = (tpl: Template) => (isTurkish ? tpl.label : (tpl.labelEn ?? tpl.label));
+    tx(category.label, (category.labelEn ?? category.label));
+  const templateLabel = (tpl: Template) => (tx(tpl.label, (tpl.labelEn ?? tpl.label)));
   const templateDescription = (tpl: Template) =>
-    isTurkish ? tpl.description : (tpl.descriptionEn ?? tpl.description);
+    tx(tpl.description, (tpl.descriptionEn ?? tpl.description));
   const templatePreview = (tpl: Template) => {
     if (isTurkish) return tpl.preview;
     if (tpl.id === 'bold-text') {
@@ -1294,10 +1295,10 @@ export default function TemplatesPanel({ onApply, onAddImage, onAddClipart, shop
           <div className="space-y-4">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-600">
-                {isTurkish ? 'Mağaza Şablonları' : 'Store Templates'}
+                {tx('Mağaza Şablonları', 'Store Templates')}
               </p>
               <p className="text-sm font-semibold text-slate-500">
-                {isTurkish ? 'Bir görsele tıklayarak tuvale ekleyin.' : 'Click an image to add it to the canvas.'}
+                {tx('Bir görsele tıklayarak tuvale ekleyin.', 'Click an image to add it to the canvas.')}
               </p>
             </div>
 
@@ -1351,17 +1352,17 @@ export default function TemplatesPanel({ onApply, onAddImage, onAddClipart, shop
       <div className="space-y-4">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">
-            {isTurkish ? 'Klipart Kütüphanesi' : 'Clipart Library'}
+            {tx('Klipart Kütüphanesi', 'Clipart Library')}
           </p>
           <p className="text-sm font-semibold text-slate-500">
-            {isTurkish ? 'Hazır şekil ve sembolleri tuvale ekle.' : 'Add ready-made shapes and symbols to the canvas.'}
+            {tx('Hazır şekil ve sembolleri tuvale ekle.', 'Add ready-made shapes and symbols to the canvas.')}
           </p>
         </div>
 
         {/* Hardcoded shapes */}
         <div className="space-y-3">
           <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-            {isTurkish ? 'Temel Şekiller' : 'Basic Shapes'}
+            {tx('Temel Şekiller', 'Basic Shapes')}
           </p>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {(['all', 'sekil', 'cerceve', 'sembol'] as const).map((cat) => (
@@ -1375,8 +1376,8 @@ export default function TemplatesPanel({ onApply, onAddImage, onAddClipart, shop
                 }`}
               >
                 {cat === 'all'
-                  ? (isTurkish ? 'Tümü' : 'All')
-                  : (isTurkish ? CLIPART_CAT_LABELS[cat].tr : CLIPART_CAT_LABELS[cat].en)}
+                  ? (tx('Tümü', 'All'))
+                  : (tx(CLIPART_CAT_LABELS[cat].tr, CLIPART_CAT_LABELS[cat].en))}
               </button>
             ))}
           </div>
@@ -1387,11 +1388,11 @@ export default function TemplatesPanel({ onApply, onAddImage, onAddClipart, shop
               <button
                 key={shape.id}
                 onClick={() => onApply({ id: shape.id, label: shape.label, labelEn: shape.labelEn ?? shape.label, category: shape.category, description: '', tone: '', preview: null, build: shape.build })}
-                title={isTurkish ? shape.label : (shape.labelEn ?? shape.label)}
+                title={tx(shape.label, (shape.labelEn ?? shape.label))}
                 className="group flex flex-col items-center gap-1 rounded-xl border border-emerald-100 bg-white p-2 text-center transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50/40 hover:shadow-md"
               >
                 <span className="text-2xl leading-none">{shape.emoji}</span>
-                <span className="text-[9px] font-bold text-emerald-700 leading-tight">{isTurkish ? shape.label : (shape.labelEn ?? shape.label)}</span>
+                <span className="text-[9px] font-bold text-emerald-700 leading-tight">{tx(shape.label, (shape.labelEn ?? shape.label))}</span>
               </button>
             ))}
           </div>
@@ -1402,7 +1403,7 @@ export default function TemplatesPanel({ onApply, onAddImage, onAddClipart, shop
           <div className="space-y-3">
             <div className="border-t border-gray-100 pt-3">
               <p className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">
-                {isTurkish ? 'Grafik Kütüphanesi' : 'Graphic Library'}
+                {tx('Grafik Kütüphanesi', 'Graphic Library')}
               </p>
             </div>
             {/* Category filter */}
@@ -1414,7 +1415,7 @@ export default function TemplatesPanel({ onApply, onAddImage, onAddClipart, shop
                     onClick={() => setActiveGlobalCategory('all')}
                     className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${activeGlobalCategory === 'all' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                   >
-                    {isTurkish ? 'Tümü' : 'All'}
+                    {tx('Tümü', 'All')}
                   </button>
                   {cats.map((cat) => (
                     <button
@@ -1463,10 +1464,10 @@ export default function TemplatesPanel({ onApply, onAddImage, onAddClipart, shop
       <div className="space-y-4">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-600">
-            {isTurkish ? 'Yazı Şablonları' : 'Text Templates'}
+            {tx('Yazı Şablonları', 'Text Templates')}
           </p>
           <p className="text-sm font-semibold text-slate-500">
-            {isTurkish ? 'Hazır satış metinleri ve baskı kompozisyonları.' : 'Ready-to-sell text layouts and print compositions.'}
+            {tx('Hazır satış metinleri ve baskı kompozisyonları.', 'Ready-to-sell text layouts and print compositions.')}
           </p>
         </div>
 
@@ -1502,7 +1503,7 @@ export default function TemplatesPanel({ onApply, onAddImage, onAddClipart, shop
                   <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{templateDescription(tpl)}</p>
                 </div>
                 <span className="rounded bg-blue-50 px-1.5 py-1 text-[10px] font-black uppercase text-blue-600">
-                  {isTurkish ? 'Ekle' : 'Add'}
+                  {tx('Ekle', 'Add')}
                 </span>
               </div>
             </button>

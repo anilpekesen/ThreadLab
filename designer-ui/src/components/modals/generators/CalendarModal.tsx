@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
 import { garmentWarning, inkVisible, pickForGarment } from './garment';
+import { tx } from '../../../i18n';
 
 interface Option { id: string; label: string; labelEn?: string }
 interface ColorOption extends Option { hex: string }
@@ -50,18 +51,16 @@ export default function CalendarModal({ assets: raw, isTurkish, garment, initial
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const t = isTurkish
-    ? { date: 'Özel gün', dateHelp: 'Takvim bu ayı gösterir, bu gün işaretlenir.', title: 'Başlık (isteğe bağlı)', names: 'İsimler (isteğe bağlı)',
+  const t = tx({ date: 'Özel gün', dateHelp: 'Takvim bu ayı gösterir, bu gün işaretlenir.', title: 'Başlık (isteğe bağlı)', names: 'İsimler (isteğe bağlı)',
         layout: 'Düzen', marker: 'İşaret', font: 'Rakam yazı tipi', titleFont: 'Başlık yazı tipi', color: 'Renk',
-        noDate: 'Lütfen bir tarih seçin', range: 'Tarih şu yıllar arasında olmalı:' }
-    : { date: 'Special day', dateHelp: 'The calendar shows this month with this day marked.', title: 'Title (optional)', names: 'Names (optional)',
+        noDate: 'Lütfen bir tarih seçin', range: 'Tarih şu yıllar arasında olmalı:' }, { date: 'Special day', dateHelp: 'The calendar shows this month with this day marked.', title: 'Title (optional)', names: 'Names (optional)',
         layout: 'Layout', marker: 'Marker', font: 'Number font', titleFont: 'Title font', color: 'Color',
-        noDate: 'Please pick a date', range: 'The date must be between' };
+        noDate: 'Please pick a date', range: 'The date must be between' });
 
   const minDate = `${assets.yearMin}-01-01`;
   const maxDate = `${assets.yearMax}-12-31`;
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= minDate && date <= maxDate;
-  const label = (o: Option) => (isTurkish ? o.label : o.labelEn ?? o.label);
+  const label = (o: Option) => (tx(o.label, o.labelEn ?? o.label));
   const len = (s: string) => Array.from(s).length;
   const showTitleFont = assets.titleEnabled && assets.titleFonts.length > 1 && title.trim().length > 0;
 

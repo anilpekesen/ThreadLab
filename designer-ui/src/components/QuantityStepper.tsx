@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { tx } from '../i18n';
 
 /**
  * Adet kutusu — eksi/artı düğmeleri ve doğrudan yazılabilen bir sayı.
@@ -48,7 +49,7 @@ export function QuantityStepper({
         type="button"
         onClick={() => onChange(Math.max(min, value - 1))}
         disabled={value <= min}
-        aria-label={isTurkish ? (label ? `${label} azalt` : 'Azalt') : (label ? `Decrease ${label}` : 'Decrease')}
+        aria-label={tx((label ? `${label} azalt` : 'Azalt'), (label ? `Decrease ${label}` : 'Decrease'))}
         className={cn(btn, value <= min && 'opacity-40')}
       >−</button>
       <input
@@ -56,7 +57,7 @@ export function QuantityStepper({
         inputMode="numeric"
         pattern="[0-9]*"
         value={draft}
-        aria-label={label ?? (isTurkish ? 'Adet' : 'Quantity')}
+        aria-label={label ?? (tx('Adet', 'Quantity'))}
         onFocus={(e) => { setEditing(true); e.currentTarget.select(); }}
         onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
         onBlur={(e) => { setEditing(false); commit(e.target.value); }}
@@ -75,7 +76,7 @@ export function QuantityStepper({
         type="button"
         onClick={() => onChange(Math.min(max, value + 1))}
         disabled={value >= max}
-        aria-label={isTurkish ? (label ? `${label} artır` : 'Artır') : (label ? `Increase ${label}` : 'Increase')}
+        aria-label={tx((label ? `${label} artır` : 'Artır'), (label ? `Increase ${label}` : 'Increase'))}
         className={cn(btn, value >= max && 'opacity-40')}
       >+</button>
     </div>

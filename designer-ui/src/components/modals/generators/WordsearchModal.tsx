@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
 import { garmentWarning, inkVisible, pickForGarment } from './garment';
+import { tx } from '../../../i18n';
 
 /** Sunucu: app/lib/generators/wordsearch (publicAssets) */
 interface Option { id: string; label: string; labelEn?: string }
@@ -68,22 +69,20 @@ export default function WordsearchModal({ assets: raw, isTurkish, garment, initi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const t = isTurkish
-    ? { words: 'Kelimeler', wordsHint: `İsimler, yerler, anılar… her biri ${minLen}–${maxLen} harf`, word: 'Kelime',
+  const t = tx({ words: 'Kelimeler', wordsHint: `İsimler, yerler, anılar… her biri ${minLen}–${maxLen} harf`, word: 'Kelime',
         add: '+ Kelime ekle', remove: 'Kelimeyi çıkar', max: 'En fazla', title: 'Başlık (isteğe bağlı)',
         style: 'Görünüm', font: 'Harf yazı tipi', titleFont: 'Başlık yazı tipi', ink: 'Renk',
         tooShort: `Her kelime en az ${minLen} harf olmalı`, empty: 'En az bir kelime yazın',
-        placeholders: ['AYŞE', 'MEHMET', 'İSTANBUL', 'KAHVE', 'DENİZ', 'SONSUZA'] }
-    : { words: 'Words', wordsHint: `Names, places, memories… ${minLen}–${maxLen} letters each`, word: 'Word',
+        placeholders: ['AYŞE', 'MEHMET', 'İSTANBUL', 'KAHVE', 'DENİZ', 'SONSUZA'] }, { words: 'Words', wordsHint: `Names, places, memories… ${minLen}–${maxLen} letters each`, word: 'Word',
         add: '+ Add word', remove: 'Remove word', max: 'At most', title: 'Title (optional)',
         style: 'Look', font: 'Letter font', titleFont: 'Title font', ink: 'Color',
         tooShort: `Each word needs at least ${minLen} letters`, empty: 'Enter at least one word',
-        placeholders: ['EMMA', 'JAMES', 'PARIS', 'COFFEE', 'FOREVER', 'HOME'] };
+        placeholders: ['EMMA', 'JAMES', 'PARIS', 'COFFEE', 'FOREVER', 'HOME'] });
 
   const filled = words.filter(Boolean);
   const short = filled.some((w) => Array.from(w).length < minLen);
   const ready = filled.length > 0 && !short;
-  const label = (o: Option) => (isTurkish ? o.label : o.labelEn ?? o.label);
+  const label = (o: Option) => (tx(o.label, o.labelEn ?? o.label));
 
   const update = (i: number, v: string) => {
     setWords((list) => list.map((w, j) => (j === i ? clean(v) : w)));
@@ -215,7 +214,7 @@ export default function WordsearchModal({ assets: raw, isTurkish, garment, initi
             {assets.inks.map((c) => (
               <button key={c.hex} type="button" onClick={() => setInk(c.hex)} className={pillClass(ink === c.hex)} aria-pressed={ink === c.hex}>
                 <span className="h-3.5 w-3.5 rounded-full border border-gray-300" style={{ background: c.hex }} />
-                {isTurkish ? c.label : c.labelEn}
+                {tx(c.label, c.labelEn)}
               </button>
             ))}
           </div>

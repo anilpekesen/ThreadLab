@@ -1,4 +1,5 @@
 import { fabric } from 'fabric';
+import { resolveDesignerLang, txFor } from '../i18n';
 
 export interface CurvedTextOptions extends fabric.IObjectOptions {
   text?: string;
@@ -47,7 +48,7 @@ function getMeasureCtx(): CanvasRenderingContext2D | null {
 let defaultCurvedText = 'Kavisli Yazı';
 
 export function setCurvedTextLocale(locale: string | undefined): void {
-  defaultCurvedText = !locale || locale.startsWith('tr') ? 'Kavisli Yazı' : 'Curved text';
+  defaultCurvedText = txFor(resolveDesignerLang(locale), 'Kavisli Yazı', 'Curved text');
 }
 
 export class CurvedText extends fabric.Object {

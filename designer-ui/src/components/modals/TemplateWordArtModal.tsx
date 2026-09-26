@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { garmentWarning, paletteVisible, type Garment } from './generators/garment';
+import { tx } from '../../i18n';
 
 export interface WordArtShapeOption {
   id: string;
@@ -80,21 +81,19 @@ export default function TemplateWordArtModal({ assets, isTurkish, garment, initi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const t = isTurkish
-    ? { title: 'Kelime tasarımını oluştur', words: 'Kelimeler', wordsHint: 'Her satıra bir kelime ya da isim yazın. Başına * koyduğunuz kelime büyük yazılır.',
+  const t = tx({ title: 'Kelime tasarımını oluştur', words: 'Kelimeler', wordsHint: 'Her satıra bir kelime ya da isim yazın. Başına * koyduğunuz kelime büyük yazılır.',
         shape: 'Şekil', letter: 'Harf', font: 'Yazı tipi', colors: 'Renkler',
         make: 'Tasarımı Oluştur', again: 'Başka dizilim', ok: 'Bunu Kullan', cancel: 'Vazgeç', edit: 'Düzenle',
         busy: 'Hazırlanıyor…', count: 'kelime', tooMany: 'En fazla', empty: 'En az bir kelime yazın',
         photo: 'Fotoğraf', pickPhoto: 'Fotoğraf seç', changePhoto: 'Fotoğrafı değiştir',
         photoHint: 'Tek kişinin ya da evcil hayvanın net göründüğü bir fotoğraf seçin; arka planı otomatik silinir.',
-        needPhoto: 'Önce bir fotoğraf seçin', photoBusy: 'Hazırlanıyor… (arka plan siliniyor, ~10 sn)' }
-    : { title: 'Create your word design', words: 'Words', wordsHint: 'Write one word or name per line. Put * in front of a word to make it big.',
+        needPhoto: 'Önce bir fotoğraf seçin', photoBusy: 'Hazırlanıyor… (arka plan siliniyor, ~10 sn)' }, { title: 'Create your word design', words: 'Words', wordsHint: 'Write one word or name per line. Put * in front of a word to make it big.',
         shape: 'Shape', letter: 'Letter', font: 'Font', colors: 'Colors',
         make: 'Create Design', again: 'Another layout', ok: 'Use This', cancel: 'Cancel', edit: 'Edit',
         busy: 'Preparing…', count: 'words', tooMany: 'At most', empty: 'Write at least one word',
         photo: 'Photo', pickPhoto: 'Choose photo', changePhoto: 'Change photo',
         photoHint: 'Pick a clear photo of one person or pet; the background is removed automatically.',
-        needPhoto: 'Choose a photo first', photoBusy: 'Preparing… (removing background, ~10 s)' };
+        needPhoto: 'Choose a photo first', photoBusy: 'Preparing… (removing background, ~10 s)' });
 
   const lines = words.split(/\r?\n/).map((w) => w.trim()).filter(Boolean);
   const overLimit = lines.length > assets.maxWords;
@@ -178,7 +177,7 @@ export default function TemplateWordArtModal({ assets, isTurkish, garment, initi
                               ? <path d="M50 8a20 20 0 1 1 0 40a20 20 0 0 1 0-40Zm-36 88c0-22 16-34 36-34s36 12 36 34Z" fill="currentColor" />
                               : <text x="50" y="84" textAnchor="middle" fontSize="92" fontWeight="900" fill="currentColor">A</text>}
                         </svg>
-                        {isTurkish ? s.label : s.labelEn}
+                        {tx(s.label, s.labelEn)}
                       </button>
                     ))}
                   </div>
@@ -236,7 +235,7 @@ export default function TemplateWordArtModal({ assets, isTurkish, garment, initi
                             <span key={c} className="-mr-1 h-3 w-3 rounded-sm border border-gray-300" style={{ background: c }} />
                           ))}
                         </span>
-                        <span className="ml-1">{isTurkish ? p.label : p.labelEn}</span>
+                        <span className="ml-1">{tx(p.label, p.labelEn)}</span>
                       </button>
                     ))}
                   </div>

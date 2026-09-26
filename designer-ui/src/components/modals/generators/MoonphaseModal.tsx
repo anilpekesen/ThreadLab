@@ -2,6 +2,7 @@ import { useState } from 'react';
 import GeneratorModalShell, { FieldLabel, inputClass, pillClass } from './GeneratorModalShell';
 import type { GeneratorModalProps } from './types';
 import { garmentWarning, inkVisible, pickForGarment } from './garment';
+import { tx } from '../../../i18n';
 
 interface Option { id: string; label: string; labelEn?: string }
 
@@ -60,17 +61,15 @@ export default function MoonphaseModal({ assets: raw, isTurkish, garment, initia
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const t = isTurkish
-    ? { layout: 'Düzen', date: 'Tarih', dateHint: 'O gecenin ayı çizilir', title: 'Başlık (isteğe bağlı)', line: 'İsimler ya da kısa not (isteğe bağlı)',
+  const t = tx({ layout: 'Düzen', date: 'Tarih', dateHint: 'O gecenin ayı çizilir', title: 'Başlık (isteğe bağlı)', line: 'İsimler ya da kısa not (isteğe bağlı)',
         days: 'Özel günler', label: 'Etiket', style: 'Ay stili', font: 'Yazı tipi', ink: 'Renk',
         noDate: 'Lütfen bir tarih seçin', noDates: 'Lütfen üç tarihi de seçin', range: 'Tarih şu aralıkta olmalı:',
-        shadedLight: 'Gerçekçi ay açık renkli üründe soluk görünür; koyu ürün ya da tek renk bir stil daha iyi sonuç verir.' }
-    : { layout: 'Layout', date: 'Date', dateHint: "That night's moon is drawn", title: 'Title (optional)', line: 'Names or a short note (optional)',
+        shadedLight: 'Gerçekçi ay açık renkli üründe soluk görünür; koyu ürün ya da tek renk bir stil daha iyi sonuç verir.' }, { layout: 'Layout', date: 'Date', dateHint: "That night's moon is drawn", title: 'Title (optional)', line: 'Names or a short note (optional)',
         days: 'Special days', label: 'Label', style: 'Moon style', font: 'Font', ink: 'Color',
         noDate: 'Please pick a date', noDates: 'Please pick all three dates', range: 'Date must be between',
-        shadedLight: 'The realistic moon looks faint on light products; a dark product or a single-ink style works better.' };
+        shadedLight: 'The realistic moon looks faint on light products; a dark product or a single-ink style works better.' });
 
-  const label = (o: Option) => (isTurkish ? o.label : o.labelEn ?? o.label);
+  const label = (o: Option) => (tx(o.label, o.labelEn ?? o.label));
   const isTrio = layout === 'trio';
   const minDate = `${assets.yearMin}-01-01`;
   const maxDate = `${assets.yearMax}-12-31`;
