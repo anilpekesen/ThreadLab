@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
-import { useMemo, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { useTranslation, useDict, pickDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
 import detailDict from "~/i18n/admin/order-detail";
@@ -27,12 +27,22 @@ function shopAdminHandle(shop?: string | null): string {
 }
 
 function adminAppOrderUrl(shop: string, orderId: string): string {
+  // WooCommerce yönetimi Shopify içinde değil, kendi adresinde
+  if (isWooShop(shop)) return `/app/orders/${orderId}`;
   return `https://admin.shopify.com/store/${shopAdminHandle(shop)}/apps/printlabapp/app/orders/${orderId}`;
 }
 
-function adminShopifyOrderUrl(shop: string, shopifyOrderId: string): string {
-  return `https://admin.shopify.com/store/${shopAdminHandle(shop)}/orders/${shopifyOrderId}`;
+/** Siparişin geldiği yerdeki sipariş sayfası: Etsy, WooCommerce ya da Shopify */
+function channelOrderUrl(shop: string, orderId: string): string {
+  if (orderId.startsWith("etsy:")) return `https://www.etsy.com/your/orders/sold?order_id=${encodeURIComponent(orderId.slice(5))}`;
+  return orderAdminUrl(shop, orderId);
 }
+
+/** Kargo firmaları: Shopify bilinen firmalarda takip bağlantısını kendisi kurar */
+const CARRIERS = [
+  "Yurtiçi Kargo", "Aras Kargo", "MNG Kargo", "PTT Kargo", "Sürat Kargo", "HepsiJet", "Trendyol Express",
+  "UPS", "DHL Express", "FedEx", "USPS", "Royal Mail", "Canada Post", "Australia Post",
+];
 
 function cardActionStyle(selected: boolean): CSSProperties {
   return {
@@ -54,11 +64,12 @@ function cardActionStyle(selected: boolean): CSSProperties {
 }
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Button,
-  Box, Divider, Grid, Thumbnail, Banner,
+  Box, Divider, Grid, Thumbnail, Banner, Modal, Select, TextField,
 } from "@shopify/polaris";
+import { isWooShop, orderAdminUrl } from "~/lib/platform";
 import { authenticate } from "~/lib/authenticate.server";
 import { signedShopQuery } from "~/lib/signed-shop-link.server";
-import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders, setShopifyOrderDriveUpload } from "~/models/orders.server";
+import { getOrder, getSiblingOrders, updateOrderStatus, bulkUpdateStatus, fulfillShopifyOrders, setShopifyOrderDriveUpload, setOrderTracking } from "~/models/orders.server";
 import type { Order } from "~/models/orders.server";
 import { getDesignByToken, extractObjects, type DesignObject } from "~/models/designs.server";
 import { getDriveConnection } from "~/models/shop-google-drive.server";
@@ -350,6 +361,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (status === "shipped") {
     // Mark all variants of this Shopify order as shipped (not just this one row)
     const order = await getOrder(appOrderId);
+    // Takip bilgisi (isteğe bağlı) önce yazılır: kanala gönderim onu okur
+    if (order?.shopifyOrderId) {
+      const url = String(form.get("trackingUrl") ?? "").trim();
+      await setOrderTracking(session.shop, order.shopifyOrderId, {
+        number: String(form.get("trackingNumber") ?? "").trim(),
+        company: String(form.get("trackingCompany") ?? "").trim(),
+        url: /^https?:\/\//i.test(url) ? url : "",
+      });
+    }
     let allIds = [appOrderId];
     if (order?.shopifyOrderId) {
       // Pass "" as excludeId — no UUID matches empty string, so returns ALL rows for this Shopify order
@@ -373,6 +393,11 @@ export default function OrderDetail() {
   const { order, siblings = [], otherProducts = [], design, frontObjects = [], backObjects = [], shop, driveConnected, zipQuery, pdfQuery } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
+  const [shipOpen, setShipOpen] = useState(false);
+  const [carrier, setCarrier] = useState(order.trackingCompany && CARRIERS.includes(order.trackingCompany) ? order.trackingCompany : order.trackingCompany ? "__other" : "");
+  const [carrierOther, setCarrierOther] = useState(order.trackingCompany && !CARRIERS.includes(order.trackingCompany) ? order.trackingCompany : "");
+  const [trackingNumber, setTrackingNumber] = useState(order.trackingNumber ?? "");
+  const [trackingUrl, setTrackingUrl] = useState(order.trackingUrl ?? "");
   const driveFetcher = useFetcher<{ ok?: boolean; error?: string; folderUrl?: string; uploaded?: number }>();
   const { t, lang } = useTranslation();
   const L = useDict(detailDict);
@@ -424,6 +449,17 @@ export default function OrderDetail() {
   const pdfUrl = (piece: number) =>
     `/api/print-pdf?${pdfQuery}&id=${encodeURIComponent(order.id)}&piece=${piece}&_lang=${lang}`;
   const hasDesignFiles = Boolean(frontPreviewUrl || backPreviewUrl || frontPrintUrl || backPrintUrl);
+  const tr = lang === "tr";
+  const submitShipped = () => {
+    const fd = new FormData();
+    fd.set("status", "shipped");
+    fd.set("_lang", lang);
+    fd.set("trackingCompany", carrier === "__other" ? carrierOther.trim() : carrier);
+    fd.set("trackingNumber", trackingNumber.trim());
+    fd.set("trackingUrl", trackingUrl.trim());
+    fetcher.submit(fd, { method: "post" });
+    setShipOpen(false);
+  };
 
   // İndirilen dosya adına bedeni ekle — 3 bedenin önizlemesi karışmasın
   const previewFileName = (base: string) => {
@@ -440,7 +476,10 @@ export default function OrderDetail() {
       backAction={{ content: t("orderDetail.backToOrders"), onAction: () => navigate("/app/orders") }}
       primaryAction={next ? {
         content: `→ ${STATUS_KEYS[next] ? t(STATUS_KEYS[next]) : next}`,
+        loading: fetcher.state !== "idle",
         onAction: () => {
+          // Gönderilirken kargo bilgisi sorulur (isteğe bağlı)
+          if (next === "shipped") { setShipOpen(true); return; }
           const fd = new FormData();
           fd.set("status", next);
           fd.set("_lang", lang);
@@ -455,6 +494,45 @@ export default function OrderDetail() {
     >
       <BlockStack gap="500">
         <PageHelper sections={L.help} />
+
+        {/* Gönderildi: kargo firması ve takip numarası siparişin kanalına iletilir */}
+        <Modal
+          open={shipOpen}
+          onClose={() => setShipOpen(false)}
+          title={tr ? "Siparişi gönderildi olarak işaretle" : "Mark order as shipped"}
+          primaryAction={{ content: tr ? "Gönderildi" : "Mark shipped", onAction: submitShipped }}
+          secondaryActions={[{ content: tr ? "Vazgeç" : "Cancel", onAction: () => setShipOpen(false) }]}
+        >
+          <Modal.Section>
+            <BlockStack gap="300">
+              <Text as="p" tone="subdued">
+                {order.shopifyOrderId?.startsWith("etsy:")
+                  ? (tr ? "Takip bilgisi Etsy siparişine yazılır; Etsy müşteriye bildirir. Boş bırakabilirsiniz." : "Tracking is added to the Etsy order and Etsy notifies the buyer. You can leave it empty.")
+                  : isWooShop(order.shop || shop)
+                    ? (tr ? "Takip bilgisi WooCommerce siparişine müşteri notu olarak yazılır ve müşteriye e-postayla gider. Boş bırakabilirsiniz." : "Tracking is added to the WooCommerce order as a customer note and emailed to the customer. You can leave it empty.")
+                    : (tr ? "Takip bilgisi Shopify'daki gönderime eklenir; müşteriye Shopify'ın kargo e-postası gider. Boş bırakabilirsiniz." : "Tracking is added to the Shopify fulfillment and Shopify emails the customer. You can leave it empty.")}
+              </Text>
+              <Select
+                label={tr ? "Kargo firması" : "Carrier"}
+                options={[{ label: tr ? "Seçin" : "Choose", value: "" }, ...CARRIERS.map((c) => ({ label: c, value: c })), { label: tr ? "Diğer…" : "Other…", value: "__other" }]}
+                value={carrier}
+                onChange={setCarrier}
+              />
+              {carrier === "__other" && (
+                <TextField label={tr ? "Firma adı" : "Carrier name"} value={carrierOther} onChange={setCarrierOther} autoComplete="off" />
+              )}
+              <TextField label={tr ? "Takip numarası" : "Tracking number"} value={trackingNumber} onChange={setTrackingNumber} autoComplete="off" />
+              <TextField
+                label={tr ? "Takip bağlantısı (isteğe bağlı)" : "Tracking link (optional)"}
+                value={trackingUrl}
+                onChange={setTrackingUrl}
+                autoComplete="off"
+                placeholder="https://"
+                helpText={tr ? "Bilinen firmalarda gerekmez; yerel kargolarda takip sayfasının adresini yapıştırın." : "Not needed for well-known carriers; paste the tracking page link for local carriers."}
+              />
+            </BlockStack>
+          </Modal.Section>
+        </Modal>
 
         {/* Baskı dosyası sepete eklendikten sonra arka planda yükleniyor; müşteri
             yükleme bitmeden sayfadan ayrıldıysa dosya hiç oluşmadı */}
@@ -833,7 +911,7 @@ export default function OrderDetail() {
               <InlineStack align="space-between">
                 <Text as="span" tone="subdued">{t("orderDetail.orderNo")}</Text>
                 <a
-                  href={adminShopifyOrderUrl(order.shop || shop, order.shopifyOrderId)}
+                  href={channelOrderUrl(order.shop || shop, order.shopifyOrderId)}
                   target="_blank"
                   rel="noreferrer"
                   style={{ color: "#2c6ecb", fontWeight: 600, textDecoration: "none" }}
@@ -841,6 +919,18 @@ export default function OrderDetail() {
                   {order.orderNumber}
                 </a>
               </InlineStack>
+              {(order.trackingNumber || order.trackingUrl) && (
+                <InlineStack align="space-between">
+                  <Text as="span" tone="subdued">{lang === "tr" ? "Kargo takibi" : "Tracking"}</Text>
+                  {order.trackingUrl ? (
+                    <a href={order.trackingUrl} target="_blank" rel="noreferrer" style={{ color: "#2c6ecb", fontWeight: 600, textDecoration: "none" }}>
+                      {[order.trackingCompany, order.trackingNumber].filter(Boolean).join(" · ") || order.trackingUrl}
+                    </a>
+                  ) : (
+                    <Text as="span">{[order.trackingCompany, order.trackingNumber].filter(Boolean).join(" · ")}</Text>
+                  )}
+                </InlineStack>
+              )}
               <InlineStack align="space-between">
                 <Text as="span" tone="subdued">{t("orderDetail.productLabel")}</Text>
                 <Text as="span">{order.productName?.split(" - ")[0] || order.productName || "—"}</Text>

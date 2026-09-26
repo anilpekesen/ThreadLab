@@ -390,7 +390,12 @@ const STATUS_NOTE: Record<string, string> = {
  * "Tamamlandı"ya alır; WooCommerce müşteriye kendi "sipariş tamamlandı"
  * e-postasını gönderir (Shopify'da fulfillment bildirimiyle aynı yer).
  */
-export async function pushWooOrderStatus(shop: string, wooOrderId: string, status: string): Promise<void> {
+export async function pushWooOrderStatus(
+  shop: string,
+  wooOrderId: string,
+  status: string,
+  tracking?: { number: string; company: string; url: string },
+): Promise<void> {
   const conn = await getWooConnection(shop);
   if (!conn || !/^\d+$/.test(wooOrderId)) return;
   const label = STATUS_NOTE[status] ?? status;
@@ -398,6 +403,18 @@ export async function pushWooOrderStatus(shop: string, wooOrderId: string, statu
     method: "POST",
     body: { note: `PrintLab: ${label}`, customer_note: false },
   });
+  if (status === "shipped" && tracking && (tracking.number || tracking.url)) {
+    // Müşteriye görünen not: WooCommerce e-postayla iletir
+    const lines = [
+      tracking.company && `Carrier: ${tracking.company}`,
+      tracking.number && `Tracking number: ${tracking.number}`,
+      tracking.url && `Track your package: ${tracking.url}`,
+    ].filter(Boolean);
+    await wooRest(conn, `/orders/${wooOrderId}/notes`, {
+      method: "POST",
+      body: { note: `Your order has shipped.\n${lines.join("\n")}`, customer_note: true },
+    });
+  }
   if (status === "shipped") {
     const order = await wooRest<{ status?: string }>(conn, `/orders/${wooOrderId}`);
     // İptal/iade edilmiş siparişi geri açma

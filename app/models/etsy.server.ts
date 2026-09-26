@@ -273,13 +273,25 @@ export async function syncAllEtsyShops(): Promise<Record<string, string>> {
  * Takip numarası varsa gönderi kaydıyla (Etsy müşteriye bildirir), yoksa
  * yalnız durum.
  */
-export async function markEtsyShipped(shop: string, receiptId: string, tracking?: { code: string; carrier: string }): Promise<void> {
+export async function markEtsyShipped(
+  shop: string,
+  receiptId: string,
+  tracking?: { code: string; carrier: string; url?: string },
+): Promise<void> {
   const conn = await getEtsyConnection(shop);
   if (!conn || !/^\d+$/.test(receiptId)) return;
   const path = `/application/shops/${conn.etsyShopId}/receipts/${receiptId}`;
   if (tracking?.code && tracking.carrier) {
-    await etsyApi(conn.token, `${path}/tracking`, { method: "POST", json: { tracking_code: tracking.code, carrier_name: tracking.carrier } });
-  } else {
-    await etsyApi(conn.token, path, { method: "PUT", form: { was_shipped: "true" } });
+    try {
+      await etsyApi(conn.token, `${path}/tracking`, {
+        method: "POST",
+        json: { tracking_code: tracking.code, carrier_name: tracking.carrier, ...(tracking.url ? { note_to_buyer: `Track your package: ${tracking.url}` } : {}) },
+      });
+      return;
+    } catch (err) {
+      // Etsy tanımadığı kargo adını reddediyor: takipsiz "gönderildi"ye düş
+      console.warn(`[etsy] takip bilgisi yazılamadı (${tracking.carrier}), yalnız gönderildi işaretleniyor:`, err instanceof Error ? err.message : err);
+    }
   }
+  await etsyApi(conn.token, path, { method: "PUT", form: { was_shipped: "true" } });
 }

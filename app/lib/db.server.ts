@@ -462,6 +462,11 @@ async function _runMigrationsLocked() {
   // ve siparişin geldiği kanal. Kanal boşsa bağlı mağazanın kendisi (Shopify/Woo).
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS personalization TEXT NOT NULL DEFAULT ''`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT ''`);
+  // Kargo takip bilgisi (siparişin bütün satırlarında aynı); "gönderildi"
+  // yapılırken girilir ve siparişin kanalına iletilir
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_company TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_url TEXT NOT NULL DEFAULT ''`);
 
   // ── Ensure per-line-item unique indexes exist (re-run safe) ─────────────
   // variant_id is not unique inside a Shopify order: two separate line items can

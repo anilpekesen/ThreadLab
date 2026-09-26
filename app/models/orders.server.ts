@@ -47,6 +47,9 @@ export interface Order {
   personalization?: string;
   /** Ek satış kanalı ("etsy"); boşsa bağlı mağazanın kendisi */
   source?: string;
+  trackingNumber?: string;
+  trackingCompany?: string;
+  trackingUrl?: string;
   /** Baskı dosyası için adres ayrıldı ama dosya hiç yüklenmedi */
   printFileMissing?: boolean;
 }
@@ -83,6 +86,9 @@ type DbRow = {
   color_mismatch?: boolean | null;
   personalization?: string | null;
   source?: string | null;
+  tracking_number?: string | null;
+  tracking_company?: string | null;
+  tracking_url?: string | null;
   print_file_missing?: boolean | null;
 };
 
@@ -118,6 +124,9 @@ function rowToOrder(row: DbRow): Order {
     colorMismatch: row.color_mismatch ?? false,
     personalization: row.personalization ?? "",
     source: row.source ?? "",
+    trackingNumber: row.tracking_number ?? "",
+    trackingCompany: row.tracking_company ?? "",
+    trackingUrl: row.tracking_url ?? "",
     printFileMissing: row.print_file_missing ?? false,
   };
 }
@@ -128,6 +137,7 @@ const ORDER_SELECT = `
     o.design_token, o.preview_url, o.back_preview_url,
     o.production_file_url, o.production_files, o.production_status, o.missing_surcharge, o.created_at, o.updated_at,
     o.drive_folder_id, o.drive_uploaded_at, o.color_mismatch, o.personalization, o.source,
+    o.tracking_number, o.tracking_company, o.tracking_url,
     d.front_preview_url AS design_front_preview_url,
     d.back_preview_url  AS design_back_preview_url,
     d.front_print_url   AS design_front_print_url,
@@ -781,6 +791,32 @@ export async function getOrdersByIds(shop: string, ids: string[]): Promise<Order
   return result.rows.map(rowToOrder);
 }
 
+export interface Tracking {
+  number: string;
+  company: string;
+  url: string;
+}
+
+/** Takip bilgisini siparişin bütün satırlarına yazar (boş değer mevcut olanı silmez) */
+export async function setOrderTracking(shop: string, shopifyOrderId: string, t: Tracking): Promise<void> {
+  if (!shopifyOrderId || !(t.number || t.url)) return;
+  await ensureMigrations();
+  await query(
+    `UPDATE orders SET tracking_number = $3, tracking_company = $4, tracking_url = $5, updated_at = now()
+      WHERE shop = $1 AND shopify_order_id = $2`,
+    [shop, shopifyOrderId, t.number.slice(0, 120), t.company.slice(0, 80), t.url.slice(0, 500)],
+  );
+}
+
+async function trackingFor(shop: string, shopifyOrderId: string): Promise<Tracking | null> {
+  const r = (await query<{ tracking_number: string; tracking_company: string; tracking_url: string }>(
+    `SELECT tracking_number, tracking_company, tracking_url FROM orders
+      WHERE shop = $1 AND shopify_order_id = $2 AND (tracking_number <> '' OR tracking_url <> '') LIMIT 1`,
+    [shop, shopifyOrderId],
+  )).rows[0];
+  return r ? { number: r.tracking_number, company: r.tracking_company, url: r.tracking_url } : null;
+}
+
 export async function bulkUpdateStatus(ids: string[], status: string): Promise<void> {
   if (!ids.length) return;
   await ensureMigrations();
@@ -818,7 +854,9 @@ function pushStatusToPlatform(rows: Array<{ shop: string; shopify_order_id: stri
     void (async () => {
       const { markEtsyShipped } = await import("~/models/etsy.server");
       for (const o of etsy.values()) {
-        await markEtsyShipped(o.shop, o.id).catch((err) => console.error(`[etsy] gönderim yazılamadı ${o.shop} #${o.id}:`, err));
+        const t = await trackingFor(o.shop, `etsy:${o.id}`).catch(() => null);
+        await markEtsyShipped(o.shop, o.id, t ? { code: t.number, carrier: t.company, url: t.url } : undefined)
+          .catch((err) => console.error(`[etsy] gönderim yazılamadı ${o.shop} #${o.id}:`, err));
       }
     })();
   }
@@ -826,12 +864,13 @@ function pushStatusToPlatform(rows: Array<{ shop: string; shopify_order_id: stri
   void (async () => {
     const { pushWooOrderStatus } = await import("~/models/woo.server");
     for (const o of orders.values()) {
-      await pushWooOrderStatus(o.shop, o.id, status).catch((err) => console.error(`[woo] durum yazılamadı ${o.shop} #${o.id}:`, err));
+      const t = status === "shipped" ? await trackingFor(o.shop, o.id).catch(() => null) : null;
+      await pushWooOrderStatus(o.shop, o.id, status, t ?? undefined).catch((err) => console.error(`[woo] durum yazılamadı ${o.shop} #${o.id}:`, err));
     }
   })();
 }
 
-async function fulfillSingleShopifyOrder(admin: AdminClient, shopifyOrderId: string): Promise<void> {
+async function fulfillSingleShopifyOrder(admin: AdminClient, shopifyOrderId: string, tracking: Tracking | null = null): Promise<void> {
   const orderGid = `gid://shopify/Order/${shopifyOrderId}`;
 
   const foRes = await admin.graphql(
@@ -885,6 +924,8 @@ async function fulfillSingleShopifyOrder(admin: AdminClient, shopifyOrderId: str
           fulfillment: {
             lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: fo.id }],
             notifyCustomer: true,
+            // Shopify bilinen firmalarda takip bağlantısını kendisi kurar
+            ...(tracking ? { trackingInfo: { number: tracking.number || undefined, company: tracking.company || undefined, url: tracking.url || undefined } } : {}),
           },
         },
       },
@@ -925,7 +966,7 @@ export async function fulfillShopifyOrders(
 
   for (const row of result.rows) {
     try {
-      await fulfillSingleShopifyOrder(admin, row.shopify_order_id);
+      await fulfillSingleShopifyOrder(admin, row.shopify_order_id, await trackingFor(shop, row.shopify_order_id).catch(() => null));
     } catch (err) {
       console.error(`[fulfill] Failed for Shopify order ${row.shopify_order_id}:`, err);
     }
