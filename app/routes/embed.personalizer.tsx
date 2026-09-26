@@ -1,3 +1,4 @@
+import { makeStx, storefrontLang } from "~/lib/storefront-i18n.server";
 import { type LoaderFunctionArgs } from "@remix-run/node";
 import { getPersonalizerTemplateByProduct, getPersonalizerTemplatePublic, listPersonalizerFrames } from "~/models/personalizer.server";
 import { buildSlotResponse } from "~/lib/slot-embed.server";
@@ -10,29 +11,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const variantId  = url.searchParams.get("variantId") ?? "";
   const shop       = url.searchParams.get("shop") ?? "";
   const locale     = url.searchParams.get("locale") ?? "tr";
-  const normalizedLocale = locale.toLowerCase().startsWith("en") ? "en" : "tr";
-  const isTr = normalizedLocale === "tr";
+  const lang = storefrontLang(locale);
+  // Sunucudaki önizleme/yükleme uçları tr|en bekliyor
+  const normalizedLocale = lang === "tr" ? "tr" : "en";
+  const isTr = lang === "tr";
+  const stx = makeStx(lang);
 
   const t = {
-    title: isTr ? "Kişiselleştir" : "Personalize",
-    uploadPhoto: isTr ? "Fotoğraf Yükle" : "Upload Photo",
-    uploadHint: isTr ? "JPG veya PNG, max 10MB" : "JPG or PNG, max 10MB",
-    preview: isTr ? "Önizle" : "Preview",
-    loading: isTr ? "İşleniyor..." : "Processing...",
-    addToCart: isTr ? "Sepete Ekle" : "Add to Cart",
-    addingToCart: isTr ? "Ekleniyor..." : "Adding...",
-    back: isTr ? "Geri" : "Back",
-    previewNote: isTr ? "Yapay zeka dönüşümü birkaç saniye sürebilir." : "AI transformation may take a few seconds.",
-    error: isTr ? "Hata oluştu. Lütfen tekrar deneyin." : "An error occurred. Please try again.",
-    notFound: isTr ? "Şablon bulunamadı veya aktif değil." : "Template was not found or is not active.",
-    previewPlaceholder: isTr ? "Fotoğrafı yükleyip önizleme alınca tüm çerçeveler burada görünecek." : "Upload a photo and preview to see all frames here.",
-    previewEmpty: isTr ? "Önizleme burada görünecek." : "Preview will appear here.",
-    photoRequired: isTr ? "Lütfen bir fotoğraf yükleyin." : "Please upload a photo.",
-    addedToCart: isTr ? "Sepete Eklendi" : "Added to Cart",
-    done: isTr ? "Tamamlandı" : "Done",
-    frame: isTr ? "Çerçeve" : "Frame",
-    previous: isTr ? "Önceki" : "Previous",
-    next: isTr ? "Sonraki" : "Next",
+    title: stx("Kişiselleştir", "Personalize"),
+    uploadPhoto: stx("Fotoğraf Yükle", "Upload Photo"),
+    uploadHint: stx("JPG veya PNG, max 10MB", "JPG or PNG, max 10MB"),
+    preview: stx("Önizle", "Preview"),
+    loading: stx("İşleniyor...", "Processing..."),
+    addToCart: stx("Sepete Ekle", "Add to Cart"),
+    addingToCart: stx("Ekleniyor...", "Adding..."),
+    back: stx("Geri", "Back"),
+    previewNote: stx("Yapay zeka dönüşümü birkaç saniye sürebilir.", "AI transformation may take a few seconds."),
+    error: stx("Hata oluştu. Lütfen tekrar deneyin.", "An error occurred. Please try again."),
+    notFound: stx("Şablon bulunamadı veya aktif değil.", "Template was not found or is not active."),
+    previewPlaceholder: stx("Fotoğrafı yükleyip önizleme alınca tüm çerçeveler burada görünecek.", "Upload a photo and preview to see all frames here."),
+    previewEmpty: stx("Önizleme burada görünecek.", "Preview will appear here."),
+    photoRequired: stx("Lütfen bir fotoğraf yükleyin.", "Please upload a photo."),
+    addedToCart: stx("Sepete Eklendi", "Added to Cart"),
+    done: stx("Tamamlandı", "Done"),
+    frame: stx("Çerçeve", "Frame"),
+    previous: stx("Önceki", "Previous"),
+    next: stx("Sonraki", "Next"),
   };
 
   const escapeHtml = (value: string) =>
@@ -41,7 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const localizeDescription = (value: string) => {
     if (isTr) return value;
     if (value.includes("Müşteri tek fotoğraf")) {
-      return "Customers enter one photo and text; all frame options are previewed at the same time.";
+      return stx(value, "Customers enter one photo and text; all frame options are previewed at the same time.");
     }
     return value;
   };
@@ -49,18 +53,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const localizeFrameName = (value: string) => {
     if (isTr) return value;
     return String(value || "")
-      .replace(/Çerçeve/g, "Frame")
-      .replace(/çerçeve/g, "frame")
-      .replace(/Ekran Resmi/g, "Screenshot");
+      .replace(/Çerçeve/g, stx("Çerçeve", "Frame"))
+      .replace(/çerçeve/g, stx("çerçeve", "frame"))
+      .replace(/Ekran Resmi/g, stx("Ekran Resmi", "Screenshot"));
   };
 
   const localizeTextField = <T extends { id: string; label: string; placeholder: string }>(field: T): T => {
     if (isTr) return field;
     if (field.id === "name") {
-      return { ...field, label: "Names", placeholder: "Enter names" };
+      return { ...field, label: stx(field.label, "Names"), placeholder: stx(field.placeholder, "Enter names") };
     }
     if (field.id === "note") {
-      return { ...field, label: "Short Text", placeholder: "Enter your short text" };
+      return { ...field, label: stx(field.label, "Short Text"), placeholder: stx(field.placeholder, "Enter your short text") };
     }
     return field;
   };

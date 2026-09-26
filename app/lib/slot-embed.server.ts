@@ -1,3 +1,4 @@
+import { makeStx, storefrontLang } from "~/lib/storefront-i18n.server";
 import { templatePieces, type PersonalizerTemplate } from "~/models/personalizer.server";
 import { getPrintProductPublic } from "~/models/print-product.server";
 import { printCanvas } from "~/lib/print-spec";
@@ -111,69 +112,66 @@ export async function buildSlotData(
   opts: SlotEmbedOptions,
 ): Promise<{ data: SlotPageData; t: Record<string, any> } | { page: Response } | null> {
   const { variantId, shop, locale } = opts;
-  const isTr = !locale.toLowerCase().startsWith("en");
+  const lang = storefrontLang(locale);
+  const isTr = lang === "tr";
+  const stx = makeStx(lang);
 
   const t = {
-    choosePhotos: isTr ? "Fotoğrafları seç" : "Choose photos",
-    chooseMore: isTr ? "Fotoğraf ekle" : "Add photos",
-    hint: (n: number) => isTr
-      ? `Bu tasarım ${n} fotoğrafla hazırlanıyor. Hepsini tek seferde seçebilirsiniz.`
-      : `This design uses ${n} photos. You can select them all at once.`,
-    uploading: isTr ? "Yükleniyor…" : "Uploading…",
-    swapHint: isTr
-      ? "Sırayı değiştirmek için bir fotoğrafı diğerinin üstüne sürükleyin. Kırpmak için üstüne tıklayın."
-      : "Drag one photo onto another to swap. Click a photo to crop it.",
-    cropTitle: isTr ? "Kırpma" : "Crop",
-    cropHint: isTr ? "Sürükleyerek kaydırın" : "Drag to move",
-    zoom: isTr ? "Yakınlaştır" : "Zoom",
-    replace: isTr ? "Değiştir" : "Replace",
-    clear: isTr ? "Kaldır" : "Remove",
-    done: isTr ? "Tamam" : "Done",
-    rotate: isTr ? "Döndür" : "Rotate",
+    choosePhotos: stx("Fotoğrafları seç", "Choose photos"),
+    chooseMore: stx("Fotoğraf ekle", "Add photos"),
+    hint: (n: number) => stx(
+      "Bu tasarım {n} fotoğrafla hazırlanıyor. Hepsini tek seferde seçebilirsiniz.",
+      "This design uses {n} photos. You can select them all at once.",
+    ).replace("{n}", String(n)),
+    uploading: stx("Yükleniyor…", "Uploading…"),
+    swapHint: stx("Sırayı değiştirmek için bir fotoğrafı diğerinin üstüne sürükleyin. Kırpmak için üstüne tıklayın.", "Drag one photo onto another to swap. Click a photo to crop it."),
+    cropTitle: stx("Kırpma", "Crop"),
+    cropHint: stx("Sürükleyerek kaydırın", "Drag to move"),
+    zoom: stx("Yakınlaştır", "Zoom"),
+    replace: stx("Değiştir", "Replace"),
+    clear: stx("Kaldır", "Remove"),
+    done: stx("Tamam", "Done"),
+    rotate: stx("Döndür", "Rotate"),
     // Bu metin tarayıcıda kullanılıyor; fonksiyon olarak bırakılırsa
     // JSON.stringify onu sessizce siler ve arayüz çalışmaz. Yer tutucu
     // istemcide dolduruluyor.
-    missing: isTr
-      ? "{n} alan boş. Sepete eklemek için tümünü doldurun."
-      : "{n} slots empty. Fill them all to continue.",
-    ready: isTr ? "Tasarımınız hazır" : "Your design is ready",
-    addToCart: isTr ? "Sepete ekle" : "Add to cart",
-    fontLabel: isTr ? "Yazı tipi" : "Font",
-    fontDefault: isTr ? "Varsayılan" : "Default",
-    yaziRengi: isTr ? "Renk" : "Color",
-    yaziRengiVarsayilan: isTr ? "Varsayılan renk" : "Default color",
-    yaziBoyutu: isTr ? "Boyut" : "Size",
-    digerRenk: isTr ? "Başka bir renk seç" : "Pick another color",
-    adding: isTr ? "Ekleniyor…" : "Adding…",
-    added: isTr ? "Sepete eklendi" : "Added to cart",
-    lowRes: isTr ? "Düşük çözünürlük" : "Low resolution",
-    lowResHint: isTr
-      ? "Bu fotoğraf bu alan için küçük; baskıda bulanık çıkabilir."
-      : "This photo is small for this slot; it may print blurry.",
-    pool: isTr ? "Kullanılmayan fotoğraflar" : "Unused photos",
-    notFound: isTr ? "Şablon bulunamadı." : "Template not found.",
-    noSize: isTr ? "Bu şablona baskı ebadı bağlanmamış." : "This template has no print size.",
-    noSlots: isTr ? "Bu şablonda fotoğraf alanı tanımlı değil." : "This template has no photo slots.",
-    error: isTr ? "Bir hata oluştu, lütfen tekrar deneyin." : "Something went wrong, please try again.",
-    emptyArea: isTr ? "Fotoğraf ekleyin" : "Add a photo",
-    heading: isTr ? "Fotoğraflarınızı yerleştirin" : "Place your photos",
-    dropHere: isTr ? "Fotoğrafları buraya bırakın" : "Drop your photos here",
-    progress: isTr ? "{a} / {b} fotoğraf" : "{a} / {b} photos",
-    colorLabel: isTr ? "seçili" : "selected",
-    photoSection: isTr ? "Fotoğrafları ekleyin" : "Add your photos",
-    textSection: isTr ? "Yazıları düzenleyin" : "Edit the text",
-    setHint: isTr ? "Diğer çerçeveler için yana kaydırın" : "Swipe sideways for the other frames",
-    captionPlaceholder: isTr ? "yazı ekle" : "add text",
-    extrasSection: isTr ? "Ek seçenekler" : "Extras",
-    choose: isTr ? "Seçin" : "Choose",
-    none: isTr ? "Yok" : "None",
-    feeLabel: isTr ? "Kişiselleştirme" : "Personalization",
-    feePerChar: isTr ? "karakter başı" : "per character",
-    feeFree: isTr ? "ilk {n} karakter ücretsiz" : "first {n} characters free",
-    feeFont: isTr ? "font değişikliği" : "font change",
-    feeColor: isTr ? "renk değişikliği" : "color change",
-    feeSize: isTr ? "boyut değişikliği" : "size change",
-    chooseOption: isTr ? "Lütfen seçin: {x}" : "Please choose: {x}",
+    missing: stx("{n} alan boş. Sepete eklemek için tümünü doldurun.", "{n} slots empty. Fill them all to continue."),
+    ready: stx("Tasarımınız hazır", "Your design is ready"),
+    addToCart: stx("Sepete ekle", "Add to cart"),
+    fontLabel: stx("Yazı tipi", "Font"),
+    fontDefault: stx("Varsayılan", "Default"),
+    yaziRengi: stx("Renk", "Color"),
+    yaziRengiVarsayilan: stx("Varsayılan renk", "Default color"),
+    yaziBoyutu: stx("Boyut", "Size"),
+    digerRenk: stx("Başka bir renk seç", "Pick another color"),
+    adding: stx("Ekleniyor…", "Adding…"),
+    added: stx("Sepete eklendi", "Added to cart"),
+    lowRes: stx("Düşük çözünürlük", "Low resolution"),
+    lowResHint: stx("Bu fotoğraf bu alan için küçük; baskıda bulanık çıkabilir.", "This photo is small for this slot; it may print blurry."),
+    pool: stx("Kullanılmayan fotoğraflar", "Unused photos"),
+    notFound: stx("Şablon bulunamadı.", "Template not found."),
+    noSize: stx("Bu şablona baskı ebadı bağlanmamış.", "This template has no print size."),
+    noSlots: stx("Bu şablonda fotoğraf alanı tanımlı değil.", "This template has no photo slots."),
+    error: stx("Bir hata oluştu, lütfen tekrar deneyin.", "Something went wrong, please try again."),
+    emptyArea: stx("Fotoğraf ekleyin", "Add a photo"),
+    heading: stx("Fotoğraflarınızı yerleştirin", "Place your photos"),
+    dropHere: stx("Fotoğrafları buraya bırakın", "Drop your photos here"),
+    progress: stx("{a} / {b} fotoğraf", "{a} / {b} photos"),
+    colorLabel: stx("seçili", "selected"),
+    photoSection: stx("Fotoğrafları ekleyin", "Add your photos"),
+    textSection: stx("Yazıları düzenleyin", "Edit the text"),
+    setHint: stx("Diğer çerçeveler için yana kaydırın", "Swipe sideways for the other frames"),
+    captionPlaceholder: stx("yazı ekle", "add text"),
+    extrasSection: stx("Ek seçenekler", "Extras"),
+    choose: stx("Seçin", "Choose"),
+    none: stx("Yok", "None"),
+    feeLabel: stx("Kişiselleştirme", "Personalization"),
+    feePerChar: stx("karakter başı", "per character"),
+    feeFree: stx("ilk {n} karakter ücretsiz", "first {n} characters free"),
+    feeFont: stx("font değişikliği", "font change"),
+    feeColor: stx("renk değişikliği", "color change"),
+    feeSize: stx("boyut değişikliği", "size change"),
+    chooseOption: stx("Lütfen seçin: {x}", "Please choose: {x}"),
   };
 
   function page(message: string) {
@@ -380,6 +378,8 @@ export async function buildSlotData(
     variantId,
     shop,
     locale: isTr ? "tr" : "en",
+    // Arayüz dili (büyük harf kuralı ve para biçimi için); locale sunucu uçları için tr|en
+    uiLang: lang,
     pieces: piecePayload,
     texts,
     mockups,
@@ -398,6 +398,7 @@ export interface SlotPageData {
   variantId: string;
   shop: string;
   locale: string;
+  uiLang?: string;
   /** Ayrı ayrı basılan parçalar; tek parçalı şablonlarda tek eleman */
   pieces: Array<{
     id: string;
@@ -441,7 +442,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
   );
 
   return `<!doctype html>
-<html lang="${data.locale === "en" ? "en" : "tr"}">
+<html lang="${data.uiLang ?? (data.locale === "en" ? "en" : "tr")}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
@@ -1606,7 +1607,7 @@ export function renderSlotPage(data: SlotPageData, t: Record<string, any>): stri
     var x = Math.round(n * 100) / 100;
     if (PARA_BIRIMI) {
       try {
-        return new Intl.NumberFormat(D.locale === 'en' ? 'en' : 'tr', { style: 'currency', currency: PARA_BIRIMI }).format(x);
+        return new Intl.NumberFormat(D.uiLang || (D.locale === 'en' ? 'en' : 'tr'), { style: 'currency', currency: PARA_BIRIMI }).format(x);
       } catch (_) { /* tanınmayan para birimi */ }
     }
     return x.toFixed(2);
