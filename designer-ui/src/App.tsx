@@ -47,6 +47,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { useDesignerI18n } from './i18n';
+import { proxyConfigImages } from '@/utils/foreignImage';
 import { useDesignerStore } from '@/store/designerStore';
 import CanvasArea, { type CanvasAreaHandle, type ImageAddOptions } from '@/components/canvas/CanvasArea';
 import { QuantityStepper } from '@/components/QuantityStepper';
@@ -1618,7 +1619,7 @@ export default function App() {
     const handleMessage = (event: MessageEvent) => {
 	      const payload = event.data;
 	      if (!payload || payload.type !== 'DESIGNER_INIT' || !payload.config) return;
-	      const cfg = payload.config as DesignerConfig & { shop?: string };
+	      const cfg = proxyConfigImages(payload.config as DesignerConfig & { shop?: string });
 	      const p = personalizationRef.current;
 	      applyConfig(resolveDesignerMockupConfig(cfg, p), setConfig);
       // Shop domain'i DESIGNER_INIT'ten al ve şablonları çek
