@@ -23,8 +23,7 @@ import { getShopSubscription, upsertShopSubscription, getAnalytics } from "~/mod
 import { listConfiguredProductIds } from "~/models/product-config.server";
 import { checkPromo, reservePromo, activatePendingPromo } from "~/models/promo.server";
 import { isWooShop } from "~/lib/platform";
-import { loadPaddle } from "~/lib/paddle-client";
-import { isPaddleReady, paddleClientConfig } from "~/lib/paddle.server";
+import { isPaddleReady, paddleClientConfig, paddlePayUrl } from "~/lib/paddle.server";
 import {
   cancelPaddlePlan,
   changePaddlePlan,
@@ -328,7 +327,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = form.get("intent") as string;
   const B = pickDict(billingDict, langFromRequest(request, form));
 
-  if (isWooShop(shop)) return wooBillingAction(shop, intent, form, B);
+  if (isWooShop(shop)) return wooBillingAction(shop, intent, form, B, langFromRequest(request, form));
 
   const accessToken = await getValidAccessToken(shop);
   if (!accessToken) return redirect(`/auth/login?shop=${encodeURIComponent(shop)}`);
@@ -423,7 +422,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 /** WooCommerce mağazası: abonelik Paddle'dan (bkz. ~/models/paddle-billing.server) */
 type BillingCopy = (typeof billingDict)["en"];
 
-async function wooBillingAction(shop: string, intent: string, form: FormData, B: BillingCopy) {
+async function wooBillingAction(shop: string, intent: string, form: FormData, B: BillingCopy, lang: string) {
   try {
     if (intent === "subscribe") {
       const planKey = form.get("plan") as PlanKey;
@@ -440,7 +439,7 @@ async function wooBillingAction(shop: string, intent: string, form: FormData, B:
         return redirect("/app/billing");
       }
       const { transactionId } = await startPaddleCheckout(shop, { kind: "plan", plan: planKey });
-      return json({ paddleTransactionId: transactionId });
+      return redirect(paddlePayUrl(transactionId, "billing", lang));
     }
     if (intent === "cancel") {
       await cancelPaddlePlan(shop);
@@ -478,20 +477,6 @@ export default function BillingPage() {
   const currentPlanLabel = analytics.planKey;
   const freeLimit = PLANS.Free.maxProducts;
   const [promo, setPromo] = useState("");
-
-  // WooCommerce: sunucunun açtığı işlemin ödeme penceresi (Paddle overlay)
-  useEffect(() => {
-    const txn = actionData?.paddleTransactionId;
-    if (!txn || !paddle?.client) return;
-    loadPaddle(paddle.client, () => {
-      // Bildirim birkaç saniye içinde gelir; sayfa yenilenince sunucu işlemi de sorar
-      window.setTimeout(() => revalidator.revalidate(), 2500);
-    })
-      .then((P) => P.Checkout.open({ transactionId: txn, settings: { displayMode: "overlay", locale: lang === "tr" ? "tr" : "en" } }))
-      .catch((err: Error) => setPaddleError(err.message));
-    // revalidator kimliği her çizimde değişiyor; yalnız yeni işlemde aç
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actionData?.paddleTransactionId]);
 
   useEffect(() => {
     if (!actionData?.redirectUrl) return;

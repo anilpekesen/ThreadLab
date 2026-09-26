@@ -69,6 +69,17 @@ export function paddleClientConfig(customerId?: string | null): { environment: P
   return env && token ? { environment: env, token, customerId: customerId?.startsWith("ctm_") ? customerId : null } : null;
 }
 
+/**
+ * Ödeme penceresi yalnız Paddle'ın onayladığı alan adında açılabilir; bu
+ * yüzden işlem, ana sitedeki /pay sayfasında açılır (uygulama alt alan adı
+ * onay gerektirmez). Ödeme bitince kullanıcı panele döner.
+ */
+export function paddlePayUrl(transactionId: string, back: "billing" | "credits", lang: string): string {
+  const origin = (process.env.PADDLE_CHECKOUT_ORIGIN || "https://printlabapp.com").replace(/\/$/, "");
+  const qs = new URLSearchParams({ txn: transactionId, back, lang: lang === "tr" ? "tr" : "en" });
+  return `${origin}/pay?${qs}`;
+}
+
 export function planPriceId(plan: PlanKey): string {
   return process.env[`PADDLE_PRICE_${plan.toUpperCase()}`] ?? "";
 }

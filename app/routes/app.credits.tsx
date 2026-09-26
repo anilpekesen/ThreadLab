@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useActionData, Form, useNavigation, useRevalidator } from "@remix-run/react";
 import { useEffect, useState } from "react";
 import {
@@ -18,9 +18,8 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/lib/authenticate.server";
 import { isWooShop } from "~/lib/platform";
-import { isPaddleReady, packPriceId, paddleClientConfig } from "~/lib/paddle.server";
+import { isPaddleReady, packPriceId, paddleClientConfig, paddlePayUrl } from "~/lib/paddle.server";
 import { getPaddleSubscription, reconcilePaddleCheckouts, startPaddleCheckout } from "~/models/paddle-billing.server";
-import { loadPaddle } from "~/lib/paddle-client";
 import { shopifyGraphQL } from "~/lib/shopify.server";
 import { useTranslation, useDict, pickDict } from "~/i18n";
 import { langFromRequest } from "~/i18n/server";
@@ -91,7 +90,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (isWooShop(session.shop)) {
     try {
       const { transactionId } = await startPaddleCheckout(session.shop, { kind: "credits", pack: packKey });
-      return json({ paddleTransactionId: transactionId });
+      return redirect(paddlePayUrl(transactionId, "credits", langFromRequest(request, form)));
     } catch (err) {
       console.error("[credits] paddle:", err);
       return json({ error: err instanceof Error ? err.message : "error" }, { status: 500 });
@@ -152,16 +151,6 @@ export default function CreditsPage() {
       window.open(actionData.redirectUrl, "_top");
     }
   }, [actionData]);
-
-  // WooCommerce: Paddle ödeme penceresi; tamamlanınca kredi listesi tazelenir
-  useEffect(() => {
-    const txn = actionData?.paddleTransactionId;
-    if (!txn || !paddle?.client) return;
-    loadPaddle(paddle.client, () => window.setTimeout(() => revalidator.revalidate(), 2500))
-      .then((P) => P.Checkout.open({ transactionId: txn, settings: { displayMode: "overlay" } }))
-      .catch((err: Error) => setPaddleError(err.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actionData?.paddleTransactionId]);
 
   const { t, lang } = useTranslation();
   const L = useDict(creditsDict);
