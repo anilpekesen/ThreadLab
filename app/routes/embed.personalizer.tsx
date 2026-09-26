@@ -92,7 +92,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     variantId,
     shop,
     productId,
-    locale: normalizedLocale,
+    // Kutu kendi dilini seçer (de/fr/es dahil); tr|en'e indirilmiş hâli değil
+    locale: lang,
     optionValues: (url.searchParams.get("options") ?? "").split("|").filter(Boolean),
   });
   if (slotResponse) return slotResponse;
