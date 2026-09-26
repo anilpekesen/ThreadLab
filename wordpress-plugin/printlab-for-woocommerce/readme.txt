@@ -34,6 +34,7 @@ PrintLab adds a live personalization step to your product pages. Customers desig
 * Print-ready files at the product's real print size and resolution
 * Orders, production status and print files in one place, with gang sheets and a print queue
 * Production status is added to the WooCommerce order; marking an order shipped completes it
+* Optional Printful fulfillment: print-on-demand drafts you confirm, with the tracking number sent to the customer
 * All extra charges are priced on the PrintLab server, never taken from the browser
 * Works with the block cart and checkout and with HPOS order storage
 
