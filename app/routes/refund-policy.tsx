@@ -47,7 +47,8 @@ const html = `<!DOCTYPE html>
     <a href="/" class="logo"><img src="/logo-full.png" alt="PrintLabApp" height="40" /></a>
     <div style="display:flex;align-items:center;gap:20px">
       <nav>
-        <a href="/terms-of-service" style="color:var(--brand);font-weight:600">Terms of Service</a>
+        <a href="/terms-of-service">Terms of Service</a>
+        <a href="/refund-policy" style="color:var(--brand);font-weight:600">Refund Policy</a>
         <a href="/privacy-policy">Privacy Policy</a>
       </nav>
       <div class="lang-btns">
