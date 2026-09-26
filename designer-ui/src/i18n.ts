@@ -515,5 +515,10 @@ export function txFor<T>(lang: DesignerLang, trValue: T, enValue: T): T {
 export function useDesignerI18n(locale: string | undefined): { t: I18nDict; isTurkish: boolean; lang: DesignerLang } {
   const lang = resolveDesignerLang(locale);
   activeLang = lang;
+  // CSS büyük harf dönüşümü sayfa diline göre yapılır: lang="tr" iken
+  // Almanca/Fransızca etiketlerde noktalı İ çıkıyordu ("VERSCHİEBEN")
+  if (typeof document !== 'undefined' && document.documentElement.lang !== lang) {
+    document.documentElement.lang = lang;
+  }
   return { t: DICTS[lang], isTurkish: lang === 'tr', lang };
 }
