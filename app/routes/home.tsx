@@ -3,9 +3,11 @@ import { type LoaderFunctionArgs } from "@remix-run/node";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const cookieHeader = request.headers.get("Cookie") ?? "";
   const langMatch = cookieHeader.match(/(?:^|; )dk_lang=([^;]*)/);
-  const lang = langMatch?.[1] === "en" ? "en" : "tr";
+  // Elle seçilen dil (çerez) öncelikli; yoksa tarayıcı dili: Türkçe değilse İngilizce
+  const browserTr = /^\s*tr\b/i.test(request.headers.get("Accept-Language") ?? "");
+  const lang = langMatch ? (langMatch[1] === "en" ? "en" : "tr") : browserTr ? "tr" : "en";
   return new Response(buildHtml(lang), {
-    headers: { "Content-Type": "text/html; charset=utf-8" },
+    headers: { "Content-Type": "text/html; charset=utf-8", Vary: "Accept-Language, Cookie" },
   });
 };
 
