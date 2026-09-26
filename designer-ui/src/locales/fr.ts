@@ -161,7 +161,7 @@ export const dict: I18nDict = {
   aiSessionRemaining: "Cette session",
   aiRemainingSuffix: "restantes",
   aiPromptLabel: "Que voulez-vous voir ?",
-  aiPromptHelp: "Vous pouvez écrire en turc ou en anglais. Décrivez ensemble les objets, la composition et l'ambiance : emblème d'une seule pièce, centré, streetwear, design d'impression, etc.",
+  aiPromptHelp: "Vous pouvez écrire dans votre langue. Décrivez ensemble les objets, la composition et l'ambiance : emblème d'une seule pièce, centré, streetwear, design d'impression, etc.",
   aiSaveToUploads: "Enregistrer dans mes images",
   aiSaving: "Enregistrement...",
   aiPreparingPng: "Préparation du PNG...",
