@@ -24,7 +24,7 @@ const T = {
     hero: {
       eyebrow: "SHOPIFY ÜRÜN KİŞİSELLEŞTİRME UYGULAMASI",
       title: `Müşterileriniz <span class="title-accent">kendi tasarımını</span> yapsın, siz baskıya yollayın.`,
-      sub: "PrintLab, Shopify mağazaları için ürün kişiselleştirme ve baskı tasarım aracıdır. Müşteri ürün sayfasında kendi tasarımını yapar ya da hazır şablonlardan birini birkaç bilgiyle kişiselleştirir — fotoğraflı çerçeveler, kelime sanatı, Spotify şarkısı, yıldız ve şehir haritası, monogram, doğum çiçeği. Siz baskıya hazır siparişi alırsınız.",
+      sub: "PrintLab, Shopify ve WooCommerce mağazaları için ürün kişiselleştirme ve baskı tasarım aracıdır. Müşteri ürün sayfasında kendi tasarımını yapar ya da hazır şablonlardan birini birkaç bilgiyle kişiselleştirir — fotoğraflı çerçeveler, kelime sanatı, Spotify şarkısı, yıldız ve şehir haritası, monogram, doğum çiçeği. Siz baskıya hazır siparişi alırsınız.",
       cta1: "14 gün ücretsiz başla", cta2: "Demo mağazayı gör →",
       b1: "Kurulum 5 dakika", b2: "Kredi kartı gerekmiyor", b3: "Türkçe destek",
       trustLabel: "Tek uygulamada hazır kişiselleştirme şablonları",
@@ -305,11 +305,11 @@ function buildHtml(lang: Lang): string {
   const t = T[lang];
   const other = lang === "tr" ? "en" : "tr";
   const pageTitle = lang === "tr"
-    ? "PrintLab | Shopify Kişiselleştirme Tasarım Aracı"
-    : "PrintLab | Shopify Product Personalization Designer";
+    ? "PrintLab | Shopify ve WooCommerce Kişiselleştirme Tasarım Aracı"
+    : "PrintLab | Product Personalization Designer for Shopify & WooCommerce";
   const metaDescription = lang === "tr"
-    ? "PrintLab, Shopify mağazaları için ürün kişiselleştirme ve baskı tasarım uygulamasıdır. T-shirt, sweatshirt, kupa ve tote bag ürünlerinde müşteri tasarlar, siz baskıya hazır siparişi alırsınız."
-    : "PrintLab is a Shopify product personalization and print designer app. Let customers customize t-shirts, sweatshirts, mugs, and tote bags directly on your product pages.";
+    ? "PrintLab, Shopify ve WooCommerce mağazaları için ürün kişiselleştirme ve baskı tasarım uygulamasıdır. T-shirt, sweatshirt, kupa ve tote bag ürünlerinde müşteri tasarlar, siz baskıya hazır siparişi alırsınız."
+    : "PrintLab is a product personalization and print designer app for Shopify and WooCommerce. Let customers customize t-shirts, sweatshirts, mugs, and tote bags directly on your product pages.";
   const metaKeywords = lang === "tr"
     ? "shopify kişiselleştirme uygulaması, shopify ürün tasarım aracı, shopify tişört tasarım uygulaması, shopify baskı tasarım aracı, print on demand shopify"
     : "shopify product personalization app, shopify product customizer, shopify t-shirt designer app, shopify print designer, print on demand personalization";
@@ -838,6 +838,13 @@ function buildHtml(lang: Lang): string {
       </div>
       <div class="cp-grid">${creditPackCards}</div>
       <p class="cp-note">${t.pricing.creditsNote}</p>
+    </div>
+
+    <div class="free-strip">
+      <div><strong>${lang === "tr" ? "WooCommerce için de var" : "Also available for WooCommerce"}</strong><span>${lang === "tr"
+        ? "Aynı planlar WooCommerce mağazaları için: aylık 9,99 $'dan başlar. Ödeme ve faturalandırma Paddle.com üzerinden yapılır."
+        : "The same plans for WooCommerce stores, from $9.99/month. Payments and invoicing are handled by Paddle.com."}</span></div>
+      <a class="btn btn-ghost" href="/woocommerce">${lang === "tr" ? "WooCommerce fiyatları" : "WooCommerce pricing"} ${arrowIcon}</a>
     </div>
   </div>
 </section>
