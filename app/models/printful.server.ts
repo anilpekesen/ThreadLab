@@ -7,6 +7,7 @@ import {
   PrintfulError, verifyPrintfulSignature, type PfProduct, type PfVariant,
 } from "~/lib/printful.server";
 import { publicAppUrl } from "~/lib/app-url.server";
+import { isWooShop } from "~/lib/platform";
 
 /**
  * Printful entegrasyonu: bağlantı, varyant eşleştirme, taslak sipariş,
@@ -246,6 +247,57 @@ async function layerFor(url: string, area: { print_area_width: number; print_are
 
 type DraftResult = { status: "draft" | "skipped" | "needs_access" | "error"; message?: string; printfulOrderId?: number };
 
+type Recipient = Record<string, string | undefined>;
+type RecipientResult = { recipient: Recipient } | { status: "needs_access" | "error"; error: string };
+
+async function shopifyRecipient(shop: string, shopifyOrderId: string): Promise<RecipientResult> {
+  const token = await getValidAccessToken(shop);
+  if (!token) return { status: "error", error: "no_session" };
+  const res = await (await shopifyGraphQL(shop, token, `query($id: ID!) { order(id: $id) {
+      email phone shippingAddress { name company address1 address2 city provinceCode zip countryCodeV2 phone } } }`,
+    { id: `gid://shopify/Order/${shopifyOrderId}` })).json();
+  const denied = (res?.errors ?? []).some((e: { extensions?: { code?: string } }) => e.extensions?.code === "ACCESS_DENIED");
+  const a = res?.data?.order?.shippingAddress;
+  if (denied || !a?.address1) {
+    return denied
+      ? { status: "needs_access", error: "Shopify müşteri adresi iznini henüz onaylamadı" }
+      : { status: "error", error: "Siparişte kargo adresi yok" };
+  }
+  return {
+    recipient: {
+      name: a.name, company: a.company ?? undefined, address1: a.address1, address2: a.address2 ?? undefined,
+      city: a.city, state_code: a.provinceCode ?? undefined, country_code: a.countryCodeV2, zip: a.zip ?? undefined,
+      phone: a.phone ?? res.data.order.phone ?? undefined, email: res.data.order.email ?? undefined,
+    },
+  };
+}
+
+/** Siparişin alıcısı; Printful'a gönderilmek için o anda okunur, saklanmaz */
+export function orderRecipient(shop: string, orderId: string): Promise<RecipientResult> {
+  return isWooShop(shop) ? wooRecipient(shop, orderId) : shopifyRecipient(shop, orderId);
+}
+
+/** WooCommerce: kargo adresi yoksa fatura adresi (dijital olmayan siparişte ikisi aynı olabilir) */
+async function wooRecipient(shop: string, orderId: string): Promise<RecipientResult> {
+  const { getWooConnection, wooRest } = await import("~/models/woo.server");
+  const conn = await getWooConnection(shop);
+  if (!conn) return { status: "error", error: "WooCommerce store is not connected" };
+  type Addr = { first_name?: string; last_name?: string; company?: string; address_1?: string; address_2?: string; city?: string; state?: string; postcode?: string; country?: string; phone?: string; email?: string };
+  const o = await wooRest<{ shipping?: Addr; billing?: Addr }>(conn, `/orders/${encodeURIComponent(orderId)}`);
+  const a = o.shipping?.address_1 ? o.shipping : o.billing;
+  if (!a?.address_1 || !a.country) return { status: "error", error: "Siparişte kargo adresi yok" };
+  // WooCommerce eyaleti ülke önekiyle tutabiliyor (TR06); Printful yalın kodu ister
+  const state = (a.state ?? "").replace(new RegExp(`^${a.country}`), "") || undefined;
+  return {
+    recipient: {
+      name: `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim(), company: a.company || undefined,
+      address1: a.address_1, address2: a.address_2 || undefined, city: a.city, state_code: state,
+      country_code: a.country, zip: a.postcode || undefined,
+      phone: a.phone || o.billing?.phone || undefined, email: o.billing?.email || undefined,
+    },
+  };
+}
+
 export async function createPrintfulDraft(shop: string, shopifyOrderId: string, opts: { force?: boolean } = {}): Promise<DraftResult> {
   const conn = await getPrintfulConnection(shop);
   if (!conn) return { status: "skipped", message: "not_connected" };
@@ -271,23 +323,12 @@ export async function createPrintfulDraft(shop: string, shopifyOrderId: string, 
   );
 
   // Alıcı: yalnız bu anda okunur, saklanmaz
-  const token = await getValidAccessToken(shop);
-  if (!token) return { status: "error", message: "no_session" };
-  const res = await (await shopifyGraphQL(shop, token, `query($id: ID!) { order(id: $id) {
-      email phone shippingAddress { name company address1 address2 city provinceCode zip countryCodeV2 phone } } }`,
-    { id: `gid://shopify/Order/${shopifyOrderId}` })).json();
-  const denied = (res?.errors ?? []).some((e: { extensions?: { code?: string } }) => e.extensions?.code === "ACCESS_DENIED");
-  const a = res?.data?.order?.shippingAddress;
-  if (denied || !a?.address1) {
-    const msg = denied ? "Shopify müşteri adresi iznini henüz onaylamadı" : "Siparişte kargo adresi yok";
-    await record(denied ? "needs_access" : "error", msg);
-    return { status: denied ? "needs_access" : "error", message: msg };
+  const got = await orderRecipient(shop, shopifyOrderId);
+  if ("error" in got) {
+    await record(got.status, got.error);
+    return { status: got.status, message: got.error };
   }
-  const recipient = {
-    name: a.name, company: a.company ?? undefined, address1: a.address1, address2: a.address2 ?? undefined,
-    city: a.city, state_code: a.provinceCode ?? undefined, country_code: a.countryCodeV2, zip: a.zip ?? undefined,
-    phone: a.phone ?? res.data.order.phone ?? undefined, email: res.data.order.email ?? undefined,
-  };
+  const recipient = got.recipient;
 
   try {
     const items = [];
@@ -375,14 +416,35 @@ export async function handlePrintfulWebhook(raw: string, signature: string): Pro
       "UPDATE pod_orders SET status = 'shipped', tracking_number = $3, tracking_url = $4, updated_at = now() WHERE shop = $1 AND shopify_order_id = $2",
       [conn.shop, shopifyOrderId, sh.tracking_number ?? "", sh.tracking_url ?? ""],
     );
-    await fulfillOnShopify(conn.shop, shopifyOrderId, sh.tracking_number ?? "", sh.tracking_url ?? "").catch((err) =>
-      console.error("[printful] Shopify gönderimi yazılamadı:", err));
+    const ship = isWooShop(conn.shop) ? fulfillOnWoo : fulfillOnShopify;
+    await ship(conn.shop, shopifyOrderId, sh.tracking_number ?? "", sh.tracking_url ?? "").catch((err) =>
+      console.error("[printful] gönderim mağazaya yazılamadı:", err));
   } else if (event.type === "order_failed" || event.type === "order_canceled" || event.type === "order_put_hold") {
     const status = event.type === "order_failed" ? "failed" : event.type === "order_canceled" ? "canceled" : "on_hold";
     await query("UPDATE pod_orders SET status = $3, error = $4, updated_at = now() WHERE shop = $1 AND shopify_order_id = $2",
       [conn.shop, shopifyOrderId, status, String(event.data?.reason ?? "").slice(0, 500)]);
   }
   return { status: 200 };
+}
+
+/**
+ * WooCommerce: takip bilgisi müşteriye görünen sipariş notu olur (WooCommerce
+ * müşteriye e-postayla iletir), sipariş tamamlanır. Çekirdek WooCommerce'te
+ * ayrı bir takip alanı yok.
+ */
+async function fulfillOnWoo(shop: string, orderId: string, number: string, url: string) {
+  const { getWooConnection, wooRest } = await import("~/models/woo.server");
+  const conn = await getWooConnection(shop);
+  if (!conn) return;
+  const tracking = [number && `Tracking number: ${number}`, url && `Track your package: ${url}`].filter(Boolean).join("\n");
+  await wooRest(conn, `/orders/${encodeURIComponent(orderId)}/notes`, {
+    method: "POST",
+    body: { note: `Your order has shipped.${tracking ? `\n${tracking}` : ""}`, customer_note: true },
+  });
+  const o = await wooRest<{ status?: string }>(conn, `/orders/${encodeURIComponent(orderId)}`);
+  if (["processing", "on-hold"].includes(String(o.status))) {
+    await wooRest(conn, `/orders/${encodeURIComponent(orderId)}`, { method: "PUT", body: { status: "completed" } });
+  }
 }
 
 /** Yalnız Printful'a giden satırlar gönderildi olarak işaretlenir */

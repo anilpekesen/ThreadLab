@@ -214,6 +214,13 @@ export async function handleWooWebhook(raw: string, headers: Headers): Promise<n
     // Ödenmemiş (bekleyen, başarısız) siparişler üretime girmez
     if (!["processing", "completed", "on-hold"].includes(String(order.status))) return 200;
     await importOrder(shop, wooOrderToIncoming(order));
+    // Printful bağlıysa eşleşen satırlar için taslak (onay beklenir; Shopify'la aynı)
+    if (order.id) {
+      const { createPrintfulDraft } = await import("~/models/printful.server");
+      createPrintfulDraft(shop, String(order.id)).then((r) => {
+        if (r.status !== "skipped") console.log(`[printful] woo #${order.number ?? order.id}: ${r.status}${r.message ? ` (${r.message})` : ""}`);
+      }).catch((err) => console.error("[printful] woo taslak hatası:", err));
+    }
   }
   return 200;
 }

@@ -13,6 +13,8 @@ import { readSettingsMap } from "~/models/product-config.server";
 import {
   autoMatch, connectPrintful, disconnectPrintful, getPrintfulConnection, listVariantMaps, loadCatalog, saveVariantMaps, setAutoDraft,
 } from "~/models/printful.server";
+import { isWooShop } from "~/lib/platform";
+import { fetchShopifyProductById } from "~/models/product-config.server";
 
 /**
  * Printful bağlantısı ve varyant eşleştirme (bkz. ~/models/printful.server).
@@ -45,12 +47,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let matched = 0;
 
   if (conn && selected) {
-    const res = await admin.graphql(`query($id: ID!) { product(id: $id) { variants(first: 100) { nodes { id title selectedOptions { value } } } } }`,
-      { variables: { id: `gid://shopify/Product/${selected}` } });
-    const body = await res.json();
-    variants = (body?.data?.product?.variants?.nodes ?? []).map((v: { id: string; title: string; selectedOptions: { value: string }[] }) => ({
-      id: numeric(v.id), title: v.title, options: v.selectedOptions.map((o) => o.value),
-    }));
+    if (isWooShop(shop)) {
+      // WooCommerce: varyasyonlar mağazanın REST'inden (ürün yardımcısı üzerinden)
+      const product = await fetchShopifyProductById(admin, selected);
+      variants = (product?.variants ?? []).map((v) => ({ id: numeric(v.id), title: v.title, options: v.selectedOptions.map((o) => o.value) }));
+    } else {
+      const res = await admin.graphql(`query($id: ID!) { product(id: $id) { variants(first: 100) { nodes { id title selectedOptions { value } } } } }`,
+        { variables: { id: `gid://shopify/Product/${selected}` } });
+      const body = await res.json();
+      variants = (body?.data?.product?.variants?.nodes ?? []).map((v: { id: string; title: string; selectedOptions: { value: string }[] }) => ({
+        id: numeric(v.id), title: v.title, options: v.selectedOptions.map((o) => o.value),
+      }));
+    }
     const existing = allMaps.filter((m) => variants.some((v) => v.id === m.shopify_variant_id));
     const catalogId = Number(url.searchParams.get("c") || existing[0]?.catalog_product_id || 0);
     if (catalogId) {
@@ -74,6 +82,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return json({
     connected: Boolean(conn),
+    // Korunan müşteri verisi onayı yalnız Shopify'da gerekiyor
+    needsShopifyAccess: !isWooShop(shop),
     storeName: conn?.storeName ?? "",
     autoDraft: conn?.autoDraft ?? true,
     products: [...products.entries()].map(([id, title]) => ({ id, title })),
@@ -163,7 +173,7 @@ export default function PrintfulPage() {
                     checked={data.autoDraft}
                     onChange={(on) => submit({ intent: "auto_draft", on: on ? "1" : "0" })}
                   />
-                  <Banner tone="info"><p>{L.accessNote}</p></Banner>
+                  {data.needsShopifyAccess && <Banner tone="info"><p>{L.accessNote}</p></Banner>}
                 </BlockStack>
               ) : (
                 <BlockStack gap="300">
