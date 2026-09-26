@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { query } from "~/lib/db.server";
+import { query, runMigrations } from "~/lib/db.server";
 
 /**
  * Platformdan bağımsız sipariş içe aktarma.
@@ -70,7 +70,16 @@ function hasColorMismatch(variantTitle: string | undefined, selectedColor: strin
   return !segments.includes(normalizeColorValue(selectedColor));
 }
 
+// Sipariş satırı yeni sütunlara yazılıyor (ör. personalization); tablo
+// değişiklikleri başka bir model çalışmadan uygulanmamış olabilir. Eksik
+// sütun canlı siparişlerin içe aktarılmasını durdururdu.
+let migrationsRan = false;
+
 export async function importOrder(shop: string, order: IncomingOrder): Promise<void> {
+  if (!migrationsRan) {
+    await runMigrations();
+    migrationsRan = true;
+  }
   const shopifyOrderId = String(order.id ?? "");
   if (!shopifyOrderId) return;
 
