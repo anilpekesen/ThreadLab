@@ -4,7 +4,7 @@ Tags: product personalizer, product designer, custom t-shirt, photo upload, prin
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.1
+Stable tag: 0.2.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -92,6 +92,9 @@ Deleting the plugin removes its cached data. The PrintLab settings on your produ
 
 == Changelog ==
 
+= 0.2.2 =
+* Internal PrintLab fields are no longer shown to customers on the order received page, in emails or in My account.
+
 = 0.2.1 =
 * The designer always receives the product, even when the page loads it before the plugin script.
 
@@ -105,6 +108,9 @@ Deleting the plugin removes its cached data. The PrintLab settings on your produ
 * First version: personalization box, server-priced extra charges, order sync.
 
 == Upgrade Notice ==
+
+= 0.2.2 =
+Hides internal PrintLab fields from customers.
 
 = 0.2.1 =
 Fixes the designer sometimes opening without the product.

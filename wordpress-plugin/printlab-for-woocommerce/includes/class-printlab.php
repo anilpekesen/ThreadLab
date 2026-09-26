@@ -45,6 +45,7 @@ final class PrintLab_Plugin {
 		add_filter( 'woocommerce_store_api_cart_item_images', array( $this, 'block_cart_images' ), 10, 2 );
 		add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'order_line_item' ), 10, 3 );
 		add_filter( 'woocommerce_hidden_order_itemmeta', array( $this, 'hidden_itemmeta' ) );
+		add_filter( 'woocommerce_order_item_get_formatted_meta_data', array( $this, 'hide_formatted_meta' ) );
 	}
 
 	// ── Kimlik ─────────────────────────────────────────────────────────────
@@ -756,6 +757,20 @@ final class PrintLab_Plugin {
 		foreach ( (array) ( $p['display'] ?? array() ) as $k => $v ) {
 			$item->add_meta_data( $k, $v, true );
 		}
+	}
+
+	/**
+	 * Müşterinin gördüğü yerler (sipariş alındı sayfası, e-postalar, hesabım,
+	 * blok onay sayfası): PrintLab'in iç alanları gösterilmez. Yönetim
+	 * ekranındaki gizleme (hidden_itemmeta) bunları kapsamıyor.
+	 */
+	public function hide_formatted_meta( $formatted ) {
+		foreach ( (array) $formatted as $id => $meta ) {
+			if ( isset( $meta->key ) && 0 === strpos( (string) $meta->key, 'printlab_' ) ) {
+				unset( $formatted[ $id ] );
+			}
+		}
+		return $formatted;
 	}
 
 	public function hidden_itemmeta( $keys ) {

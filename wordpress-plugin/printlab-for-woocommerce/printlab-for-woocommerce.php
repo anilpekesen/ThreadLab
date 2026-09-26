@@ -3,7 +3,7 @@
  * Plugin Name:       PrintLab for WooCommerce
  * Plugin URI:        https://printlabapp.com
  * Description:       Product personalizer and apparel designer: customers add photos and text, you get print-ready files for every order.
- * Version:           0.2.1
+ * Version:           0.2.2
  * Requires at least: 6.4
  * Requires PHP:      7.4
  * Author:            PrintLab
@@ -23,7 +23,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'PRINTLAB_VERSION', '0.2.1' );
+define( 'PRINTLAB_VERSION', '0.2.2' );
 define( 'PRINTLAB_FILE', __FILE__ );
 
 if ( ! defined( 'PRINTLAB_APP_URL' ) ) {
