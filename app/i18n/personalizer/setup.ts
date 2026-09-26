@@ -140,11 +140,13 @@ const woo = {
   tr: {
     step3Note: "WordPress'te ürüne ayrıca bir şey yazmanız gerekmez; bağladığınız şablon ürünün PrintLab kutusunda seçili görünür. İsterseniz bağlamayı oradan da yapabilirsiniz.",
     step4Title: "Ürün sayfasında kontrol edin",
+    trouble3: ["", "Eklenti etkin mi?", " WordPress'te Eklentiler sayfasında PrintLab for WooCommerce'in etkin olduğunu ve WooCommerce > PrintLab sayfasında mağazanın bağlı göründüğünü kontrol edin."] as Rich,
     step4Body: ["Tema kodu ya da blok gerekmez: PrintLab eklentisi kutuyu ürün sayfasına kendisi ekler. Tişört gibi ürünlerde WordPress'te ürünü açıp PrintLab kutusunda ", "PrintLab tasarımcısını göster", " seçeneğini işaretleyin."] as Rich,
   },
   en: {
     step3Note: "You don't need to change anything on the product in WordPress; the linked template shows as selected in the product's PrintLab box. You can also link it from there.",
     step4Title: "Check the product page",
+    trouble3: ["", "Is the plugin active?", " In WordPress, check that PrintLab for WooCommerce is active on the Plugins page and that WooCommerce > PrintLab shows the store as connected."] as Rich,
     step4Body: ["No theme code or block is needed: the PrintLab plugin adds the box to the product page. For apparel, open the product in WordPress and turn on ", "Show the PrintLab designer", " in the PrintLab box."] as Rich,
   },
 };
