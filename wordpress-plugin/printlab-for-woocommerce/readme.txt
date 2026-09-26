@@ -1,5 +1,5 @@
 === PrintLab for WooCommerce ===
-Contributors: printlab
+Contributors: printlabapp1
 Tags: product personalizer, product designer, custom t-shirt, photo upload, print on demand
 Requires at least: 6.4
 Tested up to: 7.1
