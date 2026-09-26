@@ -406,3 +406,89 @@ export async function pushWooOrderStatus(shop: string, wooOrderId: string, statu
     }
   }
 }
+
+/**
+ * WordPress'te üründe şablon seçilince eklenti PrintLab'e bildirir; böylece
+ * kişiselleştirici listesindeki "bağlı ürün" sayısı ve kutunun hangi şablonu
+ * açacağı iki tarafta aynı kalır. İmza: hex HMAC-SHA256(sır,
+ * `link\n${shop}\n${ts}\n${productId}\n${templateId}`), ±5 dk.
+ */
+export async function applyWooProductLink(input: {
+  shop: string; ts: string; sig: string; productId: string; templateId: string; title: string; slug: string;
+}): Promise<{ ok: boolean; status: number }> {
+  const t = Number(input.ts);
+  if (!Number.isFinite(t) || Math.abs(Date.now() / 1000 - t) > 300 || !/^[0-9a-f]{64}$/.test(input.sig)) return { ok: false, status: 401 };
+  if (!/^\d+$/.test(input.productId) || (input.templateId && !/^[a-zA-Z0-9_-]{6,64}$/.test(input.templateId))) return { ok: false, status: 400 };
+  const conn = await getWooConnection(input.shop);
+  if (!conn?.webhookSecret) return { ok: false, status: 401 };
+  const expected = createHmac("sha256", conn.webhookSecret)
+    .update(`link\n${input.shop}\n${input.ts}\n${input.productId}\n${input.templateId}`).digest();
+  const given = Buffer.from(input.sig, "hex");
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return { ok: false, status: 401 };
+
+  if (!input.templateId) {
+    await query("DELETE FROM personalizer_product_links WHERE shop = $1 AND product_id = $2", [input.shop, input.productId]);
+    return { ok: true, status: 200 };
+  }
+  // Başka mağazanın şablonu bağlanamaz
+  const own = (await query("SELECT 1 FROM personalizer_templates WHERE id = $1 AND shop = $2", [input.templateId, input.shop])).rows.length > 0;
+  if (!own) return { ok: false, status: 404 };
+  const { linkPersonalizerProduct } = await import("~/models/personalizer.server");
+  // Ürün tek şablona bağlı: önceki bağları kaldır
+  await query("DELETE FROM personalizer_product_links WHERE shop = $1 AND product_id = $2 AND template_id <> $3", [input.shop, input.productId, input.templateId]);
+  await linkPersonalizerProduct({
+    shop: input.shop, product_id: input.productId, template_id: input.templateId,
+    product_title: input.title.slice(0, 200), product_handle: input.slug.slice(0, 200),
+  });
+  return { ok: true, status: 200 };
+}
+
+/**
+ * "Eski siparişleri çek": son 60 günün ödenmiş siparişleri REST'ten okunup
+ * webhook'la aynı içe aktarıcıdan geçer (zaten gelmiş satırlar değişmez).
+ * Bağlantıdan önce verilmiş ya da bildirimi kaçmış siparişler için.
+ */
+export async function syncWooOrders(shop: string): Promise<number> {
+  const conn = await getWooConnection(shop);
+  if (!conn) throw new Error("WooCommerce store is not connected");
+  const after = new Date(Date.now() - 60 * 86400_000).toISOString();
+  let imported = 0;
+  for (let page = 1; page <= 10; page++) {
+    const orders = await wooRest<WooOrder[]>(conn, `/orders?status=processing,completed,on-hold&per_page=50&page=${page}&after=${encodeURIComponent(after)}`);
+    for (const o of orders) {
+      const hasDesign = (o.line_items ?? []).some((li) => (li.meta_data ?? []).some((m) => m.key === "printlab_design_token"));
+      if (!hasDesign) continue;
+      await importOrder(shop, wooOrderToIncoming(o));
+      imported++;
+    }
+    if (orders.length < 50) break;
+  }
+  return imported;
+}
+
+/**
+ * "Bağlantıları denetle" (WooCommerce): WordPress'te ürünlerin PrintLab
+ * kutusunda seçili şablonları PrintLab'e çeker. Eklenti bildirimi kaçtıysa
+ * ya da seçim eklenti kurulmadan önce yapıldıysa listeler böyle eşitlenir.
+ * Yalnız bu mağazanın şablonları bağlanır.
+ */
+export async function pullWooTemplateLinks(shop: string): Promise<number> {
+  const conn = await getWooConnection(shop);
+  if (!conn) return 0;
+  const own = new Set((await query<{ id: string }>("SELECT id FROM personalizer_templates WHERE shop = $1", [shop])).rows.map((r) => r.id));
+  const { linkPersonalizerProduct } = await import("~/models/personalizer.server");
+  let linked = 0;
+  for (let page = 1; page <= 20; page++) {
+    const products = await wooRest<Array<{ id: number; name: string; slug: string; meta_data?: WooMeta[] }>>(
+      conn, `/products?per_page=100&page=${page}&status=any`);
+    for (const p of products) {
+      const template = String(p.meta_data?.find((m) => m.key === "_printlab_template")?.value ?? "");
+      if (!template || !own.has(template)) continue;
+      await query("DELETE FROM personalizer_product_links WHERE shop = $1 AND product_id = $2 AND template_id <> $3", [shop, String(p.id), template]);
+      await linkPersonalizerProduct({ shop, product_id: String(p.id), template_id: template, product_title: p.name, product_handle: p.slug });
+      linked++;
+    }
+    if (products.length < 100) break;
+  }
+  return linked;
+}

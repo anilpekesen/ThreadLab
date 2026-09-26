@@ -40,6 +40,7 @@ import {
   withOrderDriveExportLock,
 } from "~/lib/order-drive-export.server";
 import { orderAdminUrl } from "~/lib/platform";
+import { isWooShop } from "~/lib/platform";
 
 const STATUSES = [
   { labelKey: "status.all" as const, value: "" },
@@ -137,7 +138,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "sync") {
     try {
-      const count = await syncOrdersFromAdmin(admin, session.shop);
+      const count = isWooShop(session.shop)
+        ? await (await import("~/models/woo.server")).syncWooOrders(session.shop)
+        : await syncOrdersFromAdmin(admin, session.shop);
       return json({ ok: true, synced: count });
     } catch (err) {
       let msg = S.unknownError;

@@ -218,9 +218,9 @@ const PolarisLink: LinkLikeComponent = ({ children, url = "", external, ref, ...
 };
 
 export default function App() {
-  const { lang } = useLoaderData<typeof loader>();
+  const { lang, standalone } = useLoaderData<typeof loader>();
   return (
-    <LanguageProvider initialLang={lang}>
+    <LanguageProvider initialLang={lang} platform={standalone ? "woo" : "shopify"}>
       <AppInner />
     </LanguageProvider>
   );

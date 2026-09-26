@@ -135,4 +135,18 @@ const en: typeof tr = {
   printFileInfo: "The print file is prepared automatically with each order and appears in the order details' properties.",
 };
 
-export default { tr, en };
+/** WooCommerce yönetiminde anlamı değişen metinler (bkz. useDict) */
+const woo = {
+  tr: {
+    step3Note: "WordPress'te ürüne ayrıca bir şey yazmanız gerekmez; bağladığınız şablon ürünün PrintLab kutusunda seçili görünür. İsterseniz bağlamayı oradan da yapabilirsiniz.",
+    step4Title: "Ürün sayfasında kontrol edin",
+    step4Body: ["Tema kodu ya da blok gerekmez: PrintLab eklentisi kutuyu ürün sayfasına kendisi ekler. Tişört gibi ürünlerde WordPress'te ürünü açıp PrintLab kutusunda ", "PrintLab tasarımcısını göster", " seçeneğini işaretleyin."] as Rich,
+  },
+  en: {
+    step3Note: "You don't need to change anything on the product in WordPress; the linked template shows as selected in the product's PrintLab box. You can also link it from there.",
+    step4Title: "Check the product page",
+    step4Body: ["No theme code or block is needed: the PrintLab plugin adds the box to the product page. For apparel, open the product in WordPress and turn on ", "Show the PrintLab designer", " in the PrintLab box."] as Rich,
+  },
+};
+
+export default { tr, en, woo };

@@ -258,12 +258,47 @@ final class PrintLab_Plugin {
 			delete_post_meta( $post_id, self::META_DESIGNER );
 		}
 		$value = isset( $_POST['printlab_template'] ) ? sanitize_text_field( wp_unslash( $_POST['printlab_template'] ) ) : '';
-		$value = preg_replace( '/[^a-zA-Z0-9_-]/', '', $value );
+		$value    = preg_replace( '/[^a-zA-Z0-9_-]/', '', $value );
+		$previous = (string) get_post_meta( $post_id, self::META_TEMPLATE, true );
 		if ( '' === $value ) {
 			delete_post_meta( $post_id, self::META_TEMPLATE );
 		} else {
 			update_post_meta( $post_id, self::META_TEMPLATE, $value );
 		}
+		if ( $previous !== $value ) {
+			$this->notify_link( $post_id, $value );
+		}
+	}
+
+	/**
+	 * Şablon seçimi PrintLab'e bildirilir (imzalı); PrintLab'deki "bağlı ürün"
+	 * listesi WordPress'teki seçimle aynı kalır. Kaydetmeyi bekletmemek için
+	 * yanıt beklenmez.
+	 */
+	private function notify_link( $post_id, $template ) {
+		$secret = self::signing_secret();
+		if ( ! $secret ) {
+			return;
+		}
+		$shop = self::shop_key();
+		$ts   = (string) time();
+		$pid  = (string) absint( $post_id );
+		wp_remote_post(
+			self::app_url( '/api/woo/product-link' ),
+			array(
+				'timeout'  => 5,
+				'blocking' => false,
+				'body'     => array(
+					'shop'        => $shop,
+					'ts'          => $ts,
+					'product_id'  => $pid,
+					'template_id' => $template,
+					'title'       => get_the_title( $post_id ),
+					'slug'        => get_post_field( 'post_name', $post_id ),
+					'sig'         => hash_hmac( 'sha256', "link\n" . $shop . "\n" . $ts . "\n" . $pid . "\n" . $template, $secret ),
+				),
+			)
+		);
 	}
 
 	// ── Ürün sayfası ───────────────────────────────────────────────────────

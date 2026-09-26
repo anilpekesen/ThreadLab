@@ -21,6 +21,7 @@ import dict from "~/i18n/personalizer/list";
 import {
   clearProductTemplateMetafield, setProductTemplateMetafield,
 } from "~/lib/personalizer-metafield.server";
+import { isWooShop } from "~/lib/platform";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
@@ -48,6 +49,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ ok: true, duplicatedId: copy.id });
   }
   if (intent === "sync_metafields") {
+    // WooCommerce: önce WordPress'te ürünlerde yapılmış seçimler çekilir
+    if (isWooShop(session.shop)) {
+      await (await import("~/models/woo.server")).pullWooTemplateLinks(session.shop)
+        .catch((err) => console.error("[woo] şablon bağlantıları çekilemedi:", err));
+    }
     const templates = await listPersonalizerTemplates(session.shop);
     let temizlenen = 0;
     let yazilan = 0;

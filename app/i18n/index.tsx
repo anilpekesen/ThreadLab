@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import tr, { type TranslationKey } from "./tr";
 import en from "./en";
 
@@ -36,19 +36,55 @@ function writeLangCookie(lang: Lang) {
   }
 }
 
+export type Platform = "shopify" | "woo";
+
+/**
+ * WooCommerce yönetiminde metinlerdeki "Shopify" WooCommerce olur (Türkçe
+ * ekleriyle). Anlamı platforma göre gerçekten değişen metinler ise ekranın
+ * sözlüğünde `woo` anahtarıyla ayrıca yazılır (bkz. useDict).
+ */
+const WOO_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/Shopify'ın/g, "WooCommerce'in"],
+  [/Shopify'ı/g, "WooCommerce'i"],
+  [/Shopify'a/g, "WooCommerce'e"],
+  [/Shopify'da/g, "WooCommerce'te"],
+  [/Shopify'dan/g, "WooCommerce'ten"],
+  [/Shopify's/g, "WooCommerce's"],
+  [/Shopify/g, "WooCommerce"],
+];
+
+export function wooize<T>(value: T): T {
+  if (typeof value === "string") {
+    let out: string = value;
+    for (const [re, to] of WOO_REPLACEMENTS) out = out.replace(re, to);
+    return out as T;
+  }
+  if (Array.isArray(value)) return value.map((v) => wooize(v)) as T;
+  if (typeof value === "function") {
+    const fn = value as unknown as (...a: unknown[]) => unknown;
+    return ((...a: unknown[]) => wooize(fn(...a))) as T;
+  }
+  if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, wooize(v)])) as T;
+  }
+  return value;
+}
+
 interface LanguageContextValue {
   lang: Lang;
+  platform: Platform;
   setLang: (lang: Lang) => void;
   t: (key: TranslationKey) => string;
 }
 
 const LanguageContext = createContext<LanguageContextValue>({
   lang: "tr",
+  platform: "shopify",
   setLang: () => {},
   t: (key) => key,
 });
 
-export function LanguageProvider({ initialLang, children }: { initialLang: Lang; children: ReactNode }) {
+export function LanguageProvider({ initialLang, platform = "shopify", children }: { initialLang: Lang; platform?: Platform; children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(initialLang);
 
   // Sunucu çerezi göremediyse (iframe'de engellenmiş olabilir) localStorage'daki seçimi uygula
@@ -66,12 +102,15 @@ export function LanguageProvider({ initialLang, children }: { initialLang: Lang;
   }, []);
 
   const t = useCallback(
-    (key: TranslationKey): string => translations[lang][key] ?? translations["tr"][key] ?? key,
-    [lang],
+    (key: TranslationKey): string => {
+      const text = translations[lang][key] ?? translations["tr"][key] ?? key;
+      return platform === "woo" ? wooize(text) : text;
+    },
+    [lang, platform],
   );
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t }}>
+    <LanguageContext.Provider value={{ lang, platform, setLang, t }}>
       {children}
     </LanguageContext.Provider>
   );
@@ -91,9 +130,14 @@ export function useTranslation() {
  *   <Button>{L.save}</Button>
  *   {L.linkedTo(3)}   // fonksiyon değerler de olabilir
  */
-export function useDict<T>(dict: { tr: T; en: T }): T {
-  const { lang } = useContext(LanguageContext);
-  return dict[lang] ?? dict.tr;
+export function useDict<T>(dict: { tr: T; en: T; woo?: { tr?: Partial<T>; en?: Partial<T> } }): T {
+  const { lang, platform } = useContext(LanguageContext);
+  return useMemo(() => {
+    const base = dict[lang] ?? dict.tr;
+    if (platform !== "woo") return base;
+    // Önce genel dönüşüm, sonra ekranın WooCommerce'e özel metinleri
+    return { ...wooize(base), ...(dict.woo?.[lang] ?? {}) } as T;
+  }, [dict, lang, platform]);
 }
 
 /** Aynı sözlüğü bileşen dışında (ör. yardımcı fonksiyonlarda) seçmek için */

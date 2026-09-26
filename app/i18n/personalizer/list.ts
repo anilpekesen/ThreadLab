@@ -171,4 +171,16 @@ const en: typeof tr = {
   ],
 };
 
-export default { tr, en };
+/** WooCommerce yönetiminde anlamı değişen metinler (bkz. useDict) */
+const woo = {
+  tr: {
+    stepsBody:
+      "1) Ürün türüne göre şablon oluşturun · 2) Tasarımı kurup kaydedin · 3) Şablonu ürüne bağlayın (burada ya da WordPress'te ürünün PrintLab kutusundan) · 4) Şablonu aktifleştirin. Durumu \"Ürüne bağlı değil\" olan şablonlar müşteriye görünmez.",
+  },
+  en: {
+    stepsBody:
+      "1) Create a template for the product type · 2) Set up and save the design · 3) Link the template to a product (here, or from the PrintLab box on the product in WordPress) · 4) Activate the template. Templates with the status \"Not linked to a product\" aren't visible to customers.",
+  },
+};
+
+export default { tr, en, woo };

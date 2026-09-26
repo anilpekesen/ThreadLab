@@ -8,6 +8,7 @@ import { authenticate } from "~/lib/authenticate.server";
 import { listPersonalizerTemplates } from "~/models/personalizer.server";
 import { useDict } from "~/i18n";
 import dict from "~/i18n/personalizer/setup";
+import { isWooShop } from "~/lib/platform";
 
 // Bu sayfa eskiden Shopify'da metafield tanımını elle oluşturmayı ve tema
 // koduna liquid yapıştırmayı anlatıyordu. Uygulama metafield'ı ürün
@@ -17,7 +18,8 @@ import dict from "~/i18n/personalizer/setup";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate(request);
   const templates = await listPersonalizerTemplates(session.shop);
-  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+  // WooCommerce'te tema bloğu yok: eklenti kutuyu kendisi ekler
+  const apiKey = isWooShop(session.shop) ? "" : (process.env.SHOPIFY_API_KEY ?? "");
   const blockUrl = (handle: string) => apiKey
     ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(`${apiKey}/${handle}`)}&target=mainSection`
     : "";
@@ -89,6 +91,7 @@ export default function PersonalizerSetup() {
 
                 <Step number={4} title={L.step4Title}>
                   <Text as="p">{rich(L.step4Body)}</Text>
+                  {personalizerBlockUrl && (
                   <InlineStack gap="200" wrap>
                     <Button url={personalizerBlockUrl || undefined} external disabled={!personalizerBlockUrl}>
                       {L.personalizerBlock}
@@ -97,6 +100,7 @@ export default function PersonalizerSetup() {
                       {L.designerBlock}
                     </Button>
                   </InlineStack>
+                  )}
                 </Step>
 
                 <Step number={5} title={L.step5Title}>
