@@ -63,19 +63,19 @@ const html = `<!DOCTYPE html>
     <div data-lang="tr" class="visible">
       <span class="badge">Yasal</span>
       <h1>Kullanım Koşulları</h1>
-      <p class="meta">Son güncelleme: 15 Mayıs 2025 &nbsp;·&nbsp; Sürüm 1.0</p>
+      <p class="meta">Son güncelleme: 26 Eylül 2026 &nbsp;·&nbsp; Sürüm 2.0</p>
 
       <div class="box"><p>PrintLab'ı kullanarak bu koşulları kabul etmiş sayılırsınız. Lütfen dikkatlice okuyunuz.</p></div>
 
       <h2>1. Hizmet Tanımı</h2>
-      <p>PrintLab, Shopify mağaza sahiplerine müşterilerinin ürünleri (t-shirt, sweatshirt, kupa vb.) özelleştirmesine olanak tanıyan bir tasarım aracıdır. Uygulama; interaktif bir tasarım editörü, baskı dosyası üretimi ve sipariş yönetim paneli sunar.</p>
+      <p>PrintLab, Shopify ve WooCommerce mağaza sahiplerine müşterilerinin ürünleri (t-shirt, sweatshirt, kupa vb.) özelleştirmesine olanak tanıyan bir tasarım aracıdır. Uygulama; interaktif bir tasarım editörü, baskı dosyası üretimi ve sipariş yönetim paneli sunar. Shopify'da Shopify App Store'daki uygulama, WooCommerce'te <em>PrintLab for WooCommerce</em> WordPress eklentisi üzerinden kullanılır.</p>
 
       <h2>2. Kabul Koşulları</h2>
-      <p>Bu uygulamayı yalnızca geçerli bir Shopify mağazasına sahip, yasal ehliyet yaşındaki işletmeciler kullanabilir. Uygulamayı yükleyerek bu koşulları kabul ettiğinizi beyan etmiş olursunuz.</p>
+      <p>Bu uygulamayı yalnızca geçerli bir Shopify ya da WooCommerce mağazasına sahip, yasal ehliyet yaşındaki işletmeciler kullanabilir. Uygulamayı ya da eklentiyi kurarak bu koşulları kabul ettiğinizi beyan etmiş olursunuz.</p>
 
       <h2>3. Mağaza Sahibinin Yükümlülükleri</h2>
       <ul>
-        <li>Shopify Partnerleri Programı kurallarına uymak</li>
+        <li>Kullandığınız platformun (Shopify ya da WordPress/WooCommerce) kurallarına uymak</li>
         <li>Baskı üretimi için doğru teknik bilgileri (DPI, baskı alanı) girmek</li>
         <li>Telif hakkı ihlali içeren tasarım siparişlerini reddetmek</li>
         <li>Müşteri verilerini yürürlükteki KVKK/GDPR düzenlemelerine uygun işlemek</li>
@@ -98,7 +98,9 @@ const html = `<!DOCTYPE html>
       </ul>
 
       <h2>6. Ücretlendirme ve Ödeme</h2>
-      <p>PrintLab'ın abonelik ve ek hizmet ücretleri Shopify üzerinden tahsil edilir. Baskı ek ücretleri (Tasarım Baskı Ücreti) sipariş anında müşteriden alınır. Fiyatlar önceden bildirim yapılarak değiştirilebilir.</p>
+      <p><strong>Shopify:</strong> Abonelik ve ek hizmet ücretleri Shopify faturanız üzerinden Shopify tarafından tahsil edilir.</p>
+      <p><strong>WooCommerce:</strong> Abonelik planları ve AI kredi paketleri çevrim içi satıcımız <strong>Paddle.com</strong> üzerinden satılır. Paddle.com bu siparişlerde satıcıdır (Merchant of Record); ödemeyi alır, faturayı keser, geçerli vergileri hesaplar ve iadeleri yürütür. Abonelikler iptal edilene kadar aylık yenilenir ve istediğiniz zaman iptal edilebilir; iptal ödenmiş dönemin sonunda geçerli olur. İadeler <a href="/refund-policy">İade Politikası</a>'na tabidir.</p>
+      <p>Mağazanızın kendi müşterilerinden aldığı baskı ek ücretleri (Tasarım Baskı Ücreti) mağazanıza aittir ve mağazanızın kendi ödeme sistemiyle tahsil edilir; PrintLab bu ödemelere aracılık etmez. Fiyatlar önceden bildirim yapılarak değiştirilebilir.</p>
 
       <h2>7. Hizmet Sürekliliği ve Kesintiler</h2>
       <p>%99,5 uptime hedeflenmekle birlikte planlı bakım ve beklenmedik teknik sorunlardan kaynaklanan kesintiler için sorumluluk kabul edilmez. Kritik bakım çalışmaları en az 24 saat önceden duyurulur.</p>
@@ -107,7 +109,7 @@ const html = `<!DOCTYPE html>
       <div class="warning"><p>PrintLab, tasarım hataları, baskı kalitesi sorunları veya müşterilerinizin kendi yükledikleri içerikler nedeniyle oluşabilecek zararlardan sorumlu tutulamaz. Uygulamanın sunduğu araçlar üretim kılavuzu niteliğindedir; nihai üretim kalitesi mağaza sahibinin tercih ettiği baskı firmasına bağlıdır.</p></div>
 
       <h2>9. Hesap Feshi</h2>
-      <p>Bu koşulları ihlal eden mağazaların uygulama erişimi Shopify API aracılığıyla derhal iptal edilebilir. İptal halinde mevcut sipariş verileri 30 gün boyunca talep üzerine teslim edilebilir.</p>
+      <p>Bu koşulları ihlal eden mağazaların uygulama ya da eklenti erişimi derhal iptal edilebilir. İptal halinde mevcut sipariş verileri 30 gün boyunca talep üzerine teslim edilebilir.</p>
 
       <h2>10. Değişiklikler</h2>
       <p>Bu koşullarda yapılan önemli değişiklikler en az 14 gün önceden bildirilir. Değişiklik sonrası uygulamayı kullanmaya devam etmek, yeni koşulların kabulü anlamına gelir.</p>
@@ -129,25 +131,28 @@ const html = `<!DOCTYPE html>
       <h2>13. İletişim</h2>
       <p>Sorularınız için: <a href="mailto:support@printlabapp.com">support@printlabapp.com</a> veya <a href="mailto:info@printlabapp.com">info@printlabapp.com</a></p>
       <p>Telif hakkı bildirimi için: <a href="mailto:support@printlabapp.com">support@printlabapp.com</a> (Konu: DMCA / Telif Bildirimi)</p>
+
+      <h2>Hizmet Sağlayıcı</h2>
+      <div class="box"><p><strong>Satıcı:</strong> Anıl Pekesen<br><strong>Kayıtlı adres:</strong> Tulumtaş, 2358. Sk. No:6, Ferce Tulumtaş A1 Blok Daire 28, 06830 Gölbaşı/Ankara, Türkiye<br><strong>Telefon:</strong> +90 507 464 16 99<br><strong>E-posta:</strong> <a href="mailto:support@printlabapp.com">support@printlabapp.com</a><br><strong>Uygulanacak hukuk:</strong> Türkiye Cumhuriyeti hukuku</p></div>
     </div>
 
     <!-- ENGLISH -->
     <div data-lang="en">
       <span class="badge">Legal</span>
       <h1>Terms of Service</h1>
-      <p class="meta">Last updated: May 15, 2025 &nbsp;·&nbsp; Version 1.0</p>
+      <p class="meta">Last updated: September 26, 2026 &nbsp;·&nbsp; Version 2.0</p>
 
       <div class="box"><p>By using PrintLab, you agree to these terms. Please read them carefully.</p></div>
 
       <h2>1. Service Description</h2>
-      <p>PrintLab is a design tool for Shopify store owners that enables customers to customize products (t-shirts, sweatshirts, mugs, etc.). The application provides an interactive design editor, production file generation, and an order management panel.</p>
+      <p>PrintLab is a design tool for Shopify and WooCommerce store owners that enables customers to customize products (t-shirts, sweatshirts, mugs, etc.). The application provides an interactive design editor, production file generation, and an order management panel. On Shopify it is used through the app in the Shopify App Store; on WooCommerce through the <em>PrintLab for WooCommerce</em> WordPress plugin.</p>
 
       <h2>2. Acceptance</h2>
-      <p>This application may only be used by businesses of legal age with a valid Shopify store. By installing the application, you declare acceptance of these terms.</p>
+      <p>This application may only be used by businesses of legal age with a valid Shopify or WooCommerce store. By installing the application or the plugin, you declare acceptance of these terms.</p>
 
       <h2>3. Merchant Obligations</h2>
       <ul>
-        <li>Comply with Shopify Partners Program rules</li>
+        <li>Comply with the rules of your platform (Shopify or WordPress/WooCommerce)</li>
         <li>Enter accurate technical details (DPI, print area) for print production</li>
         <li>Reject orders containing copyright-infringing designs</li>
         <li>Process customer data in compliance with applicable KVKK/GDPR regulations</li>
@@ -170,7 +175,9 @@ const html = `<!DOCTYPE html>
       </ul>
 
       <h2>6. Pricing and Payment</h2>
-      <p>PrintLab subscription and additional service fees are collected through Shopify. Print surcharges (Design Print Fee) are collected from the customer at the time of order. Prices may be changed with prior notice.</p>
+      <p><strong>Shopify:</strong> Subscription and additional service fees are collected by Shopify on your Shopify bill.</p>
+      <p><strong>WooCommerce:</strong> Subscription plans and AI credit packs are sold through our online reseller <strong>Paddle.com</strong>. Paddle.com is the Merchant of Record for these orders: it takes the payment, issues the invoice, handles applicable taxes and processes refunds. Subscriptions renew monthly until canceled and can be canceled at any time; cancellation takes effect at the end of the paid period. Refunds follow our <a href="/refund-policy">Refund Policy</a>.</p>
+      <p>Print surcharges your store charges its own customers (Design Print Fee) belong to your store and are collected by your store's own checkout; PrintLab does not handle those payments. Prices may be changed with prior notice.</p>
 
       <h2>7. Service Continuity and Interruptions</h2>
       <p>While 99.5% uptime is targeted, no liability is accepted for interruptions caused by planned maintenance or unexpected technical issues. Critical maintenance work is announced at least 24 hours in advance.</p>
@@ -179,7 +186,7 @@ const html = `<!DOCTYPE html>
       <div class="warning"><p>PrintLab cannot be held responsible for damages arising from design errors, print quality issues, or content uploaded by your customers. The tools provided by the application are a production guide; final production quality depends on the printing company chosen by the store owner.</p></div>
 
       <h2>9. Account Termination</h2>
-      <p>Application access for stores that violate these terms may be immediately revoked via the Shopify API. Upon termination, existing order data may be delivered upon request for 30 days.</p>
+      <p>Application access for stores that violate these terms may be immediately revoked. Upon termination, existing order data may be delivered upon request for 30 days.</p>
 
       <h2>10. Changes</h2>
       <p>Material changes to these terms will be notified at least 14 days in advance. Continued use of the application after changes constitutes acceptance of the new terms.</p>
@@ -201,12 +208,15 @@ const html = `<!DOCTYPE html>
       <h2>13. Contact</h2>
       <p>For inquiries: <a href="mailto:support@printlabapp.com">support@printlabapp.com</a> or <a href="mailto:info@printlabapp.com">info@printlabapp.com</a></p>
       <p>For copyright notices: <a href="mailto:support@printlabapp.com">support@printlabapp.com</a> (Subject: DMCA / Copyright Notice)</p>
+
+      <h2>Service Provider</h2>
+      <div class="box"><p><strong>Seller:</strong> Anıl Pekesen<br><strong>Registered address:</strong> Tulumtaş, 2358. Sk. No:6, Ferce Tulumtaş A1 Blok Daire 28, 06830 Gölbaşı/Ankara, Türkiye<br><strong>Telephone:</strong> +90 507 464 16 99<br><strong>Email:</strong> <a href="mailto:support@printlabapp.com">support@printlabapp.com</a><br><strong>Governing law:</strong> Laws of the Republic of Türkiye</p></div>
     </div>
 
   </div>
 
   <footer>
-    <p>© 2025 PrintLab · <a href="/privacy-policy">Privacy Policy</a> · <a href="/terms-of-service">Terms of Service</a></p>
+    <p>© 2026 PrintLab · <a href="/privacy-policy">Privacy Policy</a> · <a href="/terms-of-service">Terms of Service</a> · <a href="/refund-policy">Refund Policy</a></p>
   </footer>
 
   <script>

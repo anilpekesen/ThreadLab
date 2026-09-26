@@ -95,6 +95,7 @@ const html = `<!DOCTYPE html>
       <ul>
         <li><strong>Shopify:</strong> E-ticaret altyapısı — <a href="https://www.shopify.com/legal/privacy" target="_blank">Shopify Gizlilik Politikası</a></li>
         <li><strong>Cloudflare R2:</strong> Tasarım görselleri ve baskı dosyalarının depolanması — <a href="https://www.cloudflare.com/privacypolicy/" target="_blank">Cloudflare Gizlilik Politikası</a></li>
+        <li><strong>Paddle.com:</strong> WooCommerce mağazalarının abonelik ve AI kredi ödemeleri. Paddle bu ödemelerde satıcıdır (Merchant of Record); kart ve fatura bilgilerinizi Paddle işler, PrintLab kart bilgisi saklamaz. Paddle'a yalnız mağaza adresiniz ve seçtiğiniz plan iletilir — <a href="https://www.paddle.com/legal/privacy" target="_blank">Paddle Gizlilik Politikası</a></li>
         <li><strong>WaveSpeed AI (isteğe bağlı):</strong> Arka plan kaldırma özelliği — <a href="https://wavespeed.ai/docs/privacy-policy" target="_blank" rel="noreferrer">WaveSpeed AI Gizlilik Politikası</a></li>
         <li><strong>Google Drive (isteğe bağlı):</strong> Mağaza sahibinin sipariş baskı dosyalarını kendi Drive hesabına yedeklemesi — <a href="https://policies.google.com/privacy" target="_blank">Google Gizlilik Politikası</a></li>
       </ul>
@@ -174,6 +175,7 @@ const html = `<!DOCTYPE html>
       <ul>
         <li><strong>Shopify:</strong> E-commerce infrastructure — <a href="https://www.shopify.com/legal/privacy" target="_blank">Shopify Privacy Policy</a></li>
         <li><strong>Cloudflare R2:</strong> Storage for design images and production files — <a href="https://www.cloudflare.com/privacypolicy/" target="_blank">Cloudflare Privacy Policy</a></li>
+        <li><strong>Paddle.com:</strong> Subscription and AI credit payments of WooCommerce stores. Paddle is the Merchant of Record for these payments; your card and billing details are processed by Paddle and PrintLab does not store card details. Only your store address and the chosen plan are sent to Paddle — <a href="https://www.paddle.com/legal/privacy" target="_blank">Paddle Privacy Policy</a></li>
         <li><strong>WaveSpeed AI (optional):</strong> Background removal feature — <a href="https://wavespeed.ai/docs/privacy-policy" target="_blank" rel="noreferrer">WaveSpeed AI Privacy Policy</a></li>
         <li><strong>Google Drive (optional):</strong> Lets merchants back up their order print files to their own Drive account — <a href="https://policies.google.com/privacy" target="_blank">Google Privacy Policy</a></li>
       </ul>
@@ -219,7 +221,7 @@ const html = `<!DOCTYPE html>
   </div>
 
   <footer>
-    <p>© 2025 PrintLab · <a href="/privacy-policy">Privacy Policy</a> · <a href="/terms-of-service">Terms of Service</a></p>
+    <p>© 2025 PrintLab · <a href="/privacy-policy">Privacy Policy</a> · <a href="/terms-of-service">Terms of Service</a> · <a href="/refund-policy">Refund Policy</a></p>
   </footer>
 
   <script>

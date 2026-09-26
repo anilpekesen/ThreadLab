@@ -149,7 +149,7 @@ const T = {
       product: "Ürün", company: "Şirket", legal: "Yasal",
       features: "Özellikler", pricing: "Fiyatlandırma", demo: "Demo", roadmap: "Yol haritası",
       about: "Hakkımızda", blog: "Blog", contact: "İletişim",
-      privacy: "Gizlilik", terms: "Kullanım Koşulları", kvkk: "KVKK",
+      privacy: "Gizlilik", terms: "Kullanım Koşulları", refund: "İade Politikası", kvkk: "KVKK",
       copy: "© 2026 PrintLab. Tüm hakları saklıdır.",
     },
     switchLang: "EN",
@@ -290,7 +290,7 @@ const T = {
       product: "Product", company: "Company", legal: "Legal",
       features: "Features", pricing: "Pricing", demo: "Demo", roadmap: "Roadmap",
       about: "About us", blog: "Blog", contact: "Contact",
-      privacy: "Privacy", terms: "Terms of Service", kvkk: "GDPR / KVKK",
+      privacy: "Privacy", terms: "Terms of Service", refund: "Refund Policy", kvkk: "GDPR / KVKK",
       copy: "© 2026 PrintLab. All rights reserved.",
     },
     switchLang: "TR",
@@ -889,6 +889,8 @@ function buildHtml(lang: Lang): string {
         <h5>${t.footer.legal}</h5>
         <a href="/privacy-policy">${t.footer.privacy}</a>
         <a href="/terms-of-service">${t.footer.terms}</a>
+        <a href="/refund-policy">${t.footer.refund}</a>
+        <a href="/woocommerce">WooCommerce</a>
         <a href="/privacy-policy">${t.footer.kvkk}</a>
       </div>
     </div>
