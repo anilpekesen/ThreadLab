@@ -471,6 +471,15 @@ export default function OrderDetail() {
           </Banner>
         )}
 
+        {/* Etsy: tasarım yok, müşterinin yazdığı kişiselleştirme üretimin girdisi */}
+        {order.source === "etsy" && (
+          <Banner tone="info" title={lang === "tr" ? "Etsy siparişi — müşterinin kişiselleştirmesi" : "Etsy order — buyer's personalization"}>
+            <p style={{ whiteSpace: "pre-wrap" }}>
+              {order.personalization || (lang === "tr" ? "Müşteri kişiselleştirme yazmamış." : "The buyer left no personalization.")}
+            </p>
+          </Banner>
+        )}
+
         {/* Renk uyuşmazlığı uyarısı — müşterinin seçtiği renk ile sipariş edilen varyant farklı */}
         {order.colorMismatch && (
           <Banner

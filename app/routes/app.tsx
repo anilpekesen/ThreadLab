@@ -117,6 +117,7 @@ function AppInner() {
     { label: t("nav.personalizer"), url: "/app/personalizer", end: false, show: true },
     { label: t("nav.printProducts"), url: "/app/print-products", end: false, show: true },
     { label: "Printful", url: "/app/printful", end: false, show: true },
+    { label: "Etsy", url: "/app/etsy", end: false, show: true },
     { label: t("nav.billing"), url: "/app/billing", end: false, show: true },
     { label: t("nav.credits"), url: "/app/credits", end: false, show: true },
     { label: t("nav.settings"), url: "/app/settings", end: false, show: true },

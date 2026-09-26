@@ -253,6 +253,10 @@ interface OrderGroup {
   driveFolderId: string | null;
   ids: string[];
   representativeId: string;
+  /** Ek satış kanalı ("etsy") */
+  source: string;
+  /** Satırların kişiselleştirme metinleri (Etsy) */
+  personalization: string[];
 }
 
 function groupOrders(orders: Order[]): OrderGroup[] {
@@ -280,12 +284,15 @@ function groupOrders(orders: Order[]): OrderGroup[] {
         driveFolderId: null,
         ids: [],
         representativeId: o.id,
+        source: o.source ?? "",
+        personalization: [],
       });
     }
     const g = map.get(key)!;
     g.ids.push(o.id);
     g.totalQty += o.quantity ?? 1;
     g.variants.push({ id: o.id, variantTitle: o.variantTitle, quantity: o.quantity ?? 1 });
+    if (o.personalization) g.personalization.push(o.personalization);
     if (o.missingSurcharge) g.hasMissingSurcharge = true;
     if (o.previewIssue) g.hasPreviewIssue = true;
     if (o.colorMismatch) g.hasColorMismatch = true;
@@ -426,7 +433,15 @@ export default function Orders() {
         {/* Ürün + Tüm Varyantlar */}
         <IndexTable.Cell>
           <BlockStack gap="100">
-            <Text as="span" variant="bodySm">{g.productName}</Text>
+            <InlineStack gap="100" blockAlign="center">
+              {g.source === "etsy" && <Badge tone="warning" size="small">Etsy</Badge>}
+              <Text as="span" variant="bodySm">{g.productName}</Text>
+            </InlineStack>
+            {g.personalization.length > 0 && (
+              <Text as="span" variant="bodySm" tone="subdued" breakWord>
+                “{g.personalization.join(" · ").slice(0, 140)}{g.personalization.join(" · ").length > 140 ? "…" : ""}”
+              </Text>
+            )}
             <InlineStack gap="100" wrap>
               {g.variants.map((v) => (
                 <Badge key={v.id} tone="info" size="small">

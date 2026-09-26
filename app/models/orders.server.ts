@@ -43,6 +43,10 @@ export interface Order {
   designBackPrintUrl?: string;
   previewIssue?: boolean;
   colorMismatch?: boolean;
+  /** Tasarımsız kanalda (Etsy) müşterinin yazdığı kişiselleştirme */
+  personalization?: string;
+  /** Ek satış kanalı ("etsy"); boşsa bağlı mağazanın kendisi */
+  source?: string;
   /** Baskı dosyası için adres ayrıldı ama dosya hiç yüklenmedi */
   printFileMissing?: boolean;
 }
@@ -77,6 +81,8 @@ type DbRow = {
   design_back_print_url?: string | null;
   preview_issue?: boolean | null;
   color_mismatch?: boolean | null;
+  personalization?: string | null;
+  source?: string | null;
   print_file_missing?: boolean | null;
 };
 
@@ -110,6 +116,8 @@ function rowToOrder(row: DbRow): Order {
     designBackPrintUrl: row.design_back_print_url || undefined,
     previewIssue: row.preview_issue ?? false,
     colorMismatch: row.color_mismatch ?? false,
+    personalization: row.personalization ?? "",
+    source: row.source ?? "",
     printFileMissing: row.print_file_missing ?? false,
   };
 }
@@ -119,7 +127,7 @@ const ORDER_SELECT = `
     o.product_id, o.product_name, o.variant_id, o.variant_title, o.quantity,
     o.design_token, o.preview_url, o.back_preview_url,
     o.production_file_url, o.production_files, o.production_status, o.missing_surcharge, o.created_at, o.updated_at,
-    o.drive_folder_id, o.drive_uploaded_at, o.color_mismatch,
+    o.drive_folder_id, o.drive_uploaded_at, o.color_mismatch, o.personalization, o.source,
     d.front_preview_url AS design_front_preview_url,
     d.back_preview_url  AS design_back_preview_url,
     d.front_print_url   AS design_front_print_url,
@@ -798,8 +806,21 @@ export async function bulkUpdateStatus(ids: string[], status: string): Promise<v
  */
 function pushStatusToPlatform(rows: Array<{ shop: string; shopify_order_id: string }>, status: string) {
   const orders = new Map<string, { shop: string; id: string }>();
+  const etsy = new Map<string, { shop: string; id: string }>();
   for (const r of rows) {
-    if (isWooShop(r.shop) && r.shopify_order_id) orders.set(`${r.shop}|${r.shopify_order_id}`, { shop: r.shop, id: r.shopify_order_id });
+    if (!r.shopify_order_id) continue;
+    // Etsy kanalından gelen sipariş: yalnız "gönderildi" Etsy'ye yazılır
+    if (r.shopify_order_id.startsWith("etsy:")) {
+      if (status === "shipped") etsy.set(`${r.shop}|${r.shopify_order_id}`, { shop: r.shop, id: r.shopify_order_id.slice(5) });
+    } else if (isWooShop(r.shop)) orders.set(`${r.shop}|${r.shopify_order_id}`, { shop: r.shop, id: r.shopify_order_id });
+  }
+  if (etsy.size) {
+    void (async () => {
+      const { markEtsyShipped } = await import("~/models/etsy.server");
+      for (const o of etsy.values()) {
+        await markEtsyShipped(o.shop, o.id).catch((err) => console.error(`[etsy] gönderim yazılamadı ${o.shop} #${o.id}:`, err));
+      }
+    })();
   }
   if (!orders.size) return;
   void (async () => {
@@ -898,7 +919,7 @@ export async function fulfillShopifyOrders(
   await ensureMigrations();
 
   const result = await query<{ shopify_order_id: string }>(
-    "SELECT DISTINCT shopify_order_id FROM orders WHERE shop = $1 AND id = ANY($2) AND shopify_order_id != ''",
+    "SELECT DISTINCT shopify_order_id FROM orders WHERE shop = $1 AND id = ANY($2) AND shopify_order_id != '' AND shopify_order_id NOT LIKE 'etsy:%'",
     [shop, appOrderIds],
   );
 

@@ -458,6 +458,10 @@ async function _runMigrationsLocked() {
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_total_price NUMERIC NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT ''`);
   await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS line_item_id TEXT NOT NULL DEFAULT ''`);
+  // Tasarımsız satırlar (ör. Etsy): müşterinin yazdığı kişiselleştirme metni
+  // ve siparişin geldiği kanal. Kanal boşsa bağlı mağazanın kendisi (Shopify/Woo).
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS personalization TEXT NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT ''`);
 
   // ── Ensure per-line-item unique indexes exist (re-run safe) ─────────────
   // variant_id is not unique inside a Shopify order: two separate line items can

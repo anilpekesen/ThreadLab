@@ -28,10 +28,17 @@ export interface IncomingLine {
   requiresShipping?: boolean;
   props?: KV[];
   extraProps?: KV[];
+  /** Tasarımsız kanallarda müşterinin yazdığı kişiselleştirme (ör. Etsy) */
+  personalization?: string;
 }
 
 export interface IncomingOrder {
   id: string;
+  /**
+   * Siparişin geldiği ek kanal ("etsy"). Verilirse tasarım anahtarı olmayan
+   * satırlar da alınır: üretim ekranı metinle çalışır, dosya sonra hazırlanır.
+   */
+  source?: string;
   name?: string;
   createdAt?: string;
   currency?: string;
@@ -79,7 +86,7 @@ export async function importOrder(shop: string, order: IncomingOrder): Promise<v
   const itemsToProcess =
     designItems.length > 0 ? designItems : lineItems.filter((li) => li.requiresShipping);
 
-  if (!orderToken && designItems.length === 0) return;
+  if (!order.source && !orderToken && designItems.length === 0) return;
   if (itemsToProcess.length === 0) return;
 
   const orderFrontPreviewUrl =
@@ -184,8 +191,8 @@ export async function importOrder(shop: string, order: IncomingOrder): Promise<v
           variant_id, variant_title, line_item_id, quantity, design_token, preview_url,
           production_file_url, production_files, customer_name, customer_email,
           production_status, missing_surcharge, created_at,
-          line_total_price, currency_code, color_mismatch)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending',FALSE,$17,$18,$19,$20)
+          line_total_price, currency_code, color_mismatch, personalization, source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending',FALSE,$17,$18,$19,$20,$21,$22)
        ON CONFLICT DO NOTHING`,
       [
         id,
@@ -208,6 +215,8 @@ export async function importOrder(shop: string, order: IncomingOrder): Promise<v
         lineTotalPrice,
         currencyCode,
         colorMismatch,
+        (item.personalization ?? "").slice(0, 2000),
+        order.source ?? "",
       ],
     );
     console.log(
